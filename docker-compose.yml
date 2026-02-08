@@ -1,0 +1,17 @@
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:latest-v25.1
+    command: start-single-node --insecure
+    ports:
+      - "26257:26257"
+      - "8090:8080"
+    volumes:
+      - cockroach-data:/cockroach/cockroach-data
+    healthcheck:
+      test: ["CMD", "cockroach", "node", "status", "--insecure"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cockroach-data:

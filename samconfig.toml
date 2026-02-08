@@ -1,0 +1,18 @@
+version = 0.1
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+stack_name = "haji-umroh-store-be"
+resolve_s3 = true
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+region = "ap-southeast-1"
+
+[default.local_invoke.parameters]
+env_vars = ".env.lambda.json"
+
+[default.local_start_api.parameters]
+env_vars = ".env.lambda.json"
