@@ -4,69 +4,67 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Development Commands
 
-```bash
-make run                              # Start API server (go run cmd/api/main.go)
-make build                            # Build binary to bin/api
-make test                             # Run all tests (go test -v ./...)
-make tidy                             # Clean Go module dependencies
+| Command | Description |
+|---------|-------------|
+| `make run` | Start API server on port 8080 |
+| `make build` | Build binary to `bin/api` |
+| `make test` | Run all tests (`go test -v ./...`) |
+| `make tidy` | Clean Go module dependencies |
+| `make docker-up` / `make docker-down` | Start/stop CockroachDB |
+| `make db-setup` | Create database and run all migrations |
+| `make migrate-up` / `make migrate-down` | Apply/rollback migrations |
+| `make migrate-create name=<name>` | Create new migration pair |
+| `make seed` | Seed admin user from ADMIN_* env vars |
+| `make sam-build` | Build SAM application for Lambda |
+| `make sam-local` | Start SAM local API |
+| `make sam-deploy` | Deploy to AWS |
 
-make docker-up                        # Start CockroachDB via Docker Compose
-make docker-down                      # Stop Docker Compose services
-make db-create                        # Create haji_umroh_store database in CockroachDB
-
-make migrate-up                       # Apply all pending migrations
-make migrate-down                     # Rollback last migration
-make migrate-create name=<name>       # Create new migration pair in migrations/
-```
-
-**Run a single test:**
-```bash
-go test -v -run TestFunctionName ./internal/usecase/...
-```
-
-**First-time setup:** `make docker-up` → `make db-create` → `make migrate-up` → `make run`
+Run a single test: `go test -v -run TestFunctionName ./path/to/package`
 
 ## Architecture
 
-Clean Architecture with four layers (dependency flows inward):
+Clean Architecture with four layers — dependency flows inward:
 
 ```
-Delivery (internal/delivery/http/)  →  Usecase (internal/usecase/)  →  Domain (internal/domain/)
-                                                                              ↑
-                                       Repository (internal/repository/)  ────┘
+Delivery (HTTP) → Usecase → Domain ← Repository
 ```
 
-- **Domain** (`internal/domain/`): Core entities and interface contracts. No external dependencies.
+- **Domain** (`internal/domain/`): Core entities and interface contracts. Zero external dependencies.
 - **Usecase** (`internal/usecase/`): Business logic implementing domain interfaces.
-- **Repository** (`internal/repository/`): Data access layer implementing domain interfaces (uses GORM).
-- **Delivery** (`internal/delivery/http/`): Gin HTTP handlers, middleware, and route registration.
-- **Infrastructure** (`internal/infrastructure/database/`): Database connection setup (CockroachDB via GORM Postgres driver).
-- **Config** (`internal/config/`): Viper-based configuration loading from `.env` and environment variables.
-- **Response** (`pkg/response/`): Shared JSON response envelope used by all handlers.
+- **Repository** (`internal/repository/`): GORM-based data access implementing domain interfaces.
+- **Delivery** (`internal/delivery/http/`): Gin handlers, middleware, route registration.
+- **Infrastructure** (`internal/infrastructure/database/`): Database connection setup.
+- **Config** (`internal/config/`): Viper-based config loading from `.env` and environment variables.
 
-## Key Patterns
+Wiring happens in `internal/app/app.go` via `Initialize()` which constructs all dependencies and returns an `App` holding Config, DB, and Router.
 
-- **Manual constructor injection** — dependencies are wired in `internal/app/app.go` via `Initialize()`, shared by both entry points. New features follow: create domain interface → implement usecase → implement repository → create handler → inject in `app.go` → register routes in router.
-- **Dual entry points**: `cmd/api/main.go` (HTTP server with graceful shutdown) and `cmd/lambda/main.go` (AWS Lambda via API Gateway v2 proxy). Both call `app.Initialize()` for identical dependency wiring.
-- **Standard response envelope** (`pkg/response/`): all API responses use `response.Success()`, `response.Error()`, `response.Abort()`, etc. with structure `{success, message, data, errors, meta}`.
-- **Middleware chain**: Recovery → CORS → Request ID (UUID via `X-Request-ID` header), applied in `internal/delivery/http/router/router.go`.
-- **Route grouping**: all routes under `/api/v1` group in `internal/delivery/http/router/router.go`.
+### Entry Points
 
-## AWS Lambda / SAM Deployment
+- `cmd/api/main.go` — HTTP server with graceful shutdown
+- `cmd/lambda/main.go` — AWS Lambda handler using `aws-lambda-go-api-proxy`
+- `cmd/seed/main.go` — Admin user seeding utility
 
-```bash
-make build-lambda                     # Cross-compile bootstrap binary for Lambda
-make sam-build                        # Build SAM application
-make sam-local                        # Local testing via SAM (uses .env.lambda.json)
-make sam-deploy                       # Deploy to AWS
-make sam-deploy-guided                # First-time guided deployment
+### Key Patterns
+
+**Constructor injection everywhere:**
+```go
+func NewHealthHandler(uc domain.HealthUseCase) *HealthHandler
+func NewHealthUseCase() domain.HealthUseCase
 ```
 
-Lambda uses `provided.al2023` runtime with API Gateway v2 HTTP API. Configuration is in `template.yaml` (SAM) and `samconfig.toml` (deploy settings, region `ap-southeast-1`). Local Lambda testing uses `host.docker.internal` as DB host to reach the host machine's CockroachDB.
+**Response envelope** (`pkg/response/`): All API responses use `response.OK()`, `response.Created()`, `response.Error()`, `response.BadRequest()`, etc. wrapping data in a consistent `{success, message, data, errors, meta}` JSON structure.
 
-## Tech Stack
+**Middleware chain** (applied in order): Recovery → CORS → RequestID → Auth (optional) → RequireRoles (optional).
 
-- **Go** with **Gin** (HTTP framework), **GORM** (ORM), **Viper** (config)
-- **CockroachDB** v25.1 (PostgreSQL-compatible) — port 26257 for SQL, 8090 for admin UI
-- **golang-migrate** for database migrations (CockroachDB driver)
-- **go.uber.org/mock** for test mocking
+**Authentication**: JWT (HS256) with Bearer tokens. Claims include UserID (UUID), Email, Roles. Passwords hashed with bcrypt.
+
+## Database
+
+- **Engine**: CockroachDB (PostgreSQL-compatible), single-node insecure mode for local dev
+- **ORM**: GORM with `gorm.io/driver/postgres`
+- **Migrations**: SQL files in `migrations/` managed by `golang-migrate` CLI. Migration URL uses `cockroachdb://` scheme.
+- **Schema**: 9 migration sets covering identity/access, vendors, catalog, cart, orders/shipping, payments/refunds, payouts, ledger (double-entry bookkeeping), and indexes.
+
+## Configuration
+
+Viper loads from environment variables (highest priority), then `.env` file, then defaults. Config struct in `internal/config/config.go` with sections: App, Database, JWT, Admin. See `.env.example` for all variables.

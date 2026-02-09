@@ -16,14 +16,15 @@ import (
 
 // Minimal GORM models scoped to this seed script only.
 type User struct {
-	ID           string    `gorm:"column:id;primaryKey"`
-	Email        string    `gorm:"column:email"`
-	FullName     string    `gorm:"column:full_name"`
-	Phone        *string   `gorm:"column:phone"`
-	PasswordHash string    `gorm:"column:password_hash"`
-	Status       string    `gorm:"column:status"`
-	CreatedAt    time.Time `gorm:"column:created_at"`
-	UpdatedAt    time.Time `gorm:"column:updated_at"`
+	ID              string     `gorm:"column:id;primaryKey"`
+	Email           string     `gorm:"column:email"`
+	FullName        string     `gorm:"column:full_name"`
+	Phone           *string    `gorm:"column:phone"`
+	PasswordHash    string     `gorm:"column:password_hash"`
+	Status          string     `gorm:"column:status"`
+	EmailVerifiedAt *time.Time `gorm:"column:email_verified_at"`
+	CreatedAt       time.Time  `gorm:"column:created_at"`
+	UpdatedAt       time.Time  `gorm:"column:updated_at"`
 }
 
 func (User) TableName() string { return "users" }
@@ -107,14 +108,15 @@ func seedAdmin(db *gorm.DB, email, password, name, phone string) error {
 	}
 
 	newUser := User{
-		ID:           userID,
-		Email:        email,
-		FullName:     name,
-		Phone:        phonePtr,
-		PasswordHash: hash,
-		Status:       "active",
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:              userID,
+		Email:           email,
+		FullName:        name,
+		Phone:           phonePtr,
+		PasswordHash:    hash,
+		Status:          "active",
+		EmailVerifiedAt: &now,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 
 	userRole := UserRole{
