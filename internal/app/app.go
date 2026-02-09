@@ -42,7 +42,7 @@ func Initialize() (*App, error) {
 	healthHandler := handler.NewHealthHandler(healthUseCase)
 
 	// Setup router
-	r := router.NewRouter(healthHandler)
+	r := router.NewRouter(healthHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config: cfg,

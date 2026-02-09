@@ -42,10 +42,18 @@ func (d DatabaseConfig) MigrateURL() string {
 	)
 }
 
+// JWTConfig holds JSON Web Token configuration.
+type JWTConfig struct {
+	Secret      string `mapstructure:"JWT_SECRET"`
+	ExpiryHours int    `mapstructure:"JWT_EXPIRY_HOURS"`
+	Issuer      string `mapstructure:"JWT_ISSUER"`
+}
+
 // Config is the root configuration struct containing all configuration sections.
 type Config struct {
 	App      AppConfig      `mapstructure:",squash"`
 	Database DatabaseConfig `mapstructure:",squash"`
+	JWT      JWTConfig      `mapstructure:",squash"`
 }
 
 // Load reads configuration from the .env file and environment variables.
@@ -68,6 +76,9 @@ func Load() (*Config, error) {
 	viper.SetDefault("DB_SSLMODE", "disable")
 	viper.SetDefault("DB_MAX_IDLE_CONNS", 10)
 	viper.SetDefault("DB_MAX_OPEN_CONNS", 100)
+	viper.SetDefault("JWT_SECRET", "")
+	viper.SetDefault("JWT_EXPIRY_HOURS", 24)
+	viper.SetDefault("JWT_ISSUER", "haji-umroh-store-be")
 
 	// Read .env file (ignore error if file doesn't exist)
 	_ = viper.ReadInConfig()
