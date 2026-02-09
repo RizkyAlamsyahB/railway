@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -28,18 +29,32 @@ type DatabaseConfig struct {
 
 // DSN returns the PostgreSQL-compatible connection string for CockroachDB.
 func (d DatabaseConfig) DSN() string {
-	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		d.Host, d.Port, d.User, d.Password, d.Name, d.SSLMode,
-	)
+	return d.buildURL("postgres")
 }
 
 // MigrateURL returns the database URL in the format expected by golang-migrate.
 func (d DatabaseConfig) MigrateURL() string {
-	return fmt.Sprintf(
-		"cockroachdb://%s:%s@%s:%d/%s?sslmode=%s",
-		d.User, d.Password, d.Host, d.Port, d.Name, d.SSLMode,
-	)
+	return d.buildURL("cockroachdb")
+}
+
+func (d DatabaseConfig) buildURL(scheme string) string {
+	u := &url.URL{
+		Scheme: scheme,
+		Host:   fmt.Sprintf("%s:%d", d.Host, d.Port),
+		Path:   "/" + d.Name,
+	}
+
+	if d.Password == "" {
+		u.User = url.User(d.User)
+	} else {
+		u.User = url.UserPassword(d.User, d.Password)
+	}
+
+	q := u.Query()
+	q.Set("sslmode", d.SSLMode)
+	u.RawQuery = q.Encode()
+
+	return u.String()
 }
 
 // JWTConfig holds JSON Web Token configuration.
@@ -49,11 +64,20 @@ type JWTConfig struct {
 	Issuer      string `mapstructure:"JWT_ISSUER"`
 }
 
+// AdminConfig holds seed admin user configuration.
+type AdminConfig struct {
+	Email    string `mapstructure:"ADMIN_EMAIL"`
+	Password string `mapstructure:"ADMIN_PASSWORD"`
+	Name     string `mapstructure:"ADMIN_NAME"`
+	Phone    string `mapstructure:"ADMIN_PHONE"`
+}
+
 // Config is the root configuration struct containing all configuration sections.
 type Config struct {
 	App      AppConfig      `mapstructure:",squash"`
 	Database DatabaseConfig `mapstructure:",squash"`
 	JWT      JWTConfig      `mapstructure:",squash"`
+	Admin    AdminConfig    `mapstructure:",squash"`
 }
 
 // Load reads configuration from the .env file and environment variables.
@@ -79,6 +103,10 @@ func Load() (*Config, error) {
 	viper.SetDefault("JWT_SECRET", "")
 	viper.SetDefault("JWT_EXPIRY_HOURS", 24)
 	viper.SetDefault("JWT_ISSUER", "haji-umroh-store-be")
+	viper.SetDefault("ADMIN_EMAIL", "")
+	viper.SetDefault("ADMIN_PASSWORD", "")
+	viper.SetDefault("ADMIN_NAME", "")
+	viper.SetDefault("ADMIN_PHONE", "")
 
 	// Read .env file (ignore error if file doesn't exist)
 	_ = viper.ReadInConfig()

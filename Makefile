@@ -1,9 +1,13 @@
-include .env
+-include .env
 export
 
+ifeq ($(strip $(DB_PASSWORD)),)
+MIGRATE_URL ?= cockroachdb://$(DB_USER)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+else
 MIGRATE_URL ?= cockroachdb://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+endif
 
-.PHONY: run build test tidy migrate-up migrate-down migrate-create docker-up docker-down db-create build-lambda sam-build sam-local sam-deploy sam-deploy-guided build-ApiFunction
+.PHONY: run build test tidy seed db-setup migrate-up migrate-down migrate-create docker-up docker-down db-create build-lambda sam-build sam-local sam-deploy sam-deploy-guided build-ApiFunction
 
 ## run: Start the API server
 run:
@@ -20,6 +24,13 @@ test:
 ## tidy: Tidy Go modules
 tidy:
 	go mod tidy
+
+## db-setup: Ensure database exists and all migrations are applied
+db-setup: db-create migrate-up
+
+## seed: Seed the admin user from ADMIN_* environment variables
+seed: migrate-up
+	go run cmd/seed/main.go
 
 ## migrate-up: Run all pending database migrations
 migrate-up:
