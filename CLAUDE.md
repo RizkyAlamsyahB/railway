@@ -15,9 +15,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `make migrate-up` / `make migrate-down` | Apply/rollback migrations |
 | `make migrate-create name=<name>` | Create new migration pair |
 | `make seed` | Seed admin user from ADMIN_* env vars |
-| `make sam-build` | Build SAM application for Lambda |
-| `make sam-local` | Start SAM local API |
-| `make sam-deploy` | Deploy to AWS |
 
 Run a single test: `go test -v -run TestFunctionName ./path/to/package`
 
@@ -41,7 +38,6 @@ Wiring happens in `internal/app/app.go` via `Initialize()` which constructs all 
 ### Entry Points
 
 - `cmd/api/main.go` — HTTP server with graceful shutdown
-- `cmd/lambda/main.go` — AWS Lambda handler using `aws-lambda-go-api-proxy`
 - `cmd/seed/main.go` — Admin user seeding utility
 
 ### Key Patterns

@@ -1,6 +1,6 @@
 # Haji Umroh Store BE
 
-Go backend for a Haji/Umroh souvenir e-commerce platform. Built with Clean Architecture, dual deployment support (HTTP server and AWS Lambda), and CockroachDB as the database.
+Go backend for a Haji/Umroh souvenir e-commerce platform. Built with Clean Architecture and CockroachDB as the database.
 
 ## Tech Stack
 
@@ -8,7 +8,6 @@ Go backend for a Haji/Umroh souvenir e-commerce platform. Built with Clean Archi
 - **GORM** ORM with **CockroachDB** (PostgreSQL-compatible)
 - **Viper** for configuration management
 - **golang-migrate** for database migrations
-- **AWS Lambda** via SAM (Serverless Application Model)
 - **go.uber.org/mock** for test mocking
 
 ## Architecture
@@ -31,7 +30,7 @@ Delivery (internal/delivery/http/)  -->  Usecase (internal/usecase/)  -->  Domai
 | Config | `internal/config/` | Viper-based configuration loading from `.env` and environment variables. |
 | Response | `pkg/response/` | Shared JSON response envelope used by all handlers. |
 
-Dependencies are wired in `internal/app/app.go` via the `Initialize()` function, shared by both HTTP server and Lambda entry points.
+Dependencies are wired in `internal/app/app.go` via the `Initialize()` function, used by the HTTP server entry point.
 
 ## Database Design
 
@@ -44,7 +43,6 @@ The schema covers identity & access, vendors, product catalog, cart, orders & sh
 - [Go](https://go.dev/dl/) 1.25+
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 - [golang-migrate](https://github.com/golang-migrate/migrate) CLI
-- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) (for Lambda deployment only)
 
 ## Getting Started
 
@@ -121,7 +119,6 @@ All routes are grouped under `/api/v1`. Responses use a standard JSON envelope: 
 .
 ├── cmd/
 │   ├── api/main.go              # HTTP server entry point
-│   └── lambda/main.go           # AWS Lambda entry point
 ├── internal/
 │   ├── app/app.go               # Dependency wiring
 │   ├── config/                  # Configuration loading
@@ -137,26 +134,6 @@ All routes are grouped under `/api/v1`. Responses use a standard JSON envelope: 
 ├── migrations/                  # SQL migration files
 ├── docs/                        # Documentation and diagrams
 ├── docker-compose.yml           # CockroachDB setup
-├── template.yaml                # AWS SAM template
-├── samconfig.toml               # SAM deployment config
 ├── Makefile                     # Development commands
 └── .env.example                 # Environment variable template
 ```
-
-## AWS Lambda Deployment
-
-The application can be deployed as an AWS Lambda function using SAM.
-
-```bash
-make build-lambda       # Cross-compile bootstrap binary for Lambda
-make sam-build          # Build SAM application
-make sam-deploy-guided  # First-time guided deployment
-make sam-deploy         # Subsequent deployments
-```
-
-For local Lambda testing:
-```bash
-make sam-local          # Uses .env.lambda.json for configuration
-```
-
-The Lambda function uses the `provided.al2023` runtime with an API Gateway v2 HTTP API. Configuration is defined in `template.yaml` and `samconfig.toml` (region: `ap-southeast-1`).

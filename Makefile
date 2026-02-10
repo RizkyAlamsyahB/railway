@@ -7,7 +7,7 @@ else
 MIGRATE_URL ?= cockroachdb://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 endif
 
-.PHONY: run build test tidy seed db-setup migrate-up migrate-down migrate-create docker-up docker-down db-create build-lambda sam-build sam-local sam-deploy sam-deploy-guided build-ApiFunction
+.PHONY: run build test tidy seed db-setup migrate-up migrate-down migrate-create docker-up docker-down db-create
 
 ## run: Start the API server
 run:
@@ -55,27 +55,3 @@ docker-down:
 ## db-create: Create the application database in CockroachDB
 db-create:
 	docker compose exec cockroachdb cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS $(DB_NAME);"
-
-## build-lambda: Cross-compile the Lambda binary for Amazon Linux
-build-lambda:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap cmd/lambda/main.go
-
-## build-ApiFunction: SAM build target (called by SAM BuildMethod: makefile)
-build-ApiFunction:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o $(ARTIFACTS_DIR)/bootstrap cmd/lambda/main.go
-
-## sam-build: Build the SAM application
-sam-build:
-	sam build
-
-## sam-local: Start SAM local API for testing
-sam-local:
-	sam local start-api --env-vars .env.lambda.json
-
-## sam-deploy: Deploy to AWS via SAM
-sam-deploy:
-	sam deploy
-
-## sam-deploy-guided: First-time guided SAM deployment
-sam-deploy-guided:
-	sam deploy --guided

@@ -3,8 +3,6 @@ module github.com/media-inovasi-strategis/haji-umroh-store-be
 go 1.25.6
 
 require (
-	github.com/aws/aws-lambda-go v1.52.0
-	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
