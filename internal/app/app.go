@@ -9,6 +9,7 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/handler"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/router"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/database"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/repository"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 	"gorm.io/gorm"
 )
@@ -41,8 +42,15 @@ func Initialize() (*App, error) {
 	healthUseCase := usecase.NewHealthUseCase()
 	healthHandler := handler.NewHealthHandler(healthUseCase)
 
+	userRepo := repository.NewUserRepository(db)
+	adminUserUseCase := usecase.NewAdminUserUseCase(userRepo)
+	adminUserHandler := handler.NewAdminUserHandler(adminUserUseCase)
+
+	authUseCase := usecase.NewAuthUseCase(userRepo, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
+	authHandler := handler.NewAuthHandler(authUseCase)
+
 	// Setup router
-	r := router.NewRouter(healthHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, authHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config: cfg,

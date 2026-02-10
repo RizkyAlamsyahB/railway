@@ -1,0 +1,967 @@
+openapi: 3.0.3
+info:
+  title: Haji Umroh Store BE - Admin API
+  version: 1.0.0
+  description: Dokumentasi OpenAPI 3 untuk endpoint manajemen user admin.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Admin Users
+    description: Operasi manajemen user untuk role admin.
+security:
+  - BearerAuth: []
+paths:
+  /api/v1/admin/users:
+    post:
+      tags:
+        - Admin Users
+      summary: Membuat user baru
+      operationId: createAdminUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+            example:
+              email: admin.ops@example.com
+              full_name: Admin Operations
+              password: supersecret123
+              phone: "+6281234567890"
+              birth_date: "1990-05-12"
+              role: admin
+      responses:
+        '201':
+          description: User berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessUserEnvelope'
+              example:
+                success: true
+                message: user created successfully
+                data:
+                  id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                  email: admin.ops@example.com
+                  full_name: Admin Operations
+                  birth_date: "1990-05-12T00:00:00Z"
+                  phone: "+6281234567890"
+                  status: active
+                  email_verified_at: "2026-02-10T10:20:30Z"
+                  roles:
+                    - admin
+                  created_at: "2026-02-10T10:20:30Z"
+                  updated_at: "2026-02-10T10:20:30Z"
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal, email sudah ada, atau birth_date tidak valid).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'CreateUserRequest.Password' Error:Field validation for 'Password' failed on the 'min' tag"
+                    meta: null
+                emailExists:
+                  summary: Email sudah terdaftar
+                  value:
+                    success: false
+                    message: email already exists
+                    data: null
+                    errors: null
+                    meta: null
+                invalidBirthDate:
+                  summary: Format birth_date tidak valid
+                  value:
+                    success: false
+                    message: invalid birth_date format, expected YYYY-MM-DD
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidToken:
+                  summary: Token invalid atau expired
+                  value:
+                    success: false
+                    message: invalid or expired token
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                insufficientPermissions:
+                  summary: Akses role tidak cukup
+                  value:
+                    success: false
+                    message: insufficient permissions
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                internalServerError:
+                  summary: Kesalahan server
+                  value:
+                    success: false
+                    message: internal server error
+                    data: null
+                    errors: "failed to create user: database timeout"
+                    meta: null
+    get:
+      tags:
+        - Admin Users
+      summary: Mengambil daftar user dengan pagination dan filter
+      operationId: listAdminUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Nomor halaman (default 1).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Jumlah item per halaman (default 10). Nilai <1 atau >100 akan dinormalisasi server menjadi 10.
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: role
+          in: query
+          description: Filter berdasarkan role user.
+          required: false
+          schema:
+            type: string
+            enum:
+              - admin
+              - umkm
+              - customer
+              - cs
+              - finance
+        - name: status
+          in: query
+          description: Filter berdasarkan status user.
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - active
+              - blocked
+        - name: search
+          in: query
+          description: Pencarian berdasarkan nama lengkap atau email (case-insensitive).
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daftar user berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessUserListEnvelope'
+              example:
+                success: true
+                message: users retrieved successfully
+                data:
+                  - id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                    email: admin.ops@example.com
+                    full_name: Admin Operations
+                    birth_date: "1990-05-12T00:00:00Z"
+                    phone: "+6281234567890"
+                    status: active
+                    email_verified_at: "2026-02-10T10:20:30Z"
+                    roles:
+                      - admin
+                    created_at: "2026-02-10T10:20:30Z"
+                    updated_at: "2026-02-10T10:20:30Z"
+                  - id: 39fbf2d2-c4de-43cf-b833-392cbf11f289
+                    email: cs.team@example.com
+                    full_name: CS Team
+                    birth_date: null
+                    phone: null
+                    status: active
+                    email_verified_at: "2026-02-01T09:00:00Z"
+                    roles:
+                      - cs
+                    created_at: "2026-02-01T09:00:00Z"
+                    updated_at: "2026-02-09T09:00:00Z"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 2
+                  total_pages: 1
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: missing authorization header
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to list users
+                data: null
+                errors: "failed to list users: database timeout"
+                meta: null
+  /api/v1/admin/users/{id}:
+    get:
+      tags:
+        - Admin Users
+      summary: Mengambil detail user berdasarkan ID
+      operationId: getAdminUserById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: ID user dalam format UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detail user berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessUserEnvelope'
+              example:
+                success: true
+                message: user retrieved successfully
+                data:
+                  id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                  email: admin.ops@example.com
+                  full_name: Admin Operations
+                  birth_date: "1990-05-12T00:00:00Z"
+                  phone: "+6281234567890"
+                  status: active
+                  email_verified_at: "2026-02-10T10:20:30Z"
+                  roles:
+                    - admin
+                  created_at: "2026-02-10T10:20:30Z"
+                  updated_at: "2026-02-10T10:20:30Z"
+                errors: null
+                meta: null
+        '400':
+          description: ID user bukan UUID yang valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid user ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: User tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                userNotFound:
+                  summary: User tidak ditemukan
+                  value:
+                    success: false
+                    message: user not found
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: "failed to fetch user: database timeout"
+                meta: null
+    put:
+      tags:
+        - Admin Users
+      summary: Memperbarui data user berdasarkan ID
+      operationId: updateAdminUserById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: ID user dalam format UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            example:
+              full_name: Admin Ops Updated
+              phone: "+628111111111"
+              status: active
+              role: finance
+      responses:
+        '200':
+          description: User berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessUserEnvelope'
+              example:
+                success: true
+                message: user updated successfully
+                data:
+                  id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                  email: admin.ops@example.com
+                  full_name: Admin Ops Updated
+                  birth_date: "1990-05-12T00:00:00Z"
+                  phone: "+628111111111"
+                  status: active
+                  email_verified_at: "2026-02-10T10:20:30Z"
+                  roles:
+                    - finance
+                  created_at: "2026-02-10T10:20:30Z"
+                  updated_at: "2026-02-10T11:00:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (ID UUID salah, validasi payload gagal, atau birth_date tidak valid).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidUserID:
+                  summary: Format UUID tidak valid
+                  value:
+                    success: false
+                    message: invalid user ID
+                    data: null
+                    errors: id must be a valid UUID
+                    meta: null
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'UpdateUserRequest.Status' Error:Field validation for 'Status' failed on the 'oneof' tag"
+                    meta: null
+                invalidBirthDate:
+                  summary: Format birth_date tidak valid
+                  value:
+                    success: false
+                    message: invalid birth_date format, expected YYYY-MM-DD
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: User tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: user not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: "failed to update user: database timeout"
+                meta: null
+    delete:
+      tags:
+        - Admin Users
+      summary: Menghapus user berdasarkan ID
+      operationId: deleteAdminUserById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: ID user dalam format UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNoDataEnvelope'
+              example:
+                success: true
+                message: user deleted successfully
+                data: null
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (ID UUID salah atau mencoba menghapus akun sendiri).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidUserID:
+                  summary: Format UUID tidak valid
+                  value:
+                    success: false
+                    message: invalid user ID
+                    data: null
+                    errors: id must be a valid UUID
+                    meta: null
+                cannotDeleteSelf:
+                  summary: Tidak boleh hapus akun sendiri
+                  value:
+                    success: false
+                    message: cannot delete your own account
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: User tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: user not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: "failed to delete user: database timeout"
+                meta: null
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    RequestIDHeader:
+      description: ID unik request dari middleware RequestID.
+      schema:
+        type: string
+        example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
+  schemas:
+    CreateUserRequest:
+      type: object
+      required:
+        - email
+        - full_name
+        - password
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Email unik user.
+          example: admin.ops@example.com
+        full_name:
+          type: string
+          maxLength: 120
+          description: Nama lengkap user.
+          example: Admin Operations
+        password:
+          type: string
+          minLength: 8
+          description: Password plaintext minimal 8 karakter.
+          example: supersecret123
+        phone:
+          type: string
+          maxLength: 20
+          nullable: true
+          description: Nomor telepon user.
+          example: "+6281234567890"
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          description: Tanggal lahir format YYYY-MM-DD.
+          example: "1990-05-12"
+        role:
+          type: string
+          description: Role awal user.
+          enum:
+            - admin
+            - umkm
+            - customer
+            - cs
+            - finance
+          example: admin
+    UpdateUserRequest:
+      type: object
+      description: Semua field opsional, hanya field yang dikirim yang akan diubah.
+      properties:
+        full_name:
+          type: string
+          maxLength: 120
+          description: Nama lengkap user.
+          example: Admin Ops Updated
+        phone:
+          type: string
+          maxLength: 20
+          nullable: true
+          description: Nomor telepon user.
+          example: "+628111111111"
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          description: Tanggal lahir format YYYY-MM-DD.
+          example: "1990-05-20"
+        status:
+          type: string
+          description: Status user.
+          enum:
+            - pending
+            - active
+            - blocked
+          example: active
+        role:
+          type: string
+          description: Role user.
+          enum:
+            - admin
+            - umkm
+            - customer
+            - cs
+            - finance
+          example: finance
+        password:
+          type: string
+          minLength: 8
+          description: Password baru user.
+          example: newpassword123
+    UserResponse:
+      type: object
+      required:
+        - id
+        - email
+        - full_name
+        - status
+        - roles
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+        email:
+          type: string
+          format: email
+          example: admin.ops@example.com
+        full_name:
+          type: string
+          example: Admin Operations
+        birth_date:
+          type: string
+          format: date-time
+          nullable: true
+          description: Nilai response mengikuti serialisasi time.Time Go.
+          example: "1990-05-12T00:00:00Z"
+        phone:
+          type: string
+          nullable: true
+          example: "+6281234567890"
+        status:
+          type: string
+          enum:
+            - pending
+            - active
+            - blocked
+          example: active
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-10T10:20:30Z"
+        roles:
+          type: array
+          items:
+            type: string
+          example:
+            - admin
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T10:20:30Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T10:20:30Z"
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - limit
+        - total_items
+        - total_pages
+      properties:
+        page:
+          type: integer
+          format: int32
+          example: 1
+        limit:
+          type: integer
+          format: int32
+          example: 10
+        total_items:
+          type: integer
+          format: int64
+          example: 2
+        total_pages:
+          type: integer
+          format: int32
+          example: 1
+    SuccessUserEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: user retrieved successfully
+        data:
+          $ref: '#/components/schemas/UserResponse'
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+        meta:
+          nullable: true
+          description: Selalu null untuk endpoint non-list.
+    SuccessUserListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: users retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    SuccessNoDataEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: user deleted successfully
+        data:
+          nullable: true
+          description: Selalu null.
+          example: null
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+          example: null
+        meta:
+          nullable: true
+          description: Selalu null.
+          example: null
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: validation failed
+        data:
+          nullable: true
+          description: Selalu null pada response error.
+          example: null
+        errors:
+          nullable: true
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+          description: Detail error, bisa string atau object.
+          example: "Key: 'CreateUserRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag"
+        meta:
+          nullable: true
+          description: Selalu null pada response error.
+          example: null
