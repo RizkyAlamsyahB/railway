@@ -72,12 +72,26 @@ type AdminConfig struct {
 	Phone    string `mapstructure:"ADMIN_PHONE"`
 }
 
+// StorageConfig holds object storage configuration.
+type StorageConfig struct {
+	Provider         string `mapstructure:"STORAGE_PROVIDER"`
+	S3Region         string `mapstructure:"STORAGE_S3_REGION"`
+	S3Bucket         string `mapstructure:"STORAGE_S3_BUCKET"`
+	S3AccessKey      string `mapstructure:"STORAGE_S3_ACCESS_KEY"`
+	S3SecretKey      string `mapstructure:"STORAGE_S3_SECRET_KEY"`
+	S3Endpoint       string `mapstructure:"STORAGE_S3_ENDPOINT"`
+	S3ForcePathStyle bool   `mapstructure:"STORAGE_S3_FORCE_PATH_STYLE"`
+	BaseURL          string `mapstructure:"STORAGE_BASE_URL"`
+	UploadMaxSizeMB  int    `mapstructure:"STORAGE_UPLOAD_MAX_SIZE_MB"`
+}
+
 // Config is the root configuration struct containing all configuration sections.
 type Config struct {
 	App      AppConfig      `mapstructure:",squash"`
 	Database DatabaseConfig `mapstructure:",squash"`
 	JWT      JWTConfig      `mapstructure:",squash"`
 	Admin    AdminConfig    `mapstructure:",squash"`
+	Storage  StorageConfig  `mapstructure:",squash"`
 }
 
 // Load reads configuration from the .env file and environment variables.
@@ -107,6 +121,15 @@ func Load() (*Config, error) {
 	viper.SetDefault("ADMIN_PASSWORD", "")
 	viper.SetDefault("ADMIN_NAME", "")
 	viper.SetDefault("ADMIN_PHONE", "")
+	viper.SetDefault("STORAGE_PROVIDER", "s3")
+	viper.SetDefault("STORAGE_S3_REGION", "ap-southeast-1")
+	viper.SetDefault("STORAGE_S3_BUCKET", "")
+	viper.SetDefault("STORAGE_S3_ACCESS_KEY", "")
+	viper.SetDefault("STORAGE_S3_SECRET_KEY", "")
+	viper.SetDefault("STORAGE_S3_ENDPOINT", "")
+	viper.SetDefault("STORAGE_S3_FORCE_PATH_STYLE", false)
+	viper.SetDefault("STORAGE_BASE_URL", "")
+	viper.SetDefault("STORAGE_UPLOAD_MAX_SIZE_MB", 10)
 
 	// Read .env file (ignore error if file doesn't exist)
 	_ = viper.ReadInConfig()

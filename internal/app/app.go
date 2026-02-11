@@ -8,7 +8,9 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/config"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/handler"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/router"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/database"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/storage"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/repository"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 	"gorm.io/gorm"
@@ -16,9 +18,10 @@ import (
 
 // App holds all initialized application components.
 type App struct {
-	Config *config.Config
-	DB     *gorm.DB
-	Router *gin.Engine
+	Config  *config.Config
+	DB      *gorm.DB
+	Storage domain.StorageProvider
+	Router  *gin.Engine
 }
 
 // Initialize loads config, connects to the database, wires all dependencies,
@@ -38,6 +41,14 @@ func Initialize() (*App, error) {
 
 	log.Println("database connected successfully")
 
+	// Initialize storage provider
+	storageProvider, err := newStorageProvider(cfg.Storage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize storage: %w", err)
+	}
+
+	log.Printf("storage provider initialized (provider=%s)", cfg.Storage.Provider)
+
 	// Wire dependencies
 	healthUseCase := usecase.NewHealthUseCase()
 	healthHandler := handler.NewHealthHandler(healthUseCase)
@@ -53,10 +64,21 @@ func Initialize() (*App, error) {
 	r := router.NewRouter(healthHandler, adminUserHandler, authHandler, cfg.JWT.Secret)
 
 	return &App{
-		Config: cfg,
-		DB:     db,
-		Router: r,
+		Config:  cfg,
+		DB:      db,
+		Storage: storageProvider,
+		Router:  r,
 	}, nil
+}
+
+// newStorageProvider creates the appropriate StorageProvider based on config.
+func newStorageProvider(cfg config.StorageConfig) (domain.StorageProvider, error) {
+	switch cfg.Provider {
+	case "s3":
+		return storage.NewS3Storage(cfg)
+	default:
+		return nil, fmt.Errorf("unsupported storage provider: %q", cfg.Provider)
+	}
 }
 
 // Close cleans up application resources.
