@@ -96,14 +96,51 @@ Table "vendors" {
 Table "vendor_documents" {
   "id" UUID [pk, not null]
   "vendor_id" UUID [not null]
-  "doc_type" VARCHAR(40) [not null, note: 'nib, ktp_owner, sertifikat_halal, dll']
+  "doc_type" VARCHAR(40) [not null, note: 'owner_ktp, owner_passport, business_npwp, store_photo, bank_account_proof, business_logo, business_banner']
   "file_url" TEXT [not null]
+  "mime_type" VARCHAR(100)
+  "file_size_bytes" INT
+  "file_checksum" VARCHAR(128)
+  "uploaded_by" UUID
   "verification_status" VARCHAR(16) [not null, default: 'pending']
+  "rejection_reason" TEXT
   "verified_by" UUID
   "verified_at" TIMESTAMPTZ
+  "created_at" TIMESTAMPTZ [not null, default: `now()`]
+  "updated_at" TIMESTAMPTZ [not null, default: `now()`]
 
   Checks {
+    `doc_type IN ('owner_ktp', 'owner_passport', 'business_npwp', 'store_photo', 'bank_account_proof', 'business_logo', 'business_banner')` [name: 'ck_vendor_documents_doc_type']
     `verification_status IN ('pending', 'verified', 'rejected')` [name: 'ck_vendor_documents_verification_status']
+    `(verification_status = 'verified' AND verified_by IS NOT NULL AND verified_at IS NOT NULL) OR (verification_status IN ('pending', 'rejected') AND verified_by IS NULL AND verified_at IS NULL)` [name: 'ck_vendor_documents_verified_consistency']
+  }
+
+  Indexes {
+    (vendor_id, doc_type) [unique, name: "uq_vendor_documents_vendor_doc_type"]
+    (vendor_id, verification_status) [name: "idx_vendor_documents_vendor_status"]
+  }
+}
+
+Table "vendor_bank_accounts" {
+  "id" UUID [pk, not null]
+  "vendor_id" UUID [unique, not null]
+  "bank_name" VARCHAR(120) [not null]
+  "account_number" VARCHAR(60) [not null]
+  "account_holder_name" VARCHAR(160) [not null]
+  "verification_status" VARCHAR(16) [not null, default: 'pending']
+  "rejection_reason" TEXT
+  "verified_by" UUID
+  "verified_at" TIMESTAMPTZ
+  "created_at" TIMESTAMPTZ [not null, default: `now()`]
+  "updated_at" TIMESTAMPTZ [not null, default: `now()`]
+
+  Checks {
+    `verification_status IN ('pending', 'verified', 'rejected')` [name: 'ck_vendor_bank_accounts_verification_status']
+    `(verification_status = 'verified' AND verified_by IS NOT NULL AND verified_at IS NOT NULL) OR (verification_status IN ('pending', 'rejected') AND verified_by IS NULL AND verified_at IS NULL)` [name: 'ck_vendor_bank_accounts_verified_consistency']
+  }
+
+  Indexes {
+    (verification_status) [name: "idx_vendor_bank_accounts_status"]
   }
 }
 
@@ -401,7 +438,10 @@ Ref "fk_vendors_owner":"users"."id" < "vendors"."owner_user_id"
 Ref "fk_vendors_approved_by":"users"."id" < "vendors"."approved_by"
 
 Ref "fk_vendor_documents_vendor":"vendors"."id" < "vendor_documents"."vendor_id"
+Ref "fk_vendor_documents_uploaded_by":"users"."id" < "vendor_documents"."uploaded_by"
 Ref "fk_vendor_documents_verified_by":"users"."id" < "vendor_documents"."verified_by"
+Ref "fk_vendor_bank_accounts_vendor":"vendors"."id" < "vendor_bank_accounts"."vendor_id"
+Ref "fk_vendor_bank_accounts_verified_by":"users"."id" < "vendor_bank_accounts"."verified_by"
 
 Ref "fk_categories_parent":"categories"."id" < "categories"."parent_id"
 
