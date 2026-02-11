@@ -78,8 +78,9 @@ Table "vendors" {
   "id" UUID [pk, not null]
   "owner_user_id" UUID [not null]
   "vendor_type" VARCHAR(32) [not null, default: 'general_souvenir_store']
-  "legal_name" VARCHAR(160) [not null]
+  "legal_name" VARCHAR(160)
   "display_name" VARCHAR(120) [not null]
+  "responsible_person_name" VARCHAR(120) [not null]
   "description" TEXT
   "status" VARCHAR(16) [not null, default: 'draft']
   "approved_by" UUID
@@ -90,6 +91,10 @@ Table "vendors" {
   Checks {
     `vendor_type IN ('umrah_souvenir_store', 'hajj_souvenir_store', 'general_souvenir_store')` [name: 'ck_vendors_vendor_type']
     `status IN ('draft', 'submitted', 'active', 'rejected', 'blocked')` [name: 'ck_vendors_status']
+  }
+
+  Indexes {
+    (owner_user_id) [unique, name: "uq_vendors_owner_user"]
   }
 }
 

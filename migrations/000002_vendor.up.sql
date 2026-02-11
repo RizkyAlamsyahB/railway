@@ -2,8 +2,9 @@ CREATE TABLE vendors (
     id UUID PRIMARY KEY NOT NULL,
     owner_user_id UUID NOT NULL,
     vendor_type VARCHAR(32) NOT NULL DEFAULT 'general_souvenir_store',
-    legal_name VARCHAR(160) NOT NULL,
+    legal_name VARCHAR(160),
     display_name VARCHAR(120) NOT NULL,
+    responsible_person_name VARCHAR(120) NOT NULL,
     description TEXT,
     status VARCHAR(16) NOT NULL DEFAULT 'draft',
     approved_by UUID,
@@ -18,6 +19,7 @@ CREATE TABLE vendors (
         )
     ),
     CONSTRAINT ck_vendors_status CHECK (status IN ('draft', 'submitted', 'active', 'rejected', 'blocked')),
+    CONSTRAINT uq_vendors_owner_user UNIQUE (owner_user_id),
     CONSTRAINT fk_vendors_owner FOREIGN KEY (owner_user_id) REFERENCES users (id),
     CONSTRAINT fk_vendors_approved_by FOREIGN KEY (approved_by) REFERENCES users (id)
 );
