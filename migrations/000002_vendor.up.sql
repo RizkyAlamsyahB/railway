@@ -1,7 +1,7 @@
 CREATE TABLE vendors (
     id UUID PRIMARY KEY NOT NULL,
     owner_user_id UUID NOT NULL,
-    vendor_type VARCHAR(32) NOT NULL DEFAULT 'souvenir_store',
+    vendor_type VARCHAR(32) NOT NULL DEFAULT 'general_souvenir_store',
     legal_name VARCHAR(160) NOT NULL,
     display_name VARCHAR(120) NOT NULL,
     description TEXT,
@@ -10,7 +10,13 @@ CREATE TABLE vendors (
     approved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT ck_vendors_vendor_type CHECK (vendor_type IN ('souvenir_store')),
+    CONSTRAINT ck_vendors_vendor_type CHECK (
+        vendor_type IN (
+            'umrah_souvenir_store',
+            'hajj_souvenir_store',
+            'general_souvenir_store'
+        )
+    ),
     CONSTRAINT ck_vendors_status CHECK (status IN ('draft', 'submitted', 'active', 'rejected', 'blocked')),
     CONSTRAINT fk_vendors_owner FOREIGN KEY (owner_user_id) REFERENCES users (id),
     CONSTRAINT fk_vendors_approved_by FOREIGN KEY (approved_by) REFERENCES users (id)
