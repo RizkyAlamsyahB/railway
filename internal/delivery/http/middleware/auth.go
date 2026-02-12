@@ -11,10 +11,11 @@ import (
 
 // Context keys for storing authenticated user claims.
 const (
-	ContextKeyClaims = "auth_claims"
-	ContextKeyUserID = "auth_user_id"
-	ContextKeyEmail  = "auth_email"
-	ContextKeyRoles  = "auth_roles"
+	ContextKeyClaims   = "auth_claims"
+	ContextKeyUserID   = "auth_user_id"
+	ContextKeyEmail    = "auth_email"
+	ContextKeyRoles    = "auth_roles"
+	ContextKeyVendorID = "auth_vendor_id"
 )
 
 // Auth returns a middleware that validates the JWT Bearer token from the
@@ -44,6 +45,9 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 		c.Set(ContextKeyUserID, claims.UserID)
 		c.Set(ContextKeyEmail, claims.Email)
 		c.Set(ContextKeyRoles, claims.Roles)
+		if claims.VendorID != nil {
+			c.Set(ContextKeyVendorID, *claims.VendorID)
+		}
 
 		c.Next()
 	}

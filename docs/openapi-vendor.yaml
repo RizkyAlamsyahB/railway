@@ -9,6 +9,8 @@ servers:
 tags:
   - name: Vendor Registration
     description: Operasi pendaftaran UMKM baru.
+  - name: Vendor Auth
+    description: Autentikasi vendor.
 paths:
   /api/v1/vendors/register:
     post:
@@ -169,6 +171,129 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/vendors/login:
+    post:
+      tags:
+        - Vendor Auth
+      summary: Login vendor
+      description: |
+        Mengautentikasi vendor menggunakan email dan password.
+        Mengembalikan JWT token yang berisi `user_id`, `email`, `roles`, dan `vendor_id` di claims.
+
+        **Aturan akses:**
+        - User harus memiliki role `umkm`.
+        - User harus memiliki profil vendor yang terhubung.
+        - Semua status vendor diizinkan login **kecuali `blocked`** (draft, submitted, active, rejected).
+      operationId: loginVendor
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorLoginRequest'
+            example:
+              email: toko.mabrur@example.com
+              password: SecurePass123!
+      responses:
+        '200':
+          description: Login berhasil. Response berisi JWT token dan informasi vendor.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorLoginEnvelope'
+              example:
+                success: true
+                message: login successful
+                data:
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  vendor_status: active
+                  display_name: Toko Oleh-Oleh Haji Mabrur
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: validation failed
+                data: null
+                errors: "Key: 'VendorLoginRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
+                meta: null
+        '401':
+          description: Email atau password salah.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid email or password
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Akses ditolak — user bukan vendor, tidak memiliki profil vendor, atau akun vendor diblokir.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                vendorAccessRequired:
+                  summary: User bukan vendor (tidak punya role umkm)
+                  value:
+                    success: false
+                    message: vendor access required
+                    data: null
+                    errors: null
+                    meta: null
+                noVendorProfile:
+                  summary: User tidak memiliki profil vendor
+                  value:
+                    success: false
+                    message: no vendor profile found
+                    data: null
+                    errors: null
+                    meta: null
+                vendorBlocked:
+                  summary: Akun vendor diblokir
+                  value:
+                    success: false
+                    message: vendor account is blocked
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
 components:
   headers:
     RequestIDHeader:
@@ -251,6 +376,53 @@ components:
           maxLength: 160
           description: Nama pemilik rekening sesuai buku tabungan.
           example: Ahmad Subarkah
+    VendorLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email vendor yang terdaftar.
+          example: toko.mabrur@example.com
+        password:
+          type: string
+          description: Password akun vendor.
+          example: SecurePass123!
+    VendorLoginResponse:
+      type: object
+      required:
+        - token
+        - vendor_id
+        - vendor_status
+        - display_name
+      properties:
+        token:
+          type: string
+          description: |
+            JWT token untuk autentikasi. Claims berisi `user_id`, `email`, `roles` (`["umkm"]`),
+            dan `vendor_id`.
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        vendor_status:
+          type: string
+          description: Status vendor saat ini.
+          enum:
+            - draft
+            - submitted
+            - active
+            - rejected
+          example: active
+        display_name:
+          type: string
+          description: Nama toko yang ditampilkan.
+          example: Toko Oleh-Oleh Haji Mabrur
     PresignedUploadInfo:
       type: object
       required:
@@ -326,6 +498,29 @@ components:
           example: vendor registration successful
         data:
           $ref: '#/components/schemas/VendorRegisterResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorLoginEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: login successful
+        data:
+          $ref: '#/components/schemas/VendorLoginResponse'
         errors:
           nullable: true
           example: null

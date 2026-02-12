@@ -104,6 +104,20 @@ type ConfirmDocumentsResponse struct {
 	DocumentsCount int       `json:"documents_confirmed"`
 }
 
+// VendorLoginRequest is the input DTO for vendor authentication.
+type VendorLoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// VendorLoginResponse is the output DTO for a successful vendor authentication.
+type VendorLoginResponse struct {
+	Token        string    `json:"token"`
+	VendorID     uuid.UUID `json:"vendor_id"`
+	VendorStatus string    `json:"vendor_status"`
+	DisplayName  string    `json:"display_name"`
+}
+
 // VendorListParams holds query parameters for listing vendors.
 type VendorListParams struct {
 	Page       int
@@ -214,6 +228,9 @@ type VendorUseCase interface {
 
 	// ConfirmDocuments verifies that documents were uploaded to S3 and marks them as confirmed.
 	ConfirmDocuments(ctx context.Context, userID uuid.UUID, req ConfirmDocumentsRequest) (*ConfirmDocumentsResponse, error)
+
+	// Login authenticates a vendor user and returns a JWT token with vendor claims.
+	Login(ctx context.Context, req VendorLoginRequest) (*VendorLoginResponse, error)
 }
 
 // AdminVendorUseCase defines the interface for admin vendor review operations.

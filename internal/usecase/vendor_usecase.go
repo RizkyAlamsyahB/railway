@@ -14,13 +14,17 @@ import (
 )
 
 var (
-	ErrEmailAlreadyRegistered = errors.New("email already registered")
-	ErrVendorAlreadyExists    = errors.New("user already has a vendor")
-	ErrVendorNotFound         = errors.New("vendor not found")
-	ErrDocumentNotFound       = errors.New("document not found for this vendor")
-	ErrObjectNotUploaded      = errors.New("object not found in storage")
-	ErrInvalidDocumentContent = errors.New("invalid document content type")
-	ErrDocumentSizeOverflow   = errors.New("document file size exceeds supported limit")
+	ErrEmailAlreadyRegistered    = errors.New("email already registered")
+	ErrVendorAlreadyExists       = errors.New("user already has a vendor")
+	ErrVendorNotFound            = errors.New("vendor not found")
+	ErrDocumentNotFound          = errors.New("document not found for this vendor")
+	ErrObjectNotUploaded         = errors.New("object not found in storage")
+	ErrInvalidDocumentContent    = errors.New("invalid document content type")
+	ErrDocumentSizeOverflow      = errors.New("document file size exceeds supported limit")
+	ErrVendorInvalidCredentials  = errors.New("invalid email or password")
+	ErrVendorAccountBlocked      = errors.New("vendor account is blocked")
+	ErrNotVendor                 = errors.New("user does not have vendor access")
+	ErrNoVendorProfile           = errors.New("no vendor profile found for this user")
 )
 
 // Required document types for vendor registration.
@@ -177,7 +181,7 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 	}
 
 	// 7. Generate JWT token.
-	token, err := auth.GenerateToken(userID, user.Email, []string{"umkm"}, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(userID, user.Email, []string{"umkm"}, &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -297,4 +301,60 @@ func normalizeContentType(contentType string) string {
 func isAllowedDocumentContentType(contentType string) bool {
 	_, ok := allowedDocumentContentTypes[contentType]
 	return ok
+}
+
+func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginRequest) (*domain.VendorLoginResponse, error) {
+	// 1. Find user by email.
+	user, err := uc.userRepo.FindByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return nil, ErrVendorInvalidCredentials
+	}
+
+	// 2. Verify password.
+	if err := auth.CheckPassword(req.Password, user.PasswordHash); err != nil {
+		return nil, ErrVendorInvalidCredentials
+	}
+
+	// 3. Check user has "umkm" role.
+	hasUmkm := false
+	roleCodes := make([]string, len(user.Roles))
+	for i, r := range user.Roles {
+		roleCodes[i] = r.Code
+		if r.Code == "umkm" {
+			hasUmkm = true
+		}
+	}
+	if !hasUmkm {
+		return nil, ErrNotVendor
+	}
+
+	// 4. Find vendor by owner_user_id.
+	vendor, err := uc.vendorRepo.FindByOwnerUserID(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrNoVendorProfile
+	}
+
+	// 5. Check vendor status is not "blocked".
+	if vendor.Status == "blocked" {
+		return nil, ErrVendorAccountBlocked
+	}
+
+	// 6. Generate JWT with vendor_id in claims.
+	token, err := auth.GenerateToken(user.ID, user.Email, roleCodes, &vendor.ID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return &domain.VendorLoginResponse{
+		Token:        token,
+		VendorID:     vendor.ID,
+		VendorStatus: vendor.Status,
+		DisplayName:  vendor.DisplayName,
+	}, nil
 }

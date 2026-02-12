@@ -29,10 +29,11 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		authGroup.POST("/login", authHandler.Login)
 	}
 
-	// Vendor routes (public registration)
+	// Vendor routes (public registration + login)
 	vendorGroup := v1.Group("/vendors")
 	{
 		vendorGroup.POST("/register", vendorHandler.Register)
+		vendorGroup.POST("/login", vendorHandler.Login)
 	}
 
 	// Vendor authenticated routes (requires auth + umkm role)

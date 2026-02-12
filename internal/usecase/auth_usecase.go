@@ -61,7 +61,7 @@ func (uc *authUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 		return nil, ErrNotAdmin
 	}
 
-	token, err := auth.GenerateToken(user.ID, user.Email, roleCodes, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(user.ID, user.Email, roleCodes, nil, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}

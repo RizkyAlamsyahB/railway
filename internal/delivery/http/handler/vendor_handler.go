@@ -38,6 +38,23 @@ func (h *VendorHandler) Register(c *gin.Context) {
 	response.Created(c, "vendor registration successful", result)
 }
 
+// Login handles POST /api/v1/vendors/login
+func (h *VendorHandler) Login(c *gin.Context) {
+	var req domain.VendorLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	result, err := h.useCase.Login(c.Request.Context(), req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	response.OK(c, "login successful", result)
+}
+
 // ConfirmDocuments handles POST /api/v1/vendors/documents/confirm
 func (h *VendorHandler) ConfirmDocuments(c *gin.Context) {
 	var req domain.ConfirmDocumentsRequest
@@ -74,6 +91,14 @@ func (h *VendorHandler) handleError(c *gin.Context, err error) {
 		response.BadRequest(c, err.Error(), nil)
 	case errors.Is(err, usecase.ErrDocumentSizeOverflow):
 		response.BadRequest(c, err.Error(), nil)
+	case errors.Is(err, usecase.ErrVendorInvalidCredentials):
+		response.Unauthorized(c, "invalid email or password", nil)
+	case errors.Is(err, usecase.ErrVendorAccountBlocked):
+		response.Forbidden(c, "vendor account is blocked", nil)
+	case errors.Is(err, usecase.ErrNotVendor):
+		response.Forbidden(c, "vendor access required", nil)
+	case errors.Is(err, usecase.ErrNoVendorProfile):
+		response.Forbidden(c, "no vendor profile found", nil)
 	default:
 		response.InternalServerError(c, "internal server error", nil)
 	}

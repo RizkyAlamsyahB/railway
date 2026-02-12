@@ -7,8 +7,9 @@ import (
 
 // Claims represents the custom JWT claims embedded in every access token.
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
-	Email  string    `json:"email"`
-	Roles  []string  `json:"roles"`
+	UserID   uuid.UUID  `json:"user_id"`
+	Email    string     `json:"email"`
+	Roles    []string   `json:"roles"`
+	VendorID *uuid.UUID `json:"vendor_id,omitempty"`
 	jwt.RegisteredClaims
 }
