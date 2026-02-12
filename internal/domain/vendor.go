@@ -19,6 +19,7 @@ type Vendor struct {
 	Status                string     `json:"status"`
 	ApprovedBy            *uuid.UUID `json:"approved_by,omitempty"`
 	ApprovedAt            *time.Time `json:"approved_at,omitempty"`
+	StatusReason          *string    `json:"status_reason,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
 }
@@ -135,6 +136,7 @@ type AdminVendorListItem struct {
 	VendorType            string    `json:"vendor_type"`
 	ResponsiblePersonName string    `json:"responsible_person_name"`
 	Status                string    `json:"status"`
+	StatusReason          *string   `json:"status_reason,omitempty"`
 	OwnerName             string    `json:"owner_name"`
 	OwnerEmail            string    `json:"owner_email"`
 	CreatedAt             time.Time `json:"created_at"`
@@ -187,6 +189,7 @@ type AdminVendorDetailResponse struct {
 	ResponsiblePersonName string                          `json:"responsible_person_name"`
 	Description           *string                         `json:"description,omitempty"`
 	Status                string                          `json:"status"`
+	StatusReason          *string                         `json:"status_reason,omitempty"`
 	ApprovedAt            *time.Time                      `json:"approved_at,omitempty"`
 	CreatedAt             time.Time                       `json:"created_at"`
 	UpdatedAt             time.Time                       `json:"updated_at"`
@@ -218,6 +221,9 @@ type VendorRepository interface {
 	// ConfirmDocumentsAndUpdateStatus updates the given documents and optionally sets the vendor status, all in one transaction.
 	// If newStatus is empty, the vendor status is not changed.
 	ConfirmDocumentsAndUpdateStatus(ctx context.Context, vendorID uuid.UUID, documents []VendorDocument, newStatus string) error
+
+	// UpdateStatus updates the vendor's columns specified in the updates map.
+	UpdateStatus(ctx context.Context, vendorID uuid.UUID, updates map[string]interface{}) error
 }
 
 // VendorUseCase defines the interface for vendor business operations.
@@ -233,6 +239,18 @@ type VendorUseCase interface {
 	Login(ctx context.Context, req VendorLoginRequest) (*VendorLoginResponse, error)
 }
 
+// AdminVendorReasonRequest is the input DTO for reject/block actions that require a reason.
+type AdminVendorReasonRequest struct {
+	Reason string `json:"reason" binding:"required"`
+}
+
+// AdminVendorActionResponse is the output DTO for admin vendor status actions.
+type AdminVendorActionResponse struct {
+	VendorID uuid.UUID `json:"vendor_id"`
+	Status   string    `json:"status"`
+	Message  string    `json:"message"`
+}
+
 // AdminVendorUseCase defines the interface for admin vendor review operations.
 type AdminVendorUseCase interface {
 	// List returns a paginated list of vendors with owner info.
@@ -240,4 +258,16 @@ type AdminVendorUseCase interface {
 
 	// GetByID returns the full vendor detail including owner, bank account, and documents with presigned download URLs.
 	GetByID(ctx context.Context, id uuid.UUID) (*AdminVendorDetailResponse, error)
+
+	// Approve transitions a vendor from submitted/rejected to active.
+	Approve(ctx context.Context, vendorID uuid.UUID, adminID uuid.UUID) (*AdminVendorActionResponse, error)
+
+	// Reject transitions a vendor from submitted to rejected.
+	Reject(ctx context.Context, vendorID uuid.UUID, reason string) (*AdminVendorActionResponse, error)
+
+	// Block transitions a vendor from active/submitted to blocked.
+	Block(ctx context.Context, vendorID uuid.UUID, reason string) (*AdminVendorActionResponse, error)
+
+	// Unblock transitions a vendor from blocked to active.
+	Unblock(ctx context.Context, vendorID uuid.UUID, adminID uuid.UUID) (*AdminVendorActionResponse, error)
 }

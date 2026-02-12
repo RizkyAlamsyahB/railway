@@ -85,6 +85,7 @@ Table "vendors" {
   "status" VARCHAR(16) [not null, default: 'draft']
   "approved_by" UUID
   "approved_at" TIMESTAMPTZ
+  "status_reason" TEXT
   "created_at" TIMESTAMPTZ [not null, default: `now()`]
   "updated_at" TIMESTAMPTZ [not null, default: `now()`]
 

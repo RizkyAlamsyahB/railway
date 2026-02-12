@@ -11,6 +11,8 @@ tags:
     description: Operasi pendaftaran UMKM baru.
   - name: Vendor Auth
     description: Autentikasi vendor.
+  - name: Vendor Documents
+    description: Manajemen dokumen vendor.
 paths:
   /api/v1/vendors/register:
     post:
@@ -294,7 +296,176 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/vendors/documents/confirm:
+    post:
+      tags:
+        - Vendor Documents
+      summary: Konfirmasi upload dokumen vendor
+      description: |
+        Mengkonfirmasi bahwa dokumen-dokumen vendor telah berhasil diupload ke S3 storage.
+        Endpoint ini memverifikasi bahwa file benar-benar ada di S3, memeriksa ukuran dan MIME type,
+        lalu memperbarui status dokumen di database.
+
+        **Aturan:**
+        - Memerlukan autentikasi dengan JWT token (role `umkm`).
+        - Setiap dokumen divalidasi: file harus ada di S3, MIME type harus `image/jpeg`, `image/png`, `image/webp`, atau `application/pdf`.
+        - Ukuran file maksimum 5 MB per dokumen.
+        - Jika semua dokumen wajib (owner_ktp, store_photo, bank_account_proof) telah dikonfirmasi,
+          status vendor akan otomatis berubah dari `draft` menjadi `submitted`.
+
+        **Catatan:** `object_key` didapat dari response saat registrasi (`upload_urls[].object_key`).
+      operationId: confirmVendorDocuments
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmDocumentsRequest'
+            example:
+              documents:
+                - doc_type: owner_ktp
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                - doc_type: store_photo
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/c4d5e6f7-a8b9-0123-def0-345678901234
+                - doc_type: bank_account_proof
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/bank_account_proof/d5e6f7a8-b9c0-1234-ef01-456789012345
+      responses:
+        '200':
+          description: Dokumen berhasil dikonfirmasi.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessConfirmDocumentsEnvelope'
+              example:
+                success: true
+                message: documents confirmed successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  vendor_status: submitted
+                  documents_confirmed: 3
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal, dokumen tidak ditemukan, file belum diupload, MIME type salah, atau file terlalu besar).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'ConfirmDocumentsRequest.Documents' Error:Field validation for 'Documents' failed on the 'required' tag"
+                    meta: null
+                documentNotFound:
+                  summary: Dokumen tidak ditemukan untuk vendor ini
+                  value:
+                    success: false
+                    message: "document not found for this vendor: owner_ktp"
+                    data: null
+                    errors: null
+                    meta: null
+                objectNotUploaded:
+                  summary: File belum diupload ke S3
+                  value:
+                    success: false
+                    message: "object not found in storage: vendors/a1b2c3d4/documents/owner_ktp/uuid"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidMimeType:
+                  summary: MIME type file tidak diizinkan
+                  value:
+                    success: false
+                    message: "invalid document content type: text/plain"
+                    data: null
+                    errors: null
+                    meta: null
+                fileTooLarge:
+                  summary: Ukuran file melebihi batas
+                  value:
+                    success: false
+                    message: "document file size exceeds supported limit: 10485760 bytes"
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Vendor tidak ditemukan untuk user ini.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   headers:
     RequestIDHeader:
       description: ID unik request dari middleware RequestID.
@@ -548,6 +719,85 @@ components:
         errors:
           nullable: true
           description: Detail error atau pesan validasi.
+        meta:
+          nullable: true
+          example: null
+    ConfirmDocumentItem:
+      type: object
+      required:
+        - doc_type
+        - object_key
+      properties:
+        doc_type:
+          type: string
+          description: Tipe dokumen yang dikonfirmasi.
+          enum:
+            - owner_ktp
+            - owner_passport
+            - business_npwp
+            - store_photo
+            - bank_account_proof
+            - business_logo
+            - business_banner
+          example: owner_ktp
+        object_key:
+          type: string
+          description: Object key di S3 yang didapat dari response registrasi (`upload_urls[].object_key`).
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+    ConfirmDocumentsRequest:
+      type: object
+      required:
+        - documents
+      properties:
+        documents:
+          type: array
+          minItems: 1
+          description: Daftar dokumen yang akan dikonfirmasi.
+          items:
+            $ref: '#/components/schemas/ConfirmDocumentItem'
+    ConfirmDocumentsResponse:
+      type: object
+      required:
+        - vendor_id
+        - vendor_status
+        - documents_confirmed
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        vendor_status:
+          type: string
+          description: Status vendor setelah konfirmasi. Berubah ke `submitted` jika semua dokumen wajib telah dikonfirmasi.
+          enum:
+            - draft
+            - submitted
+          example: submitted
+        documents_confirmed:
+          type: integer
+          description: Jumlah dokumen yang berhasil dikonfirmasi.
+          example: 3
+    SuccessConfirmDocumentsEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: documents confirmed successfully
+        data:
+          $ref: '#/components/schemas/ConfirmDocumentsResponse'
+        errors:
+          nullable: true
+          example: null
         meta:
           nullable: true
           example: null

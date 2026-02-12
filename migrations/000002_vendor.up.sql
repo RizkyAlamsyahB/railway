@@ -9,6 +9,7 @@ CREATE TABLE vendors (
     status VARCHAR(16) NOT NULL DEFAULT 'draft',
     approved_by UUID,
     approved_at TIMESTAMPTZ,
+    status_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ck_vendors_vendor_type CHECK (

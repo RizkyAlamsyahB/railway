@@ -25,6 +25,7 @@ var (
 	ErrVendorAccountBlocked      = errors.New("vendor account is blocked")
 	ErrNotVendor                 = errors.New("user does not have vendor access")
 	ErrNoVendorProfile           = errors.New("no vendor profile found for this user")
+	ErrInvalidStatusTransition   = errors.New("invalid status transition")
 )
 
 // Required document types for vendor registration.

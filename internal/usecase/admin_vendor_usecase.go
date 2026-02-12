@@ -54,6 +54,7 @@ func (uc *adminVendorUseCase) List(ctx context.Context, params domain.VendorList
 			VendorType:            v.VendorType,
 			ResponsiblePersonName: v.ResponsiblePersonName,
 			Status:                v.Status,
+			StatusReason:          v.StatusReason,
 			CreatedAt:             v.CreatedAt,
 			UpdatedAt:             v.UpdatedAt,
 		}
@@ -166,11 +167,168 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 		ResponsiblePersonName: vendor.ResponsiblePersonName,
 		Description:           vendor.Description,
 		Status:                vendor.Status,
+		StatusReason:          vendor.StatusReason,
 		ApprovedAt:            vendor.ApprovedAt,
 		CreatedAt:             vendor.CreatedAt,
 		UpdatedAt:             vendor.UpdatedAt,
 		Owner:                 ownerResp,
 		BankAccount:           bankAccountResp,
 		Documents:             docResponses,
+	}, nil
+}
+
+func (uc *adminVendorUseCase) Approve(ctx context.Context, vendorID uuid.UUID, adminID uuid.UUID) (*domain.AdminVendorActionResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+
+	if vendor.Status != "submitted" && vendor.Status != "rejected" {
+		return nil, fmt.Errorf("%w: cannot approve vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
+	}
+
+	now := time.Now()
+	adminIDStr := adminID.String()
+	updates := map[string]interface{}{
+		"status":        "active",
+		"approved_by":   adminIDStr,
+		"approved_at":   now,
+		"status_reason": nil,
+		"updated_at":    now,
+	}
+
+	if err := uc.vendorRepo.UpdateStatus(ctx, vendorID, updates); err != nil {
+		return nil, fmt.Errorf("failed to approve vendor: %w", err)
+	}
+
+	// Update owner user status to active.
+	owner, err := uc.userRepo.FindByID(ctx, vendor.OwnerUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor owner: %w", err)
+	}
+	if owner != nil && owner.Status != "active" {
+		owner.Status = "active"
+		owner.UpdatedAt = now
+		if err := uc.userRepo.Update(ctx, owner); err != nil {
+			return nil, fmt.Errorf("failed to activate vendor owner: %w", err)
+		}
+	}
+
+	return &domain.AdminVendorActionResponse{
+		VendorID: vendorID,
+		Status:   "active",
+		Message:  "vendor approved successfully",
+	}, nil
+}
+
+func (uc *adminVendorUseCase) Reject(ctx context.Context, vendorID uuid.UUID, reason string) (*domain.AdminVendorActionResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+
+	if vendor.Status != "submitted" {
+		return nil, fmt.Errorf("%w: cannot reject vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
+	}
+
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":        "rejected",
+		"status_reason": reason,
+		"updated_at":    now,
+	}
+
+	if err := uc.vendorRepo.UpdateStatus(ctx, vendorID, updates); err != nil {
+		return nil, fmt.Errorf("failed to reject vendor: %w", err)
+	}
+
+	return &domain.AdminVendorActionResponse{
+		VendorID: vendorID,
+		Status:   "rejected",
+		Message:  "vendor rejected successfully",
+	}, nil
+}
+
+func (uc *adminVendorUseCase) Block(ctx context.Context, vendorID uuid.UUID, reason string) (*domain.AdminVendorActionResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+
+	if vendor.Status != "active" && vendor.Status != "submitted" {
+		return nil, fmt.Errorf("%w: cannot block vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
+	}
+
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":        "blocked",
+		"status_reason": reason,
+		"updated_at":    now,
+	}
+
+	if err := uc.vendorRepo.UpdateStatus(ctx, vendorID, updates); err != nil {
+		return nil, fmt.Errorf("failed to block vendor: %w", err)
+	}
+
+	return &domain.AdminVendorActionResponse{
+		VendorID: vendorID,
+		Status:   "blocked",
+		Message:  "vendor blocked successfully",
+	}, nil
+}
+
+func (uc *adminVendorUseCase) Unblock(ctx context.Context, vendorID uuid.UUID, adminID uuid.UUID) (*domain.AdminVendorActionResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+
+	if vendor.Status != "blocked" {
+		return nil, fmt.Errorf("%w: cannot unblock vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
+	}
+
+	now := time.Now()
+	adminIDStr := adminID.String()
+	updates := map[string]interface{}{
+		"status":        "active",
+		"approved_by":   adminIDStr,
+		"approved_at":   now,
+		"status_reason": nil,
+		"updated_at":    now,
+	}
+
+	if err := uc.vendorRepo.UpdateStatus(ctx, vendorID, updates); err != nil {
+		return nil, fmt.Errorf("failed to unblock vendor: %w", err)
+	}
+
+	// Update owner user status to active if not already.
+	owner, err := uc.userRepo.FindByID(ctx, vendor.OwnerUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor owner: %w", err)
+	}
+	if owner != nil && owner.Status != "active" {
+		owner.Status = "active"
+		owner.UpdatedAt = now
+		if err := uc.userRepo.Update(ctx, owner); err != nil {
+			return nil, fmt.Errorf("failed to activate vendor owner: %w", err)
+		}
+	}
+
+	return &domain.AdminVendorActionResponse{
+		VendorID: vendorID,
+		Status:   "active",
+		Message:  "vendor unblocked successfully",
 	}, nil
 }

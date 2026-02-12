@@ -756,6 +756,7 @@ paths:
                     vendor_type: hajj_souvenir_store
                     responsible_person_name: Ahmad Fauzi
                     status: submitted
+                    status_reason: null
                     owner_name: Budi Santoso
                     owner_email: budi@example.com
                     created_at: "2026-02-10T08:00:00Z"
@@ -765,7 +766,8 @@ paths:
                     legal_name: null
                     vendor_type: umrah_souvenir_store
                     responsible_person_name: Siti Aminah
-                    status: submitted
+                    status: rejected
+                    status_reason: Dokumen KTP tidak jelas
                     owner_name: Siti Aminah
                     owner_email: siti@example.com
                     created_at: "2026-02-09T14:00:00Z"
@@ -861,6 +863,7 @@ paths:
                   responsible_person_name: Ahmad Fauzi
                   description: Toko oleh-oleh haji terlengkap di Jakarta
                   status: submitted
+                  status_reason: null
                   approved_at: null
                   created_at: "2026-02-10T08:00:00Z"
                   updated_at: "2026-02-10T09:30:00Z"
@@ -979,6 +982,536 @@ paths:
                 message: failed to get vendor
                 data: null
                 errors: "failed to find vendor: database timeout"
+                meta: null
+  /api/v1/admin/vendors/{id}/approve:
+    patch:
+      tags:
+        - Admin Vendors
+      summary: Menyetujui vendor
+      description: >
+        Mengubah status vendor dari `submitted` atau `rejected` menjadi `active`.
+        Menghapus `status_reason` jika ada, dan menyimpan admin yang menyetujui di `approved_by`/`approved_at`.
+        Status user pemilik vendor juga diubah menjadi `active` jika belum.
+      operationId: approveAdminVendor
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: ID vendor dalam format UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Vendor berhasil disetujui.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorActionEnvelope'
+              example:
+                success: true
+                message: vendor approved successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  status: active
+                  message: vendor approved successfully
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (UUID salah atau transisi status tidak diizinkan).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidVendorID:
+                  summary: Format UUID tidak valid
+                  value:
+                    success: false
+                    message: invalid vendor ID
+                    data: null
+                    errors: id must be a valid UUID
+                    meta: null
+                invalidTransition:
+                  summary: Transisi status tidak valid
+                  value:
+                    success: false
+                    message: "invalid status transition: cannot approve vendor with status \"draft\""
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to approve vendor
+                data: null
+                errors: "failed to approve vendor: database timeout"
+                meta: null
+  /api/v1/admin/vendors/{id}/reject:
+    patch:
+      tags:
+        - Admin Vendors
+      summary: Menolak vendor
+      description: >
+        Mengubah status vendor dari `submitted` menjadi `rejected`.
+        Memerlukan `reason` yang akan disimpan di `status_reason`.
+      operationId: rejectAdminVendor
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: ID vendor dalam format UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminVendorReasonRequest'
+            example:
+              reason: Dokumen KTP tidak valid dan foto toko tidak sesuai
+      responses:
+        '200':
+          description: Vendor berhasil ditolak.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorActionEnvelope'
+              example:
+                success: true
+                message: vendor rejected successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  status: rejected
+                  message: vendor rejected successfully
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (UUID salah, reason kosong, atau transisi status tidak diizinkan).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidVendorID:
+                  summary: Format UUID tidak valid
+                  value:
+                    success: false
+                    message: invalid vendor ID
+                    data: null
+                    errors: id must be a valid UUID
+                    meta: null
+                reasonRequired:
+                  summary: Reason wajib diisi
+                  value:
+                    success: false
+                    message: reason is required
+                    data: null
+                    errors: "Key: 'AdminVendorReasonRequest.Reason' Error:Field validation for 'Reason' failed on the 'required' tag"
+                    meta: null
+                invalidTransition:
+                  summary: Transisi status tidak valid
+                  value:
+                    success: false
+                    message: "invalid status transition: cannot reject vendor with status \"active\""
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to reject vendor
+                data: null
+                errors: "failed to reject vendor: database timeout"
+                meta: null
+  /api/v1/admin/vendors/{id}/block:
+    patch:
+      tags:
+        - Admin Vendors
+      summary: Memblokir vendor
+      description: >
+        Mengubah status vendor dari `active` atau `submitted` menjadi `blocked`.
+        Memerlukan `reason` yang akan disimpan di `status_reason`.
+      operationId: blockAdminVendor
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: ID vendor dalam format UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminVendorReasonRequest'
+            example:
+              reason: Pelanggaran ketentuan layanan
+      responses:
+        '200':
+          description: Vendor berhasil diblokir.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorActionEnvelope'
+              example:
+                success: true
+                message: vendor blocked successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  status: blocked
+                  message: vendor blocked successfully
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (UUID salah, reason kosong, atau transisi status tidak diizinkan).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidVendorID:
+                  summary: Format UUID tidak valid
+                  value:
+                    success: false
+                    message: invalid vendor ID
+                    data: null
+                    errors: id must be a valid UUID
+                    meta: null
+                reasonRequired:
+                  summary: Reason wajib diisi
+                  value:
+                    success: false
+                    message: reason is required
+                    data: null
+                    errors: "Key: 'AdminVendorReasonRequest.Reason' Error:Field validation for 'Reason' failed on the 'required' tag"
+                    meta: null
+                invalidTransition:
+                  summary: Transisi status tidak valid
+                  value:
+                    success: false
+                    message: "invalid status transition: cannot block vendor with status \"draft\""
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to block vendor
+                data: null
+                errors: "failed to block vendor: database timeout"
+                meta: null
+  /api/v1/admin/vendors/{id}/unblock:
+    patch:
+      tags:
+        - Admin Vendors
+      summary: Membuka blokir vendor
+      description: >
+        Mengubah status vendor dari `blocked` menjadi `active`.
+        Menghapus `status_reason` dan menyimpan admin yang membuka blokir di `approved_by`/`approved_at`.
+        Status user pemilik vendor juga diubah menjadi `active` jika belum.
+      operationId: unblockAdminVendor
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: ID vendor dalam format UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Vendor berhasil dibuka blokirnya.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorActionEnvelope'
+              example:
+                success: true
+                message: vendor unblocked successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  status: active
+                  message: vendor unblocked successfully
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (UUID salah atau transisi status tidak diizinkan).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidVendorID:
+                  summary: Format UUID tidak valid
+                  value:
+                    success: false
+                    message: invalid vendor ID
+                    data: null
+                    errors: id must be a valid UUID
+                    meta: null
+                invalidTransition:
+                  summary: Transisi status tidak valid
+                  value:
+                    success: false
+                    message: "invalid status transition: cannot unblock vendor with status \"active\""
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to unblock vendor
+                data: null
+                errors: "failed to unblock vendor: database timeout"
                 meta: null
 components:
   securitySchemes:
@@ -1313,6 +1846,11 @@ components:
             - rejected
             - blocked
           example: submitted
+        status_reason:
+          type: string
+          nullable: true
+          description: Alasan reject/block yang diberikan admin. Null jika tidak ada.
+          example: null
         owner_name:
           type: string
           description: Nama lengkap pemilik vendor (dari tabel users).
@@ -1526,6 +2064,11 @@ components:
             - rejected
             - blocked
           example: submitted
+        status_reason:
+          type: string
+          nullable: true
+          description: Alasan reject/block yang diberikan admin. Null jika tidak ada.
+          example: null
         approved_at:
           type: string
           format: date-time
@@ -1596,3 +2139,59 @@ components:
         meta:
           nullable: true
           description: Selalu null untuk endpoint detail.
+    AdminVendorReasonRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          description: Alasan reject atau block vendor.
+          example: Dokumen KTP tidak valid dan foto toko tidak sesuai
+    AdminVendorActionResponse:
+      type: object
+      required:
+        - vendor_id
+        - status
+        - message
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor yang statusnya diubah.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        status:
+          type: string
+          description: Status vendor setelah perubahan.
+          enum:
+            - active
+            - rejected
+            - blocked
+          example: active
+        message:
+          type: string
+          description: Pesan deskriptif.
+          example: vendor approved successfully
+    SuccessVendorActionEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor approved successfully
+        data:
+          $ref: '#/components/schemas/AdminVendorActionResponse'
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+        meta:
+          nullable: true
+          description: Selalu null.

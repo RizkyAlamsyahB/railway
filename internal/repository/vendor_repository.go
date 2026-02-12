@@ -24,6 +24,7 @@ type vendorModel struct {
 	Status                string     `gorm:"column:status"`
 	ApprovedBy            *string    `gorm:"column:approved_by"`
 	ApprovedAt            *time.Time `gorm:"column:approved_at"`
+	StatusReason          *string    `gorm:"column:status_reason"`
 	CreatedAt             time.Time  `gorm:"column:created_at"`
 	UpdatedAt             time.Time  `gorm:"column:updated_at"`
 }
@@ -201,6 +202,12 @@ func (r *vendorRepository) ConfirmDocumentsAndUpdateStatus(ctx context.Context, 
 	})
 }
 
+func (r *vendorRepository) UpdateStatus(ctx context.Context, vendorID uuid.UUID, updates map[string]interface{}) error {
+	return r.db.WithContext(ctx).Model(&vendorModel{}).
+		Where("id = ?", vendorID.String()).
+		Updates(updates).Error
+}
+
 // Mapper helpers.
 
 func toVendorModel(v *domain.Vendor) vendorModel {
@@ -213,6 +220,7 @@ func toVendorModel(v *domain.Vendor) vendorModel {
 		ResponsiblePersonName: v.ResponsiblePersonName,
 		Description:           v.Description,
 		Status:                v.Status,
+		StatusReason:          v.StatusReason,
 		CreatedAt:             v.CreatedAt,
 		UpdatedAt:             v.UpdatedAt,
 	}
@@ -237,6 +245,7 @@ func toDomainVendor(m *vendorModel) *domain.Vendor {
 		ResponsiblePersonName: m.ResponsiblePersonName,
 		Description:           m.Description,
 		Status:                m.Status,
+		StatusReason:          m.StatusReason,
 		ApprovedAt:            m.ApprovedAt,
 		CreatedAt:             m.CreatedAt,
 		UpdatedAt:             m.UpdatedAt,

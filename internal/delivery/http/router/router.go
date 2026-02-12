@@ -57,6 +57,10 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 
 		admin.GET("/vendors", adminVendorHandler.List)
 		admin.GET("/vendors/:id", adminVendorHandler.GetByID)
+		admin.PATCH("/vendors/:id/approve", adminVendorHandler.Approve)
+		admin.PATCH("/vendors/:id/reject", adminVendorHandler.Reject)
+		admin.PATCH("/vendors/:id/block", adminVendorHandler.Block)
+		admin.PATCH("/vendors/:id/unblock", adminVendorHandler.Unblock)
 	}
 
 	return r
