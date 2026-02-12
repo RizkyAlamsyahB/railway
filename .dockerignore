@@ -1,0 +1,24 @@
+.git
+.gitignore
+.env
+.env.example
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+bin/
+docs/
+*.md
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test artifacts
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov

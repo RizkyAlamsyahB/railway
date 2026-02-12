@@ -2,65 +2,98 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Build & Development Commands
+## Project Overview
 
-| Command | Description |
-|---------|-------------|
-| `make run` | Start API server on port 8080 |
-| `make build` | Build binary to `bin/api` |
-| `make test` | Run all tests (`go test -v ./...`) |
-| `make tidy` | Clean Go module dependencies |
-| `make docker-up` / `make docker-down` | Start/stop PostgreSQL |
-| `make db-setup` | Create database and run all migrations |
-| `make migrate-up` / `make migrate-down` | Apply/rollback migrations |
-| `make migrate-create name=<name>` | Create new migration pair |
-| `make seed` | Seed admin user from ADMIN_* env vars |
+Go backend for a Haji/Umroh souvenir e-commerce marketplace. Built with Clean Architecture, Gin, GORM, and PostgreSQL.
 
-Run a single test: `go test -v -run TestFunctionName ./path/to/package`
+## Development Commands
+
+```bash
+make run                          # Start API server (go run cmd/api/main.go)
+make build                        # Build binary to bin/api
+make test                         # Run all tests (go test ./... -v)
+make tidy                         # Clean Go module dependencies
+
+# Run a single test
+go test -v -run TestFunctionName ./path/to/package/...
+
+# Database
+make docker-up                    # Start PostgreSQL via Docker Compose
+make docker-down                  # Stop Docker Compose services
+make db-setup                     # Create database + apply all migrations
+make db-create                    # Create database in PostgreSQL
+make migrate-up                   # Apply all pending migrations
+make migrate-down                 # Rollback last migration
+make migrate-create name=xxx      # Create new migration pair in migrations/
+
+# Seeding
+make seed                         # Seed admin user from ADMIN_* env vars
+```
 
 ## Architecture
 
-Clean Architecture with four layers — dependency flows inward:
+Clean Architecture with strict inward dependency flow. All wiring happens in `internal/app/app.go` via constructor injection.
 
 ```
-Delivery (HTTP) → Usecase → Domain ← Repository
+Delivery (HTTP handlers)  →  Usecase (business logic)  →  Domain (entities + interfaces)
+                                                                     ↑
+                              Repository (GORM data access)  ────────┘
 ```
 
-- **Domain** (`internal/domain/`): Core entities and interface contracts. Zero external dependencies.
-- **Usecase** (`internal/usecase/`): Business logic implementing domain interfaces.
-- **Repository** (`internal/repository/`): GORM-based data access implementing domain interfaces.
-- **Delivery** (`internal/delivery/http/`): Gin handlers, middleware, route registration.
-- **Infrastructure** (`internal/infrastructure/database/`): Database connection setup.
-- **Config** (`internal/config/`): Viper-based config loading from `.env` and environment variables.
+### Layer conventions
 
-Wiring happens in `internal/app/app.go` via `Initialize()` which constructs all dependencies and returns an `App` holding Config, DB, and Router.
+| Layer | Path | Pattern |
+|---|---|---|
+| Domain | `internal/domain/` | Entities, DTOs, and Go interface contracts. Zero external imports. |
+| Usecase | `internal/usecase/` | Implements domain interfaces. Receives repos/providers via constructor. |
+| Repository | `internal/repository/` | GORM queries with transaction support for multi-entity ops. |
+| Delivery | `internal/delivery/http/handler/` | Gin handlers: bind input → call usecase → return JSON envelope. |
+| Middleware | `internal/delivery/http/middleware/` | Recovery, CORS, RequestID, JWT Auth, RequireRoles. |
+| Router | `internal/delivery/http/router/` | Gin route groups with middleware composition. |
+| Infrastructure | `internal/infrastructure/` | Database connection (GORM/PostgreSQL), S3 storage provider. |
+| Config | `internal/config/` | Viper-based loading from `.env` and env vars. |
+| Response | `pkg/response/` | Shared JSON envelope: `{success, message, data, errors, meta}`. |
+| Auth utils | `pkg/utils/auth/` | JWT generation/validation (HS256), bcrypt password hashing. |
 
-### Entry Points
+### Adding a new feature (typical flow)
 
-- `cmd/api/main.go` — HTTP server with graceful shutdown
-- `cmd/seed/main.go` — Admin user seeding utility
+1. Define entity structs and interface in `internal/domain/`
+2. Implement repository in `internal/repository/`
+3. Implement usecase in `internal/usecase/`
+4. Create handler in `internal/delivery/http/handler/`
+5. Register routes in `internal/delivery/http/router/router.go`
+6. Wire dependencies in `internal/app/app.go`
 
-### Key Patterns
+### Authentication & authorization
 
-**Constructor injection everywhere:**
-```go
-func NewHealthHandler(uc domain.HealthUseCase) *HealthHandler
-func NewHealthUseCase() domain.HealthUseCase
-```
+- JWT (HS256) with Bearer token in Authorization header.
+- Claims contain: `user_id`, `email`, `roles` ([]string), `vendor_id` (optional for umkm role).
+- Middleware stores claims in Gin context under keys: `ContextKeyClaims`, `ContextKeyUserID`, `ContextKeyEmail`, `ContextKeyRoles`, `ContextKeyVendorID`.
+- Role-based access via `middleware.RequireRoles("admin")` etc.
+- Roles: `admin`, `umkm`, `customer`, `cs`, `finance`.
 
-**Response envelope** (`pkg/response/`): All API responses use `response.OK()`, `response.Created()`, `response.Error()`, `response.BadRequest()`, etc. wrapping data in a consistent `{success, message, data, errors, meta}` JSON structure.
+### Key domain models
 
-**Middleware chain** (applied in order): Recovery → CORS → RequestID → Auth (optional) → RequireRoles (optional).
+- **User**: status (pending/active/blocked), M:M with roles via user_roles table.
+- **Vendor**: types (umrah_souvenir_store, hajj_souvenir_store, general_souvenir_store), status workflow: draft → submitted → active/rejected/blocked.
+- **VendorDocument**: 7 required document types (owner_ktp, owner_passport, business_npwp, store_photo, bank_account_proof, business_logo, business_banner). S3-backed file storage with presigned URLs.
+- **VendorBankAccount**: 1:1 with vendor, has verification status.
 
-**Authentication**: JWT (HS256) with Bearer tokens. Claims include UserID (UUID), Email, Roles. Passwords hashed with bcrypt.
+### Response pattern
+
+All handlers use `pkg/response/` helpers (`response.OK()`, `response.Created()`, `response.BadRequest()`, etc.) which return a standard JSON envelope.
 
 ## Database
 
-- **Engine**: PostgreSQL 17
-- **ORM**: GORM with `gorm.io/driver/postgres`
-- **Migrations**: SQL files in `migrations/` managed by `golang-migrate` CLI. Migration URL uses `postgres://` scheme.
-- **Schema**: 9 migration sets covering identity/access, vendors, catalog, cart, orders/shipping, payments/refunds, payouts, ledger (double-entry bookkeeping), and indexes.
+- PostgreSQL 17 via Docker Compose (`docker-compose.yml`).
+- Migrations managed with `golang-migrate` CLI, stored in `migrations/` as sequential `.up.sql`/`.down.sql` pairs.
+- GORM models use string UUIDs and `time.Time` for timestamps.
 
 ## Configuration
 
-Viper loads from environment variables (highest priority), then `.env` file, then defaults. Config struct in `internal/config/config.go` with sections: App, Database, JWT, Admin. See `.env.example` for all variables.
+Environment variables loaded from `.env` via Viper. See `.env.example` for all available variables. Key groups: `APP_*`, `DB_*`, `JWT_*`, `ADMIN_*`, `STORAGE_*`.
+
+## Testing
+
+- Standard Go `testing` package with `go.uber.org/mock` for interface mocking.
+- Existing tests in `pkg/utils/auth/` cover JWT and password utilities.
