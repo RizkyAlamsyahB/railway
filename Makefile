@@ -2,9 +2,9 @@
 export
 
 ifeq ($(strip $(DB_PASSWORD)),)
-MIGRATE_URL ?= cockroachdb://$(DB_USER)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+MIGRATE_URL ?= postgres://$(DB_USER)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 else
-MIGRATE_URL ?= cockroachdb://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+MIGRATE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 endif
 
 .PHONY: run build test tidy seed db-setup migrate-up migrate-down migrate-create docker-up docker-down db-create
@@ -52,6 +52,6 @@ docker-up:
 docker-down:
 	docker compose down
 
-## db-create: Create the application database in CockroachDB
+## db-create: Create the application database in PostgreSQL
 db-create:
-	docker compose exec cockroachdb cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS $(DB_NAME);"
+	docker compose exec postgres psql -U $(DB_USER) -c "CREATE DATABASE $(DB_NAME);" 2>/dev/null || true

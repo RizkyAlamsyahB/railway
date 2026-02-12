@@ -1,17 +1,19 @@
 services:
-  cockroachdb:
-    image: cockroachdb/cockroach:latest-v25.1
-    command: start-single-node --insecure
+  postgres:
+    image: postgres:17-alpine
     ports:
-      - "26257:26257"
-      - "8090:8080"
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: haji_umroh_store
     volumes:
-      - cockroach-data:/cockroach/cockroach-data
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "cockroach", "node", "status", "--insecure"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
-  cockroach-data:
+  postgres-data:

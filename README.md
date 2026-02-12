@@ -1,11 +1,11 @@
 # Haji Umroh Store BE
 
-Go backend for a Haji/Umroh souvenir e-commerce platform. Built with Clean Architecture and CockroachDB as the database.
+Go backend for a Haji/Umroh souvenir e-commerce platform. Built with Clean Architecture and PostgreSQL as the database.
 
 ## Tech Stack
 
 - **Go** (1.25+) with **Gin** HTTP framework
-- **GORM** ORM with **CockroachDB** (PostgreSQL-compatible)
+- **GORM** ORM with **PostgreSQL**
 - **Viper** for configuration management
 - **golang-migrate** for database migrations
 - **go.uber.org/mock** for test mocking
@@ -26,7 +26,7 @@ Delivery (internal/delivery/http/)  -->  Usecase (internal/usecase/)  -->  Domai
 | Usecase | `internal/usecase/` | Business logic implementing domain interfaces. |
 | Repository | `internal/repository/` | Data access layer (GORM-based). |
 | Delivery | `internal/delivery/http/` | Gin HTTP handlers, middleware, and route registration. |
-| Infrastructure | `internal/infrastructure/database/` | Database connection setup (CockroachDB via GORM Postgres driver). |
+| Infrastructure | `internal/infrastructure/database/` | Database connection setup (PostgreSQL via GORM). |
 | Config | `internal/config/` | Viper-based configuration loading from `.env` and environment variables. |
 | Response | `pkg/response/` | Shared JSON response envelope used by all handlers. |
 
@@ -75,9 +75,9 @@ The API server will be available at `http://localhost:8080`.
 | `APP_PORT` | `8080` | HTTP server port |
 | `APP_ENV` | `development` | Environment (development/production) |
 | `DB_HOST` | `localhost` | Database host |
-| `DB_PORT` | `26257` | Database port |
-| `DB_USER` | `root` | Database user |
-| `DB_PASSWORD` | _(empty)_ | Database password |
+| `DB_PORT` | `5432` | Database port |
+| `DB_USER` | `postgres` | Database user |
+| `DB_PASSWORD` | `postgres` | Database password |
 | `DB_NAME` | `haji_umroh_store` | Database name |
 | `DB_SSLMODE` | `disable` | SSL mode |
 | `DB_MAX_IDLE_CONNS` | `10` | Max idle connections |
@@ -91,9 +91,9 @@ The API server will be available at `http://localhost:8080`.
 | `make build` | Build binary to `bin/api` |
 | `make test` | Run all tests (`go test -v ./...`) |
 | `make tidy` | Clean Go module dependencies |
-| `make docker-up` | Start CockroachDB via Docker Compose |
+| `make docker-up` | Start PostgreSQL via Docker Compose |
 | `make docker-down` | Stop Docker Compose services |
-| `make db-create` | Create `haji_umroh_store` database in CockroachDB |
+| `make db-create` | Create `haji_umroh_store` database in PostgreSQL |
 | `make migrate-up` | Apply all pending migrations |
 | `make migrate-down` | Rollback last migration |
 | `make migrate-create name=<name>` | Create new migration pair in `migrations/` |
@@ -133,7 +133,7 @@ All routes are grouped under `/api/v1`. Responses use a standard JSON envelope: 
 ├── pkg/response/                # Shared JSON response helpers
 ├── migrations/                  # SQL migration files
 ├── docs/                        # Documentation and diagrams
-├── docker-compose.yml           # CockroachDB setup
+├── docker-compose.yml           # PostgreSQL setup
 ├── Makefile                     # Development commands
 └── .env.example                 # Environment variable template
 ```

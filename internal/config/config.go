@@ -27,14 +27,14 @@ type DatabaseConfig struct {
 	MaxOpenConns int    `mapstructure:"DB_MAX_OPEN_CONNS"`
 }
 
-// DSN returns the PostgreSQL-compatible connection string for CockroachDB.
+// DSN returns the PostgreSQL connection string.
 func (d DatabaseConfig) DSN() string {
 	return d.buildURL("postgres")
 }
 
 // MigrateURL returns the database URL in the format expected by golang-migrate.
 func (d DatabaseConfig) MigrateURL() string {
-	return d.buildURL("cockroachdb")
+	return d.buildURL("postgres")
 }
 
 func (d DatabaseConfig) buildURL(scheme string) string {
@@ -107,9 +107,9 @@ func Load() (*Config, error) {
 	viper.SetDefault("APP_PORT", 8080)
 	viper.SetDefault("APP_ENV", "development")
 	viper.SetDefault("DB_HOST", "localhost")
-	viper.SetDefault("DB_PORT", 26257)
-	viper.SetDefault("DB_USER", "root")
-	viper.SetDefault("DB_PASSWORD", "")
+	viper.SetDefault("DB_PORT", 5432)
+	viper.SetDefault("DB_USER", "postgres")
+	viper.SetDefault("DB_PASSWORD", "postgres")
 	viper.SetDefault("DB_NAME", "haji_umroh_store")
 	viper.SetDefault("DB_SSLMODE", "disable")
 	viper.SetDefault("DB_MAX_IDLE_CONNS", 10)

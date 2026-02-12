@@ -10,8 +10,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// NewConnection establishes a GORM database connection to CockroachDB
-// using the PostgreSQL-compatible driver.
+// NewConnection establishes a GORM database connection to PostgreSQL.
 func NewConnection(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	logLevel := logger.Info
 

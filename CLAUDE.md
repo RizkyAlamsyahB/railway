@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `make build` | Build binary to `bin/api` |
 | `make test` | Run all tests (`go test -v ./...`) |
 | `make tidy` | Clean Go module dependencies |
-| `make docker-up` / `make docker-down` | Start/stop CockroachDB |
+| `make docker-up` / `make docker-down` | Start/stop PostgreSQL |
 | `make db-setup` | Create database and run all migrations |
 | `make migrate-up` / `make migrate-down` | Apply/rollback migrations |
 | `make migrate-create name=<name>` | Create new migration pair |
@@ -56,9 +56,9 @@ func NewHealthUseCase() domain.HealthUseCase
 
 ## Database
 
-- **Engine**: CockroachDB (PostgreSQL-compatible), single-node insecure mode for local dev
+- **Engine**: PostgreSQL 17
 - **ORM**: GORM with `gorm.io/driver/postgres`
-- **Migrations**: SQL files in `migrations/` managed by `golang-migrate` CLI. Migration URL uses `cockroachdb://` scheme.
+- **Migrations**: SQL files in `migrations/` managed by `golang-migrate` CLI. Migration URL uses `postgres://` scheme.
 - **Schema**: 9 migration sets covering identity/access, vendors, catalog, cart, orders/shipping, payments/refunds, payouts, ledger (double-entry bookkeeping), and indexes.
 
 ## Configuration
