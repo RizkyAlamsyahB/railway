@@ -64,8 +64,11 @@ func Initialize() (*App, error) {
 	vendorUseCase := usecase.NewVendorUseCase(userRepo, vendorRepo, storageProvider, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	vendorHandler := handler.NewVendorHandler(vendorUseCase)
 
+	adminVendorUseCase := usecase.NewAdminVendorUseCase(vendorRepo, userRepo, storageProvider)
+	adminVendorHandler := handler.NewAdminVendorHandler(adminVendorUseCase)
+
 	// Setup router
-	r := router.NewRouter(healthHandler, adminUserHandler, authHandler, vendorHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, authHandler, vendorHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:  cfg,

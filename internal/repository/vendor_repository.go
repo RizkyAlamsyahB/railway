@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -105,6 +106,60 @@ func (r *vendorRepository) FindByOwnerUserID(ctx context.Context, userID uuid.UU
 		return nil, err
 	}
 	return toDomainVendor(&model), nil
+}
+
+func (r *vendorRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Vendor, error) {
+	var model vendorModel
+	if err := r.db.WithContext(ctx).Where("id = ?", id.String()).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainVendor(&model), nil
+}
+
+func (r *vendorRepository) List(ctx context.Context, params domain.VendorListParams) ([]domain.Vendor, int64, error) {
+	query := r.db.WithContext(ctx).Model(&vendorModel{})
+
+	if params.Status != "" {
+		query = query.Where("status = ?", params.Status)
+	}
+	if params.VendorType != "" {
+		query = query.Where("vendor_type = ?", params.VendorType)
+	}
+	if params.Search != "" {
+		search := "%" + strings.ToLower(params.Search) + "%"
+		query = query.Where("(LOWER(display_name) LIKE ? OR LOWER(legal_name) LIKE ?)", search, search)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var models []vendorModel
+	offset := (params.Page - 1) * params.Limit
+	if err := query.Order("created_at DESC").Offset(offset).Limit(params.Limit).Find(&models).Error; err != nil {
+		return nil, 0, err
+	}
+
+	vendors := make([]domain.Vendor, len(models))
+	for i, m := range models {
+		vendors[i] = *toDomainVendor(&m)
+	}
+	return vendors, total, nil
+}
+
+func (r *vendorRepository) FindBankAccountByVendorID(ctx context.Context, vendorID uuid.UUID) (*domain.VendorBankAccount, error) {
+	var model vendorBankAccountModel
+	if err := r.db.WithContext(ctx).Where("vendor_id = ?", vendorID.String()).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainVendorBankAccount(&model), nil
 }
 
 func (r *vendorRepository) FindDocumentsByVendorID(ctx context.Context, vendorID uuid.UUID) ([]domain.VendorDocument, error) {
@@ -211,6 +266,29 @@ func toVendorBankAccountModel(ba *domain.VendorBankAccount) vendorBankAccountMod
 	}
 	m.VerifiedAt = ba.VerifiedAt
 	return m
+}
+
+func toDomainVendorBankAccount(m *vendorBankAccountModel) *domain.VendorBankAccount {
+	id, _ := uuid.Parse(m.ID)
+	vendorID, _ := uuid.Parse(m.VendorID)
+
+	ba := &domain.VendorBankAccount{
+		ID:                 id,
+		VendorID:           vendorID,
+		BankName:           m.BankName,
+		AccountNumber:      m.AccountNumber,
+		AccountHolderName:  m.AccountHolderName,
+		VerificationStatus: m.VerificationStatus,
+		RejectionReason:    m.RejectionReason,
+		VerifiedAt:         m.VerifiedAt,
+		CreatedAt:          m.CreatedAt,
+		UpdatedAt:          m.UpdatedAt,
+	}
+	if m.VerifiedBy != nil {
+		verifiedBy, _ := uuid.Parse(*m.VerifiedBy)
+		ba.VerifiedBy = &verifiedBy
+	}
+	return ba
 }
 
 func toVendorDocumentModel(d *domain.VendorDocument) vendorDocumentModel {

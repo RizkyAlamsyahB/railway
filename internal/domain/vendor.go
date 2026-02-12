@@ -104,16 +104,102 @@ type ConfirmDocumentsResponse struct {
 	DocumentsCount int       `json:"documents_confirmed"`
 }
 
+// VendorListParams holds query parameters for listing vendors.
+type VendorListParams struct {
+	Page       int
+	Limit      int
+	Status     string
+	VendorType string
+	Search     string
+}
+
+// AdminVendorListItem is the output DTO for a vendor in the admin list.
+type AdminVendorListItem struct {
+	ID                    uuid.UUID `json:"id"`
+	DisplayName           string    `json:"display_name"`
+	LegalName             *string   `json:"legal_name,omitempty"`
+	VendorType            string    `json:"vendor_type"`
+	ResponsiblePersonName string    `json:"responsible_person_name"`
+	Status                string    `json:"status"`
+	OwnerName             string    `json:"owner_name"`
+	OwnerEmail            string    `json:"owner_email"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+}
+
+// AdminVendorOwnerResponse is the owner info in the admin vendor detail.
+type AdminVendorOwnerResponse struct {
+	ID       uuid.UUID `json:"id"`
+	Email    string    `json:"email"`
+	FullName string    `json:"full_name"`
+	Phone    *string   `json:"phone,omitempty"`
+	Status   string    `json:"status"`
+}
+
+// AdminVendorBankAccountResponse is the bank account info in the admin vendor detail.
+type AdminVendorBankAccountResponse struct {
+	ID                 uuid.UUID  `json:"id"`
+	BankName           string     `json:"bank_name"`
+	AccountNumber      string     `json:"account_number"`
+	AccountHolderName  string     `json:"account_holder_name"`
+	VerificationStatus string     `json:"verification_status"`
+	RejectionReason    *string    `json:"rejection_reason,omitempty"`
+	VerifiedAt         *time.Time `json:"verified_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+}
+
+// AdminVendorDocumentResponse is a document with presigned download URL in the admin vendor detail.
+type AdminVendorDocumentResponse struct {
+	ID                 uuid.UUID  `json:"id"`
+	DocType            string     `json:"doc_type"`
+	FileURL            string     `json:"file_url"`
+	DownloadURL        string     `json:"download_url"`
+	MimeType           *string    `json:"mime_type,omitempty"`
+	FileSizeBytes      *int       `json:"file_size_bytes,omitempty"`
+	VerificationStatus string     `json:"verification_status"`
+	RejectionReason    *string    `json:"rejection_reason,omitempty"`
+	VerifiedAt         *time.Time `json:"verified_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+}
+
+// AdminVendorDetailResponse is the full vendor detail for admin review.
+type AdminVendorDetailResponse struct {
+	ID                    uuid.UUID                       `json:"id"`
+	VendorType            string                          `json:"vendor_type"`
+	DisplayName           string                          `json:"display_name"`
+	LegalName             *string                         `json:"legal_name,omitempty"`
+	ResponsiblePersonName string                          `json:"responsible_person_name"`
+	Description           *string                         `json:"description,omitempty"`
+	Status                string                          `json:"status"`
+	ApprovedAt            *time.Time                      `json:"approved_at,omitempty"`
+	CreatedAt             time.Time                       `json:"created_at"`
+	UpdatedAt             time.Time                       `json:"updated_at"`
+	Owner                 AdminVendorOwnerResponse        `json:"owner"`
+	BankAccount           *AdminVendorBankAccountResponse `json:"bank_account"`
+	Documents             []AdminVendorDocumentResponse   `json:"documents"`
+}
+
 // VendorRepository defines the interface for vendor data access.
 type VendorRepository interface {
 	// Create inserts a new vendor, its bank account, and document placeholders in a single transaction.
 	Create(ctx context.Context, vendor *Vendor, bankAccount *VendorBankAccount, documents []VendorDocument) error
 
+	// FindByID returns the vendor with the given ID, or nil if not found.
+	FindByID(ctx context.Context, id uuid.UUID) (*Vendor, error)
+
 	// FindByOwnerUserID returns the vendor owned by the given user, or nil if none.
 	FindByOwnerUserID(ctx context.Context, userID uuid.UUID) (*Vendor, error)
 
+	// List returns vendors matching the given params, plus total count for pagination.
+	List(ctx context.Context, params VendorListParams) ([]Vendor, int64, error)
+
 	// FindDocumentsByVendorID returns all documents for the given vendor.
 	FindDocumentsByVendorID(ctx context.Context, vendorID uuid.UUID) ([]VendorDocument, error)
+
+	// FindBankAccountByVendorID returns the bank account for the given vendor, or nil if not found.
+	FindBankAccountByVendorID(ctx context.Context, vendorID uuid.UUID) (*VendorBankAccount, error)
 
 	// ConfirmDocumentsAndUpdateStatus updates the given documents and optionally sets the vendor status, all in one transaction.
 	// If newStatus is empty, the vendor status is not changed.
@@ -128,4 +214,13 @@ type VendorUseCase interface {
 
 	// ConfirmDocuments verifies that documents were uploaded to S3 and marks them as confirmed.
 	ConfirmDocuments(ctx context.Context, userID uuid.UUID, req ConfirmDocumentsRequest) (*ConfirmDocumentsResponse, error)
+}
+
+// AdminVendorUseCase defines the interface for admin vendor review operations.
+type AdminVendorUseCase interface {
+	// List returns a paginated list of vendors with owner info.
+	List(ctx context.Context, params VendorListParams) ([]AdminVendorListItem, *PaginationMeta, error)
+
+	// GetByID returns the full vendor detail including owner, bank account, and documents with presigned download URLs.
+	GetByID(ctx context.Context, id uuid.UUID) (*AdminVendorDetailResponse, error)
 }

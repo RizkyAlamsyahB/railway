@@ -7,7 +7,7 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, authHandler *handler.AuthHandler, vendorHandler *handler.VendorHandler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, authHandler *handler.AuthHandler, vendorHandler *handler.VendorHandler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -53,6 +53,9 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		admin.GET("/users/:id", adminUserHandler.GetByID)
 		admin.PUT("/users/:id", adminUserHandler.Update)
 		admin.DELETE("/users/:id", adminUserHandler.Delete)
+
+		admin.GET("/vendors", adminVendorHandler.List)
+		admin.GET("/vendors/:id", adminVendorHandler.GetByID)
 	}
 
 	return r

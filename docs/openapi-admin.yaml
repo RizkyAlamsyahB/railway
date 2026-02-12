@@ -2,13 +2,15 @@ openapi: 3.0.3
 info:
   title: Haji Umroh Store BE - Admin API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint manajemen user admin.
+  description: Dokumentasi OpenAPI 3 untuk endpoint admin (manajemen user dan review vendor).
 servers:
   - url: http://localhost:8080
     description: Local development server
 tags:
   - name: Admin Users
     description: Operasi manajemen user untuk role admin.
+  - name: Admin Vendors
+    description: Operasi review dan manajemen vendor untuk role admin.
 security:
   - BearerAuth: []
 paths:
@@ -675,6 +677,309 @@ paths:
                 data: null
                 errors: "failed to delete user: database timeout"
                 meta: null
+  /api/v1/admin/vendors:
+    get:
+      tags:
+        - Admin Vendors
+      summary: Mengambil daftar vendor dengan pagination dan filter
+      description: >
+        Menampilkan daftar vendor yang terdaftar. Gunakan parameter `status=submitted`
+        untuk melihat vendor yang menunggu persetujuan admin.
+      operationId: listAdminVendors
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Nomor halaman (default 1).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Jumlah item per halaman (default 10). Nilai <1 atau >100 akan dinormalisasi server menjadi 10.
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: status
+          in: query
+          description: Filter berdasarkan status vendor.
+          required: false
+          schema:
+            type: string
+            enum:
+              - draft
+              - submitted
+              - active
+              - rejected
+              - blocked
+        - name: vendor_type
+          in: query
+          description: Filter berdasarkan tipe vendor.
+          required: false
+          schema:
+            type: string
+            enum:
+              - umrah_souvenir_store
+              - hajj_souvenir_store
+              - general_souvenir_store
+        - name: search
+          in: query
+          description: Pencarian berdasarkan display_name atau legal_name (case-insensitive).
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daftar vendor berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorListEnvelope'
+              example:
+                success: true
+                message: vendors retrieved successfully
+                data:
+                  - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    display_name: Toko Oleh-Oleh Haji Mabrur
+                    legal_name: PT Mabrur Sejahtera
+                    vendor_type: hajj_souvenir_store
+                    responsible_person_name: Ahmad Fauzi
+                    status: submitted
+                    owner_name: Budi Santoso
+                    owner_email: budi@example.com
+                    created_at: "2026-02-10T08:00:00Z"
+                    updated_at: "2026-02-10T09:30:00Z"
+                  - id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    display_name: Umrah Store Jakarta
+                    legal_name: null
+                    vendor_type: umrah_souvenir_store
+                    responsible_person_name: Siti Aminah
+                    status: submitted
+                    owner_name: Siti Aminah
+                    owner_email: siti@example.com
+                    created_at: "2026-02-09T14:00:00Z"
+                    updated_at: "2026-02-09T15:00:00Z"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 2
+                  total_pages: 1
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: missing authorization header
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to list vendors
+                data: null
+                errors: "failed to list vendors: database timeout"
+                meta: null
+  /api/v1/admin/vendors/{id}:
+    get:
+      tags:
+        - Admin Vendors
+      summary: Mengambil detail vendor berdasarkan ID
+      description: >
+        Menampilkan seluruh data vendor termasuk informasi pemilik, rekening bank,
+        dan dokumen-dokumen pendukung beserta presigned download URL (berlaku 30 menit).
+      operationId: getAdminVendorById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: ID vendor dalam format UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detail vendor berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorDetailEnvelope'
+              example:
+                success: true
+                message: vendor retrieved successfully
+                data:
+                  id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  vendor_type: hajj_souvenir_store
+                  display_name: Toko Oleh-Oleh Haji Mabrur
+                  legal_name: PT Mabrur Sejahtera
+                  responsible_person_name: Ahmad Fauzi
+                  description: Toko oleh-oleh haji terlengkap di Jakarta
+                  status: submitted
+                  approved_at: null
+                  created_at: "2026-02-10T08:00:00Z"
+                  updated_at: "2026-02-10T09:30:00Z"
+                  owner:
+                    id: c3d4e5f6-a7b8-9012-cdef-123456789012
+                    email: budi@example.com
+                    full_name: Budi Santoso
+                    phone: "+6281234567890"
+                    status: pending
+                  bank_account:
+                    id: d4e5f6a7-b8c9-0123-defa-234567890123
+                    bank_name: BCA
+                    account_number: "1234567890"
+                    account_holder_name: Budi Santoso
+                    verification_status: pending
+                    rejection_reason: null
+                    verified_at: null
+                    created_at: "2026-02-10T08:00:00Z"
+                    updated_at: "2026-02-10T08:00:00Z"
+                  documents:
+                    - id: e5f6a7b8-c9d0-1234-efab-345678901234
+                      doc_type: owner_ktp
+                      file_url: vendors/a1b2c3d4/documents/owner_ktp/uuid1
+                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_ktp/uuid1?X-Amz-Signature=..."
+                      mime_type: image/jpeg
+                      file_size_bytes: 245760
+                      verification_status: pending
+                      rejection_reason: null
+                      verified_at: null
+                      created_at: "2026-02-10T08:00:00Z"
+                      updated_at: "2026-02-10T09:30:00Z"
+                    - id: f6a7b8c9-d0e1-2345-fabc-456789012345
+                      doc_type: business_npwp
+                      file_url: vendors/a1b2c3d4/documents/business_npwp/uuid2
+                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/business_npwp/uuid2?X-Amz-Signature=..."
+                      mime_type: application/pdf
+                      file_size_bytes: 102400
+                      verification_status: pending
+                      rejection_reason: null
+                      verified_at: null
+                      created_at: "2026-02-10T08:00:00Z"
+                      updated_at: "2026-02-10T09:30:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: ID vendor bukan UUID yang valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid vendor ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to get vendor
+                data: null
+                errors: "failed to find vendor: database timeout"
+                meta: null
 components:
   securitySchemes:
     BearerAuth:
@@ -965,3 +1270,329 @@ components:
           nullable: true
           description: Selalu null pada response error.
           example: null
+    AdminVendorListItem:
+      type: object
+      required:
+        - id
+        - display_name
+        - vendor_type
+        - responsible_person_name
+        - status
+        - owner_name
+        - owner_email
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        display_name:
+          type: string
+          example: Toko Oleh-Oleh Haji Mabrur
+        legal_name:
+          type: string
+          nullable: true
+          example: PT Mabrur Sejahtera
+        vendor_type:
+          type: string
+          enum:
+            - umrah_souvenir_store
+            - hajj_souvenir_store
+            - general_souvenir_store
+          example: hajj_souvenir_store
+        responsible_person_name:
+          type: string
+          example: Ahmad Fauzi
+        status:
+          type: string
+          enum:
+            - draft
+            - submitted
+            - active
+            - rejected
+            - blocked
+          example: submitted
+        owner_name:
+          type: string
+          description: Nama lengkap pemilik vendor (dari tabel users).
+          example: Budi Santoso
+        owner_email:
+          type: string
+          format: email
+          description: Email pemilik vendor (dari tabel users).
+          example: budi@example.com
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T08:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T09:30:00Z"
+    AdminVendorOwnerResponse:
+      type: object
+      required:
+        - id
+        - email
+        - full_name
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: c3d4e5f6-a7b8-9012-cdef-123456789012
+        email:
+          type: string
+          format: email
+          example: budi@example.com
+        full_name:
+          type: string
+          example: Budi Santoso
+        phone:
+          type: string
+          nullable: true
+          example: "+6281234567890"
+        status:
+          type: string
+          enum:
+            - pending
+            - active
+            - blocked
+          example: pending
+    AdminVendorBankAccountResponse:
+      type: object
+      required:
+        - id
+        - bank_name
+        - account_number
+        - account_holder_name
+        - verification_status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: d4e5f6a7-b8c9-0123-defa-234567890123
+        bank_name:
+          type: string
+          example: BCA
+        account_number:
+          type: string
+          example: "1234567890"
+        account_holder_name:
+          type: string
+          example: Budi Santoso
+        verification_status:
+          type: string
+          enum:
+            - pending
+            - verified
+            - rejected
+          example: pending
+        rejection_reason:
+          type: string
+          nullable: true
+          example: null
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T08:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T08:00:00Z"
+    AdminVendorDocumentResponse:
+      type: object
+      required:
+        - id
+        - doc_type
+        - file_url
+        - download_url
+        - verification_status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: e5f6a7b8-c9d0-1234-efab-345678901234
+        doc_type:
+          type: string
+          description: Tipe dokumen vendor.
+          enum:
+            - owner_ktp
+            - owner_passport
+            - business_npwp
+            - store_photo
+            - bank_account_proof
+            - business_logo
+            - business_banner
+          example: owner_ktp
+        file_url:
+          type: string
+          description: Object key di S3.
+          example: vendors/a1b2c3d4/documents/owner_ktp/uuid1
+        download_url:
+          type: string
+          description: Presigned download URL (berlaku 30 menit). Kosong jika dokumen belum diupload.
+          example: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_ktp/uuid1?X-Amz-Signature=..."
+        mime_type:
+          type: string
+          nullable: true
+          description: Content type file (image/jpeg, image/png, image/webp, application/pdf).
+          example: image/jpeg
+        file_size_bytes:
+          type: integer
+          format: int32
+          nullable: true
+          description: Ukuran file dalam bytes.
+          example: 245760
+        verification_status:
+          type: string
+          enum:
+            - pending
+            - verified
+            - rejected
+          example: pending
+        rejection_reason:
+          type: string
+          nullable: true
+          example: null
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T08:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T09:30:00Z"
+    AdminVendorDetailResponse:
+      type: object
+      required:
+        - id
+        - vendor_type
+        - display_name
+        - responsible_person_name
+        - status
+        - created_at
+        - updated_at
+        - owner
+        - bank_account
+        - documents
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        vendor_type:
+          type: string
+          enum:
+            - umrah_souvenir_store
+            - hajj_souvenir_store
+            - general_souvenir_store
+          example: hajj_souvenir_store
+        display_name:
+          type: string
+          example: Toko Oleh-Oleh Haji Mabrur
+        legal_name:
+          type: string
+          nullable: true
+          example: PT Mabrur Sejahtera
+        responsible_person_name:
+          type: string
+          example: Ahmad Fauzi
+        description:
+          type: string
+          nullable: true
+          example: Toko oleh-oleh haji terlengkap di Jakarta
+        status:
+          type: string
+          enum:
+            - draft
+            - submitted
+            - active
+            - rejected
+            - blocked
+          example: submitted
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T08:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T09:30:00Z"
+        owner:
+          $ref: '#/components/schemas/AdminVendorOwnerResponse'
+        bank_account:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AdminVendorBankAccountResponse'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminVendorDocumentResponse'
+    SuccessVendorListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendors retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminVendorListItem'
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    SuccessVendorDetailEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor retrieved successfully
+        data:
+          $ref: '#/components/schemas/AdminVendorDetailResponse'
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+        meta:
+          nullable: true
+          description: Selalu null untuk endpoint detail.
