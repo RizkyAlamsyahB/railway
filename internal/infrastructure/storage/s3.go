@@ -2,11 +2,13 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	smithy "github.com/aws/smithy-go"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -150,4 +152,29 @@ func (s *s3Storage) GeneratePresignedUploadURL(ctx context.Context, key string, 
 	}
 
 	return req.URL, nil
+}
+
+func (s *s3Storage) HeadObject(ctx context.Context, key string) (*domain.ObjectInfo, error) {
+	output, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NotFound" {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to head object %q: %w", key, err)
+	}
+
+	ct := ""
+	if output.ContentType != nil {
+		ct = *output.ContentType
+	}
+
+	return &domain.ObjectInfo{
+		Key:           key,
+		ContentType:   ct,
+		ContentLength: aws.ToInt64(output.ContentLength),
+	}, nil
 }

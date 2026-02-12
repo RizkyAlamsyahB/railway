@@ -60,8 +60,12 @@ func Initialize() (*App, error) {
 	authUseCase := usecase.NewAuthUseCase(userRepo, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	authHandler := handler.NewAuthHandler(authUseCase)
 
+	vendorRepo := repository.NewVendorRepository(db)
+	vendorUseCase := usecase.NewVendorUseCase(userRepo, vendorRepo, storageProvider, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
+	vendorHandler := handler.NewVendorHandler(vendorUseCase)
+
 	// Setup router
-	r := router.NewRouter(healthHandler, adminUserHandler, authHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, authHandler, vendorHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:  cfg,

@@ -31,6 +31,13 @@ type UploadOutput struct {
 	URL string
 }
 
+// ObjectInfo holds metadata about a stored object, returned by HeadObject.
+type ObjectInfo struct {
+	Key           string
+	ContentType   string
+	ContentLength int64
+}
+
 // StorageProvider defines the interface for object storage operations.
 // Implementations may target AWS S3, GCS, Azure Blob Storage, or a local filesystem.
 type StorageProvider interface {
@@ -53,4 +60,8 @@ type StorageProvider interface {
 	// GeneratePresignedUploadURL creates a time-limited signed URL for uploading
 	// directly from a client (browser/mobile) without proxying through the server.
 	GeneratePresignedUploadURL(ctx context.Context, key string, contentType string, expiry time.Duration) (string, error)
+
+	// HeadObject retrieves metadata for an object without downloading its content.
+	// Returns nil, nil if the object does not exist.
+	HeadObject(ctx context.Context, key string) (*ObjectInfo, error)
 }

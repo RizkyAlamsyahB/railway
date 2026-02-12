@@ -1,0 +1,358 @@
+openapi: 3.0.3
+info:
+  title: Haji Umroh Store BE - Vendor API
+  version: 1.0.0
+  description: Dokumentasi OpenAPI 3 untuk endpoint pendaftaran UMKM (vendor/seller).
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Vendor Registration
+    description: Operasi pendaftaran UMKM baru.
+paths:
+  /api/v1/vendors/register:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Mendaftarkan vendor UMKM baru
+      description: |
+        Membuat akun user baru (role `umkm`), vendor, dan rekening bank dalam satu request.
+        Response berisi JWT token untuk autentikasi dan presigned upload URLs untuk mengunggah
+        dokumen-dokumen yang diperlukan langsung ke S3 storage.
+
+        **Dokumen yang tersedia untuk upload:**
+        - `owner_ktp` — KTP pemilik
+        - `owner_passport` — Passport pemilik
+        - `business_npwp` — NPWP usaha (opsional)
+        - `store_photo` — Foto toko
+        - `bank_account_proof` — Bukti rekening bank
+        - `business_logo` — Logo usaha
+        - `business_banner` — Banner usaha
+
+        Presigned URL berlaku selama **30 menit** setelah registrasi.
+        Client dapat melakukan `PUT` request langsung ke setiap `upload_url` dengan file content
+        dan header `Content-Type` sesuai tipe file asli.
+        MIME yang diizinkan: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`.
+      operationId: registerVendor
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegisterRequest'
+            example:
+              store_name: Toko Oleh-Oleh Haji Mabrur
+              store_type: hajj_souvenir_store
+              owner_name: Ahmad Subarkah
+              legal_name: PT Mabrur Jaya
+              responsible_person_name: Budi Santoso
+              phone: "081234567890"
+              email: toko.mabrur@example.com
+              password: SecurePass123!
+              bank_name: Bank Syariah Indonesia
+              bank_account_number: "1234567890"
+              bank_account_holder_name: Ahmad Subarkah
+      responses:
+        '201':
+          description: Vendor berhasil didaftarkan. Response berisi ID vendor, ID user, JWT token, dan presigned upload URLs untuk dokumen.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorRegisterEnvelope'
+              example:
+                success: true
+                message: vendor registration successful
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  user_id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  upload_urls:
+                    - doc_type: owner_ktp
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/owner_ktp/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                    - doc_type: owner_passport
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/owner_passport/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_passport/a2b3c4d5-e6f7-8901-bcde-f12345678901
+                    - doc_type: business_npwp
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_npwp/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_npwp/b3c4d5e6-f7a8-9012-cdef-234567890123
+                    - doc_type: store_photo
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/store_photo/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/c4d5e6f7-a8b9-0123-def0-345678901234
+                    - doc_type: bank_account_proof
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/bank_account_proof/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/bank_account_proof/d5e6f7a8-b9c0-1234-ef01-456789012345
+                    - doc_type: business_logo
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_logo/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_logo/e6f7a8b9-c0d1-2345-f012-567890123456
+                    - doc_type: business_banner
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_banner/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_banner/f7a8b9c0-d1e2-3456-0123-678901234567
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'VendorRegisterRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
+                    meta: null
+                invalidStoreType:
+                  summary: Jenis toko tidak valid
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'VendorRegisterRequest.StoreType' Error:Field validation for 'StoreType' failed on the 'oneof' tag"
+                    meta: null
+                passwordTooShort:
+                  summary: Password kurang dari 8 karakter
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'VendorRegisterRequest.Password' Error:Field validation for 'Password' failed on the 'min' tag"
+                    meta: null
+        '409':
+          description: Konflik — email sudah terdaftar atau user sudah memiliki vendor.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                emailAlreadyRegistered:
+                  summary: Email sudah terdaftar
+                  value:
+                    success: false
+                    message: email already registered
+                    data: null
+                    errors: null
+                    meta: null
+                vendorAlreadyExists:
+                  summary: User sudah memiliki vendor
+                  value:
+                    success: false
+                    message: user already has a vendor
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+components:
+  headers:
+    RequestIDHeader:
+      description: ID unik request dari middleware RequestID.
+      schema:
+        type: string
+        example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
+  schemas:
+    VendorRegisterRequest:
+      type: object
+      required:
+        - store_name
+        - store_type
+        - owner_name
+        - responsible_person_name
+        - phone
+        - email
+        - password
+        - bank_name
+        - bank_account_number
+        - bank_account_holder_name
+      properties:
+        store_name:
+          type: string
+          maxLength: 120
+          description: Nama toko yang akan ditampilkan (display_name).
+          example: Toko Oleh-Oleh Haji Mabrur
+        store_type:
+          type: string
+          description: Jenis toko.
+          enum:
+            - umrah_souvenir_store
+            - hajj_souvenir_store
+            - general_souvenir_store
+          example: hajj_souvenir_store
+        owner_name:
+          type: string
+          maxLength: 120
+          description: Nama pemilik/pengelola toko. Akan disimpan sebagai nama lengkap user.
+          example: Ahmad Subarkah
+        legal_name:
+          type: string
+          maxLength: 160
+          nullable: true
+          description: Nama legal/badan usaha (opsional).
+          example: PT Mabrur Jaya
+        responsible_person_name:
+          type: string
+          maxLength: 120
+          description: Nama penanggung jawab toko.
+          example: Budi Santoso
+        phone:
+          type: string
+          maxLength: 20
+          description: Nomor telepon yang bisa dihubungi.
+          example: "081234567890"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Email untuk login dan komunikasi. Harus unik.
+          example: toko.mabrur@example.com
+        password:
+          type: string
+          minLength: 8
+          description: Kata sandi minimal 8 karakter.
+          example: SecurePass123!
+        bank_name:
+          type: string
+          maxLength: 120
+          description: Nama bank untuk rekening penerima.
+          example: Bank Syariah Indonesia
+        bank_account_number:
+          type: string
+          maxLength: 60
+          description: Nomor rekening bank.
+          example: "1234567890"
+        bank_account_holder_name:
+          type: string
+          maxLength: 160
+          description: Nama pemilik rekening sesuai buku tabungan.
+          example: Ahmad Subarkah
+    PresignedUploadInfo:
+      type: object
+      required:
+        - doc_type
+        - upload_url
+        - object_key
+      properties:
+        doc_type:
+          type: string
+          description: Jenis dokumen.
+          enum:
+            - owner_ktp
+            - owner_passport
+            - business_npwp
+            - store_photo
+            - bank_account_proof
+            - business_logo
+            - business_banner
+          example: owner_ktp
+        upload_url:
+          type: string
+          format: uri
+          description: |
+            Presigned URL untuk upload file langsung ke S3 via HTTP PUT.
+            Berlaku selama 30 menit. Gunakan `Content-Type` sesuai MIME file yang diunggah.
+            MIME yang diizinkan: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`.
+          example: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/.../documents/owner_ktp/uuid?X-Amz-...
+        object_key:
+          type: string
+          description: Object key di S3 storage. Simpan key ini untuk referensi saat mengkonfirmasi upload dokumen.
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+    VendorRegisterResponse:
+      type: object
+      required:
+        - vendor_id
+        - user_id
+        - token
+        - upload_urls
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor yang baru dibuat.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        user_id:
+          type: string
+          format: uuid
+          description: ID user yang baru dibuat.
+          example: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+        token:
+          type: string
+          description: JWT token untuk autentikasi. Token berisi role `umkm`.
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        upload_urls:
+          type: array
+          description: Daftar presigned upload URL untuk setiap jenis dokumen.
+          items:
+            $ref: '#/components/schemas/PresignedUploadInfo'
+    SuccessVendorRegisterEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor registration successful
+        data:
+          $ref: '#/components/schemas/VendorRegisterResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: validation failed
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          description: Detail error atau pesan validasi.
+        meta:
+          nullable: true
+          example: null

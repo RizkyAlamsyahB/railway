@@ -7,7 +7,7 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, authHandler *handler.AuthHandler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, authHandler *handler.AuthHandler, vendorHandler *handler.VendorHandler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -27,6 +27,20 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	authGroup := v1.Group("/auth")
 	{
 		authGroup.POST("/login", authHandler.Login)
+	}
+
+	// Vendor routes (public registration)
+	vendorGroup := v1.Group("/vendors")
+	{
+		vendorGroup.POST("/register", vendorHandler.Register)
+	}
+
+	// Vendor authenticated routes (requires auth + umkm role)
+	vendorAuth := v1.Group("/vendors")
+	vendorAuth.Use(middleware.Auth(jwtSecret))
+	vendorAuth.Use(middleware.RequireRoles("umkm"))
+	{
+		vendorAuth.POST("/documents/confirm", vendorHandler.ConfirmDocuments)
 	}
 
 	// Admin routes (requires auth + admin role)
