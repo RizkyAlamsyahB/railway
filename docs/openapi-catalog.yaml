@@ -1,0 +1,293 @@
+openapi: 3.0.3
+info:
+  title: Haji Umroh Store BE - Catalog API
+  version: 1.0.0
+  description: Dokumentasi OpenAPI 3 untuk endpoint katalog publik (kategori dan jasa pengiriman).
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Categories
+    description: Operasi untuk daftar kategori produk.
+  - name: Shipping Services
+    description: Operasi untuk daftar jasa pengiriman.
+paths:
+  /api/v1/categories:
+    get:
+      tags:
+        - Categories
+      summary: Daftar kategori aktif
+      description: |
+        Mengembalikan daftar semua kategori produk yang aktif (`is_active = true`),
+        diurutkan berdasarkan nama secara alfabet (A-Z).
+
+        Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
+
+        Kategori mendukung struktur hierarki melalui field `parent_id`.
+        Kategori root memiliki `parent_id: null`, sedangkan sub-kategori
+        merujuk ke ID kategori induknya.
+      operationId: listCategories
+      security: []
+      responses:
+        '200':
+          description: Daftar kategori berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCategoryListEnvelope'
+              example:
+                success: true
+                message: categories retrieved successfully
+                data:
+                  - id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                    parent_id: null
+                    name: Perlengkapan Ibadah
+                    slug: perlengkapan-ibadah
+                    is_active: true
+                  - id: d2e3f4a5-b6c7-8901-def0-234567890bcd
+                    parent_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                    name: Sajadah
+                    slug: sajadah
+                    is_active: true
+                  - id: e3f4a5b6-c7d8-9012-ef01-345678901cde
+                    parent_id: null
+                    name: Oleh-Oleh Khas
+                    slug: oleh-oleh-khas
+                    is_active: true
+                  - id: f4a5b6c7-d8e9-0123-f012-456789012def
+                    parent_id: e3f4a5b6-c7d8-9012-ef01-345678901cde
+                    name: Kurma
+                    slug: kurma
+                    is_active: true
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to list categories
+                data: null
+                errors: null
+                meta: null
+  /api/v1/shipping-services:
+    get:
+      tags:
+        - Shipping Services
+      summary: Daftar jasa pengiriman aktif
+      description: |
+        Mengembalikan daftar semua jasa pengiriman yang aktif (`is_active = true`),
+        diurutkan berdasarkan nama secara alfabet (A-Z).
+
+        Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
+
+        ID dari shipping service digunakan saat membuat produk
+        (`POST /api/v1/vendors/products` field `shipping_service_ids`).
+      operationId: listShippingServices
+      security: []
+      responses:
+        '200':
+          description: Daftar jasa pengiriman berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessShippingServiceListEnvelope'
+              example:
+                success: true
+                message: shipping services retrieved successfully
+                data:
+                  - id: d1e2f3a4-b5c6-7890-def0-234567890abc
+                    code: jne_reg
+                    name: JNE Reguler
+                    is_active: true
+                    created_at: "2026-01-01T00:00:00Z"
+                  - id: e2f3a4b5-c6d7-8901-ef01-345678901bcd
+                    code: jnt_ez
+                    name: "J&T Express"
+                    is_active: true
+                    created_at: "2026-01-01T00:00:00Z"
+                  - id: f3a4b5c6-d7e8-9012-f012-456789012cde
+                    code: sicepat_reg
+                    name: SiCepat Reguler
+                    is_active: true
+                    created_at: "2026-01-01T00:00:00Z"
+                  - id: a4b5c6d7-e8f9-0123-0123-567890123def
+                    code: pos_kilat
+                    name: Pos Kilat Khusus
+                    is_active: true
+                    created_at: "2026-01-01T00:00:00Z"
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to list shipping services
+                data: null
+                errors: null
+                meta: null
+components:
+  headers:
+    RequestIDHeader:
+      description: ID unik request dari middleware RequestID.
+      schema:
+        type: string
+        example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
+  schemas:
+    Category:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - is_active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID kategori.
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            ID kategori induk. `null` untuk kategori root (level atas).
+            Sub-kategori merujuk ke ID kategori induknya.
+          example: null
+        name:
+          type: string
+          description: Nama kategori.
+          example: Perlengkapan Ibadah
+        slug:
+          type: string
+          description: URL-friendly slug kategori.
+          example: perlengkapan-ibadah
+        is_active:
+          type: boolean
+          description: Status aktif kategori. Hanya kategori aktif yang ditampilkan.
+          example: true
+    ShippingService:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - is_active
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID jasa pengiriman. Gunakan ID ini saat membuat produk.
+          example: d1e2f3a4-b5c6-7890-def0-234567890abc
+        code:
+          type: string
+          description: Kode unik jasa pengiriman.
+          example: jne_reg
+        name:
+          type: string
+          description: Nama jasa pengiriman.
+          example: JNE Reguler
+        is_active:
+          type: boolean
+          description: Status aktif jasa pengiriman.
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Waktu pembuatan record.
+          example: "2026-01-01T00:00:00Z"
+    SuccessCategoryListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: categories retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessShippingServiceListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: shipping services retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShippingService'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: internal server error
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          description: Detail error atau pesan validasi.
+        meta:
+          nullable: true
+          example: null

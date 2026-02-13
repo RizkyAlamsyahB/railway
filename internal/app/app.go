@@ -67,8 +67,19 @@ func Initialize() (*App, error) {
 	adminVendorUseCase := usecase.NewAdminVendorUseCase(vendorRepo, userRepo, storageProvider)
 	adminVendorHandler := handler.NewAdminVendorHandler(adminVendorUseCase)
 
+	// Product & catalog feature
+	categoryRepo := repository.NewCategoryRepository(db)
+	shippingServiceRepo := repository.NewShippingServiceRepository(db)
+	productRepo := repository.NewProductRepository(db)
+
+	productUseCase := usecase.NewProductUseCase(productRepo, vendorRepo, categoryRepo, shippingServiceRepo, storageProvider)
+	productHandler := handler.NewProductHandler(productUseCase)
+
+	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, shippingServiceRepo)
+	catalogHandler := handler.NewCatalogHandler(catalogUseCase)
+
 	// Setup router
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, authHandler, vendorHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, authHandler, vendorHandler, productHandler, catalogHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:  cfg,
