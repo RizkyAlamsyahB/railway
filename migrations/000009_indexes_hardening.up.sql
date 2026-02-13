@@ -1,5 +1,8 @@
 CREATE INDEX idx_products_vendor_status ON products (vendor_id, status);
 CREATE INDEX idx_product_variants_product_active ON product_variants (product_id, is_active);
+CREATE INDEX idx_product_images_product_sort ON product_images (product_id, sort_order);
+CREATE INDEX idx_product_shipping_services_product_id ON product_shipping_services (product_id);
+CREATE INDEX idx_product_shipping_services_shipping_service_id ON product_shipping_services (shipping_service_id);
 CREATE UNIQUE INDEX uq_cart_items_cart_variant ON cart_items (cart_id, product_variant_id);
 CREATE INDEX idx_orders_user_created_at ON orders (user_id, created_at);
 CREATE INDEX idx_orders_vendor_created_at ON orders (vendor_id, created_at);
