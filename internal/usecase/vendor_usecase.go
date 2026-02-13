@@ -28,16 +28,23 @@ var (
 	ErrInvalidStatusTransition   = errors.New("invalid status transition")
 )
 
-// Required document types for vendor registration.
-var vendorDocTypes = []string{
+// Required document types for vendor registration (must be uploaded for draft→submitted).
+var requiredDocTypes = []string{
 	"owner_ktp",
 	"owner_passport",
-	"business_npwp",
 	"store_photo",
 	"bank_account_proof",
 	"business_logo",
 	"business_banner",
 }
+
+// Optional document types (presigned URLs generated, but not required for submission).
+var optionalDocTypes = []string{
+	"business_npwp",
+}
+
+// allDocTypes combines required + optional for presigned URL generation.
+var allDocTypes = append(append([]string{}, requiredDocTypes...), optionalDocTypes...)
 
 var allowedDocumentContentTypes = map[string]struct{}{
 	"image/jpeg":      {},
@@ -142,10 +149,10 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 
 	// 4. Generate presigned upload URLs BEFORE any DB writes.
 	//    Also prepare VendorDocument records for each document type.
-	uploadURLs := make([]domain.PresignedUploadInfo, 0, len(vendorDocTypes))
-	documents := make([]domain.VendorDocument, 0, len(vendorDocTypes))
+	uploadURLs := make([]domain.PresignedUploadInfo, 0, len(allDocTypes))
+	documents := make([]domain.VendorDocument, 0, len(allDocTypes))
 
-	for _, docType := range vendorDocTypes {
+	for _, docType := range allDocTypes {
 		objectKey := fmt.Sprintf("vendors/%s/documents/%s/%s", vendorID.String(), docType, uuid.New().String())
 
 		// Keep content type unsigned so client can upload with the file's actual MIME type.
@@ -254,13 +261,13 @@ func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID,
 		updatedDocs = append(updatedDocs, *doc)
 	}
 
-	// 4. Determine whether all 7 required documents now have uploads.
+	// 4. Determine whether all required documents now have uploads.
 	for i := range updatedDocs {
 		docMap[updatedDocs[i].DocType] = &updatedDocs[i]
 	}
 
 	allUploaded := true
-	for _, docType := range vendorDocTypes {
+	for _, docType := range requiredDocTypes {
 		doc, exists := docMap[docType]
 		if !exists || doc.UploadedBy == nil {
 			allUploaded = false

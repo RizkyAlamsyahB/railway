@@ -76,7 +76,7 @@ Delivery (HTTP handlers)  →  Usecase (business logic)  →  Domain (entities +
 
 - **User**: status (pending/active/blocked), M:M with roles via user_roles table.
 - **Vendor**: types (umrah_souvenir_store, hajj_souvenir_store, general_souvenir_store), status workflow: draft → submitted → active/rejected/blocked.
-- **VendorDocument**: 7 required document types (owner_ktp, owner_passport, business_npwp, store_photo, bank_account_proof, business_logo, business_banner). S3-backed file storage with presigned URLs.
+- **VendorDocument**: 6 required + 1 optional document types. Required: owner_ktp, owner_passport, store_photo, bank_account_proof, business_logo, business_banner. Optional: business_npwp. S3-backed file storage with presigned URLs.
 - **VendorBankAccount**: 1:1 with vendor, has verification status.
 
 ### Response pattern
