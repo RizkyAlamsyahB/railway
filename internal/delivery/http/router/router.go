@@ -23,12 +23,6 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		v1.GET("/health", healthHandler.Check)
 	}
 
-	// Auth routes (public)
-	authGroup := v1.Group("/auth")
-	{
-		authGroup.POST("/login", authHandler.Login)
-	}
-
 	// Vendor routes (public registration + login)
 	vendorGroup := v1.Group("/vendors")
 	{
@@ -42,6 +36,12 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	vendorAuth.Use(middleware.RequireRoles("umkm"))
 	{
 		vendorAuth.POST("/documents/confirm", vendorHandler.ConfirmDocuments)
+	}
+
+	// Admin login route (public - no auth required)
+	adminPublic := v1.Group("/admin")
+	{
+		adminPublic.POST("/login", authHandler.Login)
 	}
 
 	// Admin routes (requires auth + admin role)
