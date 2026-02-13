@@ -181,25 +181,67 @@ Table "products" {
   }
 }
 
+Table "shipping_services" {
+  "id" UUID [pk, not null]
+  "code" VARCHAR(40) [unique, not null]
+  "name" VARCHAR(80) [not null]
+  "is_active" BOOLEAN [not null, default: true]
+  "created_at" TIMESTAMPTZ [not null, default: `now()`]
+}
+
+Table "product_shipping_services" {
+  "product_id" UUID [not null]
+  "shipping_service_id" UUID [not null]
+  "created_at" TIMESTAMPTZ [not null, default: `now()`]
+
+  Indexes {
+    (product_id, shipping_service_id) [pk, name: "pk_product_shipping_services"]
+    (product_id) [name: "idx_product_shipping_services_product_id"]
+    (shipping_service_id) [name: "idx_product_shipping_services_shipping_service_id"]
+  }
+}
+
 Table "product_images" {
   "id" UUID [pk, not null]
   "product_id" UUID [not null]
   "image_url" TEXT [not null]
+  "mime_type" VARCHAR(100)
+  "file_size_bytes" INT
+  "is_primary" BOOLEAN [not null, default: false]
   "sort_order" INT [not null, default: 0]
+  "created_at" TIMESTAMPTZ [not null, default: `now()`]
+
+  Checks {
+    `sort_order >= 0` [name: 'ck_product_images_sort_order_non_negative']
+  }
+
+  Indexes {
+    (product_id, sort_order) [name: "idx_product_images_product_sort"]
+    (product_id) [unique, name: "uq_product_images_primary_per_product", note: 'partial index: is_primary = true']
+  }
 }
 
 Table "product_variants" {
   "id" UUID [pk, not null]
   "product_id" UUID [not null]
-  "sku" VARCHAR(80) [unique, not null]
+  "sku" VARCHAR(80) [not null]
   "variant_name" VARCHAR(120) [not null]
   "price" NUMERIC(18,2) [not null]
   "currency" CHAR(3) [not null, default: 'IDR']
   "stock_on_hand" INT [not null]
   "weight_gram" INT
+  "is_default" BOOLEAN [not null, default: false]
   "is_active" BOOLEAN [not null, default: true]
 
+  Checks {
+    `price > 0` [name: 'ck_product_variants_price_positive']
+    `stock_on_hand >= 0` [name: 'ck_product_variants_stock_non_negative']
+    `weight_gram IS NULL OR weight_gram >= 0` [name: 'ck_product_variants_weight_non_negative']
+  }
+
   Indexes {
+    (product_id, sku) [unique, name: "uq_product_variants_product_sku"]
+    (product_id) [unique, name: "uq_product_variants_default_per_product", note: 'partial index: is_default = true']
     (product_id, is_active) [name: "idx_product_variants_product_active"]
   }
 }
@@ -453,6 +495,9 @@ Ref "fk_categories_parent":"categories"."id" < "categories"."parent_id"
 
 Ref "fk_products_vendor":"vendors"."id" < "products"."vendor_id"
 Ref "fk_products_category":"categories"."id" < "products"."category_id"
+
+Ref "fk_product_shipping_services_product":"products"."id" < "product_shipping_services"."product_id"
+Ref "fk_product_shipping_services_shipping_service":"shipping_services"."id" < "product_shipping_services"."shipping_service_id"
 
 Ref "fk_product_images_product":"products"."id" < "product_images"."product_id"
 Ref "fk_product_variants_product":"products"."id" < "product_variants"."product_id"
