@@ -9,19 +9,19 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
 
-// AuthHandler handles authentication endpoints.
-type AuthHandler struct {
-	useCase domain.AuthUseCase
+// AdminLoginHandler handles admin authentication endpoints.
+type AdminLoginHandler struct {
+	useCase domain.AdminAuthUseCase
 }
 
-// NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(uc domain.AuthUseCase) *AuthHandler {
-	return &AuthHandler{useCase: uc}
+// NewAdminLoginHandler creates a new AdminLoginHandler.
+func NewAdminLoginHandler(uc domain.AdminAuthUseCase) *AdminLoginHandler {
+	return &AdminLoginHandler{useCase: uc}
 }
 
-// Login handles POST /api/v1/auth/login
-func (h *AuthHandler) Login(c *gin.Context) {
-	var req domain.LoginRequest
+// Login handles POST /api/v1/admin/login
+func (h *AdminLoginHandler) Login(c *gin.Context) {
+	var req domain.AdminLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "validation failed", err.Error())
 		return
@@ -36,7 +36,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	response.OK(c, "login successful", result)
 }
 
-func (h *AuthHandler) handleError(c *gin.Context, err error) {
+func (h *AdminLoginHandler) handleError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, usecase.ErrInvalidCredentials):
 		response.Unauthorized(c, "invalid email or password", nil)

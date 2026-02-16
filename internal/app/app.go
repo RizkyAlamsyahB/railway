@@ -57,8 +57,8 @@ func Initialize() (*App, error) {
 	adminUserUseCase := usecase.NewAdminUserUseCase(userRepo)
 	adminUserHandler := handler.NewAdminUserHandler(adminUserUseCase)
 
-	authUseCase := usecase.NewAuthUseCase(userRepo, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
-	authHandler := handler.NewAuthHandler(authUseCase)
+	adminAuthUseCase := usecase.NewAdminAuthUseCase(userRepo, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
+	adminLoginHandler := handler.NewAdminLoginHandler(adminAuthUseCase)
 
 	vendorRepo := repository.NewVendorRepository(db)
 	vendorUseCase := usecase.NewVendorUseCase(userRepo, vendorRepo, storageProvider, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
@@ -79,7 +79,7 @@ func Initialize() (*App, error) {
 	catalogHandler := handler.NewCatalogHandler(catalogUseCase)
 
 	// Setup router
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, authHandler, vendorHandler, productHandler, catalogHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:  cfg,

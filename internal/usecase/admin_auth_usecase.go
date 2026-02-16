@@ -15,16 +15,16 @@ var (
 	ErrAccountInactive    = errors.New("account is not active")
 )
 
-type authUseCase struct {
+type adminAuthUseCase struct {
 	userRepo  domain.UserRepository
 	jwtSecret string
 	jwtExpiry int
 	jwtIssuer string
 }
 
-// NewAuthUseCase creates a new AuthUseCase.
-func NewAuthUseCase(userRepo domain.UserRepository, jwtSecret string, jwtExpiry int, jwtIssuer string) domain.AuthUseCase {
-	return &authUseCase{
+// NewAdminAuthUseCase creates a new AdminAuthUseCase.
+func NewAdminAuthUseCase(userRepo domain.UserRepository, jwtSecret string, jwtExpiry int, jwtIssuer string) domain.AdminAuthUseCase {
+	return &adminAuthUseCase{
 		userRepo:  userRepo,
 		jwtSecret: jwtSecret,
 		jwtExpiry: jwtExpiry,
@@ -32,7 +32,7 @@ func NewAuthUseCase(userRepo domain.UserRepository, jwtSecret string, jwtExpiry 
 	}
 }
 
-func (uc *authUseCase) Login(ctx context.Context, req domain.LoginRequest) (*domain.LoginResponse, error) {
+func (uc *adminAuthUseCase) Login(ctx context.Context, req domain.AdminLoginRequest) (*domain.AdminLoginResponse, error) {
 	user, err := uc.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
@@ -58,5 +58,5 @@ func (uc *authUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	return &domain.LoginResponse{Token: token}, nil
+	return &domain.AdminLoginResponse{Token: token}, nil
 }
