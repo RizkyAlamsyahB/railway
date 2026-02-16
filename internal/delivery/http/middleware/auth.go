@@ -14,7 +14,7 @@ const (
 	ContextKeyClaims   = "auth_claims"
 	ContextKeyUserID   = "auth_user_id"
 	ContextKeyEmail    = "auth_email"
-	ContextKeyRoles    = "auth_roles"
+	ContextKeyRole     = "auth_role"
 	ContextKeyVendorID = "auth_vendor_id"
 )
 
@@ -44,7 +44,7 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 		c.Set(ContextKeyClaims, claims)
 		c.Set(ContextKeyUserID, claims.UserID)
 		c.Set(ContextKeyEmail, claims.Email)
-		c.Set(ContextKeyRoles, claims.Roles)
+		c.Set(ContextKeyRole, claims.Role)
 		if claims.VendorID != nil {
 			c.Set(ContextKeyVendorID, *claims.VendorID)
 		}
@@ -54,7 +54,7 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 }
 
 // RequireRoles returns a middleware that checks whether the authenticated user
-// has at least one of the specified roles. It must be used after the Auth
+// has one of the specified roles. It must be used after the Auth
 // middleware in the handler chain.
 func RequireRoles(roles ...string) gin.HandlerFunc {
 	allowed := make(map[string]struct{}, len(roles))
@@ -75,11 +75,9 @@ func RequireRoles(roles ...string) gin.HandlerFunc {
 			return
 		}
 
-		for _, role := range claims.Roles {
-			if _, ok := allowed[role]; ok {
-				c.Next()
-				return
-			}
+		if _, ok := allowed[claims.Role]; ok {
+			c.Next()
+			return
 		}
 
 		response.Abort(c, http.StatusForbidden, "insufficient permissions", nil)

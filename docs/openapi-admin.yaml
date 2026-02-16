@@ -56,8 +56,7 @@ paths:
                   phone: "+6281234567890"
                   status: active
                   email_verified_at: "2026-02-10T10:20:30Z"
-                  roles:
-                    - admin
+                  role: admin
                   created_at: "2026-02-10T10:20:30Z"
                   updated_at: "2026-02-10T10:20:30Z"
                 errors: null
@@ -226,8 +225,7 @@ paths:
                     phone: "+6281234567890"
                     status: active
                     email_verified_at: "2026-02-10T10:20:30Z"
-                    roles:
-                      - admin
+                    role: admin
                     created_at: "2026-02-10T10:20:30Z"
                     updated_at: "2026-02-10T10:20:30Z"
                   - id: 39fbf2d2-c4de-43cf-b833-392cbf11f289
@@ -237,8 +235,7 @@ paths:
                     phone: null
                     status: active
                     email_verified_at: "2026-02-01T09:00:00Z"
-                    roles:
-                      - cs
+                    role: cs
                     created_at: "2026-02-01T09:00:00Z"
                     updated_at: "2026-02-09T09:00:00Z"
                 errors: null
@@ -329,8 +326,7 @@ paths:
                   phone: "+6281234567890"
                   status: active
                   email_verified_at: "2026-02-10T10:20:30Z"
-                  roles:
-                    - admin
+                  role: admin
                   created_at: "2026-02-10T10:20:30Z"
                   updated_at: "2026-02-10T10:20:30Z"
                 errors: null
@@ -460,8 +456,7 @@ paths:
                   phone: "+628111111111"
                   status: active
                   email_verified_at: "2026-02-10T10:20:30Z"
-                  roles:
-                    - finance
+                  role: finance
                   created_at: "2026-02-10T10:20:30Z"
                   updated_at: "2026-02-10T11:00:00Z"
                 errors: null
@@ -1623,7 +1618,7 @@ components:
         - email
         - full_name
         - status
-        - roles
+        - role
         - created_at
         - updated_at
       properties:
@@ -1660,12 +1655,16 @@ components:
           format: date-time
           nullable: true
           example: "2026-02-10T10:20:30Z"
-        roles:
-          type: array
-          items:
-            type: string
-          example:
+        role:
+          type: string
+          description: Role user.
+          enum:
             - admin
+            - umkm
+            - customer
+            - cs
+            - finance
+          example: admin
         created_at:
           type: string
           format: date-time

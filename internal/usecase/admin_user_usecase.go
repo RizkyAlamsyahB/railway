@@ -189,9 +189,9 @@ func (uc *adminUserUseCase) Delete(ctx context.Context, id uuid.UUID, actorID uu
 }
 
 func toUserResponse(u *domain.User) *domain.UserResponse {
-	roles := make([]string, len(u.Roles))
-	for i, r := range u.Roles {
-		roles[i] = r.Code
+	role := ""
+	if u.Role != nil {
+		role = u.Role.Code
 	}
 	return &domain.UserResponse{
 		ID:              u.ID,
@@ -201,7 +201,7 @@ func toUserResponse(u *domain.User) *domain.UserResponse {
 		Phone:           u.Phone,
 		Status:          u.Status,
 		EmailVerifiedAt: u.EmailVerifiedAt,
-		Roles:           roles,
+		Role:            role,
 		CreatedAt:       u.CreatedAt,
 		UpdatedAt:       u.UpdatedAt,
 	}

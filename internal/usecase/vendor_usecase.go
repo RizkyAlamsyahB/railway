@@ -189,7 +189,7 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 	}
 
 	// 7. Generate JWT token.
-	token, err := auth.GenerateToken(userID, user.Email, []string{"umkm"}, &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(userID, user.Email, "umkm", &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -327,15 +327,7 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 	}
 
 	// 3. Check user has "umkm" role.
-	hasUmkm := false
-	roleCodes := make([]string, len(user.Roles))
-	for i, r := range user.Roles {
-		roleCodes[i] = r.Code
-		if r.Code == "umkm" {
-			hasUmkm = true
-		}
-	}
-	if !hasUmkm {
+	if user.Role == nil || user.Role.Code != "umkm" {
 		return nil, ErrNotVendor
 	}
 
@@ -354,7 +346,7 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 	}
 
 	// 6. Generate JWT with vendor_id in claims.
-	token, err := auth.GenerateToken(user.ID, user.Email, roleCodes, &vendor.ID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role.Code, &vendor.ID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}

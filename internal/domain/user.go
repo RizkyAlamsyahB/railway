@@ -19,7 +19,7 @@ type User struct {
 	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
-	Roles           []Role     `json:"roles,omitempty"`
+	Role            *Role      `json:"role,omitempty"`
 }
 
 // Role represents the roles table.
@@ -27,12 +27,6 @@ type Role struct {
 	ID   int16  `json:"id"`
 	Code string `json:"code"`
 	Name string `json:"name"`
-}
-
-// UserRole represents the user_roles junction table.
-type UserRole struct {
-	UserID uuid.UUID `json:"user_id"`
-	RoleID int16     `json:"role_id"`
 }
 
 // CreateUserRequest is the input DTO for creating a user.
@@ -73,7 +67,7 @@ type UserResponse struct {
 	Phone           *string    `json:"phone,omitempty"`
 	Status          string     `json:"status"`
 	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty"`
-	Roles           []string   `json:"roles"`
+	Role            string     `json:"role"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
 }

@@ -10,9 +10,9 @@ func TestGenerateAndValidateToken(t *testing.T) {
 	secret := "test-secret-key-at-least-32-chars!!"
 	userID := uuid.New()
 	email := "test@example.com"
-	roles := []string{"admin", "umkm"}
+	role := "admin"
 
-	token, err := GenerateToken(userID, email, roles, nil, secret, 24, "test-issuer")
+	token, err := GenerateToken(userID, email, role, nil, secret, 24, "test-issuer")
 	if err != nil {
 		t.Fatalf("GenerateToken() error = %v", err)
 	}
@@ -31,8 +31,8 @@ func TestGenerateAndValidateToken(t *testing.T) {
 	if claims.Email != email {
 		t.Errorf("claims.Email = %v, want %v", claims.Email, email)
 	}
-	if len(claims.Roles) != 2 || claims.Roles[0] != "admin" || claims.Roles[1] != "umkm" {
-		t.Errorf("claims.Roles = %v, want %v", claims.Roles, roles)
+	if claims.Role != "admin" {
+		t.Errorf("claims.Role = %v, want %v", claims.Role, role)
 	}
 	if claims.VendorID != nil {
 		t.Errorf("claims.VendorID = %v, want nil", claims.VendorID)
@@ -50,9 +50,9 @@ func TestGenerateAndValidateToken_WithVendorID(t *testing.T) {
 	userID := uuid.New()
 	vendorID := uuid.New()
 	email := "vendor@example.com"
-	roles := []string{"umkm"}
+	role := "umkm"
 
-	token, err := GenerateToken(userID, email, roles, &vendorID, secret, 24, "test-issuer")
+	token, err := GenerateToken(userID, email, role, &vendorID, secret, 24, "test-issuer")
 	if err != nil {
 		t.Fatalf("GenerateToken() error = %v", err)
 	}
@@ -74,7 +74,7 @@ func TestGenerateAndValidateToken_WithVendorID(t *testing.T) {
 }
 
 func TestValidateToken_WrongSecret(t *testing.T) {
-	token, _ := GenerateToken(uuid.New(), "a@b.com", []string{"customer"}, nil, "secret-1", 24, "issuer")
+	token, _ := GenerateToken(uuid.New(), "a@b.com", "customer", nil, "secret-1", 24, "issuer")
 
 	_, err := ValidateToken(token, "wrong-secret")
 	if err == nil {
@@ -83,7 +83,7 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 }
 
 func TestValidateToken_ExpiredToken(t *testing.T) {
-	token, err := GenerateToken(uuid.New(), "a@b.com", []string{"customer"}, nil, "secret", -1, "issuer")
+	token, err := GenerateToken(uuid.New(), "a@b.com", "customer", nil, "secret", -1, "issuer")
 	if err != nil {
 		t.Fatalf("GenerateToken() error = %v", err)
 	}

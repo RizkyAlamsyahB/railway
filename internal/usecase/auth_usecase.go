@@ -49,19 +49,11 @@ func (uc *authUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 		return nil, ErrAccountInactive
 	}
 
-	hasAdmin := false
-	roleCodes := make([]string, len(user.Roles))
-	for i, r := range user.Roles {
-		roleCodes[i] = r.Code
-		if r.Code == "admin" {
-			hasAdmin = true
-		}
-	}
-	if !hasAdmin {
+	if user.Role == nil || user.Role.Code != "admin" {
 		return nil, ErrNotAdmin
 	}
 
-	token, err := auth.GenerateToken(user.ID, user.Email, roleCodes, nil, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role.Code, nil, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}

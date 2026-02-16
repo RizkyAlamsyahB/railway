@@ -21,6 +21,7 @@ type userModel struct {
 	BirthDate       *time.Time `gorm:"column:birth_date"`
 	Phone           *string    `gorm:"column:phone"`
 	PasswordHash    string     `gorm:"column:password_hash"`
+	RoleID          int16      `gorm:"column:role_id"`
 	Status          string     `gorm:"column:status"`
 	EmailVerifiedAt *time.Time `gorm:"column:email_verified_at"`
 	CreatedAt       time.Time  `gorm:"column:created_at"`
@@ -36,13 +37,6 @@ type roleModel struct {
 }
 
 func (roleModel) TableName() string { return "roles" }
-
-type userRoleModel struct {
-	UserID string `gorm:"column:user_id;primaryKey"`
-	RoleID int16  `gorm:"column:role_id;primaryKey"`
-}
-
-func (userRoleModel) TableName() string { return "user_roles" }
 
 type userRepository struct {
 	db *gorm.DB
@@ -60,13 +54,10 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User, roleCode
 			return fmt.Errorf("role '%s' not found: %w", roleCode, err)
 		}
 
+		user.Role = &domain.Role{ID: role.ID, Code: role.Code, Name: role.Name}
 		model := toUserModel(user)
+		model.RoleID = role.ID
 		if err := tx.Create(&model).Error; err != nil {
-			return err
-		}
-
-		ur := userRoleModel{UserID: user.ID.String(), RoleID: role.ID}
-		if err := tx.Create(&ur).Error; err != nil {
 			return err
 		}
 
@@ -83,13 +74,13 @@ func (r *userRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Us
 		return nil, err
 	}
 
-	roles, err := r.getUserRoles(ctx, model.ID)
+	role, err := r.getUserRole(ctx, model.RoleID)
 	if err != nil {
 		return nil, err
 	}
 
 	user := toDomainUser(&model)
-	user.Roles = roles
+	user.Role = role
 	return user, nil
 }
 
@@ -102,13 +93,13 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*domain
 		return nil, err
 	}
 
-	roles, err := r.getUserRoles(ctx, model.ID)
+	role, err := r.getUserRole(ctx, model.RoleID)
 	if err != nil {
 		return nil, err
 	}
 
 	user := toDomainUser(&model)
-	user.Roles = roles
+	user.Role = role
 	return user, nil
 }
 
@@ -116,8 +107,7 @@ func (r *userRepository) List(ctx context.Context, params domain.UserListParams)
 	query := r.db.WithContext(ctx).Model(&userModel{})
 
 	if params.Role != "" {
-		query = query.Joins("JOIN user_roles ON user_roles.user_id = users.id").
-			Joins("JOIN roles ON roles.id = user_roles.role_id").
+		query = query.Joins("JOIN roles ON roles.id = users.role_id").
 			Where("roles.code = ?", params.Role)
 	}
 
@@ -147,8 +137,8 @@ func (r *userRepository) List(ctx context.Context, params domain.UserListParams)
 	users := make([]domain.User, len(models))
 	for i, m := range models {
 		u := toDomainUser(&m)
-		roles, _ := r.getUserRoles(ctx, m.ID)
-		u.Roles = roles
+		role, _ := r.getUserRole(ctx, m.RoleID)
+		u.Role = role
 		users[i] = *u
 	}
 
@@ -164,62 +154,45 @@ func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
 
 func (r *userRepository) UpdateWithRole(ctx context.Context, user *domain.User, roleCode string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		model := toUserModel(user)
-		if err := tx.Model(&model).
-			Select("full_name", "phone", "birth_date", "status", "password_hash", "updated_at").
-			Updates(&model).Error; err != nil {
-			return err
-		}
-
-		if err := tx.Where("user_id = ?", user.ID.String()).Delete(&userRoleModel{}).Error; err != nil {
-			return err
-		}
-
 		var role roleModel
 		if err := tx.Where("code = ?", roleCode).First(&role).Error; err != nil {
 			return fmt.Errorf("role '%s' not found: %w", roleCode, err)
 		}
 
-		return tx.Create(&userRoleModel{UserID: user.ID.String(), RoleID: role.ID}).Error
-	})
-}
-
-func (r *userRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_id = ?", id.String()).Delete(&userRoleModel{}).Error; err != nil {
+		model := toUserModel(user)
+		model.RoleID = role.ID
+		if err := tx.Model(&model).
+			Select("full_name", "phone", "birth_date", "status", "password_hash", "role_id", "updated_at").
+			Updates(&model).Error; err != nil {
 			return err
 		}
 
-		result := tx.Where("id = ?", id.String()).Delete(&userModel{})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return gorm.ErrRecordNotFound
-		}
 		return nil
 	})
 }
 
-func (r *userRepository) getUserRoles(ctx context.Context, userID string) ([]domain.Role, error) {
-	var roles []roleModel
-	err := r.db.WithContext(ctx).
-		Table("roles").
-		Joins("JOIN user_roles ON user_roles.role_id = roles.id").
-		Where("user_roles.user_id = ?", userID).
-		Find(&roles).Error
+func (r *userRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	result := r.db.WithContext(ctx).Where("id = ?", id.String()).Delete(&userModel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *userRepository) getUserRole(ctx context.Context, roleID int16) (*domain.Role, error) {
+	var role roleModel
+	err := r.db.WithContext(ctx).Where("id = ?", roleID).First(&role).Error
 	if err != nil {
 		return nil, err
 	}
-	result := make([]domain.Role, len(roles))
-	for i, r := range roles {
-		result[i] = domain.Role{ID: r.ID, Code: r.Code, Name: r.Name}
-	}
-	return result, nil
+	return &domain.Role{ID: role.ID, Code: role.Code, Name: role.Name}, nil
 }
 
 func toUserModel(u *domain.User) userModel {
-	return userModel{
+	m := userModel{
 		ID:              u.ID.String(),
 		Email:           u.Email,
 		FullName:        u.FullName,
@@ -231,6 +204,10 @@ func toUserModel(u *domain.User) userModel {
 		CreatedAt:       u.CreatedAt,
 		UpdatedAt:       u.UpdatedAt,
 	}
+	if u.Role != nil {
+		m.RoleID = u.Role.ID
+	}
+	return m
 }
 
 func toDomainUser(m *userModel) *domain.User {

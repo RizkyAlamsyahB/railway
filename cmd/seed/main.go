@@ -21,6 +21,7 @@ type User struct {
 	FullName        string     `gorm:"column:full_name"`
 	Phone           *string    `gorm:"column:phone"`
 	PasswordHash    string     `gorm:"column:password_hash"`
+	RoleID          int16      `gorm:"column:role_id"`
 	Status          string     `gorm:"column:status"`
 	EmailVerifiedAt *time.Time `gorm:"column:email_verified_at"`
 	CreatedAt       time.Time  `gorm:"column:created_at"`
@@ -35,13 +36,6 @@ type Role struct {
 }
 
 func (Role) TableName() string { return "roles" }
-
-type UserRole struct {
-	UserID string `gorm:"column:user_id;primaryKey"`
-	RoleID int16  `gorm:"column:role_id;primaryKey"`
-}
-
-func (UserRole) TableName() string { return "user_roles" }
 
 func main() {
 	cfg, err := config.Load()
@@ -113,27 +107,18 @@ func seedAdmin(db *gorm.DB, email, password, name, phone string) error {
 		FullName:        name,
 		Phone:           phonePtr,
 		PasswordHash:    hash,
+		RoleID:          adminRole.ID,
 		Status:          "active",
 		EmailVerifiedAt: &now,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
 
-	userRole := UserRole{
-		UserID: userID,
-		RoleID: adminRole.ID,
+	if err := db.Create(&newUser).Error; err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
 	}
-
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&newUser).Error; err != nil {
-			return fmt.Errorf("failed to create user: %w", err)
-		}
-		if err := tx.Create(&userRole).Error; err != nil {
-			return fmt.Errorf("failed to assign admin role: %w", err)
-		}
-		log.Printf("admin user created successfully: id=%s, email=%s", userID, email)
-		return nil
-	})
+	log.Printf("admin user created successfully: id=%s, email=%s", userID, email)
+	return nil
 }
 
 func isUndefinedTableError(err error) bool {
