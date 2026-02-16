@@ -78,16 +78,39 @@ Delivery (HTTP handlers)  →  Usecase (business logic)  →  Domain (entities +
 - **Vendor**: types (umrah_souvenir_store, hajj_souvenir_store, general_souvenir_store), status workflow: draft → submitted → active/rejected/blocked.
 - **VendorDocument**: 6 required + 1 optional document types. Required: owner_ktp, owner_passport, store_photo, bank_account_proof, business_logo, business_banner. Optional: business_npwp. S3-backed file storage with presigned URLs.
 - **VendorBankAccount**: 1:1 with vendor, has verification status.
+- **Product**: vendor_id, category_id, slug, halal_ai_status. Contains variants and images.
+- **ProductVariant**: SKU, price, stock, weight, is_default.
+- **Category**: tree structure with parent_id.
 
 ### Response pattern
 
-All handlers use `pkg/response/` helpers (`response.OK()`, `response.Created()`, `response.BadRequest()`, etc.) which return a standard JSON envelope.
+All handlers use `pkg/response/` helpers (`response.OK()`, `response.Created()`, `response.BadRequest()`, etc.) which return a standard JSON envelope. Paginated responses use `response.SuccessWithMeta()`.
+
+### Repository patterns
+
+- Each repository defines private GORM model structs (e.g., `userModel`) with `TableName()` methods. These never leak outside the repository.
+- Bidirectional mapper functions convert between domain entities and GORM models: `toDomainUser(m)` / `toUserModel(u)`.
+- Multi-entity operations are wrapped in `r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error { ... })`.
+- "Not found" returns `nil, nil` (not an error): `if errors.Is(err, gorm.ErrRecordNotFound) { return nil, nil }`.
+- All methods accept `context.Context` and use `r.db.WithContext(ctx)`.
+
+### Handler patterns
+
+- Bind input → call usecase → return JSON envelope.
+- Each handler has a private `handleError(c, err)` method that maps usecase sentinel errors to HTTP status codes via `errors.Is()`.
+- Auth context values extracted with: `c.Get(middleware.ContextKeyUserID)` then type-assert.
+
+### Usecase patterns
+
+- Exported sentinel errors per usecase: `var ErrUserNotFound = errors.New("user not found")`.
+- Presigned URL workflow: generate presigned upload URLs → persist object keys in DB → return URLs to client. On confirmation: `HeadObject` to verify upload → validate content type/size → update document status.
 
 ## Database
 
 - PostgreSQL 17 via Docker Compose (`docker-compose.yml`).
 - Migrations managed with `golang-migrate` CLI, stored in `migrations/` as sequential `.up.sql`/`.down.sql` pairs.
 - GORM models use string UUIDs and `time.Time` for timestamps.
+- Migrations use `TIMESTAMPTZ DEFAULT now()`, `CHECK` constraints for enums, case-insensitive unique indexes on `lower(email)`.
 
 ## Configuration
 
@@ -96,4 +119,14 @@ Environment variables loaded from `.env` via Viper. See `.env.example` for all a
 ## Testing
 
 - Standard Go `testing` package with `go.uber.org/mock` for interface mocking.
-- Existing tests in `pkg/utils/auth/` cover JWT and password utilities.
+- Mocks are stored in `internal/usecase/mocks/` and generated with `mockgen`.
+- Test helper pattern: `setupUseCase(t)` returns mock repo + use case instance.
+- Test naming convention: `Test<Method>_<Scenario>` (e.g., `TestCreate_EmailAlreadyExists`).
+- Tests are co-located with implementation as `*_test.go` files.
+
+## Coding Conventions
+
+- Standard Go formatting (`gofmt`). Package names short, lowercase, no underscores.
+- File naming: feature-oriented snake_case (e.g., `vendor_usecase.go`, `auth_handler.go`).
+- Constructor style `NewXxx(...)` for dependency injection.
+- Commit messages follow Conventional Commits: `feat(vendor): add product management flow`, `fix(auth): correct token expiry`, `refactor: relocate admin login endpoint`.
