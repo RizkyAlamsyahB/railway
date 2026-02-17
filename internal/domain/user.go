@@ -136,6 +136,18 @@ type ResendVerificationRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }
 
+// LoginRequest is the input DTO for user authentication.
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// LoginResponse is the output DTO for a successful user authentication.
+type LoginResponse struct {
+	Token string `json:"token"`
+	User  UserResponse `json:"user"`
+}
+
 // EmailVerificationTokenRepository defines the interface for email verification token data access.
 type EmailVerificationTokenRepository interface {
 	Create(ctx context.Context, token *EmailVerificationToken) error
@@ -150,4 +162,5 @@ type UserUseCase interface {
 	Register(ctx context.Context, req RegisterCustomerRequest) (*RegisterCustomerResponse, error)
 	VerifyEmail(ctx context.Context, rawToken string) error
 	ResendVerification(ctx context.Context, req ResendVerificationRequest) error
+	Login(ctx context.Context, req LoginRequest) (*LoginResponse, error)
 }

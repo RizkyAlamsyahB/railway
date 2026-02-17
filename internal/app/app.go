@@ -90,7 +90,7 @@ func Initialize() (*App, error) {
 
 	// User registration & email verification
 	emailVerifRepo := repository.NewEmailVerificationTokenRepository(db)
-	userUseCase := usecase.NewUserUseCase(userRepo, emailVerifRepo, emailProvider, cfg.App.BaseURL)
+	userUseCase := usecase.NewUserUseCase(userRepo, emailVerifRepo, emailProvider, cfg.App.BaseURL, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	userHandler := handler.NewUserHandler(userUseCase, cfg.App.FrontendURL)
 
 	// Setup router

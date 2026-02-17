@@ -80,6 +80,23 @@ func (h *UserHandler) ResendVerification(c *gin.Context) {
 	response.OK(c, "If your email is registered and pending verification, a new verification email has been sent.", nil)
 }
 
+// Login handles POST /api/v1/users/login.
+func (h *UserHandler) Login(c *gin.Context) {
+	var req domain.LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	result, err := h.useCase.Login(c.Request.Context(), req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	response.OK(c, "login successful", result)
+}
+
 // handleError maps usecase sentinel errors to HTTP responses.
 func (h *UserHandler) handleError(c *gin.Context, err error) {
 	switch {
@@ -95,6 +112,14 @@ func (h *UserHandler) handleError(c *gin.Context, err error) {
 		response.Error(c, http.StatusTooManyRequests, err.Error(), nil)
 	case errors.Is(err, usecase.ErrUserNotPending):
 		response.BadRequest(c, err.Error(), nil)
+	case errors.Is(err, usecase.ErrUserInvalidCredentials):
+		response.Unauthorized(c, "invalid email or password", nil)
+	case errors.Is(err, usecase.ErrUserAccountBlocked):
+		response.Forbidden(c, "account is blocked", nil)
+	case errors.Is(err, usecase.ErrUserAccountNotActive):
+		response.Unauthorized(c, "account is not active", nil)
+	case errors.Is(err, usecase.ErrUserEmailNotVerified):
+		response.Unauthorized(c, "email is not verified", nil)
 	default:
 		response.InternalServerError(c, "An unexpected error occurred", nil)
 	}

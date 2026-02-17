@@ -21,6 +21,10 @@ var (
 	ErrUserAlreadyActive        = errors.New("user is already active")
 	ErrResendTooSoon            = errors.New("please wait before requesting another verification email")
 	ErrUserNotPending           = errors.New("user is not in pending status")
+	ErrUserInvalidCredentials   = errors.New("invalid email or password")
+	ErrUserAccountNotActive     = errors.New("account is not active")
+	ErrUserEmailNotVerified     = errors.New("email is not verified")
+	ErrUserAccountBlocked       = errors.New("account is blocked")
 )
 
 const (
@@ -34,6 +38,9 @@ type userUseCase struct {
 	tokenRepo     domain.EmailVerificationTokenRepository
 	emailProvider domain.EmailProvider
 	backendURL    string
+	jwtSecret     string
+	jwtExpiry     int
+	jwtIssuer     string
 }
 
 // NewUserUseCase creates a new UserUseCase.
@@ -42,12 +49,18 @@ func NewUserUseCase(
 	tokenRepo domain.EmailVerificationTokenRepository,
 	emailProvider domain.EmailProvider,
 	backendURL string,
+	jwtSecret string,
+	jwtExpiry int,
+	jwtIssuer string,
 ) domain.UserUseCase {
 	return &userUseCase{
 		userRepo:      userRepo,
 		tokenRepo:     tokenRepo,
 		emailProvider: emailProvider,
 		backendURL:    backendURL,
+		jwtSecret:     jwtSecret,
+		jwtExpiry:     jwtExpiry,
+		jwtIssuer:     jwtIssuer,
 	}
 }
 
@@ -250,4 +263,63 @@ func buildVerificationEmailBody(verifyURL string) string {
     </div>
 </body>
 </html>`, verifyURL)
+}
+
+func (uc *userUseCase) Login(ctx context.Context, req domain.LoginRequest) (*domain.LoginResponse, error) {
+	// 1. Find user by email.
+	user, err := uc.userRepo.FindByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return nil, ErrUserInvalidCredentials
+	}
+
+	// 2. Verify password.
+	if err := auth.CheckPassword(req.Password, user.PasswordHash); err != nil {
+		return nil, ErrUserInvalidCredentials
+	}
+
+	// 3. Check account is not blocked.
+	if user.Status == "blocked" {
+		return nil, ErrUserAccountBlocked
+	}
+
+	// 4. Check account is active.
+	if user.Status != "active" {
+		return nil, ErrUserAccountNotActive
+	}
+
+	// 5. Check email is verified.
+	if user.EmailVerifiedAt == nil {
+		return nil, ErrUserEmailNotVerified
+	}
+
+	// 6. Determine role code.
+	roleCode := ""
+	if user.Role != nil {
+		roleCode = user.Role.Code
+	}
+
+	// 7. Generate JWT token.
+	token, err := auth.GenerateToken(user.ID, user.Email, roleCode, nil, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return &domain.LoginResponse{
+		Token: token,
+		User: domain.UserResponse{
+			ID:              user.ID,
+			Email:           user.Email,
+			FullName:        user.FullName,
+			BirthDate:       user.BirthDate,
+			Phone:           user.Phone,
+			Status:          user.Status,
+			EmailVerifiedAt: user.EmailVerifiedAt,
+			Role:            roleCode,
+			CreatedAt:       user.CreatedAt,
+			UpdatedAt:       user.UpdatedAt,
+		},
+	}, nil
 }

@@ -27,12 +27,13 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		v1.GET("/shipping-services", catalogHandler.ListShippingServices)
 	}
 
-	// User routes (public registration + email verification)
+	// User routes (public registration + email verification + login)
 	userGroup := v1.Group("/users")
 	{
 		userGroup.POST("/register", userHandler.Register)
 		userGroup.GET("/verify-email", userHandler.VerifyEmail)
 		userGroup.POST("/resend-verification", userHandler.ResendVerification)
+		userGroup.POST("/login", userHandler.Login)
 	}
 
 	// Vendor routes (public registration + login)

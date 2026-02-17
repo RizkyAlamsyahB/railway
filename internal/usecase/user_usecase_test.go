@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase/mocks"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/auth"
 	"go.uber.org/mock/gomock"
 )
 
@@ -27,7 +28,7 @@ func setupUserUseCase(t *testing.T) (
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
 	emailProvider := mocks.NewMockEmailProvider(ctrl)
-	uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, "http://localhost:8080")
+	uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, "http://localhost:8080", "test-secret", 24, "test-issuer")
 	return userRepo, tokenRepo, emailProvider, uc
 }
 
@@ -359,4 +360,166 @@ func TestUserResendVerification_UserBlocked(t *testing.T) {
 	if !errors.Is(err, ErrUserNotPending) {
 		t.Errorf("expected ErrUserNotPending, got %v", err)
 	}
+}
+
+// ============================================================
+// Login
+// ============================================================
+
+func TestUserLogin_Success(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	now := time.Now()
+	verifiedAt := now.Add(-1 * time.Hour)
+	phone := "08123456789"
+
+	user := &domain.User{
+		ID:              uuid.New(),
+		Email:           "john@example.com",
+		FullName:        "John Doe",
+		Phone:           &phone,
+		PasswordHash:    mustHashPassword("password123"),
+		Status:          "active",
+		EmailVerifiedAt: &verifiedAt,
+		Role:            &domain.Role{ID: 3, Code: "customer", Name: "Customer"},
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	userRepo.EXPECT().FindByEmail(ctx, user.Email).Return(user, nil)
+
+	req := domain.LoginRequest{Email: user.Email, Password: "password123"}
+	resp, err := uc.Login(ctx, req)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if resp.Token == "" {
+		t.Error("expected non-empty token")
+	}
+	if resp.User.Email != user.Email {
+		t.Errorf("expected email %s, got %s", user.Email, resp.User.Email)
+	}
+	if resp.User.Role != "customer" {
+		t.Errorf("expected role customer, got %s", resp.User.Role)
+	}
+}
+
+func TestUserLogin_InvalidCredentials_UserNotFound(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	userRepo.EXPECT().FindByEmail(ctx, "unknown@example.com").Return(nil, nil)
+
+	req := domain.LoginRequest{Email: "unknown@example.com", Password: "password123"}
+	_, err := uc.Login(ctx, req)
+	if !errors.Is(err, ErrUserInvalidCredentials) {
+		t.Errorf("expected ErrUserInvalidCredentials, got %v", err)
+	}
+}
+
+func TestUserLogin_InvalidCredentials_WrongPassword(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	user := &domain.User{
+		ID:           uuid.New(),
+		Email:        "john@example.com",
+		PasswordHash: mustHashPassword("correctpassword"),
+		Status:       "active",
+	}
+
+	userRepo.EXPECT().FindByEmail(ctx, user.Email).Return(user, nil)
+
+	req := domain.LoginRequest{Email: user.Email, Password: "wrongpassword"}
+	_, err := uc.Login(ctx, req)
+	if !errors.Is(err, ErrUserInvalidCredentials) {
+		t.Errorf("expected ErrUserInvalidCredentials, got %v", err)
+	}
+}
+
+func TestUserLogin_AccountBlocked(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	user := &domain.User{
+		ID:           uuid.New(),
+		Email:        "blocked@example.com",
+		PasswordHash: mustHashPassword("password123"),
+		Status:       "blocked",
+	}
+
+	userRepo.EXPECT().FindByEmail(ctx, user.Email).Return(user, nil)
+
+	req := domain.LoginRequest{Email: user.Email, Password: "password123"}
+	_, err := uc.Login(ctx, req)
+	if !errors.Is(err, ErrUserAccountBlocked) {
+		t.Errorf("expected ErrUserAccountBlocked, got %v", err)
+	}
+}
+
+func TestUserLogin_AccountNotActive(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	user := &domain.User{
+		ID:           uuid.New(),
+		Email:        "pending@example.com",
+		PasswordHash: mustHashPassword("password123"),
+		Status:       "pending",
+	}
+
+	userRepo.EXPECT().FindByEmail(ctx, user.Email).Return(user, nil)
+
+	req := domain.LoginRequest{Email: user.Email, Password: "password123"}
+	_, err := uc.Login(ctx, req)
+	if !errors.Is(err, ErrUserAccountNotActive) {
+		t.Errorf("expected ErrUserAccountNotActive, got %v", err)
+	}
+}
+
+func TestUserLogin_EmailNotVerified(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	user := &domain.User{
+		ID:              uuid.New(),
+		Email:           "unverified@example.com",
+		PasswordHash:    mustHashPassword("password123"),
+		Status:          "active",
+		EmailVerifiedAt: nil,
+	}
+
+	userRepo.EXPECT().FindByEmail(ctx, user.Email).Return(user, nil)
+
+	req := domain.LoginRequest{Email: user.Email, Password: "password123"}
+	_, err := uc.Login(ctx, req)
+	if !errors.Is(err, ErrUserEmailNotVerified) {
+		t.Errorf("expected ErrUserEmailNotVerified, got %v", err)
+	}
+}
+
+func TestUserLogin_FindByEmailError(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	userRepo.EXPECT().FindByEmail(ctx, "any@example.com").Return(nil, errors.New("db error"))
+
+	req := domain.LoginRequest{Email: "any@example.com", Password: "password123"}
+	_, err := uc.Login(ctx, req)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+// mustHashPassword is a test helper that hashes a password or panics.
+func mustHashPassword(password string) string {
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		panic(err)
+	}
+	return hash
 }
