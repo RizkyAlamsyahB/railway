@@ -88,8 +88,13 @@ func Initialize() (*App, error) {
 	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, shippingServiceRepo)
 	catalogHandler := handler.NewCatalogHandler(catalogUseCase)
 
+	// User registration & email verification
+	emailVerifRepo := repository.NewEmailVerificationTokenRepository(db)
+	userUseCase := usecase.NewUserUseCase(userRepo, emailVerifRepo, emailProvider, cfg.App.BaseURL)
+	userHandler := handler.NewUserHandler(userUseCase, cfg.App.FrontendURL)
+
 	// Setup router
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:  cfg,

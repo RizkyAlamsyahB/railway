@@ -94,8 +94,60 @@ type UserRepository interface {
 	Create(ctx context.Context, user *User, roleCode string) error
 	FindByID(ctx context.Context, id uuid.UUID) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
+	FindByPhone(ctx context.Context, phone string) (*User, error)
 	List(ctx context.Context, params UserListParams) ([]User, int64, error)
 	Update(ctx context.Context, user *User) error
 	UpdateWithRole(ctx context.Context, user *User, roleCode string) error
+	ActivateUser(ctx context.Context, id uuid.UUID) error
 	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// --- Customer Registration & Email Verification ---
+
+// EmailVerificationToken represents the email_verification_tokens table.
+type EmailVerificationToken struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	Email         string
+	TokenHash     string
+	ExpiresAt     time.Time
+	ConsumedAt    *time.Time
+	InvalidatedAt *time.Time
+	CreatedAt     time.Time
+}
+
+// RegisterCustomerRequest is the input DTO for customer self-registration.
+type RegisterCustomerRequest struct {
+	FullName string `json:"full_name" binding:"required,max=120"`
+	Phone    string `json:"phone" binding:"required,max=20"`
+	Email    string `json:"email" binding:"required,email,max=255"`
+	Password string `json:"password" binding:"required,min=8"`
+}
+
+// RegisterCustomerResponse is the output DTO for a successful customer registration.
+type RegisterCustomerResponse struct {
+	UserID  uuid.UUID `json:"user_id"`
+	Email   string    `json:"email"`
+	Message string    `json:"message"`
+}
+
+// ResendVerificationRequest is the input DTO for resending verification email.
+type ResendVerificationRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// EmailVerificationTokenRepository defines the interface for email verification token data access.
+type EmailVerificationTokenRepository interface {
+	Create(ctx context.Context, token *EmailVerificationToken) error
+	FindActiveByTokenHash(ctx context.Context, tokenHash string) (*EmailVerificationToken, error)
+	Consume(ctx context.Context, id uuid.UUID) error
+	InvalidateByUserID(ctx context.Context, userID uuid.UUID) error
+	FindLatestByUserID(ctx context.Context, userID uuid.UUID) (*EmailVerificationToken, error)
+}
+
+// UserUseCase defines the interface for customer-facing user operations.
+type UserUseCase interface {
+	Register(ctx context.Context, req RegisterCustomerRequest) (*RegisterCustomerResponse, error)
+	VerifyEmail(ctx context.Context, rawToken string) error
+	ResendVerification(ctx context.Context, req ResendVerificationRequest) error
 }

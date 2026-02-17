@@ -103,6 +103,37 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*domain
 	return user, nil
 }
 
+func (r *userRepository) FindByPhone(ctx context.Context, phone string) (*domain.User, error) {
+	var model userModel
+	if err := r.db.WithContext(ctx).Where("phone = ?", phone).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	role, err := r.getUserRole(ctx, model.RoleID)
+	if err != nil {
+		return nil, err
+	}
+
+	user := toDomainUser(&model)
+	user.Role = role
+	return user, nil
+}
+
+func (r *userRepository) ActivateUser(ctx context.Context, id uuid.UUID) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).
+		Model(&userModel{}).
+		Where("id = ?", id.String()).
+		Updates(map[string]interface{}{
+			"status":            "active",
+			"email_verified_at": now,
+			"updated_at":        now,
+		}).Error
+}
+
 func (r *userRepository) List(ctx context.Context, params domain.UserListParams) ([]domain.User, int64, error) {
 	query := r.db.WithContext(ctx).Model(&userModel{})
 
