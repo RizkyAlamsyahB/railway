@@ -85,6 +85,16 @@ type StorageConfig struct {
 	UploadMaxSizeMB  int    `mapstructure:"STORAGE_UPLOAD_MAX_SIZE_MB"`
 }
 
+// SMTPConfig holds SMTP email sending configuration.
+type SMTPConfig struct {
+	Host      string `mapstructure:"SMTP_HOST"`
+	Port      int    `mapstructure:"SMTP_PORT"`
+	Username  string `mapstructure:"SMTP_USERNAME"`
+	Password  string `mapstructure:"SMTP_PASSWORD"`
+	FromEmail string `mapstructure:"SMTP_FROM_EMAIL"`
+	FromName  string `mapstructure:"SMTP_FROM_NAME"`
+}
+
 // Config is the root configuration struct containing all configuration sections.
 type Config struct {
 	App      AppConfig      `mapstructure:",squash"`
@@ -92,6 +102,7 @@ type Config struct {
 	JWT      JWTConfig      `mapstructure:",squash"`
 	Admin    AdminConfig    `mapstructure:",squash"`
 	Storage  StorageConfig  `mapstructure:",squash"`
+	SMTP     SMTPConfig     `mapstructure:",squash"`
 }
 
 // Load reads configuration from the .env file and environment variables.
@@ -130,6 +141,12 @@ func Load() (*Config, error) {
 	viper.SetDefault("STORAGE_S3_FORCE_PATH_STYLE", false)
 	viper.SetDefault("STORAGE_BASE_URL", "")
 	viper.SetDefault("STORAGE_UPLOAD_MAX_SIZE_MB", 10)
+	viper.SetDefault("SMTP_HOST", "smtp.gmail.com")
+	viper.SetDefault("SMTP_PORT", 587)
+	viper.SetDefault("SMTP_USERNAME", "")
+	viper.SetDefault("SMTP_PASSWORD", "")
+	viper.SetDefault("SMTP_FROM_EMAIL", "")
+	viper.SetDefault("SMTP_FROM_NAME", "")
 
 	// Read .env file (ignore error if file doesn't exist)
 	_ = viper.ReadInConfig()

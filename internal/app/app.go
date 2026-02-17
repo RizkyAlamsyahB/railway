@@ -10,6 +10,7 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/router"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/database"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/email"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/storage"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/repository"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
@@ -21,6 +22,7 @@ type App struct {
 	Config  *config.Config
 	DB      *gorm.DB
 	Storage domain.StorageProvider
+	Email   domain.EmailProvider
 	Router  *gin.Engine
 }
 
@@ -48,6 +50,14 @@ func Initialize() (*App, error) {
 	}
 
 	log.Printf("storage provider initialized (provider=%s)", cfg.Storage.Provider)
+
+	// Initialize email provider
+	emailProvider, err := newEmailProvider(cfg.SMTP)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize email provider: %w", err)
+	}
+
+	log.Println("email provider initialized (SMTP)")
 
 	// Wire dependencies
 	healthUseCase := usecase.NewHealthUseCase()
@@ -85,6 +95,7 @@ func Initialize() (*App, error) {
 		Config:  cfg,
 		DB:      db,
 		Storage: storageProvider,
+		Email:   emailProvider,
 		Router:  r,
 	}, nil
 }
@@ -97,6 +108,11 @@ func newStorageProvider(cfg config.StorageConfig) (domain.StorageProvider, error
 	default:
 		return nil, fmt.Errorf("unsupported storage provider: %q", cfg.Provider)
 	}
+}
+
+// newEmailProvider creates the SMTP-backed EmailProvider from config.
+func newEmailProvider(cfg config.SMTPConfig) (domain.EmailProvider, error) {
+	return email.NewSMTPSender(cfg)
 }
 
 // Close cleans up application resources.
