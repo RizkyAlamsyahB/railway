@@ -17,14 +17,16 @@ import (
 func setupCartUseCase(t *testing.T) (
 	*mocks.MockCartRepository,
 	*mocks.MockProductRepository,
+	*mocks.MockStorageProvider,
 	domain.CartUseCase,
 ) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
 	cartRepo := mocks.NewMockCartRepository(ctrl)
 	productRepo := mocks.NewMockProductRepository(ctrl)
-	uc := NewCartUseCase(cartRepo, productRepo)
-	return cartRepo, productRepo, uc
+	storageProvider := mocks.NewMockStorageProvider(ctrl)
+	uc := NewCartUseCase(cartRepo, productRepo, storageProvider)
+	return cartRepo, productRepo, storageProvider, uc
 }
 
 // fixtureIDs returns a reusable set of deterministic UUIDs for test fixtures.
@@ -81,18 +83,19 @@ func TestGetCart(t *testing.T) {
 	userID, cartID, variantID, productID, itemID := fixtureIDs()
 	now := time.Now()
 
-	imgURL := "https://cdn.example.com/img.jpg"
+	imgKey := "products/dddddddd/images/img1/product-main.jpg"
+	presignedURL := "https://bucket.s3.amazonaws.com/products/dddddddd/images/img1/product-main.jpg?X-Amz-Signature=abc"
 
 	tests := []struct {
 		name      string
-		setup     func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository)
+		setup     func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider)
 		wantErr   bool
 		wantItems int
 		wantTotal float64
 	}{
 		{
 			name: "success - cart with one available item",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
 					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 2, CreatedAt: now},
@@ -100,8 +103,9 @@ func TestGetCart(t *testing.T) {
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(activeVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(publishedProduct(productID), nil)
 				pr.EXPECT().FindImagesByProductID(gomock.Any(), productID).Return([]domain.ProductImage{
-					{ID: uuid.New(), ProductID: productID, ImageURL: imgURL, IsPrimary: true},
+					{ID: uuid.New(), ProductID: productID, ImageURL: imgKey, IsPrimary: true},
 				}, nil)
+				sp.EXPECT().GeneratePresignedURL(gomock.Any(), imgKey, presignedDownloadExpiry).Return(presignedURL, nil)
 			},
 			wantErr:   false,
 			wantItems: 1,
@@ -109,7 +113,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "success - empty cart (no items)",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{}, nil)
 			},
@@ -119,7 +123,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "success - cart auto-created when not found",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, nil)
 				cr.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), gomock.Any()).Return([]domain.CartItem{}, nil)
@@ -130,7 +134,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "success - skips item with deleted variant",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
 					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
@@ -144,7 +148,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "success - skips item with deleted product",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
 					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
@@ -158,7 +162,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "success - unavailable item not counted in total",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				inactiveVariant := activeVariant(variantID, productID)
 				inactiveVariant.IsActive = false
 
@@ -176,14 +180,14 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "error - FindByUserID fails",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, errDB)
 			},
 			wantErr: true,
 		},
 		{
 			name: "error - Create cart fails",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, nil)
 				cr.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errDB)
 			},
@@ -191,7 +195,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "error - FindItemsByCartID fails",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(nil, errDB)
 			},
@@ -199,7 +203,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "error - FindVariantByID fails",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
 					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
@@ -210,7 +214,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "error - FindByID (product) fails",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
 					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
@@ -222,7 +226,7 @@ func TestGetCart(t *testing.T) {
 		},
 		{
 			name: "error - FindImagesByProductID fails",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
 					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
@@ -233,12 +237,28 @@ func TestGetCart(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "error - GeneratePresignedURL fails",
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
+				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
+					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
+				}, nil)
+				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(activeVariant(variantID, productID), nil)
+				pr.EXPECT().FindByID(gomock.Any(), productID).Return(publishedProduct(productID), nil)
+				pr.EXPECT().FindImagesByProductID(gomock.Any(), productID).Return([]domain.ProductImage{
+					{ID: uuid.New(), ProductID: productID, ImageURL: imgKey, IsPrimary: true},
+				}, nil)
+				sp.EXPECT().GeneratePresignedURL(gomock.Any(), imgKey, presignedDownloadExpiry).Return("", errDB)
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cartRepo, productRepo, uc := setupCartUseCase(t)
-			tc.setup(cartRepo, productRepo)
+			cartRepo, productRepo, storageProvider, uc := setupCartUseCase(t)
+			tc.setup(cartRepo, productRepo, storageProvider)
 
 			resp, err := uc.GetCart(context.Background(), userID)
 			if tc.wantErr {
@@ -437,7 +457,7 @@ func TestAddItem(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cartRepo, productRepo, uc := setupCartUseCase(t)
+			cartRepo, productRepo, _, uc := setupCartUseCase(t)
 			tc.setup(cartRepo, productRepo)
 
 			resp, err := uc.AddItem(context.Background(), userID, tc.req)
@@ -588,7 +608,7 @@ func TestUpdateItem(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cartRepo, productRepo, uc := setupCartUseCase(t)
+			cartRepo, productRepo, _, uc := setupCartUseCase(t)
 			tc.setup(cartRepo, productRepo)
 
 			resp, err := uc.UpdateItem(context.Background(), userID, tc.itemID, tc.req)
@@ -692,7 +712,7 @@ func TestRemoveItem(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cartRepo, productRepo, uc := setupCartUseCase(t)
+			cartRepo, productRepo, _, uc := setupCartUseCase(t)
 			tc.setup(cartRepo, productRepo)
 
 			err := uc.RemoveItem(context.Background(), userID, tc.itemID)
@@ -778,7 +798,7 @@ func TestClearCart(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cartRepo, productRepo, uc := setupCartUseCase(t)
+			cartRepo, productRepo, _, uc := setupCartUseCase(t)
 			tc.setup(cartRepo, productRepo)
 
 			err := uc.ClearCart(context.Background(), userID)

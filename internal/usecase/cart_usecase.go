@@ -23,16 +23,19 @@ var (
 type cartUseCase struct {
 	cartRepo    domain.CartRepository
 	productRepo domain.ProductRepository
+	storage     domain.StorageProvider
 }
 
 // NewCartUseCase creates a new CartUseCase.
 func NewCartUseCase(
 	cartRepo domain.CartRepository,
 	productRepo domain.ProductRepository,
+	storage domain.StorageProvider,
 ) domain.CartUseCase {
 	return &cartUseCase{
 		cartRepo:    cartRepo,
 		productRepo: productRepo,
+		storage:     storage,
 	}
 }
 
@@ -92,7 +95,7 @@ func (uc *cartUseCase) GetCart(ctx context.Context, userID uuid.UUID) (*domain.G
 			continue
 		}
 
-		// Find primary image.
+		// Find primary image and generate presigned URL.
 		var imageURL *string
 		images, err := uc.productRepo.FindImagesByProductID(ctx, variant.ProductID)
 		if err != nil {
@@ -100,7 +103,11 @@ func (uc *cartUseCase) GetCart(ctx context.Context, userID uuid.UUID) (*domain.G
 		}
 		for _, img := range images {
 			if img.IsPrimary {
-				imageURL = &img.ImageURL
+				presigned, err := uc.storage.GeneratePresignedURL(ctx, img.ImageURL, presignedDownloadExpiry)
+				if err != nil {
+					return nil, fmt.Errorf("failed to generate presigned URL: %w", err)
+				}
+				imageURL = &presigned
 				break
 			}
 		}

@@ -95,7 +95,7 @@ func Initialize() (*App, error) {
 
 	// Cart feature
 	cartRepo := repository.NewCartRepository(db)
-	cartUseCase := usecase.NewCartUseCase(cartRepo, productRepo)
+	cartUseCase := usecase.NewCartUseCase(cartRepo, productRepo, storageProvider)
 	cartHandler := handler.NewCartHandler(cartUseCase)
 
 	// Setup router
