@@ -7,7 +7,7 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -42,6 +42,11 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	userAuth.Use(middleware.RequireRoles("customer"))
 	{
 		userAuth.GET("/me", userHandler.GetMe)
+		userAuth.GET("/cart", cartHandler.GetCart)
+		userAuth.POST("/cart/items", cartHandler.AddItem)
+		userAuth.PATCH("/cart/items/:itemId", cartHandler.UpdateItem)
+		userAuth.DELETE("/cart/items/:itemId", cartHandler.RemoveItem)
+		userAuth.DELETE("/cart", cartHandler.ClearCart)
 	}
 
 	// Vendor routes (public registration + login)

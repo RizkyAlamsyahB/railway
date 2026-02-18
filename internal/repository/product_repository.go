@@ -192,6 +192,17 @@ func (r *productRepository) CountByVendorID(ctx context.Context, vendorID uuid.U
 	return count, err
 }
 
+func (r *productRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (*domain.ProductVariant, error) {
+	var model productVariantModel
+	if err := r.db.WithContext(ctx).Where("id = ?", id.String()).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainProductVariant(&model), nil
+}
+
 // Mapper helpers.
 
 func toProductModel(p *domain.Product) productModel {

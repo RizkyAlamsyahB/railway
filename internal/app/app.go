@@ -93,8 +93,13 @@ func Initialize() (*App, error) {
 	userUseCase := usecase.NewUserUseCase(userRepo, emailVerifRepo, emailProvider, cfg.App.BaseURL, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	userHandler := handler.NewUserHandler(userUseCase, cfg.App.FrontendURL)
 
+	// Cart feature
+	cartRepo := repository.NewCartRepository(db)
+	cartUseCase := usecase.NewCartUseCase(cartRepo, productRepo)
+	cartHandler := handler.NewCartHandler(cartUseCase)
+
 	// Setup router
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:  cfg,

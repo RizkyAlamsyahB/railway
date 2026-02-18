@@ -183,6 +183,9 @@ type ProductRepository interface {
 
 	// CountByVendorID returns the total number of products for a vendor.
 	CountByVendorID(ctx context.Context, vendorID uuid.UUID) (int64, error)
+
+	// FindVariantByID returns a single product variant by its ID, or nil if not found.
+	FindVariantByID(ctx context.Context, id uuid.UUID) (*ProductVariant, error)
 }
 
 // CategoryRepository defines the interface for category data access.

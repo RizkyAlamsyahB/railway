@@ -101,6 +101,21 @@ func (mr *MockProductRepositoryMockRecorder) FindByID(ctx, id any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockProductRepository)(nil).FindByID), ctx, id)
 }
 
+// FindVariantByID mocks base method.
+func (m *MockProductRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (*domain.ProductVariant, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindVariantByID", ctx, id)
+	ret0, _ := ret[0].(*domain.ProductVariant)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindVariantByID indicates an expected call of FindVariantByID.
+func (mr *MockProductRepositoryMockRecorder) FindVariantByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindVariantByID", reflect.TypeOf((*MockProductRepository)(nil).FindVariantByID), ctx, id)
+}
+
 // FindBySlug mocks base method.
 func (m *MockProductRepository) FindBySlug(ctx context.Context, slug string) (*domain.Product, error) {
 	m.ctrl.T.Helper()
