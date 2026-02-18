@@ -6,10 +6,32 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
+
+// extractUserID retrieves the authenticated user's UUID from the Gin context.
+func extractUserID(c *gin.Context) (uuid.UUID, bool) {
+	val, exists := c.Get(middleware.ContextKeyUserID)
+	if !exists {
+		return uuid.UUID{}, false
+	}
+	switch v := val.(type) {
+	case uuid.UUID:
+		return v, true
+	case string:
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return uuid.UUID{}, false
+		}
+		return id, true
+	default:
+		return uuid.UUID{}, false
+	}
+}
 
 // UserHandler handles customer-facing user HTTP requests.
 type UserHandler struct {
@@ -97,6 +119,23 @@ func (h *UserHandler) Login(c *gin.Context) {
 	response.OK(c, "login successful", result)
 }
 
+// GetMe handles GET /api/v1/users/me.
+func (h *UserHandler) GetMe(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	result, err := h.useCase.GetMe(c.Request.Context(), userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	response.OK(c, "user profile retrieved successfully", result)
+}
+
 // handleError maps usecase sentinel errors to HTTP responses.
 func (h *UserHandler) handleError(c *gin.Context, err error) {
 	switch {
@@ -120,6 +159,8 @@ func (h *UserHandler) handleError(c *gin.Context, err error) {
 		response.Unauthorized(c, "account is not active", nil)
 	case errors.Is(err, usecase.ErrUserEmailNotVerified):
 		response.Unauthorized(c, "email is not verified", nil)
+	case errors.Is(err, usecase.ErrUserNotFound):
+		response.Error(c, http.StatusNotFound, "user not found", nil)
 	default:
 		response.InternalServerError(c, "An unexpected error occurred", nil)
 	}

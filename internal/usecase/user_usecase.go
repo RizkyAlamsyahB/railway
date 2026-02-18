@@ -323,3 +323,31 @@ func (uc *userUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 		},
 	}, nil
 }
+
+func (uc *userUseCase) GetMe(ctx context.Context, userID uuid.UUID) (*domain.UserResponse, error) {
+	user, err := uc.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+
+	roleCode := ""
+	if user.Role != nil {
+		roleCode = user.Role.Code
+	}
+
+	return &domain.UserResponse{
+		ID:              user.ID,
+		Email:           user.Email,
+		FullName:        user.FullName,
+		BirthDate:       user.BirthDate,
+		Phone:           user.Phone,
+		Status:          user.Status,
+		EmailVerifiedAt: user.EmailVerifiedAt,
+		Role:            roleCode,
+		CreatedAt:       user.CreatedAt,
+		UpdatedAt:       user.UpdatedAt,
+	}, nil
+}

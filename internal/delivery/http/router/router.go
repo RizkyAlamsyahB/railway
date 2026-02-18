@@ -36,6 +36,14 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		userGroup.POST("/login", userHandler.Login)
 	}
 
+	// User authenticated routes (requires auth + customer role)
+	userAuth := v1.Group("/users")
+	userAuth.Use(middleware.Auth(jwtSecret))
+	userAuth.Use(middleware.RequireRoles("customer"))
+	{
+		userAuth.GET("/me", userHandler.GetMe)
+	}
+
 	// Vendor routes (public registration + login)
 	vendorGroup := v1.Group("/vendors")
 	{

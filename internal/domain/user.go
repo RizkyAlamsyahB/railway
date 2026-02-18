@@ -163,4 +163,5 @@ type UserUseCase interface {
 	VerifyEmail(ctx context.Context, rawToken string) error
 	ResendVerification(ctx context.Context, req ResendVerificationRequest) error
 	Login(ctx context.Context, req LoginRequest) (*LoginResponse, error)
+	GetMe(ctx context.Context, userID uuid.UUID) (*UserResponse, error)
 }

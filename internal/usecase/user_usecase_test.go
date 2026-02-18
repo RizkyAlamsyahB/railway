@@ -515,6 +515,80 @@ func TestUserLogin_FindByEmailError(t *testing.T) {
 	}
 }
 
+// ============================================================
+// GetMe
+// ============================================================
+
+func TestUserGetMe_Success(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	now := time.Now()
+	verifiedAt := now.Add(-1 * time.Hour)
+	phone := "08123456789"
+
+	userID := uuid.New()
+	user := &domain.User{
+		ID:              userID,
+		Email:           "john@example.com",
+		FullName:        "John Doe",
+		Phone:           &phone,
+		Status:          "active",
+		EmailVerifiedAt: &verifiedAt,
+		Role:            &domain.Role{ID: 3, Code: "customer", Name: "Customer"},
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	userRepo.EXPECT().FindByID(ctx, userID).Return(user, nil)
+
+	resp, err := uc.GetMe(ctx, userID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if resp.ID != userID {
+		t.Errorf("expected user ID %s, got %s", userID, resp.ID)
+	}
+	if resp.Email != user.Email {
+		t.Errorf("expected email %s, got %s", user.Email, resp.Email)
+	}
+	if resp.FullName != user.FullName {
+		t.Errorf("expected full name %s, got %s", user.FullName, resp.FullName)
+	}
+	if resp.Role != "customer" {
+		t.Errorf("expected role customer, got %s", resp.Role)
+	}
+}
+
+func TestUserGetMe_UserNotFound(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	userRepo.EXPECT().FindByID(ctx, userID).Return(nil, nil)
+
+	_, err := uc.GetMe(ctx, userID)
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Errorf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestUserGetMe_RepoError(t *testing.T) {
+	userRepo, _, _, uc := setupUserUseCase(t)
+	ctx := context.Background()
+
+	userID := uuid.New()
+	userRepo.EXPECT().FindByID(ctx, userID).Return(nil, errors.New("db error"))
+
+	_, err := uc.GetMe(ctx, userID)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
 // mustHashPassword is a test helper that hashes a password or panics.
 func mustHashPassword(password string) string {
 	hash, err := auth.HashPassword(password)

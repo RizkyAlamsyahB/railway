@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Haji Umroh Store BE - Users API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint user/customer, termasuk pendaftaran, verifikasi email, dan kirim ulang verifikasi.
+  description: Dokumentasi OpenAPI 3 untuk endpoint user/customer, termasuk pendaftaran, verifikasi email, login, dan profil user.
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -11,6 +11,8 @@ tags:
     description: Operasi pendaftaran customer baru dan verifikasi email.
   - name: User Authentication
     description: Operasi autentikasi user (login).
+  - name: User Profile
+    description: Operasi profil user yang memerlukan autentikasi.
 paths:
   /api/v1/users/register:
     post:
@@ -479,7 +481,128 @@ paths:
                 errors: null
                 meta: null
 
+  /api/v1/users/me:
+    get:
+      tags:
+        - User Profile
+      summary: Ambil data profil user yang sedang login
+      description: |
+        Mengembalikan data profil user berdasarkan JWT token yang diberikan.
+        Endpoint ini hanya bisa diakses oleh user dengan role `customer`.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Token didapat dari endpoint login (`POST /api/v1/users/login`).
+        - Hanya user dengan role `customer` yang diizinkan.
+      operationId: getMe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Data profil user berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessGetMeEnvelope'
+              example:
+                success: true
+                message: "user profile retrieved successfully"
+                data:
+                  id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                  email: ahmad.fauzi@example.com
+                  full_name: Ahmad Fauzi
+                  birth_date: null
+                  phone: "081234567890"
+                  status: active
+                  email_verified_at: "2026-02-17T07:00:00Z"
+                  role: customer
+                  created_at: "2026-02-17T06:30:00Z"
+                  updated_at: "2026-02-17T07:00:00Z"
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Data user tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "user not found"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "An unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token yang didapat dari endpoint login.
+
   headers:
     RequestIDHeader:
       description: Unique request ID untuk tracing dan debugging.
@@ -705,6 +828,24 @@ components:
           example: "login successful"
         data:
           $ref: '#/components/schemas/LoginResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessGetMeEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "user profile retrieved successfully"
+        data:
+          $ref: '#/components/schemas/UserResponseData'
         errors:
           nullable: true
           example: null
