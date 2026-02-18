@@ -2,11 +2,13 @@ openapi: 3.0.3
 info:
   title: Haji Umroh Store BE - Admin API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint admin (manajemen user dan review vendor).
+  description: Dokumentasi OpenAPI 3 untuk endpoint admin (autentikasi admin, manajemen user, dan review vendor).
 servers:
   - url: http://localhost:8080
     description: Local development server
 tags:
+  - name: Admin Auth
+    description: Operasi autentikasi untuk admin.
   - name: Admin Users
     description: Operasi manajemen user untuk role admin.
   - name: Admin Vendors
@@ -14,6 +16,111 @@ tags:
 security:
   - BearerAuth: []
 paths:
+  /api/v1/admin/login:
+    post:
+      tags:
+        - Admin Auth
+      summary: Login admin
+      description: Endpoint login untuk admin. Tidak membutuhkan token.
+      operationId: adminLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLoginRequest'
+            example:
+              email: admin@example.com
+              password: supersecret123
+      responses:
+        '200':
+          description: Login berhasil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessAdminLoginEnvelope'
+              example:
+                success: true
+                message: login successful
+                data:
+                  token: <JWT_TOKEN>
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (payload/validasi gagal).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: validation failed
+                data: null
+                errors: "Key: 'AdminLoginRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag"
+                meta: null
+        '401':
+          description: Kredensial salah atau akun tidak aktif.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidCredentials:
+                  summary: Email atau password salah
+                  value:
+                    success: false
+                    message: invalid email or password
+                    data: null
+                    errors: null
+                    meta: null
+                inactiveAccount:
+                  summary: Akun belum aktif
+                  value:
+                    success: false
+                    message: account is not active
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User bukan admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: admin access required
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
   /api/v1/admin/users:
     post:
       tags:
@@ -1521,6 +1628,30 @@ components:
         type: string
         example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
   schemas:
+    AdminLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email akun admin.
+          example: admin@example.com
+        password:
+          type: string
+          description: Password akun admin.
+          example: supersecret123
+    AdminLoginResponse:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: JWT token untuk akses endpoint admin yang terproteksi.
+          example: <JWT_TOKEN>
     CreateUserRequest:
       type: object
       required:
@@ -1763,6 +1894,31 @@ components:
           nullable: true
           description: Selalu null.
           example: null
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+          example: null
+        meta:
+          nullable: true
+          description: Selalu null.
+          example: null
+    SuccessAdminLoginEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: login successful
+        data:
+          $ref: '#/components/schemas/AdminLoginResponse'
         errors:
           nullable: true
           description: Selalu null pada response sukses.
