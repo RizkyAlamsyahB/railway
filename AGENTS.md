@@ -1,51 +1,61 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This backend is written in Go and follows Clean Architecture.
+This project is a Go backend using Clean Architecture.
 
-- `cmd/api/main.go`: API entrypoint.
-- `cmd/seed/main.go`: admin/bootstrap seed runner.
-- `internal/domain/`: core entities and interfaces.
-- `internal/usecase/`: business logic orchestration.
-- `internal/repository/`: PostgreSQL access via GORM.
-- `internal/delivery/http/`: Gin handlers, middleware, and routing.
-- `internal/infrastructure/`: DB wiring and external services (for example S3).
-- `pkg/`: shared helpers such as `pkg/response` and auth utilities.
-- `migrations/`: ordered `*.up.sql` and `*.down.sql` schema changes.
-- `docs/`: OpenAPI specs and schema references.
-
-Place tests next to implementation files using `*_test.go`.
+- `cmd/api/main.go`: API entry point
+- `cmd/seed/main.go`: seed script for admin data
+- `internal/domain`: core entities and interfaces
+- `internal/usecase`: business logic
+- `internal/repository`: GORM-based data access
+- `internal/delivery/http`: handlers, middleware, router
+- `internal/infrastructure`: database, storage, email providers
+- `pkg/response`, `pkg/utils`: shared utilities
+- `migrations`: SQL schema changes (`*.up.sql` / `*.down.sql`)
+- `docs`: OpenAPI specs and DB design artifacts
+- `scripts/manual-tests`: manual HTML test pages
 
 ## Build, Test, and Development Commands
-Use `make` targets as the standard workflow:
-
-- `make run`: start the API locally.
-- `make build`: compile binary to `bin/api`.
-- `make test`: run all tests with verbose output (`go test ./... -v`).
-- `make tidy`: synchronize `go.mod` and `go.sum`.
-- `make docker-up` / `make docker-down`: start/stop local PostgreSQL stack.
-- `make db-setup`: create DB and apply migrations.
-- `make migrate-up` / `make migrate-down`: apply or rollback one migration.
-- `make migrate-create name=add_orders_table`: scaffold a new migration pair.
-- `make seed`: run admin seeding flow.
+- `make run`: run the API locally (`go run cmd/api/main.go`)
+- `make build`: compile binary to `bin/api`
+- `make test`: run all unit tests (`go test ./... -v`)
+- `make tidy`: clean module dependencies
+- `make docker-up` / `make docker-down`: start/stop PostgreSQL via Docker Compose
+- `make db-create`: create app database
+- `make migrate-up` / `make migrate-down`: apply or rollback migrations
+- `make migrate-create name=add_orders_table`: create a new migration pair
+- `make seed`: run migrations and seed admin user
 
 ## Coding Style & Naming Conventions
-- Format code with `gofmt` before committing.
-- Keep package names lowercase and short (no underscores).
-- Use `CamelCase` for exported identifiers and `camelCase` for private ones.
-- Prefer dependency-injection constructors like `NewAuthHandler(...)`.
-- Use feature-oriented snake case filenames, such as `vendor_usecase.go`.
+Use standard Go formatting and idioms.
+
+- Format with `gofmt` (or editor auto-format) before commit.
+- Keep package names short, lowercase, and domain-oriented.
+- Use `CamelCase` for exported identifiers, `camelCase` for internal symbols.
+- Prefer constructor-style wiring in `internal/app/app.go` and keep dependency flow inward.
+- Migration names should be descriptive and snake_case (example: `add_payment_refund`).
 
 ## Testing Guidelines
-- Use Go’s `testing` package; use `go.uber.org/mock` for mocks when needed.
-- Prefer table-driven tests for validation and edge cases.
+- Frameworks: Go `testing` + `go.uber.org/mock/gomock`.
+- Place tests beside source files using `_test.go`.
+- Prefer table-driven tests for usecase and utility logic.
+- Reuse generated mocks in `internal/usecase/mocks`.
 - Run focused tests with commands like:
-  `go test -v -run TestVendorCreate ./internal/usecase/...`
-- Prioritize coverage on use cases and auth/security-critical paths.
+  - `go test -v ./internal/usecase -run TestVendorUseCase`
 
 ## Commit & Pull Request Guidelines
-- Follow Conventional Commits, for example:
-  `feat(vendor): add product management flow`
-- Keep commits atomic; include related migration changes in the same commit.
-- PRs should include a concise summary, affected modules, and test evidence (for example `make test` output).
-- Update `docs/` and `README.md` when API contracts or behavior change.
+Commit history follows Conventional Commits with scopes, e.g.:
+- `feat(auth): implement user login`
+- `test(product): add ProductUseCase unit tests`
+- `docs(users): add OpenAPI spec`
+
+For PRs:
+- Keep changes scoped and include a clear description.
+- Link related issue/ticket when available.
+- Note migration and env changes explicitly.
+- Include test evidence (`make test` output summary) and sample request/response for API changes.
+
+## Security & Configuration Tips
+- Copy `.env.example` to `.env` for local setup.
+- Never commit secrets or credentials.
+- Validate DB and migration settings before running `migrate` commands.
