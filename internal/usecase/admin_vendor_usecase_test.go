@@ -110,154 +110,155 @@ func dummyDocuments(vendorID uuid.UUID) []domain.VendorDocument {
 // List
 // ============================================================
 
-func TestAdminVendorList_Success(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
+func TestAdminVendorList(t *testing.T) {
+	tests := []struct {
+		name      string
+		params    domain.VendorListParams
+		setupMock func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context)
+		wantErr   bool
+		checkResp func(t *testing.T, items []domain.AdminVendorListItem, meta *domain.PaginationMeta)
+	}{
+		{
+			name:   "success",
+			params: domain.VendorListParams{Page: 1, Limit: 10},
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context) {
+				vendorID1 := uuid.New()
+				vendorID2 := uuid.New()
+				ownerID1 := uuid.New()
+				ownerID2 := uuid.New()
 
-	vendorID1 := uuid.New()
-	vendorID2 := uuid.New()
-	ownerID1 := uuid.New()
-	ownerID2 := uuid.New()
+				vendors := []domain.Vendor{
+					*dummyVendorWithOwner(vendorID1, ownerID1, "submitted"),
+					*dummyVendorWithOwner(vendorID2, ownerID2, "active"),
+				}
 
-	vendors := []domain.Vendor{
-		*dummyVendorWithOwner(vendorID1, ownerID1, "submitted"),
-		*dummyVendorWithOwner(vendorID2, ownerID2, "active"),
+				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return(vendors, int64(2), nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID1).Return(dummyOwner(ownerID1, "active"), nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID2).Return(dummyOwner(ownerID2, "active"), nil)
+			},
+			checkResp: func(t *testing.T, items []domain.AdminVendorListItem, meta *domain.PaginationMeta) {
+				t.Helper()
+				if len(items) != 2 {
+					t.Errorf("expected 2 items, got %d", len(items))
+				}
+				if meta.TotalItems != 2 {
+					t.Errorf("expected total_items=2, got %d", meta.TotalItems)
+				}
+				if meta.TotalPages != 1 {
+					t.Errorf("expected total_pages=1, got %d", meta.TotalPages)
+				}
+				if items[0].OwnerName != "Owner Name" {
+					t.Errorf("expected owner name 'Owner Name', got %s", items[0].OwnerName)
+				}
+			},
+		},
+		{
+			name:   "defaults invalid page and limit",
+			params: domain.VendorListParams{Page: 0, Limit: 0},
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context) {
+				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return([]domain.Vendor{}, int64(0), nil)
+			},
+			checkResp: func(t *testing.T, items []domain.AdminVendorListItem, meta *domain.PaginationMeta) {
+				t.Helper()
+				if len(items) != 0 {
+					t.Errorf("expected 0 items, got %d", len(items))
+				}
+				if meta.TotalItems != 0 {
+					t.Errorf("expected total_items=0, got %d", meta.TotalItems)
+				}
+			},
+		},
+		{
+			name:   "limit exceeds 100",
+			params: domain.VendorListParams{Page: 1, Limit: 200},
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context) {
+				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return([]domain.Vendor{}, int64(0), nil)
+			},
+		},
+		{
+			name:   "repo error",
+			params: domain.VendorListParams{Page: 1, Limit: 10},
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context) {
+				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return(nil, int64(0), errors.New("db error"))
+			},
+			wantErr: true,
+		},
+		{
+			name:   "find owner error",
+			params: domain.VendorListParams{Page: 1, Limit: 10},
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context) {
+				vendorID := uuid.New()
+				ownerID := uuid.New()
+				vendors := []domain.Vendor{*dummyVendorWithOwner(vendorID, ownerID, "submitted")}
+
+				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return(vendors, int64(1), nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
+			},
+			wantErr: true,
+		},
+		{
+			name:   "owner not found",
+			params: domain.VendorListParams{Page: 1, Limit: 10},
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context) {
+				vendorID := uuid.New()
+				ownerID := uuid.New()
+				vendors := []domain.Vendor{*dummyVendorWithOwner(vendorID, ownerID, "submitted")}
+
+				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return(vendors, int64(1), nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, nil)
+			},
+			checkResp: func(t *testing.T, items []domain.AdminVendorListItem, meta *domain.PaginationMeta) {
+				t.Helper()
+				if items[0].OwnerName != "" {
+					t.Errorf("expected empty owner name, got %s", items[0].OwnerName)
+				}
+				if items[0].OwnerEmail != "" {
+					t.Errorf("expected empty owner email, got %s", items[0].OwnerEmail)
+				}
+			},
+		},
+		{
+			name:   "pagination calculation",
+			params: domain.VendorListParams{Page: 2, Limit: 3},
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context) {
+				ownerID := uuid.New()
+				vendors := []domain.Vendor{*dummyVendorWithOwner(uuid.New(), ownerID, "active")}
+
+				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 2, Limit: 3}).Return(vendors, int64(7), nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+			},
+			checkResp: func(t *testing.T, items []domain.AdminVendorListItem, meta *domain.PaginationMeta) {
+				t.Helper()
+				// 7 items / 3 per page = ceil(2.33) = 3 pages
+				if meta.TotalPages != 3 {
+					t.Errorf("expected total_pages=3, got %d", meta.TotalPages)
+				}
+			},
+		},
 	}
 
-	params := domain.VendorListParams{Page: 1, Limit: 10}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
+			ctx := context.Background()
 
-	vendorRepo.EXPECT().List(ctx, params).Return(vendors, int64(2), nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID1).Return(dummyOwner(ownerID1, "active"), nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID2).Return(dummyOwner(ownerID2, "active"), nil)
+			tc.setupMock(vendorRepo, userRepo, ctx)
 
-	items, meta, err := uc.List(ctx, params)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(items) != 2 {
-		t.Errorf("expected 2 items, got %d", len(items))
-	}
-	if meta.TotalItems != 2 {
-		t.Errorf("expected total_items=2, got %d", meta.TotalItems)
-	}
-	if meta.TotalPages != 1 {
-		t.Errorf("expected total_pages=1, got %d", meta.TotalPages)
-	}
-	if items[0].OwnerName != "Owner Name" {
-		t.Errorf("expected owner name 'Owner Name', got %s", items[0].OwnerName)
-	}
-}
+			items, meta, err := uc.List(ctx, tc.params)
 
-func TestAdminVendorList_DefaultsInvalidPage(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	params := domain.VendorListParams{Page: 0, Limit: 0}
-	expectedParams := domain.VendorListParams{Page: 1, Limit: 10}
-
-	vendorRepo.EXPECT().List(ctx, expectedParams).Return([]domain.Vendor{}, int64(0), nil)
-
-	items, meta, err := uc.List(ctx, params)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(items) != 0 {
-		t.Errorf("expected 0 items, got %d", len(items))
-	}
-	if meta.TotalItems != 0 {
-		t.Errorf("expected total_items=0, got %d", meta.TotalItems)
-	}
-}
-
-func TestAdminVendorList_LimitExceeds100(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	params := domain.VendorListParams{Page: 1, Limit: 200}
-	expectedParams := domain.VendorListParams{Page: 1, Limit: 10}
-
-	vendorRepo.EXPECT().List(ctx, expectedParams).Return([]domain.Vendor{}, int64(0), nil)
-
-	_, _, err := uc.List(ctx, params)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-}
-
-func TestAdminVendorList_RepoError(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	params := domain.VendorListParams{Page: 1, Limit: 10}
-
-	vendorRepo.EXPECT().List(ctx, params).Return(nil, int64(0), errors.New("db error"))
-
-	_, _, err := uc.List(ctx, params)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorList_FindOwnerError(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	ownerID := uuid.New()
-	vendors := []domain.Vendor{*dummyVendorWithOwner(vendorID, ownerID, "submitted")}
-	params := domain.VendorListParams{Page: 1, Limit: 10}
-
-	vendorRepo.EXPECT().List(ctx, params).Return(vendors, int64(1), nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
-
-	_, _, err := uc.List(ctx, params)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorList_OwnerNotFound(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	ownerID := uuid.New()
-	vendors := []domain.Vendor{*dummyVendorWithOwner(vendorID, ownerID, "submitted")}
-	params := domain.VendorListParams{Page: 1, Limit: 10}
-
-	vendorRepo.EXPECT().List(ctx, params).Return(vendors, int64(1), nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, nil)
-
-	items, _, err := uc.List(ctx, params)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if items[0].OwnerName != "" {
-		t.Errorf("expected empty owner name, got %s", items[0].OwnerName)
-	}
-	if items[0].OwnerEmail != "" {
-		t.Errorf("expected empty owner email, got %s", items[0].OwnerEmail)
-	}
-}
-
-func TestAdminVendorList_PaginationCalculation(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	ownerID := uuid.New()
-	vendors := []domain.Vendor{*dummyVendorWithOwner(uuid.New(), ownerID, "active")}
-	params := domain.VendorListParams{Page: 2, Limit: 3}
-
-	vendorRepo.EXPECT().List(ctx, params).Return(vendors, int64(7), nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-
-	_, meta, err := uc.List(ctx, params)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	// 7 items / 3 per page = ceil(2.33) = 3 pages
-	if meta.TotalPages != 3 {
-		t.Errorf("expected total_pages=3, got %d", meta.TotalPages)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, items, meta)
+			}
+		})
 	}
 }
 
@@ -265,181 +266,179 @@ func TestAdminVendorList_PaginationCalculation(t *testing.T) {
 // GetByID
 // ============================================================
 
-func TestAdminVendorGetByID_Success(t *testing.T) {
-	vendorRepo, userRepo, storage, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-	vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
-
-	docs := dummyDocuments(vendorID)
-	vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(docs, nil)
-
-	// Only the first document has UploadedBy != nil && FileURL != "", so only 1 presigned URL call.
-	storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", PresignedDownloadExpiry).Return("https://signed-url.example.com/doc1.jpg", nil)
-
-	resp, err := uc.GetByID(ctx, vendorID)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if resp.ID != vendorID {
-		t.Errorf("expected vendor id %s, got %s", vendorID, resp.ID)
-	}
-	if resp.Owner.FullName != "Owner Name" {
-		t.Errorf("expected owner name 'Owner Name', got %s", resp.Owner.FullName)
-	}
-	if resp.BankAccount == nil {
-		t.Fatal("expected non-nil bank account")
-	}
-	if len(resp.Documents) != 2 {
-		t.Errorf("expected 2 documents, got %d", len(resp.Documents))
-	}
-	if resp.Documents[0].DownloadURL != "https://signed-url.example.com/doc1.jpg" {
-		t.Errorf("expected presigned download URL, got %s", resp.Documents[0].DownloadURL)
-	}
-	if resp.Documents[1].DownloadURL != "" {
-		t.Errorf("expected empty download URL for non-uploaded doc, got %s", resp.Documents[1].DownloadURL)
-	}
-}
-
-func TestAdminVendorGetByID_NotFound(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
-
-	_, err := uc.GetByID(ctx, vendorID)
-	if !errors.Is(err, ErrVendorNotFound) {
-		t.Errorf("expected ErrVendorNotFound, got %v", err)
-	}
-}
-
-func TestAdminVendorGetByID_RepoError(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
-
-	_, err := uc.GetByID(ctx, vendorID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorGetByID_OwnerError(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
-
-	_, err := uc.GetByID(ctx, vendorID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorGetByID_BankAccountError(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-	vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, errors.New("db error"))
-
-	_, err := uc.GetByID(ctx, vendorID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorGetByID_DocumentsError(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-	vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
-	vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(nil, errors.New("db error"))
-
-	_, err := uc.GetByID(ctx, vendorID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorGetByID_PresignedURLError(t *testing.T) {
-	vendorRepo, userRepo, storage, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
-
-	uploaderID := uuid.New()
-	docs := []domain.VendorDocument{
+func TestAdminVendorGetByID(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID)
+		wantErr   error
+		wantAny   bool // expect any non-nil error (not a specific sentinel)
+		checkResp func(t *testing.T, resp *domain.AdminVendorDetailResponse, vendorID uuid.UUID)
+	}{
 		{
-			ID:                 uuid.New(),
-			VendorID:           vendorID,
-			DocType:            "owner_ktp",
-			FileURL:            "vendors/doc1.jpg",
-			UploadedBy:         &uploaderID,
-			VerificationStatus: "pending",
-			CreatedAt:          time.Now(),
-			UpdatedAt:          time.Now(),
+			name: "success",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
+
+				docs := dummyDocuments(vendorID)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(docs, nil)
+
+				// Only the first document has UploadedBy != nil && FileURL != "", so only 1 presigned URL call.
+				storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", PresignedDownloadExpiry).Return("https://signed-url.example.com/doc1.jpg", nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorDetailResponse, vendorID uuid.UUID) {
+				t.Helper()
+				if resp.ID != vendorID {
+					t.Errorf("expected vendor id %s, got %s", vendorID, resp.ID)
+				}
+				if resp.Owner.FullName != "Owner Name" {
+					t.Errorf("expected owner name 'Owner Name', got %s", resp.Owner.FullName)
+				}
+				if resp.BankAccount == nil {
+					t.Fatal("expected non-nil bank account")
+				}
+				if len(resp.Documents) != 2 {
+					t.Errorf("expected 2 documents, got %d", len(resp.Documents))
+				}
+				if resp.Documents[0].DownloadURL != "https://signed-url.example.com/doc1.jpg" {
+					t.Errorf("expected presigned download URL, got %s", resp.Documents[0].DownloadURL)
+				}
+				if resp.Documents[1].DownloadURL != "" {
+					t.Errorf("expected empty download URL for non-uploaded doc, got %s", resp.Documents[1].DownloadURL)
+				}
+			},
+		},
+		{
+			name: "not found",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
+			},
+			wantErr: ErrVendorNotFound,
+		},
+		{
+			name: "repo error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "owner error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "bank account error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "documents error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "presigned URL error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+
+				uploaderID := uuid.New()
+				docs := []domain.VendorDocument{
+					{
+						ID:                 uuid.New(),
+						VendorID:           vendorID,
+						DocType:            "owner_ktp",
+						FileURL:            "vendors/doc1.jpg",
+						UploadedBy:         &uploaderID,
+						VerificationStatus: "pending",
+						CreatedAt:          time.Now(),
+						UpdatedAt:          time.Now(),
+					},
+				}
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(docs, nil)
+				storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", PresignedDownloadExpiry).Return("", errors.New("s3 error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "no bank account",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "draft")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{}, nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorDetailResponse, vendorID uuid.UUID) {
+				t.Helper()
+				if resp.BankAccount != nil {
+					t.Errorf("expected nil bank account, got %+v", resp.BankAccount)
+				}
+			},
 		},
 	}
 
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-	vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
-	vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(docs, nil)
-	storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", PresignedDownloadExpiry).Return("", errors.New("s3 error"))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vendorRepo, userRepo, storage, uc := setupAdminVendorUseCase(t)
+			ctx := context.Background()
+			vendorID := uuid.New()
 
-	_, err := uc.GetByID(ctx, vendorID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
+			tc.setupMock(vendorRepo, userRepo, storage, ctx, vendorID)
 
-func TestAdminVendorGetByID_NoBankAccount(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
+			resp, err := uc.GetByID(ctx, vendorID)
 
-	vendorID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "draft")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-	vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
-	vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{}, nil)
-
-	resp, err := uc.GetByID(ctx, vendorID)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if resp.BankAccount != nil {
-		t.Errorf("expected nil bank account, got %+v", resp.BankAccount)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Errorf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if tc.wantAny {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, resp, vendorID)
+			}
+		})
 	}
 }
 
@@ -447,156 +446,154 @@ func TestAdminVendorGetByID_NoBankAccount(t *testing.T) {
 // Approve
 // ============================================================
 
-func TestAdminVendorApprove_SuccessFromSubmitted(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
+func TestAdminVendorApprove(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID)
+		wantErr   error
+		wantAny   bool
+		checkResp func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID)
+	}{
+		{
+			name: "success from submitted",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
 
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "pending"), nil)
+				userRepo.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID) {
+				t.Helper()
+				if resp.Status != "active" {
+					t.Errorf("expected status 'active', got %s", resp.Status)
+				}
+				if resp.VendorID != vendorID {
+					t.Errorf("expected vendor id %s, got %s", vendorID, resp.VendorID)
+				}
+			},
+		},
+		{
+			name: "success from rejected",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "rejected")
 
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "pending"), nil)
-	userRepo.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+				// Owner is already active, so Update should NOT be called.
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID) {
+				t.Helper()
+				if resp.Status != "active" {
+					t.Errorf("expected status 'active', got %s", resp.Status)
+				}
+			},
+		},
+		{
+			name: "invalid status draft",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "draft"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status active",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "active"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status blocked",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "blocked"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "not found",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
+			},
+			wantErr: ErrVendorNotFound,
+		},
+		{
+			name: "FindByID error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "UpdateStatus error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendor := dummyVendor(vendorID, "submitted")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "find owner error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
 
-	resp, err := uc.Approve(ctx, vendorID, adminID)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "activate owner error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "pending"), nil)
+				userRepo.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("db error"))
+			},
+			wantAny: true,
+		},
 	}
-	if resp.Status != "active" {
-		t.Errorf("expected status 'active', got %s", resp.Status)
-	}
-	if resp.VendorID != vendorID {
-		t.Errorf("expected vendor id %s, got %s", vendorID, resp.VendorID)
-	}
-}
 
-func TestAdminVendorApprove_SuccessFromRejected(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
+			ctx := context.Background()
+			vendorID := uuid.New()
+			adminID := uuid.New()
 
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "rejected")
+			tc.setupMock(vendorRepo, userRepo, ctx, vendorID, adminID)
 
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-	// Owner is already active, so Update should NOT be called.
+			resp, err := uc.Approve(ctx, vendorID, adminID)
 
-	resp, err := uc.Approve(ctx, vendorID, adminID)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if resp.Status != "active" {
-		t.Errorf("expected status 'active', got %s", resp.Status)
-	}
-}
-
-func TestAdminVendorApprove_InvalidStatus(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-
-	for _, status := range []string{"draft", "active", "blocked"} {
-		vendor := dummyVendor(vendorID, status)
-		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-
-		_, err := uc.Approve(ctx, vendorID, adminID)
-		if !errors.Is(err, ErrInvalidStatusTransition) {
-			t.Errorf("status=%s: expected ErrInvalidStatusTransition, got %v", status, err)
-		}
-	}
-}
-
-func TestAdminVendorApprove_NotFound(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
-
-	_, err := uc.Approve(ctx, vendorID, adminID)
-	if !errors.Is(err, ErrVendorNotFound) {
-		t.Errorf("expected ErrVendorNotFound, got %v", err)
-	}
-}
-
-func TestAdminVendorApprove_FindByIDError(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
-
-	_, err := uc.Approve(ctx, vendorID, adminID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorApprove_UpdateStatusError(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	vendor := dummyVendor(vendorID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
-
-	_, err := uc.Approve(ctx, vendorID, adminID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorApprove_FindOwnerError(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
-
-	_, err := uc.Approve(ctx, vendorID, adminID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorApprove_ActivateOwnerError(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "pending"), nil)
-	userRepo.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("db error"))
-
-	_, err := uc.Approve(ctx, vendorID, adminID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Errorf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if tc.wantAny {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, resp, vendorID)
+			}
+		})
 	}
 }
 
@@ -604,84 +601,113 @@ func TestAdminVendorApprove_ActivateOwnerError(t *testing.T) {
 // Reject
 // ============================================================
 
-func TestAdminVendorReject_Success(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendor := dummyVendor(vendorID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-
-	resp, err := uc.Reject(ctx, vendorID, "dokumen tidak lengkap")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+func TestAdminVendorReject(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID)
+		wantErr   error
+		wantAny   bool
+		checkResp func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID)
+	}{
+		{
+			name: "success",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendor := dummyVendor(vendorID, "submitted")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID) {
+				t.Helper()
+				if resp.Status != "rejected" {
+					t.Errorf("expected status 'rejected', got %s", resp.Status)
+				}
+				if resp.VendorID != vendorID {
+					t.Errorf("expected vendor id %s, got %s", vendorID, resp.VendorID)
+				}
+			},
+		},
+		{
+			name: "invalid status draft",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "draft"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status active",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "active"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status rejected",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "rejected"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status blocked",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "blocked"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "not found",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
+			},
+			wantErr: ErrVendorNotFound,
+		},
+		{
+			name: "FindByID error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "UpdateStatus error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendor := dummyVendor(vendorID, "submitted")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
+			},
+			wantAny: true,
+		},
 	}
-	if resp.Status != "rejected" {
-		t.Errorf("expected status 'rejected', got %s", resp.Status)
-	}
-	if resp.VendorID != vendorID {
-		t.Errorf("expected vendor id %s, got %s", vendorID, resp.VendorID)
-	}
-}
 
-func TestAdminVendorReject_InvalidStatus(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
+			ctx := context.Background()
+			vendorID := uuid.New()
 
-	vendorID := uuid.New()
+			tc.setupMock(vendorRepo, ctx, vendorID)
 
-	for _, status := range []string{"draft", "active", "rejected", "blocked"} {
-		vendor := dummyVendor(vendorID, status)
-		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+			resp, err := uc.Reject(ctx, vendorID, "dokumen tidak lengkap")
 
-		_, err := uc.Reject(ctx, vendorID, "reason")
-		if !errors.Is(err, ErrInvalidStatusTransition) {
-			t.Errorf("status=%s: expected ErrInvalidStatusTransition, got %v", status, err)
-		}
-	}
-}
-
-func TestAdminVendorReject_NotFound(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
-
-	_, err := uc.Reject(ctx, vendorID, "reason")
-	if !errors.Is(err, ErrVendorNotFound) {
-		t.Errorf("expected ErrVendorNotFound, got %v", err)
-	}
-}
-
-func TestAdminVendorReject_FindByIDError(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
-
-	_, err := uc.Reject(ctx, vendorID, "reason")
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorReject_UpdateStatusError(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendor := dummyVendor(vendorID, "submitted")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
-
-	_, err := uc.Reject(ctx, vendorID, "reason")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Errorf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if tc.wantAny {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, resp, vendorID)
+			}
+		})
 	}
 }
 
@@ -689,87 +715,110 @@ func TestAdminVendorReject_UpdateStatusError(t *testing.T) {
 // Block
 // ============================================================
 
-func TestAdminVendorBlock_SuccessFromActive(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendor := dummyVendor(vendorID, "active")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-
-	resp, err := uc.Block(ctx, vendorID, "pelanggaran kebijakan")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+func TestAdminVendorBlock(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID)
+		wantErr   error
+		wantAny   bool
+		checkResp func(t *testing.T, resp *domain.AdminVendorActionResponse)
+	}{
+		{
+			name: "success from active",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendor := dummyVendor(vendorID, "active")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse) {
+				t.Helper()
+				if resp.Status != "blocked" {
+					t.Errorf("expected status 'blocked', got %s", resp.Status)
+				}
+			},
+		},
+		{
+			name: "success from submitted",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendor := dummyVendor(vendorID, "submitted")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse) {
+				t.Helper()
+				if resp.Status != "blocked" {
+					t.Errorf("expected status 'blocked', got %s", resp.Status)
+				}
+			},
+		},
+		{
+			name: "invalid status draft",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "draft"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status rejected",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "rejected"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status blocked",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "blocked"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "not found",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
+			},
+			wantErr: ErrVendorNotFound,
+		},
+		{
+			name: "UpdateStatus error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, ctx context.Context, vendorID uuid.UUID) {
+				vendor := dummyVendor(vendorID, "active")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
+			},
+			wantAny: true,
+		},
 	}
-	if resp.Status != "blocked" {
-		t.Errorf("expected status 'blocked', got %s", resp.Status)
-	}
-}
 
-func TestAdminVendorBlock_SuccessFromSubmitted(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
+			ctx := context.Background()
+			vendorID := uuid.New()
 
-	vendorID := uuid.New()
-	vendor := dummyVendor(vendorID, "submitted")
+			tc.setupMock(vendorRepo, ctx, vendorID)
 
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+			resp, err := uc.Block(ctx, vendorID, "pelanggaran kebijakan")
 
-	resp, err := uc.Block(ctx, vendorID, "reason")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if resp.Status != "blocked" {
-		t.Errorf("expected status 'blocked', got %s", resp.Status)
-	}
-}
-
-func TestAdminVendorBlock_InvalidStatus(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-
-	for _, status := range []string{"draft", "rejected", "blocked"} {
-		vendor := dummyVendor(vendorID, status)
-		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-
-		_, err := uc.Block(ctx, vendorID, "reason")
-		if !errors.Is(err, ErrInvalidStatusTransition) {
-			t.Errorf("status=%s: expected ErrInvalidStatusTransition, got %v", status, err)
-		}
-	}
-}
-
-func TestAdminVendorBlock_NotFound(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
-
-	_, err := uc.Block(ctx, vendorID, "reason")
-	if !errors.Is(err, ErrVendorNotFound) {
-		t.Errorf("expected ErrVendorNotFound, got %v", err)
-	}
-}
-
-func TestAdminVendorBlock_UpdateStatusError(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	vendor := dummyVendor(vendorID, "active")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
-
-	_, err := uc.Block(ctx, vendorID, "reason")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Errorf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if tc.wantAny {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, resp)
+			}
+		})
 	}
 }
 
@@ -777,140 +826,153 @@ func TestAdminVendorBlock_UpdateStatusError(t *testing.T) {
 // Unblock
 // ============================================================
 
-func TestAdminVendorUnblock_Success(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
+func TestAdminVendorUnblock(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID)
+		wantErr   error
+		wantAny   bool
+		checkResp func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID)
+	}{
+		{
+			name: "success",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "blocked")
 
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "blocked")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "blocked"), nil)
+				userRepo.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID) {
+				t.Helper()
+				if resp.Status != "active" {
+					t.Errorf("expected status 'active', got %s", resp.Status)
+				}
+				if resp.VendorID != vendorID {
+					t.Errorf("expected vendor id %s, got %s", vendorID, resp.VendorID)
+				}
+			},
+		},
+		{
+			name: "owner already active",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "blocked")
 
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "blocked"), nil)
-	userRepo.EXPECT().Update(ctx, gomock.Any()).Return(nil)
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+				// Owner is already active, so Update should NOT be called.
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID) {
+				t.Helper()
+				if resp.Status != "active" {
+					t.Errorf("expected status 'active', got %s", resp.Status)
+				}
+			},
+		},
+		{
+			name: "invalid status draft",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "draft"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status submitted",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "submitted"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status active",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "active"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "invalid status rejected",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "rejected"), nil)
+			},
+			wantErr: ErrInvalidStatusTransition,
+		},
+		{
+			name: "not found",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
+			},
+			wantErr: ErrVendorNotFound,
+		},
+		{
+			name: "UpdateStatus error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				vendor := dummyVendor(vendorID, "blocked")
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "find owner error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "blocked")
 
-	resp, err := uc.Unblock(ctx, vendorID, adminID)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "activate owner error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "blocked")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "blocked"), nil)
+				userRepo.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("db error"))
+			},
+			wantAny: true,
+		},
 	}
-	if resp.Status != "active" {
-		t.Errorf("expected status 'active', got %s", resp.Status)
-	}
-	if resp.VendorID != vendorID {
-		t.Errorf("expected vendor id %s, got %s", vendorID, resp.VendorID)
-	}
-}
 
-func TestAdminVendorUnblock_OwnerAlreadyActive(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
+			ctx := context.Background()
+			vendorID := uuid.New()
+			adminID := uuid.New()
 
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "blocked")
+			tc.setupMock(vendorRepo, userRepo, ctx, vendorID, adminID)
 
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-	// Owner is already active, so Update should NOT be called.
+			resp, err := uc.Unblock(ctx, vendorID, adminID)
 
-	resp, err := uc.Unblock(ctx, vendorID, adminID)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if resp.Status != "active" {
-		t.Errorf("expected status 'active', got %s", resp.Status)
-	}
-}
-
-func TestAdminVendorUnblock_InvalidStatus(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-
-	for _, status := range []string{"draft", "submitted", "active", "rejected"} {
-		vendor := dummyVendor(vendorID, status)
-		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-
-		_, err := uc.Unblock(ctx, vendorID, adminID)
-		if !errors.Is(err, ErrInvalidStatusTransition) {
-			t.Errorf("status=%s: expected ErrInvalidStatusTransition, got %v", status, err)
-		}
-	}
-}
-
-func TestAdminVendorUnblock_NotFound(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
-
-	_, err := uc.Unblock(ctx, vendorID, adminID)
-	if !errors.Is(err, ErrVendorNotFound) {
-		t.Errorf("expected ErrVendorNotFound, got %v", err)
-	}
-}
-
-func TestAdminVendorUnblock_UpdateStatusError(t *testing.T) {
-	vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	vendor := dummyVendor(vendorID, "blocked")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
-
-	_, err := uc.Unblock(ctx, vendorID, adminID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorUnblock_FindOwnerError(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "blocked")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
-
-	_, err := uc.Unblock(ctx, vendorID, adminID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestAdminVendorUnblock_ActivateOwnerError(t *testing.T) {
-	vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	adminID := uuid.New()
-	ownerID := uuid.New()
-	vendor := dummyVendorWithOwner(vendorID, ownerID, "blocked")
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-	vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
-	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "blocked"), nil)
-	userRepo.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("db error"))
-
-	_, err := uc.Unblock(ctx, vendorID, adminID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Errorf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if tc.wantAny {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, resp, vendorID)
+			}
+		})
 	}
 }

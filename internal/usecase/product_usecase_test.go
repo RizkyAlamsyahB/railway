@@ -103,576 +103,644 @@ func expectSlugCollision(productRepo *mocks.MockProductRepository, ctx context.C
 // Create
 // ============================================================
 
-func TestCreate_Success_Draft(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
-	ctx := context.Background()
+func TestCreate_SuccessCases(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "draft",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
+				ctx := context.Background()
 
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
 
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-	req.IsActive = false
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+				req.IsActive = false
 
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugUnique(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
-	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugUnique(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
+				storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+				productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
-	resp, err := uc.Create(ctx, vendorID, req)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+				resp, err := uc.Create(ctx, vendorID, req)
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if resp.Status != "draft" {
+					t.Errorf("expected status 'draft', got %s", resp.Status)
+				}
+				if resp.VendorID != vendorID {
+					t.Errorf("expected vendor_id %s, got %s", vendorID, resp.VendorID)
+				}
+				if resp.CategoryID != categoryID {
+					t.Errorf("expected category_id %s, got %s", categoryID, resp.CategoryID)
+				}
+				if resp.Name != "Sajadah Premium" {
+					t.Errorf("expected name 'Sajadah Premium', got %s", resp.Name)
+				}
+				if resp.HalalAIStatus != "pending" {
+					t.Errorf("expected halal_ai_status 'pending', got %s", resp.HalalAIStatus)
+				}
+				if len(resp.Variants) != 1 {
+					t.Fatalf("expected 1 variant (default), got %d", len(resp.Variants))
+				}
+				if !resp.Variants[0].IsDefault {
+					t.Error("expected default variant to have IsDefault=true")
+				}
+				if resp.Variants[0].Price != 150000 {
+					t.Errorf("expected price 150000, got %f", resp.Variants[0].Price)
+				}
+				if len(resp.UploadURLs) != 1 {
+					t.Fatalf("expected 1 upload URL, got %d", len(resp.UploadURLs))
+				}
+				if resp.UploadURLs[0].UploadURL != "https://presigned.example.com/upload" {
+					t.Errorf("expected presigned upload URL, got %s", resp.UploadURLs[0].UploadURL)
+				}
+			},
+		},
+		{
+			name: "published",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+				req.IsActive = true
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugUnique(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
+				storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+				productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+				resp, err := uc.Create(ctx, vendorID, req)
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if resp.Status != "published" {
+					t.Errorf("expected status 'published', got %s", resp.Status)
+				}
+			},
+		},
+		{
+			name: "with additional variants",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				weight1 := 600
+
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+				req.Variants = []domain.CreateProductVariantInput{
+					{VariantName: "Large", Price: 200000, Stock: 50, WeightGram: &weight1, IsActive: true},
+					{VariantName: "XL", Price: 250000, Stock: 30, WeightGram: nil, IsActive: true},
+				}
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugUnique(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(5), nil)
+				storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+				productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+				resp, err := uc.Create(ctx, vendorID, req)
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if len(resp.Variants) != 3 {
+					t.Fatalf("expected 3 variants, got %d", len(resp.Variants))
+				}
+				if !resp.Variants[0].IsDefault {
+					t.Error("expected first variant to be default")
+				}
+				if resp.Variants[1].VariantName != "Large" {
+					t.Errorf("expected variant name 'Large', got %s", resp.Variants[1].VariantName)
+				}
+				if resp.Variants[2].VariantName != "XL" {
+					t.Errorf("expected variant name 'XL', got %s", resp.Variants[2].VariantName)
+				}
+				if resp.Variants[1].IsDefault || resp.Variants[2].IsDefault {
+					t.Error("additional variants should not be default")
+				}
+			},
+		},
+		{
+			name: "no images",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+				req.Images = nil
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugUnique(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
+				productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+				resp, err := uc.Create(ctx, vendorID, req)
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if len(resp.UploadURLs) != 0 {
+					t.Errorf("expected 0 upload URLs, got %d", len(resp.UploadURLs))
+				}
+			},
+		},
+		{
+			name: "slug collision",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugCollision(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
+				storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+				productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+				resp, err := uc.Create(ctx, vendorID, req)
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				if resp.Slug == "" {
+					t.Error("expected non-empty slug")
+				}
+			},
+		},
+		{
+			name: "variant sku generation",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+				req.Variants = []domain.CreateProductVariantInput{
+					{VariantName: "Red", Price: 160000, Stock: 20, IsActive: true},
+				}
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugUnique(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(3), nil)
+				storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+				productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+				resp, err := uc.Create(ctx, vendorID, req)
+				if err != nil {
+					t.Fatalf("expected no error, got %v", err)
+				}
+				defaultSKU := resp.Variants[0].SKU
+				variantSKU := resp.Variants[1].SKU
+				if defaultSKU == "" || variantSKU == "" {
+					t.Error("expected non-empty SKUs")
+				}
+				if defaultSKU == variantSKU {
+					t.Errorf("default and variant SKU should differ, both are %s", defaultSKU)
+				}
+			},
+		},
 	}
-	if resp.Status != "draft" {
-		t.Errorf("expected status 'draft', got %s", resp.Status)
-	}
-	if resp.VendorID != vendorID {
-		t.Errorf("expected vendor_id %s, got %s", vendorID, resp.VendorID)
-	}
-	if resp.CategoryID != categoryID {
-		t.Errorf("expected category_id %s, got %s", categoryID, resp.CategoryID)
-	}
-	if resp.Name != "Sajadah Premium" {
-		t.Errorf("expected name 'Sajadah Premium', got %s", resp.Name)
-	}
-	if resp.HalalAIStatus != "pending" {
-		t.Errorf("expected halal_ai_status 'pending', got %s", resp.HalalAIStatus)
-	}
-	if len(resp.Variants) != 1 {
-		t.Fatalf("expected 1 variant (default), got %d", len(resp.Variants))
-	}
-	if !resp.Variants[0].IsDefault {
-		t.Error("expected default variant to have IsDefault=true")
-	}
-	if resp.Variants[0].Price != 150000 {
-		t.Errorf("expected price 150000, got %f", resp.Variants[0].Price)
-	}
-	if len(resp.UploadURLs) != 1 {
-		t.Fatalf("expected 1 upload URL, got %d", len(resp.UploadURLs))
-	}
-	if resp.UploadURLs[0].UploadURL != "https://presigned.example.com/upload" {
-		t.Errorf("expected presigned upload URL, got %s", resp.UploadURLs[0].UploadURL)
-	}
-}
 
-func TestCreate_Success_Published(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-	req.IsActive = true
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugUnique(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
-	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-
-	resp, err := uc.Create(ctx, vendorID, req)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if resp.Status != "published" {
-		t.Errorf("expected status 'published', got %s", resp.Status)
-	}
-}
-
-func TestCreate_Success_WithAdditionalVariants(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-
-	weight1 := 600
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-	req.Variants = []domain.CreateProductVariantInput{
-		{VariantName: "Large", Price: 200000, Stock: 50, WeightGram: &weight1, IsActive: true},
-		{VariantName: "XL", Price: 250000, Stock: 30, WeightGram: nil, IsActive: true},
-	}
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugUnique(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(5), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
-	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-
-	resp, err := uc.Create(ctx, vendorID, req)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	// 1 default + 2 additional
-	if len(resp.Variants) != 3 {
-		t.Fatalf("expected 3 variants, got %d", len(resp.Variants))
-	}
-	if !resp.Variants[0].IsDefault {
-		t.Error("expected first variant to be default")
-	}
-	if resp.Variants[1].VariantName != "Large" {
-		t.Errorf("expected variant name 'Large', got %s", resp.Variants[1].VariantName)
-	}
-	if resp.Variants[2].VariantName != "XL" {
-		t.Errorf("expected variant name 'XL', got %s", resp.Variants[2].VariantName)
-	}
-	if resp.Variants[1].IsDefault || resp.Variants[2].IsDefault {
-		t.Error("additional variants should not be default")
-	}
-}
-
-func TestCreate_Success_NoImages(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-	req.Images = nil
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugUnique(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-
-	resp, err := uc.Create(ctx, vendorID, req)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if len(resp.UploadURLs) != 0 {
-		t.Errorf("expected 0 upload URLs, got %d", len(resp.UploadURLs))
-	}
-}
-
-func TestCreate_Success_SlugCollision(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugCollision(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
-	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-
-	resp, err := uc.Create(ctx, vendorID, req)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if resp.Slug == "" {
-		t.Error("expected non-empty slug")
-	}
-}
-
-func TestCreate_VendorNotFound(t *testing.T) {
-	_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	req := validCreateProductRequest(uuid.New().String(), []string{uuid.New().String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if !errors.Is(err, ErrVendorNotFound) {
-		t.Errorf("expected ErrVendorNotFound, got %v", err)
-	}
-}
-
-func TestCreate_VendorRepoError(t *testing.T) {
-	_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	req := validCreateProductRequest(uuid.New().String(), []string{uuid.New().String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestCreate_VendorNotActive(t *testing.T) {
-	_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	req := validCreateProductRequest(uuid.New().String(), []string{uuid.New().String()})
-
-	for _, status := range []string{"draft", "submitted", "blocked", "rejected"} {
-		vendor := activeVendor(vendorID)
-		vendor.Status = status
-		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-
-		_, err := uc.Create(ctx, vendorID, req)
-		if !errors.Is(err, ErrVendorNotActive) {
-			t.Errorf("status=%s: expected ErrVendorNotActive, got %v", status, err)
-		}
-	}
-}
-
-func TestCreate_InvalidCategoryID(t *testing.T) {
-	_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	req := validCreateProductRequest("not-a-uuid", []string{uuid.New().String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			tc.run(t)
+		})
 	}
 }
 
-func TestCreate_CategoryNotFound(t *testing.T) {
-	_, vendorRepo, categoryRepo, _, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
+func TestCreate_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "vendor not found",
+			run: func(t *testing.T) {
+				_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
 
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{uuid.New().String()})
+				vendorID := uuid.New()
+				req := validCreateProductRequest(uuid.New().String(), []string{uuid.New().String()})
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
 
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(nil, nil)
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrVendorNotFound) {
+					t.Errorf("expected ErrVendorNotFound, got %v", err)
+				}
+			},
+		},
+		{
+			name: "vendor repo error",
+			run: func(t *testing.T) {
+				_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
 
-	_, err := uc.Create(ctx, vendorID, req)
-	if !errors.Is(err, ErrCategoryNotFound) {
-		t.Errorf("expected ErrCategoryNotFound, got %v", err)
+				vendorID := uuid.New()
+				req := validCreateProductRequest(uuid.New().String(), []string{uuid.New().String()})
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
+			name: "vendor not active",
+			run: func(t *testing.T) {
+				_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				req := validCreateProductRequest(uuid.New().String(), []string{uuid.New().String()})
+				for _, status := range []string{"draft", "submitted", "blocked", "rejected"} {
+					vendor := activeVendor(vendorID)
+					vendor.Status = status
+					vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+
+					_, err := uc.Create(ctx, vendorID, req)
+					if !errors.Is(err, ErrVendorNotActive) {
+						t.Errorf("status=%s: expected ErrVendorNotActive, got %v", status, err)
+					}
+				}
+			},
+		},
+		{
+			name: "invalid category id",
+			run: func(t *testing.T) {
+				_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				req := validCreateProductRequest("not-a-uuid", []string{uuid.New().String()})
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
+			name: "category not found",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, _, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{uuid.New().String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(nil, nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrCategoryNotFound) {
+					t.Errorf("expected ErrCategoryNotFound, got %v", err)
+				}
+			},
+		},
+		{
+			name: "category not active",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, _, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{uuid.New().String()})
+				inactiveCategory := activeCategory(categoryID)
+				inactiveCategory.IsActive = false
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(inactiveCategory, nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrCategoryNotFound) {
+					t.Errorf("expected ErrCategoryNotFound, got %v", err)
+				}
+			},
+		},
+		{
+			name: "category repo error",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, _, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{uuid.New().String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(nil, errors.New("db error"))
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
+			name: "invalid shipping service id",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, _, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{"not-a-uuid"})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error for invalid shipping_service_id, got nil")
+				}
+			},
+		},
+		{
+			name: "shipping service not found",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID1 := uuid.New()
+				shippingID2 := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID1.String(), shippingID2.String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, gomock.Any()).Return(shippingServices([]uuid.UUID{shippingID1}), nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrShippingServiceNotFound) {
+					t.Errorf("expected ErrShippingServiceNotFound, got %v", err)
+				}
+			},
+		},
+		{
+			name: "shipping repo error",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, gomock.Any()).Return(nil, errors.New("db error"))
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
+			name: "published requires shipping",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{})
+				req.IsActive = true
+				req.ShippingServiceIDs = []string{}
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, gomock.Any()).Return([]domain.ShippingService{}, nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrPublishedRequiresShipping) {
+					t.Errorf("expected ErrPublishedRequiresShipping, got %v", err)
+				}
+			},
+		},
+		{
+			name: "too many images",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+				images := make([]domain.CreateProductImageInput, 11)
+				for i := range images {
+					images[i] = domain.CreateProductImageInput{
+						FileName:    "image.jpg",
+						ContentType: "image/jpeg",
+						IsPrimary:   i == 0,
+					}
+				}
+				req.Images = images
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrTooManyImages) {
+					t.Errorf("expected ErrTooManyImages, got %v", err)
+				}
+			},
+		},
+		{
+			name: "no primary image",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+				req.Images = []domain.CreateProductImageInput{
+					{FileName: "img.jpg", ContentType: "image/jpeg", IsPrimary: false},
+				}
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrNoPrimaryImage) {
+					t.Errorf("expected ErrNoPrimaryImage, got %v", err)
+				}
+			},
+		},
+		{
+			name: "duplicate primary image",
+			run: func(t *testing.T) {
+				_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+				req.Images = []domain.CreateProductImageInput{
+					{FileName: "img1.jpg", ContentType: "image/jpeg", IsPrimary: true},
+					{FileName: "img2.jpg", ContentType: "image/jpeg", IsPrimary: true},
+				}
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrDuplicatePrimaryImage) {
+					t.Errorf("expected ErrDuplicatePrimaryImage, got %v", err)
+				}
+			},
+		},
+		{
+			name: "slug generation error",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				productRepo.EXPECT().FindBySlug(ctx, gomock.Any()).Return(nil, errors.New("db error"))
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
+			name: "count by vendor id error",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugUnique(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), errors.New("db error"))
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
+			name: "presigned upload url error",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugUnique(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
+				storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("", errors.New("s3 error"))
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
+			name: "product repo create error",
+			run: func(t *testing.T) {
+				productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				categoryID := uuid.New()
+				shippingID := uuid.New()
+				req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
+				shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
+				expectSlugUnique(productRepo, ctx)
+				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
+				storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+				productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("db error"))
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
 	}
-}
 
-func TestCreate_CategoryNotActive(t *testing.T) {
-	_, vendorRepo, categoryRepo, _, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{uuid.New().String()})
-
-	inactiveCategory := activeCategory(categoryID)
-	inactiveCategory.IsActive = false
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(inactiveCategory, nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if !errors.Is(err, ErrCategoryNotFound) {
-		t.Errorf("expected ErrCategoryNotFound, got %v", err)
-	}
-}
-
-func TestCreate_CategoryRepoError(t *testing.T) {
-	_, vendorRepo, categoryRepo, _, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{uuid.New().String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(nil, errors.New("db error"))
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestCreate_InvalidShippingServiceID(t *testing.T) {
-	_, vendorRepo, categoryRepo, _, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{"not-a-uuid"})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error for invalid shipping_service_id, got nil")
-	}
-}
-
-func TestCreate_ShippingServiceNotFound(t *testing.T) {
-	_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID1 := uuid.New()
-	shippingID2 := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID1.String(), shippingID2.String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	// Only 1 found out of 2 requested
-	shippingRepo.EXPECT().FindByIDs(ctx, gomock.Any()).Return(shippingServices([]uuid.UUID{shippingID1}), nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if !errors.Is(err, ErrShippingServiceNotFound) {
-		t.Errorf("expected ErrShippingServiceNotFound, got %v", err)
-	}
-}
-
-func TestCreate_ShippingRepoError(t *testing.T) {
-	_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, gomock.Any()).Return(nil, errors.New("db error"))
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestCreate_PublishedRequiresShipping(t *testing.T) {
-	_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{})
-	req.IsActive = true
-	req.ShippingServiceIDs = []string{}
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, gomock.Any()).Return([]domain.ShippingService{}, nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if !errors.Is(err, ErrPublishedRequiresShipping) {
-		t.Errorf("expected ErrPublishedRequiresShipping, got %v", err)
-	}
-}
-
-func TestCreate_TooManyImages(t *testing.T) {
-	_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-
-	// Create 11 images (exceeds max of 10)
-	images := make([]domain.CreateProductImageInput, 11)
-	for i := range images {
-		images[i] = domain.CreateProductImageInput{
-			FileName:    "image.jpg",
-			ContentType: "image/jpeg",
-			IsPrimary:   i == 0,
-		}
-	}
-	req.Images = images
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if !errors.Is(err, ErrTooManyImages) {
-		t.Errorf("expected ErrTooManyImages, got %v", err)
-	}
-}
-
-func TestCreate_NoPrimaryImage(t *testing.T) {
-	_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-	req.Images = []domain.CreateProductImageInput{
-		{FileName: "img.jpg", ContentType: "image/jpeg", IsPrimary: false},
-	}
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if !errors.Is(err, ErrNoPrimaryImage) {
-		t.Errorf("expected ErrNoPrimaryImage, got %v", err)
-	}
-}
-
-func TestCreate_DuplicatePrimaryImage(t *testing.T) {
-	_, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-	req.Images = []domain.CreateProductImageInput{
-		{FileName: "img1.jpg", ContentType: "image/jpeg", IsPrimary: true},
-		{FileName: "img2.jpg", ContentType: "image/jpeg", IsPrimary: true},
-	}
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if !errors.Is(err, ErrDuplicatePrimaryImage) {
-		t.Errorf("expected ErrDuplicatePrimaryImage, got %v", err)
-	}
-}
-
-func TestCreate_SlugGenerationError(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	productRepo.EXPECT().FindBySlug(ctx, gomock.Any()).Return(nil, errors.New("db error"))
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestCreate_CountByVendorIDError(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, _, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugUnique(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), errors.New("db error"))
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestCreate_PresignedUploadURLError(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugUnique(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("", errors.New("s3 error"))
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestCreate_ProductRepoCreateError(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugUnique(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
-	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("db error"))
-
-	_, err := uc.Create(ctx, vendorID, req)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-}
-
-func TestCreate_VariantSKUGeneration(t *testing.T) {
-	productRepo, vendorRepo, categoryRepo, shippingRepo, storage, uc := setupProductUseCase(t)
-	ctx := context.Background()
-
-	vendorID := uuid.New()
-	categoryID := uuid.New()
-	shippingID := uuid.New()
-	req := validCreateProductRequest(categoryID.String(), []string{shippingID.String()})
-	req.Variants = []domain.CreateProductVariantInput{
-		{VariantName: "Red", Price: 160000, Stock: 20, IsActive: true},
-	}
-
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
-	categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
-	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
-	expectSlugUnique(productRepo, ctx)
-	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(3), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
-	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-
-	resp, err := uc.Create(ctx, vendorID, req)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	// Verify SKU format: TOKOH-SAJAD003-00 (default) and TOKOH-SAJAD003-01 (variant)
-	defaultSKU := resp.Variants[0].SKU
-	variantSKU := resp.Variants[1].SKU
-	if defaultSKU == "" || variantSKU == "" {
-		t.Error("expected non-empty SKUs")
-	}
-	if defaultSKU == variantSKU {
-		t.Errorf("default and variant SKU should differ, both are %s", defaultSKU)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			tc.run(t)
+		})
 	}
 }
 
