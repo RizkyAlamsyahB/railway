@@ -5,71 +5,62 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Development Commands
 
 ```bash
-make run                        # Start API server (go run cmd/api/main.go)
-make build                      # Build binary to bin/api
-make test                       # Run all tests (go test ./... -v)
-make tidy                       # go mod tidy
+make run              # Start API server (go run cmd/api/main.go)
+make build            # Build binary to bin/api
+make test             # Run all tests (go test ./... -v)
+make tidy             # go mod tidy
 
-# Run a single test
-go test -v -run TestFunctionName ./internal/usecase/...
+# Run a single test function
+go test ./internal/usecase/ -run TestUserRegister -v
 
 # Database
-make docker-up                  # Start PostgreSQL via Docker Compose
-make docker-down                # Stop Docker Compose services
-make db-create                  # Create haji_umroh_store database
-make db-setup                   # db-create + migrate-up
-make migrate-up                 # Apply all pending migrations
-make migrate-down               # Rollback last migration
-make migrate-create name=<name> # Create new migration pair in migrations/
-make seed                       # Seed admin user (runs migrate-up first)
-```
+make docker-up        # Start PostgreSQL via Docker Compose
+make db-setup         # Create database + apply all migrations
+make migrate-up       # Apply pending migrations
+make migrate-down     # Rollback last migration
+make migrate-create name=<name>  # Create new migration pair
+make seed             # Seed admin user from ADMIN_* env vars
 
-Setup from scratch: `cp .env.example .env && make docker-up && make db-setup && make seed && make run`
+# Mock generation (no go:generate directives; run manually)
+mockgen -destination=internal/usecase/mocks/mock_<name>.go -package=mocks \
+  github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain <InterfaceName>
+```
 
 ## Architecture
 
-Clean Architecture with inward dependency flow. Go 1.25+, Gin framework, GORM + PostgreSQL, Viper config.
+Clean architecture with four layers. Dependencies point inward only.
 
 ```
-Delivery (HTTP handlers) → Usecase (business logic) → Domain (entities & interfaces)
-                                                              ↑
-                                    Repository (GORM data access) ──────┘
+delivery/http  →  usecase  →  domain  ←  repository
+     │                                        │
+     └──── infrastructure (db, s3, smtp) ─────┘
 ```
 
-### Layer responsibilities and locations
+### Layer responsibilities
 
-| Layer | Path | Role |
-|---|---|---|
-| Domain | `internal/domain/` | Entities, repository/usecase/provider interfaces, DTOs. Zero external deps. |
-| Usecase | `internal/usecase/` | Business logic implementations. Depends only on domain interfaces. |
-| Repository | `internal/repository/` | GORM-based data access implementing domain repository interfaces. |
-| Delivery | `internal/delivery/http/` | Gin handlers (`handler/`), middleware (`middleware/`), routes (`router/`). |
-| Infrastructure | `internal/infrastructure/` | External integrations: `database/` (Postgres), `email/` (SMTP), `storage/` (S3). |
-| Config | `internal/config/` | Viper-based config loader from `.env` + env vars. |
-| App | `internal/app/app.go` | Dependency injection wiring — `Initialize()` builds the entire object graph. |
-| Pkg | `pkg/` | Reusable packages: `response/` (JSON envelope), `utils/auth/` (JWT, bcrypt). |
+- **`internal/domain/`** — Entities, DTOs (request/response structs with `binding` tags), and interfaces (repository, usecase, StorageProvider, EmailProvider). Zero external dependencies.
+- **`internal/usecase/`** — Business logic. Each feature has its own file (e.g., `user_usecase.go`, `product_usecase.go`). Returns sentinel errors defined in `usecase/errors.go`.
+- **`internal/repository/`** — GORM-based data access implementing domain repository interfaces. Uses internal GORM models (not domain entities) for DB mapping.
+- **`internal/delivery/http/`** — Gin handlers, middleware, router. `handler/error_mapper.go` maps usecase sentinel errors to HTTP status codes.
+- **`internal/infrastructure/`** — External service implementations: PostgreSQL (GORM), S3 storage (presigned URLs), SMTP email.
+- **`internal/app/app.go`** — Wires all dependencies via constructor injection in `Initialize()`.
 
 ### Key patterns
 
-- **Interface-driven**: Domain defines all interfaces; repository/infrastructure implement them. New implementations swap in without touching business logic.
-- **DI wiring**: `internal/app/app.go` `Initialize()` constructs all dependencies in order: config → DB → storage → email → repositories → usecases → handlers → router.
-- **Standard response envelope**: All handlers use `pkg/response/` helpers (`response.OK()`, `response.Created()`, `response.BadRequest()`, etc.) returning `{success, message, data, errors, meta}`.
-- **Auth middleware**: JWT auth + role-based access via `middleware.AuthMiddleware()` and `middleware.RequireRoles()`. Claims carry UserID, Email, Role, VendorID.
-- **Mocks**: Generated with `go.uber.org/mock` in `internal/usecase/mocks/`. Usecase tests mock repository interfaces.
+**Error handling flow:** Define sentinel error in `usecase/errors.go` → return it from usecase → add mapping rule in `handler/error_mapper.go` → `HandleUsecaseError()` translates to HTTP response.
 
-### Adding a new feature
+**API response envelope:** All endpoints use `pkg/response/` which wraps responses in `{success, message, data, errors, meta}`.
 
-1. Define entities and interfaces in `internal/domain/`.
-2. Implement repository in `internal/repository/`.
-3. Implement usecase in `internal/usecase/`.
-4. Add handler in `internal/delivery/http/handler/`.
-5. Register routes in `internal/delivery/http/router/router.go`.
-6. Wire everything in `internal/app/app.go`.
+**Auth middleware chain:** `middleware.Auth(jwtSecret)` validates JWT and populates context keys (`auth_user_id`, `auth_email`, `auth_role`, `auth_vendor_id`), then `middleware.RequireRoles(...)` checks role.
 
-### API routes
+**Routing:** All routes under `/api/v1`. Role groups: public, `customer`, `umkm` (vendor), `admin`.
 
-All routes under `/api/v1`. Route groups: public, user auth (`/users`), vendor auth (`/vendors`), admin auth (`/admin`). Auth-protected groups use `AuthMiddleware` + `RequireRoles` middleware.
+**Mocks:** Generated with `go.uber.org/mock` (mockgen) into `internal/usecase/mocks/`. Tests use table-driven patterns with `gomock.Controller` and setup helper functions.
 
-### Database migrations
+## Configuration
 
-Sequential SQL files in `migrations/` managed by golang-migrate. 9 migrations covering: identity/access, vendors, catalog, cart, orders/shipping, payments/refunds, payouts, double-entry ledger, and indexes.
+Viper-based, loads from `.env` file with environment variable overrides. Config struct in `internal/config/config.go`. Key prefixes: `APP_`, `DB_`, `JWT_`, `STORAGE_`, `SMTP_`, `ADMIN_`.
+
+## Migrations
+
+SQL files in `migrations/` using golang-migrate. Numbered sequentially (`000001_`, `000002_`, ...). Each migration has `.up.sql` and `.down.sql`.
