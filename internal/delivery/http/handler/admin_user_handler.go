@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
-	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
 
@@ -33,7 +31,7 @@ func (h *AdminUserHandler) Create(c *gin.Context) {
 
 	result, err := h.useCase.Create(c.Request.Context(), req)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -72,7 +70,7 @@ func (h *AdminUserHandler) GetByID(c *gin.Context) {
 
 	result, err := h.useCase.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -95,7 +93,7 @@ func (h *AdminUserHandler) Update(c *gin.Context) {
 
 	result, err := h.useCase.Update(c.Request.Context(), id, req)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -114,24 +112,9 @@ func (h *AdminUserHandler) Delete(c *gin.Context) {
 	actorUUID, _ := actorID.(uuid.UUID)
 
 	if err := h.useCase.Delete(c.Request.Context(), id, actorUUID); err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
 	response.OK(c, "user deleted successfully", nil)
-}
-
-func (h *AdminUserHandler) handleError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, usecase.ErrUserNotFound):
-		response.NotFound(c, "user not found", nil)
-	case errors.Is(err, usecase.ErrEmailExists):
-		response.BadRequest(c, "email already exists", nil)
-	case errors.Is(err, usecase.ErrInvalidBirthDate):
-		response.BadRequest(c, "invalid birth_date format, expected YYYY-MM-DD", nil)
-	case errors.Is(err, usecase.ErrCannotDeleteSelf):
-		response.BadRequest(c, "cannot delete your own account", nil)
-	default:
-		response.InternalServerError(c, "internal server error", err.Error())
-	}
 }

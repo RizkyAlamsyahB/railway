@@ -1,11 +1,8 @@
 package handler
 
 import (
-	"errors"
-
 	"github.com/gin-gonic/gin"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
-	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
 
@@ -29,22 +26,9 @@ func (h *AdminLoginHandler) Login(c *gin.Context) {
 
 	result, err := h.useCase.Login(c.Request.Context(), req)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
 	response.OK(c, "login successful", result)
-}
-
-func (h *AdminLoginHandler) handleError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, usecase.ErrInvalidCredentials):
-		response.Unauthorized(c, "invalid email or password", nil)
-	case errors.Is(err, usecase.ErrAccountInactive):
-		response.Unauthorized(c, "account is not active", nil)
-	case errors.Is(err, usecase.ErrNotAdmin):
-		response.Forbidden(c, "admin access required", nil)
-	default:
-		response.InternalServerError(c, "internal server error", nil)
-	}
 }

@@ -5,26 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/auth"
-)
-
-// Sentinel errors for user use case.
-var (
-	ErrPhoneAlreadyRegistered   = errors.New("phone number already registered")
-	ErrInvalidVerificationToken = errors.New("invalid or expired verification token")
-	ErrUserAlreadyActive        = errors.New("user is already active")
-	ErrResendTooSoon            = errors.New("please wait before requesting another verification email")
-	ErrUserNotPending           = errors.New("user is not in pending status")
-	ErrUserInvalidCredentials   = errors.New("invalid email or password")
-	ErrUserAccountNotActive     = errors.New("account is not active")
-	ErrUserEmailNotVerified     = errors.New("email is not verified")
-	ErrUserAccountBlocked       = errors.New("account is blocked")
 )
 
 const (
@@ -96,10 +82,10 @@ func (uc *userUseCase) Register(ctx context.Context, req domain.RegisterCustomer
 		FullName:     req.FullName,
 		Phone:        &req.Phone,
 		PasswordHash: passwordHash,
-		Status:       "pending",
+		Status:       domain.UserStatusPending,
 	}
 
-	if err := uc.userRepo.Create(ctx, user, "customer"); err != nil {
+	if err := uc.userRepo.Create(ctx, user, domain.RoleCustomer); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
@@ -164,10 +150,10 @@ func (uc *userUseCase) ResendVerification(ctx context.Context, req domain.Resend
 	}
 
 	// Check user is still pending
-	if user.Status == "active" {
+	if user.Status == domain.UserStatusActive {
 		return ErrUserAlreadyActive
 	}
-	if user.Status != "pending" {
+	if user.Status != domain.UserStatusPending {
 		return ErrUserNotPending
 	}
 
@@ -281,12 +267,12 @@ func (uc *userUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 	}
 
 	// 3. Check account is not blocked.
-	if user.Status == "blocked" {
+	if user.Status == domain.UserStatusBlocked {
 		return nil, ErrUserAccountBlocked
 	}
 
 	// 4. Check account is active.
-	if user.Status != "active" {
+	if user.Status != domain.UserStatusActive {
 		return nil, ErrUserAccountNotActive
 	}
 
@@ -295,7 +281,7 @@ func (uc *userUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 		return nil, ErrUserEmailNotVerified
 	}
 
-	// 6. Determine role code.
+	// 6. Determine role code for JWT.
 	roleCode := ""
 	if user.Role != nil {
 		roleCode = user.Role.Code
@@ -309,18 +295,7 @@ func (uc *userUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 
 	return &domain.LoginResponse{
 		Token: token,
-		User: domain.UserResponse{
-			ID:              user.ID,
-			Email:           user.Email,
-			FullName:        user.FullName,
-			BirthDate:       user.BirthDate,
-			Phone:           user.Phone,
-			Status:          user.Status,
-			EmailVerifiedAt: user.EmailVerifiedAt,
-			Role:            roleCode,
-			CreatedAt:       user.CreatedAt,
-			UpdatedAt:       user.UpdatedAt,
-		},
+		User:  *toUserResponse(user),
 	}, nil
 }
 
@@ -333,21 +308,5 @@ func (uc *userUseCase) GetMe(ctx context.Context, userID uuid.UUID) (*domain.Use
 		return nil, ErrUserNotFound
 	}
 
-	roleCode := ""
-	if user.Role != nil {
-		roleCode = user.Role.Code
-	}
-
-	return &domain.UserResponse{
-		ID:              user.ID,
-		Email:           user.Email,
-		FullName:        user.FullName,
-		BirthDate:       user.BirthDate,
-		Phone:           user.Phone,
-		Status:          user.Status,
-		EmailVerifiedAt: user.EmailVerifiedAt,
-		Role:            roleCode,
-		CreatedAt:       user.CreatedAt,
-		UpdatedAt:       user.UpdatedAt,
-	}, nil
+	return toUserResponse(user), nil
 }

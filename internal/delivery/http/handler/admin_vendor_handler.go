@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
-	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
 
@@ -21,19 +19,6 @@ type AdminVendorHandler struct {
 // NewAdminVendorHandler creates a new AdminVendorHandler.
 func NewAdminVendorHandler(uc domain.AdminVendorUseCase) *AdminVendorHandler {
 	return &AdminVendorHandler{useCase: uc}
-}
-
-// handleError maps known usecase errors to proper HTTP responses.
-func (h *AdminVendorHandler) handleError(c *gin.Context, err error, action string) {
-	if errors.Is(err, usecase.ErrVendorNotFound) {
-		response.NotFound(c, "vendor not found", nil)
-		return
-	}
-	if errors.Is(err, usecase.ErrInvalidStatusTransition) {
-		response.BadRequest(c, err.Error(), nil)
-		return
-	}
-	response.InternalServerError(c, "failed to "+action, err.Error())
 }
 
 // List handles GET /api/v1/admin/vendors
@@ -68,7 +53,7 @@ func (h *AdminVendorHandler) GetByID(c *gin.Context) {
 
 	vendor, err := h.useCase.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleError(c, err, "get vendor")
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -88,7 +73,7 @@ func (h *AdminVendorHandler) Approve(c *gin.Context) {
 
 	result, err := h.useCase.Approve(c.Request.Context(), vendorID, adminID)
 	if err != nil {
-		h.handleError(c, err, "approve vendor")
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -111,7 +96,7 @@ func (h *AdminVendorHandler) Reject(c *gin.Context) {
 
 	result, err := h.useCase.Reject(c.Request.Context(), vendorID, req.Reason)
 	if err != nil {
-		h.handleError(c, err, "reject vendor")
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -134,7 +119,7 @@ func (h *AdminVendorHandler) Block(c *gin.Context) {
 
 	result, err := h.useCase.Block(c.Request.Context(), vendorID, req.Reason)
 	if err != nil {
-		h.handleError(c, err, "block vendor")
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -154,7 +139,7 @@ func (h *AdminVendorHandler) Unblock(c *gin.Context) {
 
 	result, err := h.useCase.Unblock(c.Request.Context(), vendorID, adminID)
 	if err != nil {
-		h.handleError(c, err, "unblock vendor")
+		HandleUsecaseError(c, err)
 		return
 	}
 

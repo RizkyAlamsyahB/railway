@@ -57,7 +57,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 
 	resp, err := h.useCase.Register(c.Request.Context(), req)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *UserHandler) ResendVerification(c *gin.Context) {
 
 	err := h.useCase.ResendVerification(c.Request.Context(), req)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -112,7 +112,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	result, err := h.useCase.Login(c.Request.Context(), req)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -129,39 +129,9 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 
 	result, err := h.useCase.GetMe(c.Request.Context(), userID)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
 	response.OK(c, "user profile retrieved successfully", result)
-}
-
-// handleError maps usecase sentinel errors to HTTP responses.
-func (h *UserHandler) handleError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, usecase.ErrEmailAlreadyRegistered):
-		response.Error(c, http.StatusConflict, err.Error(), nil)
-	case errors.Is(err, usecase.ErrPhoneAlreadyRegistered):
-		response.Error(c, http.StatusConflict, err.Error(), nil)
-	case errors.Is(err, usecase.ErrInvalidVerificationToken):
-		response.BadRequest(c, err.Error(), nil)
-	case errors.Is(err, usecase.ErrUserAlreadyActive):
-		response.Error(c, http.StatusConflict, err.Error(), nil)
-	case errors.Is(err, usecase.ErrResendTooSoon):
-		response.Error(c, http.StatusTooManyRequests, err.Error(), nil)
-	case errors.Is(err, usecase.ErrUserNotPending):
-		response.BadRequest(c, err.Error(), nil)
-	case errors.Is(err, usecase.ErrUserInvalidCredentials):
-		response.Unauthorized(c, "invalid email or password", nil)
-	case errors.Is(err, usecase.ErrUserAccountBlocked):
-		response.Forbidden(c, "account is blocked", nil)
-	case errors.Is(err, usecase.ErrUserAccountNotActive):
-		response.Unauthorized(c, "account is not active", nil)
-	case errors.Is(err, usecase.ErrUserEmailNotVerified):
-		response.Unauthorized(c, "email is not verified", nil)
-	case errors.Is(err, usecase.ErrUserNotFound):
-		response.Error(c, http.StatusNotFound, "user not found", nil)
-	default:
-		response.InternalServerError(c, "An unexpected error occurred", nil)
-	}
 }

@@ -1,13 +1,10 @@
 package handler
 
 import (
-	"errors"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
-	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
 
@@ -34,7 +31,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 
 	result, err := h.useCase.Create(c.Request.Context(), vendorID, req)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
@@ -60,46 +57,11 @@ func (h *ProductHandler) ConfirmImages(c *gin.Context) {
 
 	result, err := h.useCase.ConfirmImages(c.Request.Context(), vendorID, productID, req)
 	if err != nil {
-		h.handleError(c, err)
+		HandleUsecaseError(c, err)
 		return
 	}
 
 	response.OK(c, "images confirmed successfully", result)
-}
-
-func (h *ProductHandler) handleError(c *gin.Context, err error) {
-	switch {
-	case errors.Is(err, usecase.ErrVendorNotFound):
-		response.NotFound(c, "vendor not found", nil)
-	case errors.Is(err, usecase.ErrVendorNotActive):
-		response.Forbidden(c, "vendor is not active", nil)
-	case errors.Is(err, usecase.ErrCategoryNotFound):
-		response.BadRequest(c, "category not found", nil)
-	case errors.Is(err, usecase.ErrShippingServiceNotFound):
-		response.BadRequest(c, "one or more shipping services not found", nil)
-	case errors.Is(err, usecase.ErrProductNotFound):
-		response.NotFound(c, "product not found", nil)
-	case errors.Is(err, usecase.ErrProductNotOwned):
-		response.Forbidden(c, "product does not belong to this vendor", nil)
-	case errors.Is(err, usecase.ErrImageNotFound):
-		response.BadRequest(c, err.Error(), nil)
-	case errors.Is(err, usecase.ErrImageNotUploaded):
-		response.BadRequest(c, err.Error(), nil)
-	case errors.Is(err, usecase.ErrInvalidImageContentType):
-		response.BadRequest(c, err.Error(), nil)
-	case errors.Is(err, usecase.ErrImageSizeOverflow):
-		response.BadRequest(c, err.Error(), nil)
-	case errors.Is(err, usecase.ErrDuplicatePrimaryImage):
-		response.BadRequest(c, "only one image can be marked as primary", nil)
-	case errors.Is(err, usecase.ErrNoPrimaryImage):
-		response.BadRequest(c, "at least one image must be marked as primary", nil)
-	case errors.Is(err, usecase.ErrPublishedRequiresShipping):
-		response.BadRequest(c, "published product must have at least one shipping service", nil)
-	case errors.Is(err, usecase.ErrTooManyImages):
-		response.BadRequest(c, "maximum 10 images per product", nil)
-	default:
-		response.InternalServerError(c, "internal server error", nil)
-	}
 }
 
 // CatalogHandler handles public catalog endpoints.

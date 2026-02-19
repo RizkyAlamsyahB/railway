@@ -10,9 +10,6 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 )
 
-// presignedDownloadExpiry is the validity duration for presigned download URLs.
-const presignedDownloadExpiry = 30 * time.Minute
-
 type adminVendorUseCase struct {
 	vendorRepo domain.VendorRepository
 	userRepo   domain.UserRepository
@@ -149,7 +146,7 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 
 		// Only generate presigned URL if the document has been uploaded.
 		if doc.UploadedBy != nil && doc.FileURL != "" {
-			downloadURL, err := uc.storage.GeneratePresignedURL(ctx, doc.FileURL, presignedDownloadExpiry)
+			downloadURL, err := uc.storage.GeneratePresignedURL(ctx, doc.FileURL, PresignedDownloadExpiry)
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate presigned URL for document %s: %w", doc.DocType, err)
 			}
@@ -186,14 +183,14 @@ func (uc *adminVendorUseCase) Approve(ctx context.Context, vendorID uuid.UUID, a
 		return nil, ErrVendorNotFound
 	}
 
-	if vendor.Status != "submitted" && vendor.Status != "rejected" {
+	if vendor.Status != domain.VendorStatusSubmitted && vendor.Status != domain.VendorStatusRejected {
 		return nil, fmt.Errorf("%w: cannot approve vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
 	}
 
 	now := time.Now()
 	adminIDStr := adminID.String()
 	updates := map[string]interface{}{
-		"status":        "active",
+		"status":        domain.VendorStatusActive,
 		"approved_by":   adminIDStr,
 		"approved_at":   now,
 		"status_reason": nil,
@@ -209,8 +206,8 @@ func (uc *adminVendorUseCase) Approve(ctx context.Context, vendorID uuid.UUID, a
 	if err != nil {
 		return nil, fmt.Errorf("failed to find vendor owner: %w", err)
 	}
-	if owner != nil && owner.Status != "active" {
-		owner.Status = "active"
+	if owner != nil && owner.Status != domain.UserStatusActive {
+		owner.Status = domain.UserStatusActive
 		owner.UpdatedAt = now
 		if err := uc.userRepo.Update(ctx, owner); err != nil {
 			return nil, fmt.Errorf("failed to activate vendor owner: %w", err)
@@ -219,7 +216,7 @@ func (uc *adminVendorUseCase) Approve(ctx context.Context, vendorID uuid.UUID, a
 
 	return &domain.AdminVendorActionResponse{
 		VendorID: vendorID,
-		Status:   "active",
+		Status:   domain.VendorStatusActive,
 		Message:  "vendor approved successfully",
 	}, nil
 }
@@ -233,13 +230,13 @@ func (uc *adminVendorUseCase) Reject(ctx context.Context, vendorID uuid.UUID, re
 		return nil, ErrVendorNotFound
 	}
 
-	if vendor.Status != "submitted" {
+	if vendor.Status != domain.VendorStatusSubmitted {
 		return nil, fmt.Errorf("%w: cannot reject vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
 	}
 
 	now := time.Now()
 	updates := map[string]interface{}{
-		"status":        "rejected",
+		"status":        domain.VendorStatusRejected,
 		"status_reason": reason,
 		"updated_at":    now,
 	}
@@ -250,7 +247,7 @@ func (uc *adminVendorUseCase) Reject(ctx context.Context, vendorID uuid.UUID, re
 
 	return &domain.AdminVendorActionResponse{
 		VendorID: vendorID,
-		Status:   "rejected",
+		Status:   domain.VendorStatusRejected,
 		Message:  "vendor rejected successfully",
 	}, nil
 }
@@ -264,13 +261,13 @@ func (uc *adminVendorUseCase) Block(ctx context.Context, vendorID uuid.UUID, rea
 		return nil, ErrVendorNotFound
 	}
 
-	if vendor.Status != "active" && vendor.Status != "submitted" {
+	if vendor.Status != domain.VendorStatusActive && vendor.Status != domain.VendorStatusSubmitted {
 		return nil, fmt.Errorf("%w: cannot block vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
 	}
 
 	now := time.Now()
 	updates := map[string]interface{}{
-		"status":        "blocked",
+		"status":        domain.VendorStatusBlocked,
 		"status_reason": reason,
 		"updated_at":    now,
 	}
@@ -281,7 +278,7 @@ func (uc *adminVendorUseCase) Block(ctx context.Context, vendorID uuid.UUID, rea
 
 	return &domain.AdminVendorActionResponse{
 		VendorID: vendorID,
-		Status:   "blocked",
+		Status:   domain.VendorStatusBlocked,
 		Message:  "vendor blocked successfully",
 	}, nil
 }
@@ -295,14 +292,14 @@ func (uc *adminVendorUseCase) Unblock(ctx context.Context, vendorID uuid.UUID, a
 		return nil, ErrVendorNotFound
 	}
 
-	if vendor.Status != "blocked" {
+	if vendor.Status != domain.VendorStatusBlocked {
 		return nil, fmt.Errorf("%w: cannot unblock vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
 	}
 
 	now := time.Now()
 	adminIDStr := adminID.String()
 	updates := map[string]interface{}{
-		"status":        "active",
+		"status":        domain.VendorStatusActive,
 		"approved_by":   adminIDStr,
 		"approved_at":   now,
 		"status_reason": nil,
@@ -318,8 +315,8 @@ func (uc *adminVendorUseCase) Unblock(ctx context.Context, vendorID uuid.UUID, a
 	if err != nil {
 		return nil, fmt.Errorf("failed to find vendor owner: %w", err)
 	}
-	if owner != nil && owner.Status != "active" {
-		owner.Status = "active"
+	if owner != nil && owner.Status != domain.UserStatusActive {
+		owner.Status = domain.UserStatusActive
 		owner.UpdatedAt = now
 		if err := uc.userRepo.Update(ctx, owner); err != nil {
 			return nil, fmt.Errorf("failed to activate vendor owner: %w", err)
@@ -328,7 +325,7 @@ func (uc *adminVendorUseCase) Unblock(ctx context.Context, vendorID uuid.UUID, a
 
 	return &domain.AdminVendorActionResponse{
 		VendorID: vendorID,
-		Status:   "active",
+		Status:   domain.VendorStatusActive,
 		Message:  "vendor unblocked successfully",
 	}, nil
 }

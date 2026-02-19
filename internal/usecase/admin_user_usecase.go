@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -10,13 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/auth"
-)
-
-var (
-	ErrUserNotFound     = errors.New("user not found")
-	ErrEmailExists      = errors.New("email already exists")
-	ErrInvalidBirthDate = errors.New("invalid birth_date format, expected YYYY-MM-DD")
-	ErrCannotDeleteSelf = errors.New("cannot delete your own account")
 )
 
 type adminUserUseCase struct {
@@ -59,7 +51,7 @@ func (uc *adminUserUseCase) Create(ctx context.Context, req domain.CreateUserReq
 		BirthDate:       birthDate,
 		Phone:           req.Phone,
 		PasswordHash:    hash,
-		Status:          "active",
+		Status:          domain.UserStatusActive,
 		EmailVerifiedAt: &now,
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -186,23 +178,4 @@ func (uc *adminUserUseCase) Delete(ctx context.Context, id uuid.UUID, actorID uu
 	}
 
 	return nil
-}
-
-func toUserResponse(u *domain.User) *domain.UserResponse {
-	role := ""
-	if u.Role != nil {
-		role = u.Role.Code
-	}
-	return &domain.UserResponse{
-		ID:              u.ID,
-		Email:           u.Email,
-		FullName:        u.FullName,
-		BirthDate:       u.BirthDate,
-		Phone:           u.Phone,
-		Status:          u.Status,
-		EmailVerifiedAt: u.EmailVerifiedAt,
-		Role:            role,
-		CreatedAt:       u.CreatedAt,
-		UpdatedAt:       u.UpdatedAt,
-	}
 }

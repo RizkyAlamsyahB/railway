@@ -2,22 +2,11 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
-)
-
-// Cart sentinel errors.
-var (
-	ErrCartItemNotFound    = errors.New("cart item not found")
-	ErrCartItemNotOwned    = errors.New("cart item does not belong to your cart")
-	ErrVariantNotFound     = errors.New("product variant not found")
-	ErrVariantNotActive    = errors.New("product variant is not active")
-	ErrProductNotAvailable = errors.New("product is not available")
-	ErrInsufficientStock   = errors.New("insufficient stock")
 )
 
 type cartUseCase struct {
@@ -53,7 +42,7 @@ func (uc *cartUseCase) getOrCreateCart(ctx context.Context, userID uuid.UUID) (*
 	cart = &domain.Cart{
 		ID:        uuid.New(),
 		UserID:    userID,
-		Status:    "active",
+		Status:    domain.CartStatusActive,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
@@ -103,7 +92,7 @@ func (uc *cartUseCase) GetCart(ctx context.Context, userID uuid.UUID) (*domain.G
 		}
 		for _, img := range images {
 			if img.IsPrimary {
-				presigned, err := uc.storage.GeneratePresignedURL(ctx, img.ImageURL, presignedDownloadExpiry)
+				presigned, err := uc.storage.GeneratePresignedURL(ctx, img.ImageURL, PresignedDownloadExpiry)
 				if err != nil {
 					return nil, fmt.Errorf("failed to generate presigned URL: %w", err)
 				}
@@ -112,7 +101,7 @@ func (uc *cartUseCase) GetCart(ctx context.Context, userID uuid.UUID) (*domain.G
 			}
 		}
 
-		isAvailable := variant.IsActive && product.Status == "published"
+		isAvailable := variant.IsActive && product.Status == domain.ProductStatusPublished
 		subtotal := variant.Price * float64(item.Qty)
 
 		if isAvailable {
@@ -175,7 +164,7 @@ func (uc *cartUseCase) AddItem(ctx context.Context, userID uuid.UUID, req domain
 	if product == nil {
 		return nil, ErrProductNotFound
 	}
-	if product.Status != "published" {
+	if product.Status != domain.ProductStatusPublished {
 		return nil, ErrProductNotAvailable
 	}
 

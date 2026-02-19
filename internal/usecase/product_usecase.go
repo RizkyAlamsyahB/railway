@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -11,28 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 )
-
-var (
-	ErrVendorNotActive           = errors.New("vendor is not active")
-	ErrCategoryNotFound          = errors.New("category not found")
-	ErrShippingServiceNotFound   = errors.New("one or more shipping services not found")
-	ErrProductNotFound           = errors.New("product not found")
-	ErrProductNotOwned           = errors.New("product does not belong to this vendor")
-	ErrImageNotFound             = errors.New("image not found for this product")
-	ErrImageNotUploaded          = errors.New("image not found in storage")
-	ErrInvalidImageContentType   = errors.New("invalid image content type")
-	ErrImageSizeOverflow         = errors.New("image file size exceeds supported limit")
-	ErrDuplicatePrimaryImage     = errors.New("only one image can be marked as primary")
-	ErrNoPrimaryImage            = errors.New("at least one image must be marked as primary")
-	ErrPublishedRequiresShipping = errors.New("published product must have at least one shipping service")
-	ErrTooManyImages             = errors.New("maximum 10 images per product")
-)
-
-var allowedImageContentTypes = map[string]struct{}{
-	"image/jpeg": {},
-	"image/png":  {},
-	"image/webp": {},
-}
 
 type productUseCase struct {
 	productRepo  domain.ProductRepository
@@ -68,7 +45,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 	if vendor == nil {
 		return nil, ErrVendorNotFound
 	}
-	if vendor.Status != "active" {
+	if vendor.Status != domain.VendorStatusActive {
 		return nil, ErrVendorNotActive
 	}
 
@@ -103,12 +80,12 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 	}
 
 	// 4. Determine product status.
-	status := "draft"
+	status := domain.ProductStatusDraft
 	if req.IsActive {
-		status = "published"
+		status = domain.ProductStatusPublished
 	}
 
-	if status == "published" && len(shippingIDs) == 0 {
+	if status == domain.ProductStatusPublished && len(shippingIDs) == 0 {
 		return nil, ErrPublishedRequiresShipping
 	}
 
@@ -191,7 +168,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 			productID.String(), imageID.String(), sanitizeFileName(img.FileName))
 
 		uploadURL, err := uc.storage.GeneratePresignedUploadURL(
-			ctx, objectKey, img.ContentType, presignedUploadExpiry)
+			ctx, objectKey, img.ContentType, PresignedUploadExpiry)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate presigned URL for image %d: %w", i, err)
 		}
@@ -224,7 +201,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		Slug:          slug,
 		Description:   req.Description,
 		Status:        status,
-		HalalAIStatus: "pending",
+		HalalAIStatus: domain.HalalAIStatusPending,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -258,7 +235,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		Slug:          slug,
 		Description:   req.Description,
 		Status:        status,
-		HalalAIStatus: "pending",
+		HalalAIStatus: domain.HalalAIStatusPending,
 		Variants:      variantResponses,
 		UploadURLs:    uploadInfos,
 		CreatedAt:     now,
@@ -311,7 +288,7 @@ func (uc *productUseCase) ConfirmImages(ctx context.Context, vendorID uuid.UUID,
 			return nil, fmt.Errorf("%w: %s", ErrImageNotUploaded, item.ObjectKey)
 		}
 
-		contentType := normalizeImageContentType(info.ContentType)
+		contentType := normalizeContentType(info.ContentType)
 		if !isAllowedImageContentType(contentType) {
 			return nil, fmt.Errorf("%w: %s (%s)", ErrInvalidImageContentType, item.ImageID, info.ContentType)
 		}
@@ -442,17 +419,4 @@ func sanitizeFileName(name string) string {
 		return "image"
 	}
 	return result
-}
-
-func normalizeImageContentType(contentType string) string {
-	normalized := strings.TrimSpace(strings.ToLower(contentType))
-	if idx := strings.Index(normalized, ";"); idx >= 0 {
-		normalized = strings.TrimSpace(normalized[:idx])
-	}
-	return normalized
-}
-
-func isAllowedImageContentType(contentType string) bool {
-	_, ok := allowedImageContentTypes[contentType]
-	return ok
 }

@@ -2,30 +2,13 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/auth"
-)
-
-var (
-	ErrEmailAlreadyRegistered    = errors.New("email already registered")
-	ErrVendorAlreadyExists       = errors.New("user already has a vendor")
-	ErrVendorNotFound            = errors.New("vendor not found")
-	ErrDocumentNotFound          = errors.New("document not found for this vendor")
-	ErrObjectNotUploaded         = errors.New("object not found in storage")
-	ErrInvalidDocumentContent    = errors.New("invalid document content type")
-	ErrDocumentSizeOverflow      = errors.New("document file size exceeds supported limit")
-	ErrVendorInvalidCredentials  = errors.New("invalid email or password")
-	ErrVendorAccountBlocked      = errors.New("vendor account is blocked")
-	ErrNotVendor                 = errors.New("user does not have vendor access")
-	ErrNoVendorProfile           = errors.New("no vendor profile found for this user")
-	ErrInvalidStatusTransition   = errors.New("invalid status transition")
 )
 
 // Required document types for vendor registration (must be uploaded for draft→submitted).
@@ -45,16 +28,6 @@ var optionalDocTypes = []string{
 
 // allDocTypes combines required + optional for presigned URL generation.
 var allDocTypes = append(append([]string{}, requiredDocTypes...), optionalDocTypes...)
-
-var allowedDocumentContentTypes = map[string]struct{}{
-	"image/jpeg":      {},
-	"image/png":       {},
-	"image/webp":      {},
-	"application/pdf": {},
-}
-
-// presignedUploadExpiry is the validity duration for presigned upload URLs.
-const presignedUploadExpiry = 30 * time.Minute
 
 type vendorUseCase struct {
 	userRepo   domain.UserRepository
@@ -119,7 +92,7 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 		FullName:     req.OwnerName,
 		Phone:        &phone,
 		PasswordHash: hash,
-		Status:       "pending",
+		Status:       domain.UserStatusPending,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -131,7 +104,7 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 		LegalName:             req.LegalName,
 		DisplayName:           req.StoreName,
 		ResponsiblePersonName: req.ResponsiblePersonName,
-		Status:                "draft",
+		Status:                domain.VendorStatusDraft,
 		CreatedAt:             now,
 		UpdatedAt:             now,
 	}
@@ -142,7 +115,7 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 		BankName:           req.BankName,
 		AccountNumber:      req.BankAccountNumber,
 		AccountHolderName:  req.BankAccountHolderName,
-		VerificationStatus: "pending",
+		VerificationStatus: domain.VerificationStatusPending,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -156,7 +129,7 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 		objectKey := fmt.Sprintf("vendors/%s/documents/%s/%s", vendorID.String(), docType, uuid.New().String())
 
 		// Keep content type unsigned so client can upload with the file's actual MIME type.
-		uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, "", presignedUploadExpiry)
+		uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, "", PresignedUploadExpiry)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate presigned URL for %s: %w", docType, err)
 		}
@@ -172,14 +145,14 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 			VendorID:           vendorID,
 			DocType:            docType,
 			FileURL:            objectKey,
-			VerificationStatus: "pending",
+			VerificationStatus: domain.VerificationStatusPending,
 			CreatedAt:          now,
 			UpdatedAt:          now,
 		})
 	}
 
 	// 5. Persist user to DB.
-	if err := uc.userRepo.Create(ctx, user, "umkm"); err != nil {
+	if err := uc.userRepo.Create(ctx, user, domain.RoleUMKM); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
@@ -189,7 +162,7 @@ func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegister
 	}
 
 	// 7. Generate JWT token.
-	token, err := auth.GenerateToken(userID, user.Email, "umkm", &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(userID, user.Email, domain.RoleUMKM, &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -277,8 +250,8 @@ func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID,
 
 	// 5. Determine new status.
 	newStatus := ""
-	if allUploaded && vendor.Status == "draft" {
-		newStatus = "submitted"
+	if allUploaded && vendor.Status == domain.VendorStatusDraft {
+		newStatus = domain.VendorStatusSubmitted
 	}
 
 	// 6. Persist all document updates + optional status change in one transaction.
@@ -298,19 +271,6 @@ func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID,
 	}, nil
 }
 
-func normalizeContentType(contentType string) string {
-	normalized := strings.TrimSpace(strings.ToLower(contentType))
-	if idx := strings.Index(normalized, ";"); idx >= 0 {
-		normalized = strings.TrimSpace(normalized[:idx])
-	}
-	return normalized
-}
-
-func isAllowedDocumentContentType(contentType string) bool {
-	_, ok := allowedDocumentContentTypes[contentType]
-	return ok
-}
-
 func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginRequest) (*domain.VendorLoginResponse, error) {
 	// 1. Find user by email.
 	user, err := uc.userRepo.FindByEmail(ctx, req.Email)
@@ -327,7 +287,7 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 	}
 
 	// 3. Check user has "umkm" role.
-	if user.Role == nil || user.Role.Code != "umkm" {
+	if user.Role == nil || user.Role.Code != domain.RoleUMKM {
 		return nil, ErrNotVendor
 	}
 
@@ -341,7 +301,7 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 	}
 
 	// 5. Check vendor status is not "blocked".
-	if vendor.Status == "blocked" {
+	if vendor.Status == domain.VendorStatusBlocked {
 		return nil, ErrVendorAccountBlocked
 	}
 

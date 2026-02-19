@@ -105,7 +105,7 @@ func TestGetCart(t *testing.T) {
 				pr.EXPECT().FindImagesByProductID(gomock.Any(), productID).Return([]domain.ProductImage{
 					{ID: uuid.New(), ProductID: productID, ImageURL: imgKey, IsPrimary: true},
 				}, nil)
-				sp.EXPECT().GeneratePresignedURL(gomock.Any(), imgKey, presignedDownloadExpiry).Return(presignedURL, nil)
+				sp.EXPECT().GeneratePresignedURL(gomock.Any(), imgKey, PresignedDownloadExpiry).Return(presignedURL, nil)
 			},
 			wantErr:   false,
 			wantItems: 1,
@@ -249,7 +249,7 @@ func TestGetCart(t *testing.T) {
 				pr.EXPECT().FindImagesByProductID(gomock.Any(), productID).Return([]domain.ProductImage{
 					{ID: uuid.New(), ProductID: productID, ImageURL: imgKey, IsPrimary: true},
 				}, nil)
-				sp.EXPECT().GeneratePresignedURL(gomock.Any(), imgKey, presignedDownloadExpiry).Return("", errDB)
+				sp.EXPECT().GeneratePresignedURL(gomock.Any(), imgKey, PresignedDownloadExpiry).Return("", errDB)
 			},
 			wantErr: true,
 		},

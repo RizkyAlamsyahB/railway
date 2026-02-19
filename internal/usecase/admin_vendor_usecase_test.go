@@ -281,7 +281,7 @@ func TestAdminVendorGetByID_Success(t *testing.T) {
 	vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(docs, nil)
 
 	// Only the first document has UploadedBy != nil && FileURL != "", so only 1 presigned URL call.
-	storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", presignedDownloadExpiry).Return("https://signed-url.example.com/doc1.jpg", nil)
+	storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", PresignedDownloadExpiry).Return("https://signed-url.example.com/doc1.jpg", nil)
 
 	resp, err := uc.GetByID(ctx, vendorID)
 	if err != nil {
@@ -413,7 +413,7 @@ func TestAdminVendorGetByID_PresignedURLError(t *testing.T) {
 	userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
 	vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
 	vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(docs, nil)
-	storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", presignedDownloadExpiry).Return("", errors.New("s3 error"))
+	storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", PresignedDownloadExpiry).Return("", errors.New("s3 error"))
 
 	_, err := uc.GetByID(ctx, vendorID)
 	if err == nil {

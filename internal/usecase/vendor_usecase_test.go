@@ -60,7 +60,7 @@ func TestRegister_Success(t *testing.T) {
 
 	// Presigned URL generated for each doc type (7 total: 6 required + 1 optional).
 	storage.EXPECT().
-		GeneratePresignedUploadURL(ctx, gomock.Any(), "", presignedUploadExpiry).
+		GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
 		Return("https://s3.example.com/upload", nil).
 		Times(len(allDocTypes))
 
@@ -157,7 +157,7 @@ func TestRegister_PresignedURLError(t *testing.T) {
 	userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
 	// First call to GeneratePresignedUploadURL fails.
 	storage.EXPECT().
-		GeneratePresignedUploadURL(ctx, gomock.Any(), "", presignedUploadExpiry).
+		GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
 		Return("", errors.New("s3 error"))
 
 	_, err := uc.Register(ctx, req)
@@ -173,7 +173,7 @@ func TestRegister_CreateUserError(t *testing.T) {
 
 	userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
 	storage.EXPECT().
-		GeneratePresignedUploadURL(ctx, gomock.Any(), "", presignedUploadExpiry).
+		GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
 		Return("https://s3.example.com/upload", nil).
 		Times(len(allDocTypes))
 	userRepo.EXPECT().Create(ctx, gomock.Any(), "umkm").Return(errors.New("db error"))
@@ -191,7 +191,7 @@ func TestRegister_CreateVendorError(t *testing.T) {
 
 	userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
 	storage.EXPECT().
-		GeneratePresignedUploadURL(ctx, gomock.Any(), "", presignedUploadExpiry).
+		GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
 		Return("https://s3.example.com/upload", nil).
 		Times(len(allDocTypes))
 	userRepo.EXPECT().Create(ctx, gomock.Any(), "umkm").Return(nil)
@@ -738,4 +738,3 @@ func TestLogin_FindVendorError(t *testing.T) {
 func hashPasswordForTest(pw string) (string, error) {
 	return auth.HashPassword(pw)
 }
-

@@ -119,7 +119,7 @@ func TestCreate_Success_Draft(t *testing.T) {
 	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
 	expectSlugUnique(productRepo, ctx)
 	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", presignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
 	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	resp, err := uc.Create(ctx, vendorID, req)
@@ -174,7 +174,7 @@ func TestCreate_Success_Published(t *testing.T) {
 	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
 	expectSlugUnique(productRepo, ctx)
 	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", presignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
 	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	resp, err := uc.Create(ctx, vendorID, req)
@@ -206,7 +206,7 @@ func TestCreate_Success_WithAdditionalVariants(t *testing.T) {
 	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
 	expectSlugUnique(productRepo, ctx)
 	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(5), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", presignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
 	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	resp, err := uc.Create(ctx, vendorID, req)
@@ -273,7 +273,7 @@ func TestCreate_Success_SlugCollision(t *testing.T) {
 	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
 	expectSlugCollision(productRepo, ctx)
 	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", presignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
 	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	resp, err := uc.Create(ctx, vendorID, req)
@@ -610,7 +610,7 @@ func TestCreate_PresignedUploadURLError(t *testing.T) {
 	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
 	expectSlugUnique(productRepo, ctx)
 	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", presignedUploadExpiry).Return("", errors.New("s3 error"))
+	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("", errors.New("s3 error"))
 
 	_, err := uc.Create(ctx, vendorID, req)
 	if err == nil {
@@ -632,7 +632,7 @@ func TestCreate_ProductRepoCreateError(t *testing.T) {
 	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
 	expectSlugUnique(productRepo, ctx)
 	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", presignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
 	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("db error"))
 
 	_, err := uc.Create(ctx, vendorID, req)
@@ -658,7 +658,7 @@ func TestCreate_VariantSKUGeneration(t *testing.T) {
 	shippingRepo.EXPECT().FindByIDs(ctx, []uuid.UUID{shippingID}).Return(shippingServices([]uuid.UUID{shippingID}), nil)
 	expectSlugUnique(productRepo, ctx)
 	productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(3), nil)
-	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", presignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
+	storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/upload", nil)
 	productRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	resp, err := uc.Create(ctx, vendorID, req)
@@ -1223,9 +1223,9 @@ func TestNormalizeImageContentType(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := normalizeImageContentType(tc.input)
+		got := normalizeContentType(tc.input)
 		if got != tc.expected {
-			t.Errorf("normalizeImageContentType(%q) = %q, want %q", tc.input, got, tc.expected)
+			t.Errorf("normalizeContentType(%q) = %q, want %q", tc.input, got, tc.expected)
 		}
 	}
 }

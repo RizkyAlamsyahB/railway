@@ -2,17 +2,10 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/auth"
-)
-
-var (
-	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrNotAdmin           = errors.New("user does not have admin access")
-	ErrAccountInactive    = errors.New("account is not active")
 )
 
 type adminAuthUseCase struct {
@@ -45,11 +38,11 @@ func (uc *adminAuthUseCase) Login(ctx context.Context, req domain.AdminLoginRequ
 		return nil, ErrInvalidCredentials
 	}
 
-	if user.Status != "active" {
+	if user.Status != domain.UserStatusActive {
 		return nil, ErrAccountInactive
 	}
 
-	if user.Role == nil || user.Role.Code != "admin" {
+	if user.Role == nil || user.Role.Code != domain.RoleAdmin {
 		return nil, ErrNotAdmin
 	}
 
