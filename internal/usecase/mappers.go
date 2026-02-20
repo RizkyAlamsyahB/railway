@@ -22,3 +22,77 @@ func toUserResponse(u *domain.User) *domain.UserResponse {
 		UpdatedAt:       u.UpdatedAt,
 	}
 }
+
+// ============================================================
+// CS mappers
+// ============================================================
+
+func toTicketResponse(t domain.Ticket) *domain.TicketResponse {
+	return &domain.TicketResponse{
+		ID:           t.ID,
+		TicketNumber: t.TicketNumber,
+		CustomerID:   t.CustomerID,
+		AssignedCSID: t.AssignedCSID,
+		OrderNumber:  t.OrderNumber,
+		Phone:        t.Phone,
+		ReporterName: t.ReporterName,
+		Subject:      t.Subject,
+		Detail:       t.Detail,
+		Status:       t.Status,
+		Source:       t.Source,
+		ResolvedAt:   t.ResolvedAt,
+		ClosedAt:     t.ClosedAt,
+		CreatedAt:    t.CreatedAt,
+		UpdatedAt:    t.UpdatedAt,
+	}
+}
+
+func toTicketMessageResponse(m domain.TicketMessage) *domain.TicketMessageResponse {
+	return &domain.TicketMessageResponse{
+		ID:             m.ID,
+		TicketID:       m.TicketID,
+		SenderID:       m.SenderID,
+		Message:        m.Message,
+		IsFromCS:       m.IsFromCS,
+		IsInternalNote: m.IsInternalNote,
+		CreatedAt:      m.CreatedAt,
+	}
+}
+
+func toConversationResponse(c domain.ChatConversation) *domain.ConversationResponse {
+	return &domain.ConversationResponse{
+		ID:            c.ID,
+		InitiatorID:   c.InitiatorID,
+		ParticipantID: c.ParticipantID,
+		Status:        c.Status,
+		LastMessageAt: c.LastMessageAt,
+		CreatedAt:     c.CreatedAt,
+		UpdatedAt:     c.UpdatedAt,
+	}
+}
+
+func toChatMessageResponse(m domain.ChatMessage) *domain.ChatMessageResponse {
+	return &domain.ChatMessageResponse{
+		ID:             m.ID,
+		ConversationID: m.ConversationID,
+		SenderID:       m.SenderID,
+		Message:        m.Message,
+		AttachmentURL:  m.AttachmentURL,
+		IsRead:         m.IsRead,
+		ReadAt:         m.ReadAt,
+		CreatedAt:      m.CreatedAt,
+	}
+}
+
+func toReplyTemplateResponse(t domain.ReplyTemplate) *domain.ReplyTemplateResponse {
+	return &domain.ReplyTemplateResponse{
+		ID:        t.ID,
+		Title:     t.Title,
+		Content:   t.Content,
+		IsActive:  t.IsActive,
+		CreatedBy: t.CreatedBy,
+		UpdatedBy: t.UpdatedBy,
+		CreatedAt: t.CreatedAt,
+		UpdatedAt: t.UpdatedAt,
+	}
+}

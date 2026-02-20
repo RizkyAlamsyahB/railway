@@ -37,6 +37,18 @@ type Role struct {
 
 func (Role) TableName() string { return "roles" }
 
+// seedUser holds the data needed to seed a single user.
+type seedUser struct {
+	Email    string
+	Password string
+	FullName string
+	Phone    string
+	RoleCode string
+}
+
+// devPassword is the default password used for all non-admin dev seed users.
+const devPassword = "Password123!"
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -53,42 +65,83 @@ func main() {
 	}
 	defer func() {
 		sqlDB, _ := db.DB()
-		sqlDB.Close()
+		_ = sqlDB.Close()
 	}()
 
 	log.Println("database connected successfully")
 	logDatabaseContext(db)
 
-	if err := seedAdmin(db, cfg.Admin.Email, cfg.Admin.Password, cfg.Admin.Name, cfg.Admin.Phone); err != nil {
-		log.Fatalf("failed to seed admin: %v", err)
+	users := []seedUser{
+		{
+			Email:    cfg.Admin.Email,
+			Password: cfg.Admin.Password,
+			FullName: cfg.Admin.Name,
+			Phone:    cfg.Admin.Phone,
+			RoleCode: "admin",
+		},
+		{
+			Email:    "umkm@dev.local",
+			Password: devPassword,
+			FullName: "Dev UMKM",
+			Phone:    "081200000001",
+			RoleCode: "umkm",
+		},
+		{
+			Email:    "customer@dev.local",
+			Password: devPassword,
+			FullName: "Dev Customer",
+			Phone:    "081200000002",
+			RoleCode: "customer",
+		},
+		{
+			Email:    "cs@dev.local",
+			Password: devPassword,
+			FullName: "Dev Customer Service",
+			Phone:    "081200000003",
+			RoleCode: "cs",
+		},
+		{
+			Email:    "finance@dev.local",
+			Password: devPassword,
+			FullName: "Dev Finance",
+			Phone:    "081200000004",
+			RoleCode: "finance",
+		},
 	}
 
-	log.Println("admin seeding completed successfully")
+	for _, u := range users {
+		if err := seedUserRecord(db, u); err != nil {
+			log.Fatalf("failed to seed user [%s]: %v", u.Email, err)
+		}
+	}
+
+	log.Println("all users seeded successfully")
+	log.Printf("dev credentials (non-admin): password = %s", devPassword)
 }
 
-func seedAdmin(db *gorm.DB, email, password, name, phone string) error {
-	var existingUser User
-	result := db.Where("lower(email) = lower(?)", email).First(&existingUser)
+func seedUserRecord(db *gorm.DB, u seedUser) error {
+	var existing User
+	result := db.Where("lower(email) = lower(?)", u.Email).First(&existing)
 	if result.Error == nil {
-		log.Printf("user with email %s already exists (id: %s), skipping", email, existingUser.ID)
+		log.Printf("  skip   [%s] %s — already exists (id: %s)", u.RoleCode, u.Email, existing.ID)
 		return nil
 	}
 	if result.Error != gorm.ErrRecordNotFound {
 		if isUndefinedTableError(result.Error) {
-			return fmt.Errorf("required tables are missing; run `make migrate-up` (or `make seed`, which now runs migrations): %w", result.Error)
+			return fmt.Errorf("tables missing — run `make migrate-up` first: %w", result.Error)
 		}
 		return fmt.Errorf("failed to check existing user: %w", result.Error)
 	}
 
-	var adminRole Role
-	if err := db.Where("code = ?", "admin").First(&adminRole).Error; err != nil {
+	var role Role
+	if err := db.Where("code = ?", u.RoleCode).First(&role).Error; err != nil {
 		if isUndefinedTableError(err) {
-			return fmt.Errorf("required tables are missing; run `make migrate-up` (or `make seed`, which now runs migrations): %w", err)
+			return fmt.Errorf("tables missing — run `make migrate-up` first: %w", err)
 		}
-		return fmt.Errorf("failed to find admin role (ensure migrations have been run): %w", err)
+		return fmt.Errorf("role %q not found: %w", u.RoleCode, err)
 	}
 
-	hash, err := auth.HashPassword(password)
+	hash, err := auth.HashPassword(u.Password)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -97,17 +150,17 @@ func seedAdmin(db *gorm.DB, email, password, name, phone string) error {
 	userID := uuid.New().String()
 
 	var phonePtr *string
-	if phone != "" {
-		phonePtr = &phone
+	if u.Phone != "" {
+		phonePtr = &u.Phone
 	}
 
 	newUser := User{
 		ID:              userID,
-		Email:           email,
-		FullName:        name,
+		Email:           u.Email,
+		FullName:        u.FullName,
 		Phone:           phonePtr,
 		PasswordHash:    hash,
-		RoleID:          adminRole.ID,
+		RoleID:          role.ID,
 		Status:          "active",
 		EmailVerifiedAt: &now,
 		CreatedAt:       now,
@@ -117,7 +170,8 @@ func seedAdmin(db *gorm.DB, email, password, name, phone string) error {
 	if err := db.Create(&newUser).Error; err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
-	log.Printf("admin user created successfully: id=%s, email=%s", userID, email)
+
+	log.Printf("  created [%s] %s (id: %s)", u.RoleCode, u.Email, userID)
 	return nil
 }
 
@@ -133,8 +187,7 @@ func logDatabaseContext(db *gorm.DB) {
 	}
 
 	var ctx dbContext
-	err := db.Raw(`SELECT current_database() AS database, current_schema() AS schema`).Scan(&ctx).Error
-	if err != nil {
+	if err := db.Raw(`SELECT current_database() AS database, current_schema() AS schema`).Scan(&ctx).Error; err != nil {
 		log.Printf("warning: failed to read database context: %v", err)
 		return
 	}

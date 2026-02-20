@@ -24,6 +24,7 @@ var errorRules = []errorRule{
 	{usecase.ErrInvalidCredentials, http.StatusUnauthorized, "invalid email or password"},
 	{usecase.ErrAccountInactive, http.StatusUnauthorized, "account is not active"},
 	{usecase.ErrNotAdmin, http.StatusForbidden, "admin access required"},
+	{usecase.ErrNotCS, http.StatusForbidden, "customer service access required"},
 
 	// User
 	{usecase.ErrUserNotFound, http.StatusNotFound, "user not found"},
@@ -76,6 +77,14 @@ var errorRules = []errorRule{
 	{usecase.ErrVariantNotActive, http.StatusBadRequest, "product variant is not active"},
 	{usecase.ErrProductNotAvailable, http.StatusBadRequest, "product is not available"},
 	{usecase.ErrInsufficientStock, http.StatusConflict, "insufficient stock for requested quantity"},
+
+	// CS
+	{usecase.ErrTicketNotFound, http.StatusNotFound, "ticket not found"},
+	{usecase.ErrConversationNotFound, http.StatusNotFound, "conversation not found"},
+	{usecase.ErrConversationNotAllowed, http.StatusForbidden, "chat between these roles is not allowed"},
+	{usecase.ErrConversationUnauthorized, http.StatusForbidden, "you are not a participant of this conversation"},
+	{usecase.ErrReplyTemplateNotFound, http.StatusNotFound, "reply template not found"},
+	{usecase.ErrCSUserNotFound, http.StatusNotFound, "user not found"},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.

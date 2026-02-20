@@ -42,4 +42,26 @@ const (
 	RoleAdmin    = "admin"
 	RoleUMKM     = "umkm"
 	RoleCustomer = "customer"
+	RoleCS       = "cs"
+	RoleFinance  = "finance"
+)
+
+// Ticket statuses.
+const (
+	TicketStatusOpen       = "open"
+	TicketStatusOnProgress = "on_progress"
+	TicketStatusResolved   = "resolved"
+	TicketStatusClosed     = "closed"
+)
+
+// Ticket sources.
+const (
+	TicketSourceApp = "app"
+	TicketSourceWeb = "web"
+)
+
+// Chat conversation statuses.
+const (
+	ChatConvStatusOpen   = "open"
+	ChatConvStatusClosed = "closed"
 )
