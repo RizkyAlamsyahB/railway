@@ -4,10 +4,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/handler"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
+	ws "github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/websocket"
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -21,6 +22,9 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/health", healthHandler.Check)
+
+		// WebSocket — authenticated via ?token=<jwt> query param (any role)
+		v1.GET("/ws", wsHandler.Connect)
 
 		// Public catalog routes
 		v1.GET("/categories", catalogHandler.ListCategories)

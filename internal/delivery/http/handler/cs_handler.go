@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
+	ws "github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/websocket"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
@@ -173,11 +175,12 @@ func (h *TicketHandler) CreateTicket(c *gin.Context) {
 // ============================================================
 
 type ChatHandler struct {
-	uc domain.ChatUseCase
+	uc  domain.ChatUseCase
+	hub *ws.Hub
 }
 
-func NewChatHandler(uc domain.ChatUseCase) *ChatHandler {
-	return &ChatHandler{uc: uc}
+func NewChatHandler(uc domain.ChatUseCase, hub *ws.Hub) *ChatHandler {
+	return &ChatHandler{uc: uc, hub: hub}
 }
 
 // StartOrGetConversation godoc
@@ -259,6 +262,24 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 		HandleUsecaseError(c, err)
 		return
 	}
+
+	// Push real-time notification to the other conversation participant.
+	if h.hub != nil {
+		if conv, convErr := h.uc.GetConversation(c.Request.Context(), convID, senderID); convErr == nil {
+			recipientID := conv.InitiatorID
+			if recipientID == senderID {
+				recipientID = conv.ParticipantID
+			}
+			if msgData, jsonErr := json.Marshal(msg); jsonErr == nil {
+				h.hub.SendToUser(recipientID, ws.WSMessage{
+					Type:           ws.TypeChatMessage,
+					ConversationID: convID.String(),
+					Data:           msgData,
+				})
+			}
+		}
+	}
+
 	response.Created(c, "message sent", msg)
 }
 
