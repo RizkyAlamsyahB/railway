@@ -117,12 +117,9 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		csAuth.POST("/tickets/:id/messages", ticketHandler.AddTicketMessage)
 		csAuth.GET("/tickets/:id/messages", ticketHandler.ListTicketMessages)
 
-		// Chat
-		csAuth.POST("/chat", chatHandler.StartOrGetConversation)
+		// Chat (CS-only management)
 		csAuth.GET("/chat", chatHandler.ListConversations)
 		csAuth.GET("/chat/:conversationId", chatHandler.GetConversation)
-		csAuth.POST("/chat/:conversationId/messages", chatHandler.SendMessage)
-		csAuth.GET("/chat/:conversationId/messages", chatHandler.ListMessages)
 		csAuth.PATCH("/chat/:conversationId/read", chatHandler.MarkRead)
 
 		// Reply Templates
@@ -144,6 +141,19 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	customerTicket.Use(middleware.RequireRoles("customer"))
 	{
 		customerTicket.POST("", ticketHandler.CreateTicket)
+	}
+
+	// Chat: dapat diakses oleh semua role yang terautentikasi.
+	// Validasi siapa boleh chat dengan siapa dilakukan di usecase (allowedChat map).
+	chatGroup := v1.Group("/chat")
+	chatGroup.Use(middleware.Auth(jwtSecret))
+	{
+		chatGroup.POST("", chatHandler.StartOrGetConversation)
+		chatGroup.GET("", chatHandler.ListConversations)
+		chatGroup.GET("/:conversationId", chatHandler.GetConversation)
+		chatGroup.POST("/:conversationId/messages", chatHandler.SendMessage)
+		chatGroup.GET("/:conversationId/messages", chatHandler.ListMessages)
+		chatGroup.PATCH("/:conversationId/read", chatHandler.MarkRead)
 	}
 
 	return r
