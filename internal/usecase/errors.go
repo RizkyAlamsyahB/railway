@@ -73,6 +73,12 @@ var (
 	ErrTooManyImages             = errors.New("maximum 10 images per product")
 )
 
+// --- Xendit errors ---
+
+var (
+	ErrXenditAccountCreation = errors.New("failed to create xendit account")
+)
+
 // --- Cart errors ---
 
 var (

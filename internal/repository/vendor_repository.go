@@ -25,6 +25,7 @@ type vendorModel struct {
 	ApprovedBy            *string    `gorm:"column:approved_by"`
 	ApprovedAt            *time.Time `gorm:"column:approved_at"`
 	StatusReason          *string    `gorm:"column:status_reason"`
+	XenditAccountID       *string    `gorm:"column:xendit_account_id"`
 	CreatedAt             time.Time  `gorm:"column:created_at"`
 	UpdatedAt             time.Time  `gorm:"column:updated_at"`
 }
@@ -221,6 +222,7 @@ func toVendorModel(v *domain.Vendor) vendorModel {
 		Description:           v.Description,
 		Status:                v.Status,
 		StatusReason:          v.StatusReason,
+		XenditAccountID:       v.XenditAccountID,
 		CreatedAt:             v.CreatedAt,
 		UpdatedAt:             v.UpdatedAt,
 	}
@@ -246,6 +248,7 @@ func toDomainVendor(m *vendorModel) *domain.Vendor {
 		Description:           m.Description,
 		Status:                m.Status,
 		StatusReason:          m.StatusReason,
+		XenditAccountID:       m.XenditAccountID,
 		ApprovedAt:            m.ApprovedAt,
 		CreatedAt:             m.CreatedAt,
 		UpdatedAt:             m.UpdatedAt,

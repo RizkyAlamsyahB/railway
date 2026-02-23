@@ -10,6 +10,7 @@ CREATE TABLE vendors (
     approved_by UUID,
     approved_at TIMESTAMPTZ,
     status_reason TEXT,
+    xendit_account_id VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ck_vendors_vendor_type CHECK (

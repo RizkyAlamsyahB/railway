@@ -79,6 +79,7 @@ Table "vendors" {
   "approved_by" UUID
   "approved_at" TIMESTAMPTZ
   "status_reason" TEXT
+  "xendit_account_id" VARCHAR(255)
   "created_at" TIMESTAMPTZ [not null, default: `now()`]
   "updated_at" TIMESTAMPTZ [not null, default: `now()`]
 

@@ -18,6 +18,7 @@ func setupAdminVendorUseCase(t *testing.T) (
 	*mocks.MockVendorRepository,
 	*mocks.MockUserRepository,
 	*mocks.MockStorageProvider,
+	*mocks.MockXenPlatformProvider,
 	domain.AdminVendorUseCase,
 ) {
 	t.Helper()
@@ -25,8 +26,9 @@ func setupAdminVendorUseCase(t *testing.T) (
 	vendorRepo := mocks.NewMockVendorRepository(ctrl)
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	storage := mocks.NewMockStorageProvider(ctrl)
-	uc := NewAdminVendorUseCase(vendorRepo, userRepo, storage)
-	return vendorRepo, userRepo, storage, uc
+	xenPlatform := mocks.NewMockXenPlatformProvider(ctrl)
+	uc := NewAdminVendorUseCase(vendorRepo, userRepo, storage, xenPlatform)
+	return vendorRepo, userRepo, storage, xenPlatform, uc
 }
 
 func dummyVendor(id uuid.UUID, status string) *domain.Vendor {
@@ -239,7 +241,7 @@ func TestAdminVendorList(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
+			vendorRepo, userRepo, _, _, uc := setupAdminVendorUseCase(t)
 			ctx := context.Background()
 
 			tc.setupMock(vendorRepo, userRepo, ctx)
@@ -412,7 +414,7 @@ func TestAdminVendorGetByID(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vendorRepo, userRepo, storage, uc := setupAdminVendorUseCase(t)
+			vendorRepo, userRepo, storage, _, uc := setupAdminVendorUseCase(t)
 			ctx := context.Background()
 			vendorID := uuid.New()
 
@@ -449,20 +451,32 @@ func TestAdminVendorGetByID(t *testing.T) {
 func TestAdminVendorApprove(t *testing.T) {
 	tests := []struct {
 		name      string
-		setupMock func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID)
+		setupMock func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID)
 		wantErr   error
 		wantAny   bool
 		checkResp func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID)
 	}{
 		{
 			name: "success from submitted",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				ownerID := uuid.New()
 				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "pending"), nil)
+				xenPlatform.EXPECT().CreateAccount(ctx, domain.XenPlatformCreateAccountRequest{
+					Email: "owner@example.com",
+					Type:  "OWNED",
+					PublicProfile: &domain.XenPlatformPublicProfile{
+						BusinessName: "Toko Oleh-Oleh Haji",
+					},
+				}).Return(&domain.XenPlatformAccount{
+					ID:     "xnd_acc_123",
+					Type:   "OWNED",
+					Email:  "owner@example.com",
+					Status: "LIVE",
+				}, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
 				userRepo.EXPECT().Update(ctx, gomock.Any()).Return(nil)
 			},
 			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID) {
@@ -477,13 +491,19 @@ func TestAdminVendorApprove(t *testing.T) {
 		},
 		{
 			name: "success from rejected",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				ownerID := uuid.New()
 				vendor := dummyVendorWithOwner(vendorID, ownerID, "rejected")
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+				xenPlatform.EXPECT().CreateAccount(ctx, gomock.Any()).Return(&domain.XenPlatformAccount{
+					ID:     "xnd_acc_456",
+					Type:   "OWNED",
+					Email:  "owner@example.com",
+					Status: "LIVE",
+				}, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
 				// Owner is already active, so Update should NOT be called.
 			},
 			checkResp: func(t *testing.T, resp *domain.AdminVendorActionResponse, vendorID uuid.UUID) {
@@ -494,70 +514,96 @@ func TestAdminVendorApprove(t *testing.T) {
 			},
 		},
 		{
+			name: "xendit create account error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "pending"), nil)
+				xenPlatform.EXPECT().CreateAccount(ctx, gomock.Any()).Return(nil, errors.New("xendit API error"))
+			},
+			wantErr: ErrXenditAccountCreation,
+		},
+		{
 			name: "invalid status draft",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "draft"), nil)
 			},
 			wantErr: ErrInvalidStatusTransition,
 		},
 		{
 			name: "invalid status active",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "active"), nil)
 			},
 			wantErr: ErrInvalidStatusTransition,
 		},
 		{
 			name: "invalid status blocked",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(dummyVendor(vendorID, "blocked"), nil)
 			},
 			wantErr: ErrInvalidStatusTransition,
 		},
 		{
 			name: "not found",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
 			},
 			wantErr: ErrVendorNotFound,
 		},
 		{
 			name: "FindByID error",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
 			},
 			wantAny: true,
 		},
 		{
-			name: "UpdateStatus error",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
-				vendor := dummyVendor(vendorID, "submitted")
-				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
-			},
-			wantAny: true,
-		},
-		{
 			name: "find owner error",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				ownerID := uuid.New()
 				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
 			},
 			wantAny: true,
 		},
 		{
-			name: "activate owner error",
-			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context, vendorID, adminID uuid.UUID) {
+			name: "UpdateStatus error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
 				ownerID := uuid.New()
 				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
-				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "pending"), nil)
+				xenPlatform.EXPECT().CreateAccount(ctx, gomock.Any()).Return(&domain.XenPlatformAccount{
+					ID:     "xnd_acc_789",
+					Type:   "OWNED",
+					Email:  "owner@example.com",
+					Status: "LIVE",
+				}, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(errors.New("db error"))
+			},
+			wantAny: true,
+		},
+		{
+			name: "activate owner error",
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, xenPlatform *mocks.MockXenPlatformProvider, ctx context.Context, vendorID, adminID uuid.UUID) {
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "pending"), nil)
+				xenPlatform.EXPECT().CreateAccount(ctx, gomock.Any()).Return(&domain.XenPlatformAccount{
+					ID:     "xnd_acc_789",
+					Type:   "OWNED",
+					Email:  "owner@example.com",
+					Status: "LIVE",
+				}, nil)
+				vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
 				userRepo.EXPECT().Update(ctx, gomock.Any()).Return(errors.New("db error"))
 			},
 			wantAny: true,
@@ -566,12 +612,12 @@ func TestAdminVendorApprove(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
+			vendorRepo, userRepo, _, xenPlatform, uc := setupAdminVendorUseCase(t)
 			ctx := context.Background()
 			vendorID := uuid.New()
 			adminID := uuid.New()
 
-			tc.setupMock(vendorRepo, userRepo, ctx, vendorID, adminID)
+			tc.setupMock(vendorRepo, userRepo, xenPlatform, ctx, vendorID, adminID)
 
 			resp, err := uc.Approve(ctx, vendorID, adminID)
 
@@ -681,7 +727,7 @@ func TestAdminVendorReject(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
+			vendorRepo, _, _, _, uc := setupAdminVendorUseCase(t)
 			ctx := context.Background()
 			vendorID := uuid.New()
 
@@ -792,7 +838,7 @@ func TestAdminVendorBlock(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vendorRepo, _, _, uc := setupAdminVendorUseCase(t)
+			vendorRepo, _, _, _, uc := setupAdminVendorUseCase(t)
 			ctx := context.Background()
 			vendorID := uuid.New()
 
@@ -946,7 +992,7 @@ func TestAdminVendorUnblock(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			vendorRepo, userRepo, _, uc := setupAdminVendorUseCase(t)
+			vendorRepo, userRepo, _, _, uc := setupAdminVendorUseCase(t)
 			ctx := context.Background()
 			vendorID := uuid.New()
 			adminID := uuid.New()

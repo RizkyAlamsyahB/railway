@@ -11,9 +11,10 @@ import (
 )
 
 type adminVendorUseCase struct {
-	vendorRepo domain.VendorRepository
-	userRepo   domain.UserRepository
-	storage    domain.StorageProvider
+	vendorRepo  domain.VendorRepository
+	userRepo    domain.UserRepository
+	storage     domain.StorageProvider
+	xenPlatform domain.XenPlatformProvider
 }
 
 // NewAdminVendorUseCase creates a new AdminVendorUseCase.
@@ -21,11 +22,13 @@ func NewAdminVendorUseCase(
 	vendorRepo domain.VendorRepository,
 	userRepo domain.UserRepository,
 	storage domain.StorageProvider,
+	xenPlatform domain.XenPlatformProvider,
 ) domain.AdminVendorUseCase {
 	return &adminVendorUseCase{
-		vendorRepo: vendorRepo,
-		userRepo:   userRepo,
-		storage:    storage,
+		vendorRepo:  vendorRepo,
+		userRepo:    userRepo,
+		storage:     storage,
+		xenPlatform: xenPlatform,
 	}
 }
 
@@ -187,14 +190,36 @@ func (uc *adminVendorUseCase) Approve(ctx context.Context, vendorID uuid.UUID, a
 		return nil, fmt.Errorf("%w: cannot approve vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
 	}
 
+	// Fetch owner early — we need the email for Xendit account creation.
+	owner, err := uc.userRepo.FindByID(ctx, vendor.OwnerUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor owner: %w", err)
+	}
+	if owner == nil {
+		return nil, fmt.Errorf("failed to find vendor owner: owner not found")
+	}
+
+	// Create OWNED sub-account on Xendit XenPlatform.
+	xenAccount, err := uc.xenPlatform.CreateAccount(ctx, domain.XenPlatformCreateAccountRequest{
+		Email: owner.Email,
+		Type:  "OWNED",
+		PublicProfile: &domain.XenPlatformPublicProfile{
+			BusinessName: vendor.DisplayName,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrXenditAccountCreation, err)
+	}
+
 	now := time.Now()
 	adminIDStr := adminID.String()
 	updates := map[string]interface{}{
-		"status":        domain.VendorStatusActive,
-		"approved_by":   adminIDStr,
-		"approved_at":   now,
-		"status_reason": nil,
-		"updated_at":    now,
+		"status":            domain.VendorStatusActive,
+		"approved_by":       adminIDStr,
+		"approved_at":       now,
+		"status_reason":     nil,
+		"xendit_account_id": xenAccount.ID,
+		"updated_at":        now,
 	}
 
 	if err := uc.vendorRepo.UpdateStatus(ctx, vendorID, updates); err != nil {
@@ -202,11 +227,7 @@ func (uc *adminVendorUseCase) Approve(ctx context.Context, vendorID uuid.UUID, a
 	}
 
 	// Update owner user status to active.
-	owner, err := uc.userRepo.FindByID(ctx, vendor.OwnerUserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find vendor owner: %w", err)
-	}
-	if owner != nil && owner.Status != domain.UserStatusActive {
+	if owner.Status != domain.UserStatusActive {
 		owner.Status = domain.UserStatusActive
 		owner.UpdatedAt = now
 		if err := uc.userRepo.Update(ctx, owner); err != nil {

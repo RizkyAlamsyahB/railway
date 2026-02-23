@@ -55,6 +55,9 @@ var errorRules = []errorRule{
 	{usecase.ErrNoVendorProfile, http.StatusForbidden, "no vendor profile found"},
 	{usecase.ErrInvalidStatusTransition, http.StatusBadRequest, ""},
 
+	// Xendit
+	{usecase.ErrXenditAccountCreation, http.StatusBadGateway, ""},
+
 	// Product
 	{usecase.ErrVendorNotActive, http.StatusForbidden, "vendor is not active"},
 	{usecase.ErrCategoryNotFound, http.StatusBadRequest, "category not found"},

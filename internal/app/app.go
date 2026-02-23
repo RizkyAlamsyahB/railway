@@ -12,6 +12,7 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/database"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/email"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/payment"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/storage"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/repository"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
@@ -20,11 +21,12 @@ import (
 
 // App holds all initialized application components.
 type App struct {
-	Config  *config.Config
-	DB      *gorm.DB
-	Storage domain.StorageProvider
-	Email   domain.EmailProvider
-	Router  *gin.Engine
+	Config      *config.Config
+	DB          *gorm.DB
+	Storage     domain.StorageProvider
+	Email       domain.EmailProvider
+	XenPlatform domain.XenPlatformProvider
+	Router      *gin.Engine
 }
 
 // Initialize loads config, connects to the database, wires all dependencies,
@@ -60,6 +62,14 @@ func Initialize() (*App, error) {
 
 	log.Println("email provider initialized (SMTP)")
 
+	// Initialize Xendit XenPlatform provider
+	xenPlatformProvider, err := newXenPlatformProvider(cfg.Xendit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize xendit provider: %w", err)
+	}
+
+	log.Println("xendit xenplatform provider initialized")
+
 	// Wire dependencies
 	healthUseCase := usecase.NewHealthUseCase()
 	healthHandler := handler.NewHealthHandler(healthUseCase)
@@ -75,7 +85,7 @@ func Initialize() (*App, error) {
 	vendorUseCase := usecase.NewVendorUseCase(userRepo, vendorRepo, storageProvider, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	vendorHandler := handler.NewVendorHandler(vendorUseCase)
 
-	adminVendorUseCase := usecase.NewAdminVendorUseCase(vendorRepo, userRepo, storageProvider)
+	adminVendorUseCase := usecase.NewAdminVendorUseCase(vendorRepo, userRepo, storageProvider, xenPlatformProvider)
 	adminVendorHandler := handler.NewAdminVendorHandler(adminVendorUseCase)
 
 	// Product & catalog feature
@@ -138,11 +148,12 @@ func Initialize() (*App, error) {
 	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, financeHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, wsHandler, cfg.JWT.Secret)
 
 	return &App{
-		Config:  cfg,
-		DB:      db,
-		Storage: storageProvider,
-		Email:   emailProvider,
-		Router:  r,
+		Config:      cfg,
+		DB:          db,
+		Storage:     storageProvider,
+		Email:       emailProvider,
+		XenPlatform: xenPlatformProvider,
+		Router:      r,
 	}, nil
 }
 
@@ -159,6 +170,11 @@ func newStorageProvider(cfg config.StorageConfig) (domain.StorageProvider, error
 // newEmailProvider creates the SMTP-backed EmailProvider from config.
 func newEmailProvider(cfg config.SMTPConfig) (domain.EmailProvider, error) {
 	return email.NewSMTPSender(cfg)
+}
+
+// newXenPlatformProvider creates the Xendit-backed XenPlatformProvider from config.
+func newXenPlatformProvider(cfg config.XenditConfig) (domain.XenPlatformProvider, error) {
+	return payment.NewXenditClient(cfg)
 }
 
 // Close cleans up application resources.
