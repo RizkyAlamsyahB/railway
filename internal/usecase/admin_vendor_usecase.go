@@ -55,6 +55,7 @@ func (uc *adminVendorUseCase) List(ctx context.Context, params domain.VendorList
 			ResponsiblePersonName: v.ResponsiblePersonName,
 			Status:                v.Status,
 			StatusReason:          v.StatusReason,
+			XenditAccountID:       v.XenditAccountID,
 			CreatedAt:             v.CreatedAt,
 			UpdatedAt:             v.UpdatedAt,
 		}

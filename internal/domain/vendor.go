@@ -138,6 +138,7 @@ type AdminVendorListItem struct {
 	ResponsiblePersonName string    `json:"responsible_person_name"`
 	Status                string    `json:"status"`
 	StatusReason          *string   `json:"status_reason,omitempty"`
+	XenditAccountID       *string   `json:"xendit_account_id,omitempty"`
 	OwnerName             string    `json:"owner_name"`
 	OwnerEmail            string    `json:"owner_email"`
 	CreatedAt             time.Time `json:"created_at"`

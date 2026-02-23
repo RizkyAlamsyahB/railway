@@ -129,9 +129,12 @@ func TestAdminVendorList(t *testing.T) {
 				ownerID1 := uuid.New()
 				ownerID2 := uuid.New()
 
+				v2 := dummyVendorWithOwner(vendorID2, ownerID2, "active")
+				v2.XenditAccountID = ptrString("xen_account_123")
+
 				vendors := []domain.Vendor{
 					*dummyVendorWithOwner(vendorID1, ownerID1, "submitted"),
-					*dummyVendorWithOwner(vendorID2, ownerID2, "active"),
+					*v2,
 				}
 
 				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return(vendors, int64(2), nil)
@@ -151,6 +154,12 @@ func TestAdminVendorList(t *testing.T) {
 				}
 				if items[0].OwnerName != "Owner Name" {
 					t.Errorf("expected owner name 'Owner Name', got %s", items[0].OwnerName)
+				}
+				if items[0].XenditAccountID != nil {
+					t.Errorf("expected nil xendit_account_id for submitted vendor, got %v", *items[0].XenditAccountID)
+				}
+				if items[1].XenditAccountID == nil || *items[1].XenditAccountID != "xen_account_123" {
+					t.Errorf("expected xendit_account_id 'xen_account_123' for active vendor, got %v", items[1].XenditAccountID)
 				}
 			},
 		},
