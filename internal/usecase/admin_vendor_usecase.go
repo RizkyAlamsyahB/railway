@@ -169,6 +169,7 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 		Status:                vendor.Status,
 		StatusReason:          vendor.StatusReason,
 		ApprovedAt:            vendor.ApprovedAt,
+		XenditAccountID:       vendor.XenditAccountID,
 		CreatedAt:             vendor.CreatedAt,
 		UpdatedAt:             vendor.UpdatedAt,
 		Owner:                 ownerResp,

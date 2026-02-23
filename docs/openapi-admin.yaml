@@ -2229,6 +2229,11 @@ components:
           format: date-time
           nullable: true
           example: null
+        xendit_account_id:
+          type: string
+          nullable: true
+          description: ID akun Xendit XenPlatform vendor. Null jika vendor belum diapprove.
+          example: 6684bb0b873d7b1b2db95b22
         created_at:
           type: string
           format: date-time

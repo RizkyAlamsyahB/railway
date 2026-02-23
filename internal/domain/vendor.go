@@ -192,6 +192,7 @@ type AdminVendorDetailResponse struct {
 	Status                string                          `json:"status"`
 	StatusReason          *string                         `json:"status_reason,omitempty"`
 	ApprovedAt            *time.Time                      `json:"approved_at,omitempty"`
+	XenditAccountID       *string                         `json:"xendit_account_id,omitempty"`
 	CreatedAt             time.Time                       `json:"created_at"`
 	UpdatedAt             time.Time                       `json:"updated_at"`
 	Owner                 AdminVendorOwnerResponse        `json:"owner"`
