@@ -15,21 +15,23 @@ import (
 // ============================================================
 
 type ticketModel struct {
-	ID           string     `gorm:"column:id;primaryKey"`
-	TicketNumber string     `gorm:"column:ticket_number"`
-	CustomerID   string     `gorm:"column:customer_id"`
-	AssignedCSID *string    `gorm:"column:assigned_cs_id"`
-	OrderNumber  string     `gorm:"column:order_number"`
-	Phone        string     `gorm:"column:phone"`
-	ReporterName string     `gorm:"column:reporter_name"`
-	Subject      string     `gorm:"column:subject"`
-	Detail       string     `gorm:"column:detail"`
-	Status       string     `gorm:"column:status"`
-	Source       string     `gorm:"column:source"`
-	ResolvedAt   *time.Time `gorm:"column:resolved_at"`
-	ClosedAt     *time.Time `gorm:"column:closed_at"`
-	CreatedAt    time.Time  `gorm:"column:created_at"`
-	UpdatedAt    time.Time  `gorm:"column:updated_at"`
+	ID                    string     `gorm:"column:id;primaryKey"`
+	TicketNumber          string     `gorm:"column:ticket_number"`
+	CustomerID            string     `gorm:"column:customer_id"`
+	AssignedCSID          *string    `gorm:"column:assigned_cs_id"`
+	OrderNumber           string     `gorm:"column:order_number"`
+	Phone                 string     `gorm:"column:phone"`
+	ReporterName          string     `gorm:"column:reporter_name"`
+	Subject               string     `gorm:"column:subject"`
+	Detail                string     `gorm:"column:detail"`
+	Status                string     `gorm:"column:status"`
+	Source                string     `gorm:"column:source"`
+	AttachmentURL         *string    `gorm:"column:attachment_url"`
+	AttachmentContentType *string    `gorm:"column:attachment_content_type"`
+	ResolvedAt            *time.Time `gorm:"column:resolved_at"`
+	ClosedAt              *time.Time `gorm:"column:closed_at"`
+	CreatedAt             time.Time  `gorm:"column:created_at"`
+	UpdatedAt             time.Time  `gorm:"column:updated_at"`
 }
 
 func (ticketModel) TableName() string { return "tickets" }
@@ -86,6 +88,8 @@ func (chatMessageModel) TableName() string { return "chat_messages" }
 type replyTemplateModel struct {
 	ID        string    `gorm:"column:id;primaryKey"`
 	Title     string    `gorm:"column:title"`
+	Shortcut  string    `gorm:"column:shortcut"`
+	Category  string    `gorm:"column:category"`
 	Content   string    `gorm:"column:content"`
 	IsActive  bool      `gorm:"column:is_active"`
 	CreatedBy string    `gorm:"column:created_by"`
@@ -110,18 +114,20 @@ func NewTicketRepository(db *gorm.DB) domain.TicketRepository {
 
 func (r *ticketRepository) Create(ctx context.Context, t *domain.Ticket) error {
 	m := ticketModel{
-		ID:           t.ID.String(),
-		TicketNumber: t.TicketNumber,
-		CustomerID:   t.CustomerID.String(),
-		OrderNumber:  t.OrderNumber,
-		Phone:        t.Phone,
-		ReporterName: t.ReporterName,
-		Subject:      t.Subject,
-		Detail:       t.Detail,
-		Status:       t.Status,
-		Source:       t.Source,
-		CreatedAt:    t.CreatedAt,
-		UpdatedAt:    t.UpdatedAt,
+		ID:                    t.ID.String(),
+		TicketNumber:          t.TicketNumber,
+		CustomerID:            t.CustomerID.String(),
+		OrderNumber:           t.OrderNumber,
+		Phone:                 t.Phone,
+		ReporterName:          t.ReporterName,
+		Subject:               t.Subject,
+		Detail:                t.Detail,
+		Status:                t.Status,
+		Source:                t.Source,
+		AttachmentURL:         t.AttachmentURL,
+		AttachmentContentType: t.AttachmentContentType,
+		CreatedAt:             t.CreatedAt,
+		UpdatedAt:             t.UpdatedAt,
 	}
 	if t.AssignedCSID != nil {
 		s := t.AssignedCSID.String()
@@ -190,20 +196,22 @@ func (r *ticketRepository) List(ctx context.Context, p domain.TicketListParams) 
 
 func (r *ticketRepository) Update(ctx context.Context, t *domain.Ticket) error {
 	m := ticketModel{
-		ID:           t.ID.String(),
-		TicketNumber: t.TicketNumber,
-		CustomerID:   t.CustomerID.String(),
-		OrderNumber:  t.OrderNumber,
-		Phone:        t.Phone,
-		ReporterName: t.ReporterName,
-		Subject:      t.Subject,
-		Detail:       t.Detail,
-		Status:       t.Status,
-		Source:       t.Source,
-		ResolvedAt:   t.ResolvedAt,
-		ClosedAt:     t.ClosedAt,
-		CreatedAt:    t.CreatedAt,
-		UpdatedAt:    t.UpdatedAt,
+		ID:                    t.ID.String(),
+		TicketNumber:          t.TicketNumber,
+		CustomerID:            t.CustomerID.String(),
+		OrderNumber:           t.OrderNumber,
+		Phone:                 t.Phone,
+		ReporterName:          t.ReporterName,
+		Subject:               t.Subject,
+		Detail:                t.Detail,
+		Status:                t.Status,
+		Source:                t.Source,
+		AttachmentURL:         t.AttachmentURL,
+		AttachmentContentType: t.AttachmentContentType,
+		ResolvedAt:            t.ResolvedAt,
+		ClosedAt:              t.ClosedAt,
+		CreatedAt:             t.CreatedAt,
+		UpdatedAt:             t.UpdatedAt,
 	}
 	if t.AssignedCSID != nil {
 		s := t.AssignedCSID.String()
@@ -477,6 +485,8 @@ func (r *replyTemplateRepository) Create(ctx context.Context, tpl *domain.ReplyT
 	m := replyTemplateModel{
 		ID:        tpl.ID.String(),
 		Title:     tpl.Title,
+		Shortcut:  tpl.Shortcut,
+		Category:  tpl.Category,
 		Content:   tpl.Content,
 		IsActive:  tpl.IsActive,
 		CreatedBy: tpl.CreatedBy.String(),
@@ -498,6 +508,18 @@ func (r *replyTemplateRepository) FindByID(ctx context.Context, id uuid.UUID) (*
 	return toReplyTemplateDomain(m), nil
 }
 
+func (r *replyTemplateRepository) ExistsShortcut(ctx context.Context, shortcut string, excludeID *uuid.UUID) (bool, error) {
+	q := r.db.WithContext(ctx).Model(&replyTemplateModel{}).Where("shortcut = ?", shortcut)
+	if excludeID != nil {
+		q = q.Where("id != ?", excludeID.String())
+	}
+	var count int64
+	if err := q.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (r *replyTemplateRepository) List(ctx context.Context, p domain.ReplyTemplateListParams) ([]domain.ReplyTemplate, *domain.PaginationMeta, error) {
 	if p.Page <= 0 {
 		p.Page = 1
@@ -510,6 +532,13 @@ func (r *replyTemplateRepository) List(ctx context.Context, p domain.ReplyTempla
 	q := r.db.WithContext(ctx).Model(&replyTemplateModel{})
 	if p.IsActive != nil {
 		q = q.Where("is_active = ?", *p.IsActive)
+	}
+	if p.Category != "" {
+		q = q.Where("category = ?", p.Category)
+	}
+	if p.Search != "" {
+		like := "%" + p.Search + "%"
+		q = q.Where("title ILIKE ? OR shortcut ILIKE ?", like, like)
 	}
 
 	var total int64
@@ -538,6 +567,8 @@ func (r *replyTemplateRepository) Update(ctx context.Context, tpl *domain.ReplyT
 	m := replyTemplateModel{
 		ID:        tpl.ID.String(),
 		Title:     tpl.Title,
+		Shortcut:  tpl.Shortcut,
+		Category:  tpl.Category,
 		Content:   tpl.Content,
 		IsActive:  tpl.IsActive,
 		CreatedBy: tpl.CreatedBy.String(),
@@ -563,20 +594,22 @@ func (r *replyTemplateRepository) Delete(ctx context.Context, id uuid.UUID) erro
 
 func toTicketDomain(m ticketModel) *domain.Ticket {
 	t := &domain.Ticket{
-		ID:           mustParseUUID(m.ID),
-		TicketNumber: m.TicketNumber,
-		CustomerID:   mustParseUUID(m.CustomerID),
-		OrderNumber:  m.OrderNumber,
-		Phone:        m.Phone,
-		ReporterName: m.ReporterName,
-		Subject:      m.Subject,
-		Detail:       m.Detail,
-		Status:       m.Status,
-		Source:       m.Source,
-		ResolvedAt:   m.ResolvedAt,
-		ClosedAt:     m.ClosedAt,
-		CreatedAt:    m.CreatedAt,
-		UpdatedAt:    m.UpdatedAt,
+		ID:                    mustParseUUID(m.ID),
+		TicketNumber:          m.TicketNumber,
+		CustomerID:            mustParseUUID(m.CustomerID),
+		OrderNumber:           m.OrderNumber,
+		Phone:                 m.Phone,
+		ReporterName:          m.ReporterName,
+		Subject:               m.Subject,
+		Detail:                m.Detail,
+		Status:                m.Status,
+		Source:                m.Source,
+		AttachmentURL:         m.AttachmentURL,
+		AttachmentContentType: m.AttachmentContentType,
+		ResolvedAt:            m.ResolvedAt,
+		ClosedAt:              m.ClosedAt,
+		CreatedAt:             m.CreatedAt,
+		UpdatedAt:             m.UpdatedAt,
 	}
 	if m.AssignedCSID != nil {
 		id := mustParseUUID(*m.AssignedCSID)
@@ -626,6 +659,8 @@ func toReplyTemplateDomain(m replyTemplateModel) *domain.ReplyTemplate {
 	tpl := &domain.ReplyTemplate{
 		ID:        mustParseUUID(m.ID),
 		Title:     m.Title,
+		Shortcut:  m.Shortcut,
+		Category:  m.Category,
 		Content:   m.Content,
 		IsActive:  m.IsActive,
 		CreatedBy: mustParseUUID(m.CreatedBy),

@@ -12,21 +12,23 @@ import (
 // ============================================================
 
 type Ticket struct {
-	ID           uuid.UUID  `json:"id"`
-	TicketNumber string     `json:"ticket_number"`
-	CustomerID   uuid.UUID  `json:"customer_id"`
-	AssignedCSID *uuid.UUID `json:"assigned_cs_id"`
-	OrderNumber  string     `json:"order_number"`
-	Phone        string     `json:"phone"`
-	ReporterName string     `json:"reporter_name"`
-	Subject      string     `json:"subject"`
-	Detail       string     `json:"detail"`
-	Status       string     `json:"status"`
-	Source       string     `json:"source"`
-	ResolvedAt   *time.Time `json:"resolved_at"`
-	ClosedAt     *time.Time `json:"closed_at"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID                    uuid.UUID  `json:"id"`
+	TicketNumber          string     `json:"ticket_number"`
+	CustomerID            uuid.UUID  `json:"customer_id"`
+	AssignedCSID          *uuid.UUID `json:"assigned_cs_id"`
+	OrderNumber           string     `json:"order_number"`
+	Phone                 string     `json:"phone"`
+	ReporterName          string     `json:"reporter_name"`
+	Subject               string     `json:"subject"`
+	Detail                string     `json:"detail"`
+	Status                string     `json:"status"`
+	Source                string     `json:"source"`
+	AttachmentURL         *string    `json:"attachment_url"`
+	AttachmentContentType *string    `json:"attachment_content_type"`
+	ResolvedAt            *time.Time `json:"resolved_at"`
+	ClosedAt              *time.Time `json:"closed_at"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 type TicketMessage struct {
@@ -84,6 +86,8 @@ type ChatMessage struct {
 type ReplyTemplate struct {
 	ID        uuid.UUID  `json:"id"`
 	Title     string     `json:"title"`
+	Shortcut  string     `json:"shortcut"`
+	Category  string     `json:"category"`
 	Content   string     `json:"content"`
 	IsActive  bool       `json:"is_active"`
 	CreatedBy uuid.UUID  `json:"created_by"`
@@ -98,13 +102,25 @@ type ReplyTemplate struct {
 
 // --- Ticket ---
 
+type PresignTicketAttachmentRequest struct {
+	ContentType string `json:"content_type" binding:"required"`
+}
+
+type PresignTicketAttachmentResponse struct {
+	UploadURL   string `json:"upload_url"`
+	ObjectKey   string `json:"object_key"`
+	ContentType string `json:"content_type"`
+	ExpiresIn   int    `json:"expires_in"` // seconds
+}
+
 type CreateTicketRequest struct {
-	OrderNumber  string `json:"order_number"  binding:"required"`
-	Phone        string `json:"phone"         binding:"required"`
-	ReporterName string `json:"reporter_name" binding:"required"`
-	Subject      string `json:"subject"       binding:"required"`
-	Detail       string `json:"detail"        binding:"required"`
-	Source       string `json:"source"        binding:"required,oneof=app web"`
+	OrderNumber   string `json:"order_number"   binding:"required"`
+	Phone         string `json:"phone"          binding:"required"`
+	ReporterName  string `json:"reporter_name"  binding:"required"`
+	Subject       string `json:"subject"        binding:"required"`
+	Detail        string `json:"detail"         binding:"required"`
+	Source        string `json:"source"         binding:"required,oneof=app web"`
+	AttachmentKey string `json:"attachment_key" binding:"required"`
 }
 
 type UpdateTicketStatusRequest struct {
@@ -130,21 +146,23 @@ type TicketListParams struct {
 }
 
 type TicketResponse struct {
-	ID           uuid.UUID  `json:"id"`
-	TicketNumber string     `json:"ticket_number"`
-	CustomerID   uuid.UUID  `json:"customer_id"`
-	AssignedCSID *uuid.UUID `json:"assigned_cs_id"`
-	OrderNumber  string     `json:"order_number"`
-	Phone        string     `json:"phone"`
-	ReporterName string     `json:"reporter_name"`
-	Subject      string     `json:"subject"`
-	Detail       string     `json:"detail"`
-	Status       string     `json:"status"`
-	Source       string     `json:"source"`
-	ResolvedAt   *time.Time `json:"resolved_at"`
-	ClosedAt     *time.Time `json:"closed_at"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID                    uuid.UUID  `json:"id"`
+	TicketNumber          string     `json:"ticket_number"`
+	CustomerID            uuid.UUID  `json:"customer_id"`
+	AssignedCSID          *uuid.UUID `json:"assigned_cs_id"`
+	OrderNumber           string     `json:"order_number"`
+	Phone                 string     `json:"phone"`
+	ReporterName          string     `json:"reporter_name"`
+	Subject               string     `json:"subject"`
+	Detail                string     `json:"detail"`
+	Status                string     `json:"status"`
+	Source                string     `json:"source"`
+	AttachmentURL         *string    `json:"attachment_url"`
+	AttachmentContentType *string    `json:"attachment_content_type"`
+	ResolvedAt            *time.Time `json:"resolved_at"`
+	ClosedAt              *time.Time `json:"closed_at"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 type TicketMessageResponse struct {
@@ -185,6 +203,20 @@ type ConversationListParams struct {
 	UserID uuid.UUID
 }
 
+type ChatableUsersParams struct {
+	Q     string
+	Roles []string // subset of allowed roles; empty = all allowed
+	Page  int
+	Limit int
+}
+
+type ChatableUserResponse struct {
+	ID       uuid.UUID `json:"id"`
+	FullName string    `json:"full_name"`
+	Email    string    `json:"email"`
+	Role     string    `json:"role"`
+}
+
 type ConversationResponse struct {
 	ID            uuid.UUID  `json:"id"`
 	InitiatorID   uuid.UUID  `json:"initiator_id"`
@@ -208,13 +240,25 @@ type ChatMessageResponse struct {
 
 // --- Reply Templates ---
 
+// ValidReplyTemplateCategories is the allowed set for reply template categories.
+var ValidReplyTemplateCategories = map[string]struct{}{
+	"general": {}, "order": {}, "payment": {}, "refund": {}, "shipping": {},
+	"product": {}, "account": {}, "complaint": {}, "return": {}, "promo": {},
+	"voucher": {}, "technical": {}, "verification": {}, "vendor": {}, "stock": {},
+	"cancellation": {}, "delivery": {}, "pickup": {}, "subscription": {},
+	"review": {}, "fraud": {}, "other": {},
+}
+
 type CreateReplyTemplateRequest struct {
-	Title   string `json:"title"   binding:"required,max=150"`
-	Content string `json:"content" binding:"required"`
+	Title    string `json:"title"    binding:"required,max=150"`
+	Category string `json:"category" binding:"required"`
+	SubKey   string `json:"sub_key"  binding:"required"`
+	Content  string `json:"content"  binding:"required"`
 }
 
 type UpdateReplyTemplateRequest struct {
 	Title    *string `json:"title"     binding:"omitempty,max=150"`
+	SubKey   *string `json:"sub_key"` // recalculates shortcut; category unchanged
 	Content  *string `json:"content"`
 	IsActive *bool   `json:"is_active"`
 }
@@ -222,12 +266,16 @@ type UpdateReplyTemplateRequest struct {
 type ReplyTemplateListParams struct {
 	Page     int
 	Limit    int
+	Category string
+	Search   string
 	IsActive *bool
 }
 
 type ReplyTemplateResponse struct {
 	ID        uuid.UUID  `json:"id"`
 	Title     string     `json:"title"`
+	Shortcut  string     `json:"shortcut"`
+	Category  string     `json:"category"`
 	Content   string     `json:"content"`
 	IsActive  bool       `json:"is_active"`
 	CreatedBy uuid.UUID  `json:"created_by"`
@@ -325,6 +373,7 @@ type ChatRepository interface {
 type ReplyTemplateRepository interface {
 	Create(ctx context.Context, tpl *ReplyTemplate) error
 	FindByID(ctx context.Context, id uuid.UUID) (*ReplyTemplate, error)
+	ExistsShortcut(ctx context.Context, shortcut string, excludeID *uuid.UUID) (bool, error)
 	List(ctx context.Context, params ReplyTemplateListParams) ([]ReplyTemplate, *PaginationMeta, error)
 	Update(ctx context.Context, tpl *ReplyTemplate) error
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -335,6 +384,8 @@ type ReplyTemplateRepository interface {
 // ============================================================
 
 type TicketUseCase interface {
+	// Customer: generate presigned URL untuk upload attachment
+	PresignTicketAttachment(ctx context.Context, req PresignTicketAttachmentRequest) (*PresignTicketAttachmentResponse, error)
 	// Customer: buat tiket baru
 	CreateTicket(ctx context.Context, customerID uuid.UUID, req CreateTicketRequest) (*TicketResponse, error)
 	// CS: list semua tiket
@@ -364,6 +415,8 @@ type ChatUseCase interface {
 	ListMessages(ctx context.Context, params ChatMessageListParams, userID uuid.UUID) ([]ChatMessageResponse, *PaginationMeta, error)
 	// Tandai semua pesan sudah dibaca
 	MarkRead(ctx context.Context, conversationID, readerID uuid.UUID) error
+	// Cari user yang boleh diajak chat oleh initiatorRole
+	SearchChatableUsers(ctx context.Context, initiatorID uuid.UUID, initiatorRole string, params ChatableUsersParams) ([]ChatableUserResponse, *PaginationMeta, error)
 }
 
 type ReplyTemplateUseCase interface {

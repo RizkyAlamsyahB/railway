@@ -85,6 +85,15 @@ var errorRules = []errorRule{
 	{usecase.ErrConversationUnauthorized, http.StatusForbidden, "you are not a participant of this conversation"},
 	{usecase.ErrReplyTemplateNotFound, http.StatusNotFound, "reply template not found"},
 	{usecase.ErrCSUserNotFound, http.StatusNotFound, "user not found"},
+
+	// ticket attachment
+	{usecase.ErrInvalidAttachmentContentType, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrAttachmentTooLarge, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrAttachmentNotUploaded, http.StatusUnprocessableEntity, ""},
+
+	// reply template
+	{usecase.ErrInvalidReplyTemplateCategory, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrShortcutAlreadyExists, http.StatusConflict, ""},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.

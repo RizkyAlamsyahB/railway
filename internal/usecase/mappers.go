@@ -29,21 +29,23 @@ func toUserResponse(u *domain.User) *domain.UserResponse {
 
 func toTicketResponse(t domain.Ticket) *domain.TicketResponse {
 	return &domain.TicketResponse{
-		ID:           t.ID,
-		TicketNumber: t.TicketNumber,
-		CustomerID:   t.CustomerID,
-		AssignedCSID: t.AssignedCSID,
-		OrderNumber:  t.OrderNumber,
-		Phone:        t.Phone,
-		ReporterName: t.ReporterName,
-		Subject:      t.Subject,
-		Detail:       t.Detail,
-		Status:       t.Status,
-		Source:       t.Source,
-		ResolvedAt:   t.ResolvedAt,
-		ClosedAt:     t.ClosedAt,
-		CreatedAt:    t.CreatedAt,
-		UpdatedAt:    t.UpdatedAt,
+		ID:                    t.ID,
+		TicketNumber:          t.TicketNumber,
+		CustomerID:            t.CustomerID,
+		AssignedCSID:          t.AssignedCSID,
+		OrderNumber:           t.OrderNumber,
+		Phone:                 t.Phone,
+		ReporterName:          t.ReporterName,
+		Subject:               t.Subject,
+		Detail:                t.Detail,
+		Status:                t.Status,
+		Source:                t.Source,
+		AttachmentURL:         t.AttachmentURL,
+		AttachmentContentType: t.AttachmentContentType,
+		ResolvedAt:            t.ResolvedAt,
+		ClosedAt:              t.ClosedAt,
+		CreatedAt:             t.CreatedAt,
+		UpdatedAt:             t.UpdatedAt,
 	}
 }
 
@@ -88,6 +90,8 @@ func toReplyTemplateResponse(t domain.ReplyTemplate) *domain.ReplyTemplateRespon
 	return &domain.ReplyTemplateResponse{
 		ID:        t.ID,
 		Title:     t.Title,
+		Shortcut:  t.Shortcut,
+		Category:  t.Category,
 		Content:   t.Content,
 		IsActive:  t.IsActive,
 		CreatedBy: t.CreatedBy,

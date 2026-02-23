@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +18,19 @@ import (
 // Reply Template UseCase
 // ============================================================
 
+var reSubKeyNormalizer = regexp.MustCompile(`[^a-z0-9]+`)
+
+func normalizeSubKey(raw string) string {
+	s := strings.ToLower(raw)
+	s = reSubKeyNormalizer.ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-")
+	return s
+}
+
+func buildShortcut(category, subKey string) string {
+	return "/" + category + "/" + normalizeSubKey(subKey)
+}
+
 type replyTemplateUseCase struct {
 	templateRepo domain.ReplyTemplateRepository
 }
@@ -25,10 +40,26 @@ func NewReplyTemplateUseCase(templateRepo domain.ReplyTemplateRepository) domain
 }
 
 func (uc *replyTemplateUseCase) Create(ctx context.Context, csID uuid.UUID, req domain.CreateReplyTemplateRequest) (*domain.ReplyTemplateResponse, error) {
+	if _, valid := domain.ValidReplyTemplateCategories[req.Category]; !valid {
+		return nil, ErrInvalidReplyTemplateCategory
+	}
+
+	shortcut := buildShortcut(req.Category, req.SubKey)
+
+	exists, err := uc.templateRepo.ExistsShortcut(ctx, shortcut, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check shortcut: %w", err)
+	}
+	if exists {
+		return nil, ErrShortcutAlreadyExists
+	}
+
 	now := time.Now()
 	tpl := &domain.ReplyTemplate{
 		ID:        uuid.New(),
 		Title:     req.Title,
+		Category:  req.Category,
+		Shortcut:  shortcut,
 		Content:   req.Content,
 		IsActive:  true,
 		CreatedBy: csID,
@@ -82,6 +113,23 @@ func (uc *replyTemplateUseCase) Update(ctx context.Context, csID, id uuid.UUID, 
 	if req.IsActive != nil {
 		tpl.IsActive = *req.IsActive
 	}
+
+	// Recalculate shortcut if SubKey changed (category is immutable)
+	if req.SubKey != nil {
+		newShortcut := buildShortcut(tpl.Category, *req.SubKey)
+		if newShortcut != tpl.Shortcut {
+			excludeID := tpl.ID
+			exists, err := uc.templateRepo.ExistsShortcut(ctx, newShortcut, &excludeID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check shortcut: %w", err)
+			}
+			if exists {
+				return nil, ErrShortcutAlreadyExists
+			}
+			tpl.Shortcut = newShortcut
+		}
+	}
+
 	tpl.UpdatedBy = &csID
 	tpl.UpdatedAt = time.Now()
 

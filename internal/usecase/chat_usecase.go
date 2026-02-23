@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,6 +45,10 @@ func NewChatUseCase(chatRepo domain.ChatRepository, userRepo domain.UserReposito
 }
 
 func (uc *chatUseCase) StartOrGetConversation(ctx context.Context, initiatorID uuid.UUID, initiatorRole string, req domain.StartConversationRequest) (*domain.ConversationResponse, error) {
+	if initiatorID == req.ParticipantID {
+		return nil, ErrConversationNotAllowed
+	}
+
 	// Look up participant role
 	participant, err := uc.userRepo.FindByID(ctx, req.ParticipantID)
 	if err != nil {
@@ -185,4 +190,87 @@ func (uc *chatUseCase) MarkRead(ctx context.Context, conversationID, readerID uu
 		return ErrConversationUnauthorized
 	}
 	return uc.chatRepo.MarkMessagesRead(ctx, conversationID, readerID)
+}
+func (uc *chatUseCase) SearchChatableUsers(ctx context.Context, initiatorID uuid.UUID, initiatorRole string, params domain.ChatableUsersParams) ([]domain.ChatableUserResponse, *domain.PaginationMeta, error) {
+	// Determine target roles: allowed roles intersected with requested filter
+	allowed := allowedChat[initiatorRole]
+	targetRoles := allowed
+	if len(params.Roles) > 0 {
+		var intersection []string
+		for _, r := range params.Roles {
+			for _, a := range allowed {
+				if r == a {
+					intersection = append(intersection, r)
+					break
+				}
+			}
+		}
+		targetRoles = intersection
+	}
+
+	page := params.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := params.Limit
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	if len(targetRoles) == 0 {
+		return []domain.ChatableUserResponse{}, &domain.PaginationMeta{Page: page, Limit: limit}, nil
+	}
+
+	// Fetch up to 200 users matching the query across all target roles, then paginate in-memory.
+	var collected []domain.ChatableUserResponse
+	seen := map[uuid.UUID]struct{}{}
+	for _, role := range targetRoles {
+		users, _, err := uc.userRepo.List(ctx, domain.UserListParams{
+			Page: 1, Limit: 200, Role: role, Search: params.Q,
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to list users: %w", err)
+		}
+		for _, u := range users {
+			if u.ID == initiatorID {
+				continue
+			}
+			if _, dup := seen[u.ID]; dup {
+				continue
+			}
+			seen[u.ID] = struct{}{}
+			roleCode := ""
+			if u.Role != nil {
+				roleCode = u.Role.Code
+			}
+			collected = append(collected, domain.ChatableUserResponse{
+				ID:       u.ID,
+				FullName: u.FullName,
+				Email:    u.Email,
+				Role:     roleCode,
+			})
+		}
+	}
+
+	total := int64(len(collected))
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	start := (page - 1) * limit
+	end := start + limit
+	if start > len(collected) {
+		start = len(collected)
+	}
+	if end > len(collected) {
+		end = len(collected)
+	}
+
+	meta := &domain.PaginationMeta{
+		Page:       page,
+		Limit:      limit,
+		TotalItems: total,
+		TotalPages: totalPages,
+	}
+	return collected[start:end], meta, nil
 }

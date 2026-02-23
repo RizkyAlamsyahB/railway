@@ -108,7 +108,7 @@ func Initialize() (*App, error) {
 	chatRepo := repository.NewChatRepository(db)
 	replyTemplateRepo := repository.NewReplyTemplateRepository(db)
 
-	ticketUseCase := usecase.NewTicketUseCase(ticketRepo)
+	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, storageProvider)
 	chatUseCase := usecase.NewChatUseCase(chatRepo, userRepo)
 	replyTemplateUseCase := usecase.NewReplyTemplateUseCase(replyTemplateRepo)
 	csDashboardUseCase := usecase.NewCSDashboardUseCase(ticketRepo, chatRepo)

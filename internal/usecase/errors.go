@@ -93,4 +93,13 @@ var (
 	ErrConversationUnauthorized = errors.New("you are not a participant of this conversation")
 	ErrReplyTemplateNotFound    = errors.New("reply template not found")
 	ErrCSUserNotFound           = errors.New("user not found")
+
+	// ticket attachment
+	ErrInvalidAttachmentContentType = errors.New("invalid attachment content type; allowed: image/png, image/jpeg, video/mp4")
+	ErrAttachmentTooLarge           = errors.New("attachment exceeds maximum size of 5 MB")
+	ErrAttachmentNotUploaded        = errors.New("attachment not found in storage; upload it first")
+
+	// reply template
+	ErrInvalidReplyTemplateCategory = errors.New("invalid reply template category")
+	ErrShortcutAlreadyExists        = errors.New("shortcut already exists")
 )

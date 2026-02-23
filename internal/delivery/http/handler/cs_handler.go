@@ -151,6 +151,22 @@ func (h *TicketHandler) ListTicketMessages(c *gin.Context) {
 	response.OK(c, "messages retrieved", msgs)
 }
 
+// PresignTicketAttachment godoc
+// POST /tickets/attachment/presign
+func (h *TicketHandler) PresignTicketAttachment(c *gin.Context) {
+	var req domain.PresignTicketAttachmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error(), nil)
+		return
+	}
+	result, err := h.uc.PresignTicketAttachment(c.Request.Context(), req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+	response.OK(c, "presigned upload URL generated", result)
+}
+
 // CreateTicket godoc (customer endpoint)
 // POST /tickets
 func (h *TicketHandler) CreateTicket(c *gin.Context) {
@@ -324,6 +340,36 @@ func (h *ChatHandler) MarkRead(c *gin.Context) {
 	response.OK(c, "messages marked as read", nil)
 }
 
+// SearchChatableUsers godoc
+// GET /chat/users?q=&roles=cs,umkm&page=1&limit=20
+func (h *ChatHandler) SearchChatableUsers(c *gin.Context) {
+	initiatorID := c.MustGet(middleware.ContextKeyUserID).(uuid.UUID)
+	initiatorRole := c.MustGet(middleware.ContextKeyRole).(string)
+
+	var roles []string
+	if rolesStr := c.Query("roles"); rolesStr != "" {
+		for _, r := range splitCSV(rolesStr) {
+			if r != "" {
+				roles = append(roles, r)
+			}
+		}
+	}
+
+	params := domain.ChatableUsersParams{
+		Q:     c.Query("q"),
+		Roles: roles,
+		Page:  queryInt(c, "page", 1),
+		Limit: queryInt(c, "limit", 20),
+	}
+
+	users, meta, err := h.uc.SearchChatableUsers(c.Request.Context(), initiatorID, initiatorRole, params)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+	response.SuccessWithMeta(c, http.StatusOK, "users retrieved", users, meta)
+}
+
 // ============================================================
 // Reply Template Handler
 // ============================================================
@@ -340,8 +386,10 @@ func NewReplyTemplateHandler(uc domain.ReplyTemplateUseCase) *ReplyTemplateHandl
 // GET /customer-service/reply-templates
 func (h *ReplyTemplateHandler) ListTemplates(c *gin.Context) {
 	params := domain.ReplyTemplateListParams{
-		Page:  queryInt(c, "page", 1),
-		Limit: queryInt(c, "limit", 10),
+		Page:     queryInt(c, "page", 1),
+		Limit:    queryInt(c, "limit", 10),
+		Category: c.Query("category"),
+		Search:   c.Query("q"),
 	}
 	if isActiveStr := c.Query("is_active"); isActiveStr != "" {
 		v := isActiveStr == "true"
@@ -530,4 +578,27 @@ func queryInt(c *gin.Context, key string, defaultVal int) int {
 		return defaultVal
 	}
 	return n
+}
+
+// splitCSV splits a comma-separated string into a trimmed slice.
+func splitCSV(s string) []string {
+	var out []string
+	start := 0
+	for i := 0; i <= len(s); i++ {
+		if i == len(s) || s[i] == ',' {
+			part := s[start:i]
+			// trim spaces
+			for len(part) > 0 && part[0] == ' ' {
+				part = part[1:]
+			}
+			for len(part) > 0 && part[len(part)-1] == ' ' {
+				part = part[:len(part)-1]
+			}
+			if part != "" {
+				out = append(out, part)
+			}
+			start = i + 1
+		}
+	}
+	return out
 }

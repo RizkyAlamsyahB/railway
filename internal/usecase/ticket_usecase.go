@@ -13,10 +13,11 @@ import (
 
 type ticketUseCase struct {
 	ticketRepo domain.TicketRepository
+	storage    domain.StorageProvider
 }
 
-func NewTicketUseCase(ticketRepo domain.TicketRepository) domain.TicketUseCase {
-	return &ticketUseCase{ticketRepo: ticketRepo}
+func NewTicketUseCase(ticketRepo domain.TicketRepository, storage domain.StorageProvider) domain.TicketUseCase {
+	return &ticketUseCase{ticketRepo: ticketRepo, storage: storage}
 }
 
 // generateTicketNumber creates a ticket number in format TKT-YYYYMMDD-NNNN.
@@ -29,7 +30,46 @@ func (uc *ticketUseCase) generateTicketNumber(ctx context.Context) (string, erro
 	return fmt.Sprintf("TKT-%s-%04d", today, count+1), nil
 }
 
+func (uc *ticketUseCase) PresignTicketAttachment(ctx context.Context, req domain.PresignTicketAttachmentRequest) (*domain.PresignTicketAttachmentResponse, error) {
+	ct := normalizeContentType(req.ContentType)
+	if !isAllowedTicketAttachmentContentType(ct) {
+		return nil, ErrInvalidAttachmentContentType
+	}
+
+	objectKey := fmt.Sprintf("ticket-attachments/%s/%s", time.Now().Format("2006/01/02"), uuid.New().String())
+	uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, ct, PresignedUploadExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate presigned upload URL: %w", err)
+	}
+
+	return &domain.PresignTicketAttachmentResponse{
+		UploadURL:   uploadURL,
+		ObjectKey:   objectKey,
+		ContentType: ct,
+		ExpiresIn:   int(PresignedUploadExpiry.Seconds()),
+	}, nil
+}
+
 func (uc *ticketUseCase) CreateTicket(ctx context.Context, customerID uuid.UUID, req domain.CreateTicketRequest) (*domain.TicketResponse, error) {
+	// Verify attachment was actually uploaded to S3
+	info, err := uc.storage.HeadObject(ctx, req.AttachmentKey)
+	if err != nil || info == nil {
+		return nil, ErrAttachmentNotUploaded
+	}
+
+	// Validate size (<= 5 MB)
+	if info.ContentLength > TicketAttachmentMaxBytes {
+		return nil, ErrAttachmentTooLarge
+	}
+
+	// Validate content type
+	ct := normalizeContentType(info.ContentType)
+	if !isAllowedTicketAttachmentContentType(ct) {
+		return nil, ErrInvalidAttachmentContentType
+	}
+
+	attachmentURL := uc.storage.GetURL(req.AttachmentKey)
+
 	ticketNumber, err := uc.generateTicketNumber(ctx)
 	if err != nil {
 		return nil, err
@@ -37,18 +77,20 @@ func (uc *ticketUseCase) CreateTicket(ctx context.Context, customerID uuid.UUID,
 
 	now := time.Now()
 	t := &domain.Ticket{
-		ID:           uuid.New(),
-		TicketNumber: ticketNumber,
-		CustomerID:   customerID,
-		OrderNumber:  req.OrderNumber,
-		Phone:        req.Phone,
-		ReporterName: req.ReporterName,
-		Subject:      req.Subject,
-		Detail:       req.Detail,
-		Status:       domain.TicketStatusOpen,
-		Source:       req.Source,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:                    uuid.New(),
+		TicketNumber:          ticketNumber,
+		CustomerID:            customerID,
+		OrderNumber:           req.OrderNumber,
+		Phone:                 req.Phone,
+		ReporterName:          req.ReporterName,
+		Subject:               req.Subject,
+		Detail:                req.Detail,
+		Status:                domain.TicketStatusOpen,
+		Source:                req.Source,
+		AttachmentURL:         &attachmentURL,
+		AttachmentContentType: &ct,
+		CreatedAt:             now,
+		UpdatedAt:             now,
 	}
 
 	if err := uc.ticketRepo.Create(ctx, t); err != nil {

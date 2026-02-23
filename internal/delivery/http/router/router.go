@@ -140,6 +140,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	customerTicket.Use(middleware.Auth(jwtSecret))
 	customerTicket.Use(middleware.RequireRoles("customer"))
 	{
+		customerTicket.POST("/attachment/presign", ticketHandler.PresignTicketAttachment)
 		customerTicket.POST("", ticketHandler.CreateTicket)
 	}
 
@@ -148,6 +149,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	chatGroup := v1.Group("/chat")
 	chatGroup.Use(middleware.Auth(jwtSecret))
 	{
+		chatGroup.GET("/users", chatHandler.SearchChatableUsers)
 		chatGroup.POST("", chatHandler.StartOrGetConversation)
 		chatGroup.GET("", chatHandler.ListConversations)
 		chatGroup.GET("/:conversationId", chatHandler.GetConversation)
