@@ -24,6 +24,7 @@ var errorRules = []errorRule{
 	{usecase.ErrInvalidCredentials, http.StatusUnauthorized, "invalid email or password"},
 	{usecase.ErrAccountInactive, http.StatusUnauthorized, "account is not active"},
 	{usecase.ErrNotAdmin, http.StatusForbidden, "admin access required"},
+	{usecase.ErrNotCS, http.StatusForbidden, "customer service access required"},
 
 	// User
 	{usecase.ErrUserNotFound, http.StatusNotFound, "user not found"},
@@ -85,6 +86,23 @@ var errorRules = []errorRule{
 	{usecase.ErrInvalidRefundTransition, http.StatusBadRequest, "invalid refund status transition"},
 	{usecase.ErrRefundNotFound, http.StatusNotFound, "refund not found"},
 	{usecase.ErrPayoutNotFound, http.StatusNotFound, "payout batch not found"},
+
+	// CS
+	{usecase.ErrTicketNotFound, http.StatusNotFound, "ticket not found"},
+	{usecase.ErrConversationNotFound, http.StatusNotFound, "conversation not found"},
+	{usecase.ErrConversationNotAllowed, http.StatusForbidden, "chat between these roles is not allowed"},
+	{usecase.ErrConversationUnauthorized, http.StatusForbidden, "you are not a participant of this conversation"},
+	{usecase.ErrReplyTemplateNotFound, http.StatusNotFound, "reply template not found"},
+	{usecase.ErrCSUserNotFound, http.StatusNotFound, "user not found"},
+
+	// ticket attachment
+	{usecase.ErrInvalidAttachmentContentType, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrAttachmentTooLarge, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrAttachmentNotUploaded, http.StatusUnprocessableEntity, ""},
+
+	// reply template
+	{usecase.ErrInvalidReplyTemplateCategory, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrShortcutAlreadyExists, http.StatusConflict, ""},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.
