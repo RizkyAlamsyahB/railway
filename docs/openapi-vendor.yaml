@@ -1,0 +1,1613 @@
+openapi: 3.0.3
+info:
+  title: Haji Umroh Store BE - Vendor API
+  version: 1.0.0
+  description: Dokumentasi OpenAPI 3 untuk endpoint vendor/seller (UMKM), termasuk pendaftaran, autentikasi, dokumen, dan manajemen produk.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Vendor Registration
+    description: Operasi pendaftaran UMKM baru.
+  - name: Vendor Auth
+    description: Autentikasi vendor.
+  - name: Vendor Documents
+    description: Manajemen dokumen vendor.
+  - name: Vendor Products
+    description: Manajemen produk vendor.
+paths:
+  /api/v1/vendors/register:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Mendaftarkan vendor UMKM baru
+      description: |
+        Membuat akun user baru (role `umkm`), vendor, dan rekening bank dalam satu request.
+        Response berisi JWT token untuk autentikasi dan presigned upload URLs untuk mengunggah
+        dokumen-dokumen yang diperlukan langsung ke S3 storage.
+
+        **Dokumen yang tersedia untuk upload:**
+        - `owner_ktp` — KTP pemilik
+        - `owner_passport` — Passport pemilik
+        - `business_npwp` — NPWP usaha (opsional)
+        - `store_photo` — Foto toko
+        - `bank_account_proof` — Bukti rekening bank
+        - `business_logo` — Logo usaha
+        - `business_banner` — Banner usaha
+
+        Presigned URL berlaku selama **30 menit** setelah registrasi.
+        Client dapat melakukan `PUT` request langsung ke setiap `upload_url` dengan file content
+        dan header `Content-Type` sesuai tipe file asli.
+        MIME yang diizinkan: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`.
+      operationId: registerVendor
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegisterRequest'
+            example:
+              store_name: Toko Oleh-Oleh Haji Mabrur
+              store_type: hajj_souvenir_store
+              owner_name: Ahmad Subarkah
+              legal_name: PT Mabrur Jaya
+              responsible_person_name: Budi Santoso
+              phone: "081234567890"
+              email: toko.mabrur@example.com
+              password: SecurePass123!
+              bank_name: Bank Syariah Indonesia
+              bank_account_number: "1234567890"
+              bank_account_holder_name: Ahmad Subarkah
+      responses:
+        '201':
+          description: Vendor berhasil didaftarkan. Response berisi ID vendor, ID user, JWT token, dan presigned upload URLs untuk dokumen.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorRegisterEnvelope'
+              example:
+                success: true
+                message: vendor registration successful
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  user_id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  upload_urls:
+                    - doc_type: owner_ktp
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/owner_ktp/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                    - doc_type: owner_passport
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/owner_passport/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_passport/a2b3c4d5-e6f7-8901-bcde-f12345678901
+                    - doc_type: business_npwp
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_npwp/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_npwp/b3c4d5e6-f7a8-9012-cdef-234567890123
+                    - doc_type: store_photo
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/store_photo/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/c4d5e6f7-a8b9-0123-def0-345678901234
+                    - doc_type: bank_account_proof
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/bank_account_proof/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/bank_account_proof/d5e6f7a8-b9c0-1234-ef01-456789012345
+                    - doc_type: business_logo
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_logo/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_logo/e6f7a8b9-c0d1-2345-f012-567890123456
+                    - doc_type: business_banner
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_banner/uuid?X-Amz-...
+                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_banner/f7a8b9c0-d1e2-3456-0123-678901234567
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'VendorRegisterRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
+                    meta: null
+                invalidStoreType:
+                  summary: Jenis toko tidak valid
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'VendorRegisterRequest.StoreType' Error:Field validation for 'StoreType' failed on the 'oneof' tag"
+                    meta: null
+                passwordTooShort:
+                  summary: Password kurang dari 8 karakter
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'VendorRegisterRequest.Password' Error:Field validation for 'Password' failed on the 'min' tag"
+                    meta: null
+        '409':
+          description: Konflik — email sudah terdaftar atau user sudah memiliki vendor.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                emailAlreadyRegistered:
+                  summary: Email sudah terdaftar
+                  value:
+                    success: false
+                    message: email already registered
+                    data: null
+                    errors: null
+                    meta: null
+                vendorAlreadyExists:
+                  summary: User sudah memiliki vendor
+                  value:
+                    success: false
+                    message: user already has a vendor
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/vendors/login:
+    post:
+      tags:
+        - Vendor Auth
+      summary: Login vendor
+      description: |
+        Mengautentikasi vendor menggunakan email dan password.
+        Mengembalikan JWT token yang berisi `user_id`, `email`, `roles`, dan `vendor_id` di claims.
+
+        **Aturan akses:**
+        - User harus memiliki role `umkm`.
+        - User harus memiliki profil vendor yang terhubung.
+        - Semua status vendor diizinkan login **kecuali `blocked`** (draft, submitted, active, rejected).
+      operationId: loginVendor
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorLoginRequest'
+            example:
+              email: toko.mabrur@example.com
+              password: SecurePass123!
+      responses:
+        '200':
+          description: Login berhasil. Response berisi JWT token dan informasi vendor.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorLoginEnvelope'
+              example:
+                success: true
+                message: login successful
+                data:
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  vendor_status: active
+                  display_name: Toko Oleh-Oleh Haji Mabrur
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: validation failed
+                data: null
+                errors: "Key: 'VendorLoginRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
+                meta: null
+        '401':
+          description: Email atau password salah.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid email or password
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Akses ditolak — user bukan vendor, tidak memiliki profil vendor, atau akun vendor diblokir.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                vendorAccessRequired:
+                  summary: User bukan vendor (tidak punya role umkm)
+                  value:
+                    success: false
+                    message: vendor access required
+                    data: null
+                    errors: null
+                    meta: null
+                noVendorProfile:
+                  summary: User tidak memiliki profil vendor
+                  value:
+                    success: false
+                    message: no vendor profile found
+                    data: null
+                    errors: null
+                    meta: null
+                vendorBlocked:
+                  summary: Akun vendor diblokir
+                  value:
+                    success: false
+                    message: vendor account is blocked
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/vendors/documents/confirm:
+    post:
+      tags:
+        - Vendor Documents
+      summary: Konfirmasi upload dokumen vendor
+      description: |
+        Mengkonfirmasi bahwa dokumen-dokumen vendor telah berhasil diupload ke S3 storage.
+        Endpoint ini memverifikasi bahwa file benar-benar ada di S3, memeriksa ukuran dan MIME type,
+        lalu memperbarui status dokumen di database.
+
+        **Aturan:**
+        - Memerlukan autentikasi dengan JWT token (role `umkm`).
+        - Setiap dokumen divalidasi: file harus ada di S3, MIME type harus `image/jpeg`, `image/png`, `image/webp`, atau `application/pdf`.
+        - Ukuran file maksimum 5 MB per dokumen.
+        - Jika semua dokumen wajib (owner_ktp, store_photo, bank_account_proof) telah dikonfirmasi,
+          status vendor akan otomatis berubah dari `draft` menjadi `submitted`.
+
+        **Catatan:** `object_key` didapat dari response saat registrasi (`upload_urls[].object_key`).
+      operationId: confirmVendorDocuments
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmDocumentsRequest'
+            example:
+              documents:
+                - doc_type: owner_ktp
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                - doc_type: store_photo
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/c4d5e6f7-a8b9-0123-def0-345678901234
+                - doc_type: bank_account_proof
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/bank_account_proof/d5e6f7a8-b9c0-1234-ef01-456789012345
+      responses:
+        '200':
+          description: Dokumen berhasil dikonfirmasi.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessConfirmDocumentsEnvelope'
+              example:
+                success: true
+                message: documents confirmed successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  vendor_status: submitted
+                  documents_confirmed: 3
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal, dokumen tidak ditemukan, file belum diupload, MIME type salah, atau file terlalu besar).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'ConfirmDocumentsRequest.Documents' Error:Field validation for 'Documents' failed on the 'required' tag"
+                    meta: null
+                documentNotFound:
+                  summary: Dokumen tidak ditemukan untuk vendor ini
+                  value:
+                    success: false
+                    message: "document not found for this vendor: owner_ktp"
+                    data: null
+                    errors: null
+                    meta: null
+                objectNotUploaded:
+                  summary: File belum diupload ke S3
+                  value:
+                    success: false
+                    message: "object not found in storage: vendors/a1b2c3d4/documents/owner_ktp/uuid"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidMimeType:
+                  summary: MIME type file tidak diizinkan
+                  value:
+                    success: false
+                    message: "invalid document content type: text/plain"
+                    data: null
+                    errors: null
+                    meta: null
+                fileTooLarge:
+                  summary: Ukuran file melebihi batas
+                  value:
+                    success: false
+                    message: "document file size exceeds supported limit: 10485760 bytes"
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Vendor tidak ditemukan untuk user ini.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/vendors/products:
+    post:
+      tags:
+        - Vendor Products
+      summary: Membuat produk baru
+      description: |
+        Membuat produk baru untuk vendor yang sedang login.
+        Vendor harus berstatus `active` (sudah di-approve admin) untuk dapat membuat produk.
+
+        **Alur upload gambar (two-step):**
+        1. Kirim data produk beserta informasi gambar (nama file, content type, primary flag).
+        2. Response akan berisi `upload_urls` — presigned URL untuk upload setiap gambar langsung ke S3.
+        3. Client melakukan `PUT` request ke setiap `upload_url` dengan file content.
+        4. Setelah semua gambar diupload, panggil endpoint `/api/v1/vendors/products/{id}/images/confirm`.
+
+        **Aturan:**
+        - Memerlukan autentikasi JWT dengan role `umkm`.
+        - Vendor harus berstatus `active`.
+        - Harga dan stok di level top-level akan disimpan sebagai **default variant**.
+        - Varian tambahan bisa ditambahkan melalui array `variants`.
+        - SKU di-generate otomatis oleh sistem.
+        - Slug di-generate otomatis dari nama produk.
+        - Minimal 1 shipping service wajib dipilih.
+        - Jika `is_active: true`, produk langsung berstatus `published`. Jika `false`, berstatus `draft`.
+        - Maksimal 10 gambar per produk.
+        - Tepat 1 gambar harus ditandai sebagai `is_primary: true` (jika gambar disertakan).
+        - Presigned URL berlaku selama **30 menit**.
+        - MIME gambar yang diizinkan: `image/jpeg`, `image/png`, `image/webp`.
+      operationId: createProduct
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+            example:
+              name: Sajadah Premium Madinah
+              category_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+              description: Sajadah premium kualitas terbaik langsung dari Madinah. Bahan lembut dan nyaman digunakan.
+              price: 150000
+              stock: 50
+              weight_gram: 500
+              is_active: false
+              shipping_service_ids:
+                - d1e2f3a4-b5c6-7890-def0-234567890abc
+                - e2f3a4b5-c6d7-8901-ef01-345678901bcd
+              variants:
+                - variant_name: Merah
+                  price: 150000
+                  stock: 30
+                  weight_gram: 500
+                  is_active: true
+                - variant_name: Biru
+                  price: 160000
+                  stock: 20
+                  weight_gram: 500
+                  is_active: true
+              images:
+                - file_name: sajadah-depan.jpg
+                  content_type: image/jpeg
+                  is_primary: true
+                - file_name: sajadah-belakang.jpg
+                  content_type: image/jpeg
+                  is_primary: false
+      responses:
+        '201':
+          description: Produk berhasil dibuat. Response berisi data produk, varian, dan presigned upload URLs untuk gambar.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCreateProductEnvelope'
+              example:
+                success: true
+                message: product created successfully
+                data:
+                  id: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  category_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                  name: Sajadah Premium Madinah
+                  slug: sajadah-premium-madinah
+                  description: Sajadah premium kualitas terbaik langsung dari Madinah. Bahan lembut dan nyaman digunakan.
+                  status: draft
+                  halal_ai_status: pending
+                  variants:
+                    - id: aa11bb22-cc33-dd44-ee55-ff6677889900
+                      sku: TOKOO-SAJAD000-00
+                      variant_name: Default
+                      price: 150000
+                      currency: IDR
+                      stock_on_hand: 50
+                      weight_gram: 500
+                      is_default: true
+                      is_active: true
+                    - id: bb22cc33-dd44-ee55-ff66-778899001122
+                      sku: TOKOO-SAJAD000-01
+                      variant_name: Merah
+                      price: 150000
+                      currency: IDR
+                      stock_on_hand: 30
+                      weight_gram: 500
+                      is_default: false
+                      is_active: true
+                    - id: cc33dd44-ee55-ff66-7788-990011223344
+                      sku: TOKOO-SAJAD000-02
+                      variant_name: Biru
+                      price: 160000
+                      currency: IDR
+                      stock_on_hand: 20
+                      weight_gram: 500
+                      is_default: false
+                      is_active: true
+                  upload_urls:
+                    - image_id: dd44ee55-ff66-7788-9900-112233445566
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/products/f1a2b3c4.../images/dd44ee55.../sajadah-depan.jpg?X-Amz-...
+                      object_key: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/dd44ee55-ff66-7788-9900-112233445566/sajadah-depan.jpg
+                      sort_order: 0
+                      is_primary: true
+                    - image_id: ee55ff66-7788-9900-1122-334455667788
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/products/f1a2b3c4.../images/ee55ff66.../sajadah-belakang.jpg?X-Amz-...
+                      object_key: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/ee55ff66-7788-9900-1122-334455667788/sajadah-belakang.jpg
+                      sort_order: 1
+                      is_primary: false
+                  created_at: "2026-02-13T10:30:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal, kategori tidak ditemukan, shipping service tidak valid, atau aturan gambar dilanggar).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'CreateProductRequest.Name' Error:Field validation for 'Name' failed on the 'required' tag"
+                    meta: null
+                categoryNotFound:
+                  summary: Kategori tidak ditemukan atau tidak aktif
+                  value:
+                    success: false
+                    message: category not found
+                    data: null
+                    errors: null
+                    meta: null
+                shippingNotFound:
+                  summary: Satu atau lebih shipping service tidak ditemukan
+                  value:
+                    success: false
+                    message: one or more shipping services not found
+                    data: null
+                    errors: null
+                    meta: null
+                tooManyImages:
+                  summary: Jumlah gambar melebihi batas maksimal 10
+                  value:
+                    success: false
+                    message: maximum 10 images per product
+                    data: null
+                    errors: null
+                    meta: null
+                duplicatePrimary:
+                  summary: Lebih dari satu gambar ditandai sebagai primary
+                  value:
+                    success: false
+                    message: only one image can be marked as primary
+                    data: null
+                    errors: null
+                    meta: null
+                noPrimary:
+                  summary: Tidak ada gambar yang ditandai sebagai primary
+                  value:
+                    success: false
+                    message: at least one image must be marked as primary
+                    data: null
+                    errors: null
+                    meta: null
+                publishedNoShipping:
+                  summary: Produk published harus memiliki minimal 1 shipping service
+                  value:
+                    success: false
+                    message: published product must have at least one shipping service
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Vendor belum aktif atau user tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                vendorNotActive:
+                  summary: Vendor belum di-approve atau berstatus selain active
+                  value:
+                    success: false
+                    message: vendor is not active
+                    data: null
+                    errors: null
+                    meta: null
+                insufficientPermissions:
+                  summary: User tidak memiliki role umkm
+                  value:
+                    success: false
+                    message: insufficient permissions
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/vendors/products/{id}/images/confirm:
+    post:
+      tags:
+        - Vendor Products
+      summary: Konfirmasi upload gambar produk
+      description: |
+        Mengkonfirmasi bahwa gambar-gambar produk telah berhasil diupload ke S3 storage.
+        Endpoint ini memverifikasi bahwa file benar-benar ada di S3 via HeadObject,
+        memeriksa MIME type, lalu memperbarui metadata gambar di database.
+
+        **Aturan:**
+        - Memerlukan autentikasi JWT dengan role `umkm`.
+        - Produk harus milik vendor yang sedang login.
+        - Setiap gambar divalidasi: file harus ada di S3, MIME type harus `image/jpeg`, `image/png`, atau `image/webp`.
+        - `image_id` dan `object_key` didapat dari response saat membuat produk (`upload_urls[]`).
+      operationId: confirmProductImages
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID produk (UUID).
+          schema:
+            type: string
+            format: uuid
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmProductImagesRequest'
+            example:
+              images:
+                - image_id: dd44ee55-ff66-7788-9900-112233445566
+                  object_key: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/dd44ee55-ff66-7788-9900-112233445566/sajadah-depan.jpg
+                - image_id: ee55ff66-7788-9900-1122-334455667788
+                  object_key: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/ee55ff66-7788-9900-1122-334455667788/sajadah-belakang.jpg
+      responses:
+        '200':
+          description: Gambar berhasil dikonfirmasi.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessConfirmProductImagesEnvelope'
+              example:
+                success: true
+                message: images confirmed successfully
+                data:
+                  product_id: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+                  images_confirmed: 2
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal, gambar tidak ditemukan, file belum diupload, atau MIME type salah).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'ConfirmProductImagesRequest.Images' Error:Field validation for 'Images' failed on the 'required' tag"
+                    meta: null
+                imageNotFound:
+                  summary: Gambar tidak ditemukan untuk produk ini
+                  value:
+                    success: false
+                    message: "image not found for this product: dd44ee55-ff66-7788-9900-112233445566"
+                    data: null
+                    errors: null
+                    meta: null
+                imageNotUploaded:
+                  summary: File belum diupload ke S3
+                  value:
+                    success: false
+                    message: "image not found in storage: products/f1a2b3c4.../images/dd44ee55.../sajadah-depan.jpg"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidMimeType:
+                  summary: MIME type gambar tidak diizinkan
+                  value:
+                    success: false
+                    message: "invalid image content type: dd44ee55-ff66-7788-9900-112233445566 (text/plain)"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidProductId:
+                  summary: ID produk bukan UUID yang valid
+                  value:
+                    success: false
+                    message: invalid product ID
+                    data: null
+                    errors: id must be a valid UUID
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Produk bukan milik vendor ini atau user tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                productNotOwned:
+                  summary: Produk bukan milik vendor yang login
+                  value:
+                    success: false
+                    message: product does not belong to this vendor
+                    data: null
+                    errors: null
+                    meta: null
+                insufficientPermissions:
+                  summary: User tidak memiliki role umkm
+                  value:
+                    success: false
+                    message: insufficient permissions
+                    data: null
+                    errors: null
+                    meta: null
+        '404':
+          description: Produk tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: product not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    RequestIDHeader:
+      description: ID unik request dari middleware RequestID.
+      schema:
+        type: string
+        example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
+  schemas:
+    VendorRegisterRequest:
+      type: object
+      required:
+        - store_name
+        - store_type
+        - owner_name
+        - responsible_person_name
+        - phone
+        - email
+        - password
+        - bank_name
+        - bank_account_number
+        - bank_account_holder_name
+      properties:
+        store_name:
+          type: string
+          maxLength: 120
+          description: Nama toko yang akan ditampilkan (display_name).
+          example: Toko Oleh-Oleh Haji Mabrur
+        store_type:
+          type: string
+          description: Jenis toko.
+          enum:
+            - umrah_souvenir_store
+            - hajj_souvenir_store
+            - general_souvenir_store
+          example: hajj_souvenir_store
+        owner_name:
+          type: string
+          maxLength: 120
+          description: Nama pemilik/pengelola toko. Akan disimpan sebagai nama lengkap user.
+          example: Ahmad Subarkah
+        legal_name:
+          type: string
+          maxLength: 160
+          nullable: true
+          description: Nama legal/badan usaha (opsional).
+          example: PT Mabrur Jaya
+        responsible_person_name:
+          type: string
+          maxLength: 120
+          description: Nama penanggung jawab toko.
+          example: Budi Santoso
+        phone:
+          type: string
+          maxLength: 20
+          description: Nomor telepon yang bisa dihubungi.
+          example: "081234567890"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          description: Email untuk login dan komunikasi. Harus unik.
+          example: toko.mabrur@example.com
+        password:
+          type: string
+          minLength: 8
+          description: Kata sandi minimal 8 karakter.
+          example: SecurePass123!
+        bank_name:
+          type: string
+          maxLength: 120
+          description: Nama bank untuk rekening penerima.
+          example: Bank Syariah Indonesia
+        bank_account_number:
+          type: string
+          maxLength: 60
+          description: Nomor rekening bank.
+          example: "1234567890"
+        bank_account_holder_name:
+          type: string
+          maxLength: 160
+          description: Nama pemilik rekening sesuai buku tabungan.
+          example: Ahmad Subarkah
+    VendorLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email vendor yang terdaftar.
+          example: toko.mabrur@example.com
+        password:
+          type: string
+          description: Password akun vendor.
+          example: SecurePass123!
+    VendorLoginResponse:
+      type: object
+      required:
+        - token
+        - vendor_id
+        - vendor_status
+        - display_name
+      properties:
+        token:
+          type: string
+          description: |
+            JWT token untuk autentikasi. Claims berisi `user_id`, `email`, `roles` (`["umkm"]`),
+            dan `vendor_id`.
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        vendor_status:
+          type: string
+          description: Status vendor saat ini.
+          enum:
+            - draft
+            - submitted
+            - active
+            - rejected
+          example: active
+        display_name:
+          type: string
+          description: Nama toko yang ditampilkan.
+          example: Toko Oleh-Oleh Haji Mabrur
+    PresignedUploadInfo:
+      type: object
+      required:
+        - doc_type
+        - upload_url
+        - object_key
+      properties:
+        doc_type:
+          type: string
+          description: Jenis dokumen.
+          enum:
+            - owner_ktp
+            - owner_passport
+            - business_npwp
+            - store_photo
+            - bank_account_proof
+            - business_logo
+            - business_banner
+          example: owner_ktp
+        upload_url:
+          type: string
+          format: uri
+          description: |
+            Presigned URL untuk upload file langsung ke S3 via HTTP PUT.
+            Berlaku selama 30 menit. Gunakan `Content-Type` sesuai MIME file yang diunggah.
+            MIME yang diizinkan: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`.
+          example: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/.../documents/owner_ktp/uuid?X-Amz-...
+        object_key:
+          type: string
+          description: Object key di S3 storage. Simpan key ini untuk referensi saat mengkonfirmasi upload dokumen.
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+    VendorRegisterResponse:
+      type: object
+      required:
+        - vendor_id
+        - user_id
+        - token
+        - upload_urls
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor yang baru dibuat.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        user_id:
+          type: string
+          format: uuid
+          description: ID user yang baru dibuat.
+          example: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+        token:
+          type: string
+          description: JWT token untuk autentikasi. Token berisi role `umkm`.
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        upload_urls:
+          type: array
+          description: Daftar presigned upload URL untuk setiap jenis dokumen.
+          items:
+            $ref: '#/components/schemas/PresignedUploadInfo'
+    SuccessVendorRegisterEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor registration successful
+        data:
+          $ref: '#/components/schemas/VendorRegisterResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorLoginEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: login successful
+        data:
+          $ref: '#/components/schemas/VendorLoginResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: validation failed
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          description: Detail error atau pesan validasi.
+        meta:
+          nullable: true
+          example: null
+    ConfirmDocumentItem:
+      type: object
+      required:
+        - doc_type
+        - object_key
+      properties:
+        doc_type:
+          type: string
+          description: Tipe dokumen yang dikonfirmasi.
+          enum:
+            - owner_ktp
+            - owner_passport
+            - business_npwp
+            - store_photo
+            - bank_account_proof
+            - business_logo
+            - business_banner
+          example: owner_ktp
+        object_key:
+          type: string
+          description: Object key di S3 yang didapat dari response registrasi (`upload_urls[].object_key`).
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+    ConfirmDocumentsRequest:
+      type: object
+      required:
+        - documents
+      properties:
+        documents:
+          type: array
+          minItems: 1
+          description: Daftar dokumen yang akan dikonfirmasi.
+          items:
+            $ref: '#/components/schemas/ConfirmDocumentItem'
+    ConfirmDocumentsResponse:
+      type: object
+      required:
+        - vendor_id
+        - vendor_status
+        - documents_confirmed
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        vendor_status:
+          type: string
+          description: Status vendor setelah konfirmasi. Berubah ke `submitted` jika semua dokumen wajib telah dikonfirmasi.
+          enum:
+            - draft
+            - submitted
+          example: submitted
+        documents_confirmed:
+          type: integer
+          description: Jumlah dokumen yang berhasil dikonfirmasi.
+          example: 3
+    SuccessConfirmDocumentsEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: documents confirmed successfully
+        data:
+          $ref: '#/components/schemas/ConfirmDocumentsResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    CreateProductImageInput:
+      type: object
+      required:
+        - file_name
+        - content_type
+      properties:
+        file_name:
+          type: string
+          maxLength: 255
+          description: Nama file gambar yang akan diupload.
+          example: sajadah-depan.jpg
+        content_type:
+          type: string
+          description: MIME type gambar.
+          enum:
+            - image/jpeg
+            - image/png
+            - image/webp
+          example: image/jpeg
+        is_primary:
+          type: boolean
+          description: Tandai gambar ini sebagai gambar utama/primary. Tepat 1 gambar harus primary.
+          default: false
+          example: true
+    CreateProductVariantInput:
+      type: object
+      required:
+        - variant_name
+        - price
+      properties:
+        variant_name:
+          type: string
+          maxLength: 120
+          description: Nama varian produk.
+          example: Merah
+        price:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Harga varian dalam Rupiah (IDR). Harus lebih besar dari 0.
+          example: 150000
+        stock:
+          type: integer
+          minimum: 0
+          description: Jumlah stok tersedia untuk varian ini.
+          default: 0
+          example: 30
+        weight_gram:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Berat varian dalam gram (opsional).
+          example: 500
+        is_active:
+          type: boolean
+          description: Status aktif varian.
+          default: false
+          example: true
+    CreateProductRequest:
+      type: object
+      required:
+        - name
+        - category_id
+        - description
+        - price
+        - shipping_service_ids
+      properties:
+        name:
+          type: string
+          maxLength: 180
+          description: Nama produk.
+          example: Sajadah Premium Madinah
+        category_id:
+          type: string
+          format: uuid
+          description: ID kategori produk. Harus kategori yang aktif.
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        description:
+          type: string
+          description: Deskripsi lengkap produk.
+          example: Sajadah premium kualitas terbaik langsung dari Madinah.
+        price:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Harga produk (default variant) dalam Rupiah (IDR). Harus lebih besar dari 0.
+          example: 150000
+        stock:
+          type: integer
+          minimum: 0
+          description: Jumlah stok tersedia (default variant).
+          default: 0
+          example: 50
+        weight_gram:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Berat produk dalam gram (opsional, untuk default variant).
+          example: 500
+        is_active:
+          type: boolean
+          description: |
+            Toggle untuk mengaktifkan produk.
+            - `true` → status produk menjadi `published` (langsung tampil di katalog).
+            - `false` → status produk menjadi `draft` (belum tampil).
+          default: false
+          example: false
+        shipping_service_ids:
+          type: array
+          minItems: 1
+          description: Daftar ID shipping service yang tersedia untuk produk ini. Minimal 1 wajib dipilih.
+          items:
+            type: string
+            format: uuid
+          example:
+            - d1e2f3a4-b5c6-7890-def0-234567890abc
+            - e2f3a4b5-c6d7-8901-ef01-345678901bcd
+        variants:
+          type: array
+          maxItems: 20
+          description: |
+            Daftar varian tambahan (opsional). Setiap produk otomatis memiliki satu **default variant**
+            dari field `price`, `stock`, dan `weight_gram` di level atas.
+            Varian di sini adalah varian tambahan selain default.
+          items:
+            $ref: '#/components/schemas/CreateProductVariantInput'
+        images:
+          type: array
+          minItems: 1
+          maxItems: 10
+          description: |
+            Daftar gambar produk (opsional, maksimal 10).
+            Tepat 1 gambar harus ditandai sebagai `is_primary: true`.
+            Response akan berisi presigned upload URL untuk setiap gambar.
+          items:
+            $ref: '#/components/schemas/CreateProductImageInput'
+    ProductImageUploadInfo:
+      type: object
+      required:
+        - image_id
+        - upload_url
+        - object_key
+        - sort_order
+        - is_primary
+      properties:
+        image_id:
+          type: string
+          format: uuid
+          description: ID gambar yang di-generate. Gunakan ID ini saat mengkonfirmasi upload.
+          example: dd44ee55-ff66-7788-9900-112233445566
+        upload_url:
+          type: string
+          format: uri
+          description: |
+            Presigned URL untuk upload gambar langsung ke S3 via HTTP PUT.
+            Berlaku selama 30 menit. Gunakan `Content-Type` sesuai MIME yang dikirim di request.
+          example: https://s3.ap-southeast-1.amazonaws.com/bucket/products/.../images/uuid/file.jpg?X-Amz-...
+        object_key:
+          type: string
+          description: Object key di S3 storage. Simpan key ini untuk referensi saat mengkonfirmasi upload gambar.
+          example: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/dd44ee55-ff66-7788-9900-112233445566/sajadah-depan.jpg
+        sort_order:
+          type: integer
+          description: Urutan tampilan gambar (0-based).
+          example: 0
+        is_primary:
+          type: boolean
+          description: Apakah gambar ini adalah gambar utama.
+          example: true
+    ProductVariantResponse:
+      type: object
+      required:
+        - id
+        - sku
+        - variant_name
+        - price
+        - currency
+        - stock_on_hand
+        - is_default
+        - is_active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID varian.
+          example: aa11bb22-cc33-dd44-ee55-ff6677889900
+        sku:
+          type: string
+          description: SKU (Stock Keeping Unit), di-generate otomatis oleh sistem.
+          example: TOKOO-SAJAD000-00
+        variant_name:
+          type: string
+          description: Nama varian. Default variant bernama "Default".
+          example: Default
+        price:
+          type: number
+          format: double
+          description: Harga varian dalam Rupiah (IDR).
+          example: 150000
+        currency:
+          type: string
+          description: Mata uang.
+          example: IDR
+        stock_on_hand:
+          type: integer
+          description: Jumlah stok tersedia.
+          example: 50
+        weight_gram:
+          type: integer
+          nullable: true
+          description: Berat dalam gram (null jika tidak diisi).
+          example: 500
+        is_default:
+          type: boolean
+          description: Apakah ini default variant (dibuat dari harga/stok di level produk).
+          example: true
+        is_active:
+          type: boolean
+          description: Status aktif varian.
+          example: true
+    CreateProductResponse:
+      type: object
+      required:
+        - id
+        - vendor_id
+        - category_id
+        - name
+        - slug
+        - description
+        - status
+        - halal_ai_status
+        - variants
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID produk yang baru dibuat.
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor pemilik produk.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        category_id:
+          type: string
+          format: uuid
+          description: ID kategori produk.
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        name:
+          type: string
+          description: Nama produk.
+          example: Sajadah Premium Madinah
+        slug:
+          type: string
+          description: URL-friendly slug, di-generate otomatis dari nama produk.
+          example: sajadah-premium-madinah
+        description:
+          type: string
+          description: Deskripsi produk.
+          example: Sajadah premium kualitas terbaik langsung dari Madinah.
+        status:
+          type: string
+          description: Status produk.
+          enum:
+            - draft
+            - published
+          example: draft
+        halal_ai_status:
+          type: string
+          description: Status verifikasi AI halal. Default `pending` saat produk baru dibuat.
+          enum:
+            - pending
+            - passed
+            - failed
+          example: pending
+        variants:
+          type: array
+          description: Daftar semua varian produk (termasuk default variant).
+          items:
+            $ref: '#/components/schemas/ProductVariantResponse'
+        upload_urls:
+          type: array
+          nullable: true
+          description: Daftar presigned upload URL untuk gambar produk. Null jika tidak ada gambar.
+          items:
+            $ref: '#/components/schemas/ProductImageUploadInfo'
+        created_at:
+          type: string
+          format: date-time
+          description: Waktu pembuatan produk.
+          example: "2026-02-13T10:30:00Z"
+    ConfirmProductImageItem:
+      type: object
+      required:
+        - image_id
+        - object_key
+      properties:
+        image_id:
+          type: string
+          format: uuid
+          description: ID gambar yang didapat dari response create product (`upload_urls[].image_id`).
+          example: dd44ee55-ff66-7788-9900-112233445566
+        object_key:
+          type: string
+          description: Object key di S3 yang didapat dari response create product (`upload_urls[].object_key`).
+          example: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/dd44ee55-ff66-7788-9900-112233445566/sajadah-depan.jpg
+    ConfirmProductImagesRequest:
+      type: object
+      required:
+        - images
+      properties:
+        images:
+          type: array
+          minItems: 1
+          description: Daftar gambar yang akan dikonfirmasi.
+          items:
+            $ref: '#/components/schemas/ConfirmProductImageItem'
+    ConfirmProductImagesResponse:
+      type: object
+      required:
+        - product_id
+        - images_confirmed
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          description: ID produk.
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+        images_confirmed:
+          type: integer
+          description: Jumlah gambar yang berhasil dikonfirmasi.
+          example: 2
+    SuccessCreateProductEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: product created successfully
+        data:
+          $ref: '#/components/schemas/CreateProductResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessConfirmProductImagesEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: images confirmed successfully
+        data:
+          $ref: '#/components/schemas/ConfirmProductImagesResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null

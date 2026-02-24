@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat & WebSocket — Manual Test UI</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --panel: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --primary: #0f766e;
+      --primary-light: #ccfbf1;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --warn: #d97706;
+      --bubble-me: #0f766e;
+      --bubble-other: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 18px; font-weight: 600; }
+    #ws-badge {
+      margin-left: auto;
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #dc2626;
+      color: #fff;
+      font-weight: 600;
+    }
+    #ws-badge.connected { background: #16a34a; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr 320px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Left sidebar ──────────────────────────── */
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-title {
+      padding: 12px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+
+    /* Login panel */
+    .login-form { padding: 14px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
+    .login-form label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    .login-form input, .login-form select {
+      width: 100%; padding: 7px 10px; font-size: 13px;
+      border: 1px solid var(--line); border-radius: 6px; outline: none;
+    }
+    .login-form input:focus, .login-form select:focus { border-color: var(--primary); }
+    .btn {
+      padding: 8px 14px; font-size: 13px; font-weight: 600;
+      border: none; border-radius: 6px; cursor: pointer; transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-danger  { background: var(--danger);  color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid var(--line); color: var(--text); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    #user-info {
+      padding: 10px 14px; font-size: 12px; background: #f0fdf4;
+      border-bottom: 1px solid var(--line); display: none;
+    }
+    #user-info b { color: var(--success); }
+
+    /* Conversations list */
+    #conv-list { flex: 1; overflow-y: auto; }
+    .conv-item {
+      padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--line);
+      font-size: 13px; transition: background .12s;
+    }
+    .conv-item:hover { background: #f8fafc; }
+    .conv-item.active { background: var(--primary-light); }
+    .conv-item .conv-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .conv-item .conv-id { font-family: monospace; font-size: 11px; color: var(--muted); }
+
+    /* Start conv panel */
+    .start-conv { padding: 14px; border-top: 1px solid var(--line); flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+    .start-conv label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+    .start-conv input { width: 100%; padding: 7px 10px; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; outline: none; }
+    .start-conv input:focus { border-color: var(--primary); }
+
+    .role-filter-chip {
+      display: flex; align-items: center; gap: 4px; font-size: 11px; cursor: pointer;
+      background: var(--bg); padding: 3px 9px; border-radius: 99px;
+      border: 1px solid var(--line); user-select: none;
+    }
+    .role-filter-chip input[type=checkbox] { accent-color: var(--primary); }
+    .role-filter-chip.checked { background: var(--primary-light); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+    #user-results { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; display: none; background: var(--panel); }
+    .user-result-item {
+      padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--line); transition: background .12s;
+    }
+    .user-result-item:hover { background: var(--bg); }
+    .user-result-item:last-child { border-bottom: none; }
+    .role-badge {
+      display: inline-block; font-size: 10px; padding: 1px 7px;
+      border-radius: 99px; font-weight: 600; margin-top: 2px;
+    }
+    .role-badge.role-cs       { background: #dbeafe; color: #1d4ed8; }
+    .role-badge.role-admin    { background: #fef9c3; color: #854d0e; }
+    .role-badge.role-customer { background: #f0fdf4; color: #166534; }
+    .role-badge.role-umkm     { background: #fdf4ff; color: #7e22ce; }
+    .role-badge.role-finance  { background: #fff7ed; color: #9a3412; }
+
+    /* ── Chat area ─────────────────────────────── */
+    .chat-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .chat-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .chat-header #conv-title { font-weight: 600; flex: 1; }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .msg-row { display: flex; align-items: flex-end; gap: 8px; }
+    .msg-row.me { flex-direction: row-reverse; }
+    .bubble {
+      max-width: 70%;
+      padding: 9px 13px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .msg-row.me .bubble  { background: var(--bubble-me); color: #fff; border-bottom-right-radius: 3px; }
+    .msg-row.other .bubble { background: var(--bubble-other); color: var(--text); border-bottom-left-radius: 3px; }
+    .msg-time { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+    .msg-sender { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+
+    .chat-input-bar {
+      padding: 12px 16px;
+      border-top: 1px solid var(--line);
+      background: var(--panel);
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    #msg-input {
+      flex: 1; padding: 9px 12px; font-size: 14px;
+      border: 1px solid var(--line); border-radius: 8px; outline: none;
+      resize: none; max-height: 120px;
+    }
+    #msg-input:focus { border-color: var(--primary); }
+
+    .empty-state {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 14px;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .empty-state .ico { font-size: 40px; }
+
+    /* ── Right sidebar — log ───────────────────── */
+    .log-sidebar {
+      border-left: 1px solid var(--line);
+      background: #1e293b;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .log-sidebar .sidebar-title { color: #94a3b8; border-color: #334155; }
+    #ws-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .log-entry { line-height: 1.4; word-break: break-all; }
+    .log-entry.push  { color: #34d399; }
+    .log-entry.send  { color: #60a5fa; }
+    .log-entry.error { color: #f87171; }
+    .log-entry.info  { color: #fbbf24; }
+    .log-actions {
+      padding: 8px 10px;
+      border-top: 1px solid #334155;
+      display: flex;
+      gap: 6px;
+    }
+    .toast {
+      position: fixed; bottom: 20px; right: 20px;
+      padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      color: #fff; z-index: 999; animation: fadeIn .2s;
+    }
+    .toast.success { background: var(--success); }
+    .toast.error   { background: var(--danger); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>💬</div>
+  <h1>Chat & WebSocket — Manual Test UI</h1>
+  <span id="ws-badge">WS: Disconnected</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── Left: Login + Conversations ────────────── -->
+  <div class="sidebar">
+    <div class="sidebar-title">Session</div>
+
+    <div class="login-form">
+      <label>Email</label>
+      <input id="login-email" type="email" value="cs@dev.local" />
+      <label>Password</label>
+      <input id="login-pass" type="password" value="Password123!" />
+      <label>Login endpoint</label>
+      <select id="login-endpoint">
+        <option value="/cs/login">CS / Finance (cs/login)</option>
+        <option value="/users/login">Customer (users/login)</option>
+        <option value="/vendors/login">UMKM (vendors/login)</option>
+        <option value="/admin/login">Admin (admin/login)</option>
+      </select>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary" style="flex:1" onclick="doLogin()">Login</button>
+        <button class="btn btn-outline btn-sm" onclick="doLogout()">Logout</button>
+      </div>
+    </div>
+
+    <div id="user-info"></div>
+
+    <div class="sidebar-title">Conversations</div>
+    <div id="conv-list"><div style="padding:12px;font-size:12px;color:#94a3b8">Login terlebih dahulu</div></div>
+
+    <div class="start-conv">
+      <label>🔍 Cari &amp; Mulai Percakapan</label>
+
+      <!-- Role filter checkboxes (populated after login) -->
+      <div id="role-filters" style="display:none">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">Filter role:</div>
+        <div id="role-checkboxes" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+      </div>
+
+      <input id="user-search" placeholder="Cari nama atau email…" oninput="debouncedSearch()" />
+      <div id="user-results"></div>
+    </div>
+  </div>
+
+  <!-- ── Center: Chat ────────────────────────────── -->
+  <div class="chat-area">
+    <div class="chat-header">
+      <span id="conv-title" style="color:var(--muted)">Pilih percakapan →</span>
+      <button class="btn btn-outline btn-sm" onclick="loadMessages()" id="btn-refresh" style="display:none">↻ Refresh</button>
+      <button class="btn btn-outline btn-sm" onclick="markRead()" id="btn-mark-read" style="display:none">✓ Mark Read</button>
+    </div>
+
+    <div id="messages">
+      <div class="empty-state">
+        <div class="ico">💬</div>
+        <div>Belum ada percakapan yang dipilih</div>
+      </div>
+    </div>
+
+    <div class="chat-input-bar">
+      <textarea id="msg-input" rows="1" placeholder="Ketik pesan… (Enter kirim, Shift+Enter baris baru)" disabled></textarea>
+      <button class="btn btn-primary" id="btn-send" onclick="sendMessage()" disabled>Kirim</button>
+    </div>
+  </div>
+
+  <!-- ── Right: WS Log ──────────────────────────── -->
+  <div class="log-sidebar">
+    <div class="sidebar-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span>WebSocket Log</span>
+    </div>
+    <div id="ws-log"></div>
+    <div class="log-actions">
+      <button class="btn btn-outline btn-sm" style="color:#94a3b8;border-color:#334155;font-size:11px" onclick="clearLog()">Clear</button>
+      <button class="btn btn-outline btn-sm" style="color:#94a3b8;border-color:#334155;font-size:11px" onclick="connectWS()" id="btn-ws-connect">Connect WS</button>
+      <button class="btn btn-outline btn-sm" style="color:#f87171;border-color:#334155;font-size:11px" onclick="disconnectWS()" id="btn-ws-disconnect" style="display:none">Disconnect</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const BASE = 'http://localhost:8080/api/v1';
+  const WS_URL = 'ws://localhost:8080/api/v1/ws';
+
+  let token = null;
+  let myUserID = null;
+  let myRole = null;
+  let activeConvID = null;
+  let ws = null;
+
+  const ALLOWED_CHAT = {
+    customer: ['umkm', 'cs'],
+    umkm:     ['customer', 'admin', 'cs', 'finance'],
+    admin:    ['umkm', 'admin', 'cs', 'finance'],
+    cs:       ['customer', 'umkm', 'admin', 'cs', 'finance'],
+    finance:  ['umkm', 'admin', 'cs', 'finance'],
+  };
+
+  const ROLE_LABELS = {
+    customer: 'Customer',
+    umkm:     'UMKM / Vendor',
+    admin:    'Admin',
+    cs:       'CS',
+    finance:  'Finance',
+  };
+
+  // ── Helpers ─────────────────────────────────────────────
+  async function api(method, path, body, tok) {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      const t = tok ?? token;
+      if (t) headers['Authorization'] = `Bearer ${t}`;
+      const res = await fetch(BASE + path, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        log(`API ${method} ${path} → non-JSON: ${text.slice(0, 100)}`, 'error');
+        return { success: false, message: `Server error (${res.status})` };
+      }
+    } catch (err) {
+      log(`API ${method} ${path} fetch error: ${err.message}`, 'error');
+      return { success: false, message: err.message };
+    }
+  }
+
+  function toast(msg, type = 'success') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2800);
+  }
+
+  function log(msg, type = 'info') {
+    const el = document.createElement('div');
+    el.className = `log-entry ${type}`;
+    const ts = new Date().toLocaleTimeString('id', { hour12: false });
+    el.textContent = `[${ts}] ${msg}`;
+    const logEl = document.getElementById('ws-log');
+    logEl.appendChild(el);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function clearLog() { document.getElementById('ws-log').innerHTML = ''; }
+
+  function fmtTime(iso) {
+    return new Date(iso).toLocaleTimeString('id', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  function shortID(id) { return id ? id.slice(0, 8) + '…' : '?'; }
+
+  // ── Auth ─────────────────────────────────────────────────
+  async function doLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const pass  = document.getElementById('login-pass').value;
+    const ep    = document.getElementById('login-endpoint').value;
+
+    let res;
+    try {
+      const r = await fetch(BASE + ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass }),
+      });
+      res = await r.json();
+    } catch (err) {
+      toast('Fetch error: ' + err.message, 'error');
+      log('Login fetch error: ' + err.message, 'error');
+      return;
+    }
+
+    if (!res.success) { toast(res.message || 'Login gagal', 'error'); return; }
+
+    // Normalise response shape (each endpoint is different)
+    token = res.data.token;
+    myUserID = res.data.user_id ?? res.data.user?.id;
+    myRole = res.data.role ?? res.data.user?.role ?? ep.split('/')[3]; // fallback
+
+    // Try to decode role from JWT payload
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      myRole = payload.role ?? myRole;
+      myUserID = myUserID ?? payload.user_id;
+    } catch {}
+
+    const info = document.getElementById('user-info');
+    info.style.display = 'block';
+    info.innerHTML = `✅ <b>${email}</b><br>Role: <b>${myRole}</b><br>ID: <code style="font-size:10px;cursor:pointer;text-decoration:underline" title="Klik untuk copy" onclick="navigator.clipboard.writeText('${myUserID}').then(()=>toast('ID dicopy!'))}">${myUserID}</code>`;
+
+    toast(`Login berhasil sebagai ${myRole}`);
+    log(`Login: ${email} [${myRole}]`, 'info');
+
+    renderRoleFilters();
+    connectWS();
+    loadConversations();
+  }
+
+  function doLogout() {
+    token = null; myUserID = null; myRole = null; activeConvID = null;
+    disconnectWS();
+    document.getElementById('user-info').style.display = 'none';
+    document.getElementById('conv-list').innerHTML = '<div style="padding:12px;font-size:12px;color:#94a3b8">Login terlebih dahulu</div>';
+    document.getElementById('messages').innerHTML = '<div class="empty-state"><div class="ico">💬</div><div>Belum ada percakapan yang dipilih</div></div>';
+    document.getElementById('conv-title').textContent = 'Pilih percakapan →';
+    document.getElementById('conv-title').style.color = 'var(--muted)';
+    document.getElementById('role-filters').style.display = 'none';
+    document.getElementById('role-checkboxes').innerHTML = '';
+    document.getElementById('user-search').value = '';
+    document.getElementById('user-results').style.display = 'none';
+    setInputEnabled(false);
+    toast('Logged out', 'error');
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────
+  function connectWS() {
+    if (!token) { toast('Login dulu', 'error'); return; }
+    if (ws && ws.readyState === WebSocket.OPEN) { toast('WS sudah terhubung'); return; }
+
+    ws = new WebSocket(`${WS_URL}?token=${token}`);
+
+    ws.onopen = () => {
+      updateWSBadge(true);
+      log('WebSocket connected ✓', 'info');
+      document.getElementById('btn-ws-connect').style.display = 'none';
+      document.getElementById('btn-ws-disconnect').style.display = 'inline-block';
+    };
+
+    ws.onmessage = (e) => {
+      log('⬇ PUSH: ' + e.data, 'push');
+      try {
+        const frame = JSON.parse(e.data);
+        if (frame.type === 'chat_message') {
+          // Inject into active conversation view if matches
+          if (frame.conversation_id === activeConvID) {
+            const msgData = frame.data;
+            appendMessage(msgData, false);
+          } else {
+            toast('💬 Pesan baru di conversation lain');
+            // Refresh conv list to update last_message_at
+            loadConversations();
+          }
+        }
+      } catch {}
+    };
+
+    ws.onerror = (e) => {
+      log('WS error: ' + (e.message || 'unknown'), 'error');
+    };
+
+    ws.onclose = (e) => {
+      updateWSBadge(false);
+      log(`WS closed (code=${e.code})`, 'info');
+      document.getElementById('btn-ws-connect').style.display = 'inline-block';
+      document.getElementById('btn-ws-disconnect').style.display = 'none';
+    };
+  }
+
+  function disconnectWS() {
+    if (ws) { ws.close(); ws = null; }
+    updateWSBadge(false);
+  }
+
+  function updateWSBadge(connected) {
+    const b = document.getElementById('ws-badge');
+    b.textContent = connected ? 'WS: Connected' : 'WS: Disconnected';
+    b.className = connected ? 'connected' : '';
+  }
+
+  // ── Conversations ─────────────────────────────────────────
+  async function loadConversations() {
+    if (!token) return;
+    const res = await api('GET', '/chat?limit=50');
+    const list = document.getElementById('conv-list');
+    if (!res.success) {
+      log('loadConversations error: ' + (res.message || 'unknown'), 'error');
+      list.innerHTML = '<div style="padding:12px;font-size:12px;color:#f87171">Gagal memuat percakapan</div>';
+      return;
+    }
+
+    if (!res.data || res.data.length === 0) {
+      list.innerHTML = '<div style="padding:12px;font-size:12px;color:#94a3b8">Belum ada percakapan</div>';
+      return;
+    }
+
+    list.innerHTML = res.data.map(c => `
+      <div class="conv-item ${c.id === activeConvID ? 'active' : ''}" onclick="openConversation('${c.id}','${c.initiator_id}','${c.participant_id}',this)">
+        <div>
+          <b style="font-size:12px">Conv</b>
+          <span class="conv-id">${shortID(c.id)}</span>
+        </div>
+        <div class="conv-meta">
+          ${c.initiator_id === myUserID ? '↑ Anda mulai' : '↓ Orang lain mulai'} •
+          ${c.last_message_at ? 'Terakhir: ' + fmtTime(c.last_message_at) : 'Baru dibuat'}
+        </div>
+        <div class="conv-meta" style="font-size:10px">
+          Initiator: <code>${shortID(c.initiator_id)}</code> •
+          Partisipan: <code>${shortID(c.participant_id)}</code>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function startConvWithUser(userID, userName) {
+    if (!token) { toast('Login dulu', 'error'); return; }
+    if (userID === myUserID) { toast('Tidak bisa chat dengan diri sendiri', 'error'); return; }
+
+    log(`startConvWithUser → ${userName} (${userID.slice(0,8)}…)`, 'send');
+    const res = await api('POST', '/chat', { participant_id: userID });
+    if (!res.success) {
+      toast(res.message || 'Gagal memulai chat', 'error');
+      log('startConvWithUser error: ' + (res.message || 'unknown'), 'error');
+      return;
+    }
+
+    toast(`Chat dengan ${userName} siap!`);
+    log(`StartConversation → ${res.data.id}`, 'send');
+
+    document.getElementById('user-results').style.display = 'none';
+    document.getElementById('user-search').value = '';
+
+    await loadConversations();
+    openConversation(res.data.id, res.data.initiator_id, res.data.participant_id);
+  }
+
+  // ── User search ───────────────────────────────────────────
+  function renderRoleFilters() {
+    const allowed = ALLOWED_CHAT[myRole] || [];
+    const filtersDiv  = document.getElementById('role-filters');
+    const container   = document.getElementById('role-checkboxes');
+
+    if (allowed.length === 0) { filtersDiv.style.display = 'none'; return; }
+
+    filtersDiv.style.display = 'block';
+    container.innerHTML = allowed.map(r => `
+      <label class="role-filter-chip checked">
+        <input type="checkbox" value="${r}" checked onchange="this.closest('label').classList.toggle('checked', this.checked); debouncedSearch()" />
+        ${ROLE_LABELS[r] || r}
+      </label>
+    `).join('');
+  }
+
+  let _searchTimer = null;
+  function debouncedSearch() {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(searchChatableUsers, 350);
+  }
+
+  async function searchChatableUsers() {
+    if (!token) return;
+    const q = document.getElementById('user-search').value.trim();
+    const checked = [...document.querySelectorAll('#role-checkboxes input:checked')].map(e => e.value);
+    const resultsEl = document.getElementById('user-results');
+
+    // Hide if no query and no interaction
+    if (!q && checked.length === (ALLOWED_CHAT[myRole] || []).length) {
+      // still do the search to show all chattable users
+    }
+
+    const params = new URLSearchParams({ limit: 20 });
+    if (q) params.set('q', q);
+    if (checked.length > 0) params.set('roles', checked.join(','));
+
+    const res = await api('GET', '/chat/users?' + params.toString());
+    if (!res.success) { resultsEl.style.display = 'none'; return; }
+
+    const users = res.data || [];
+    if (users.length === 0) {
+      resultsEl.style.display = 'block';
+      resultsEl.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--muted);text-align:center">Tidak ada user ditemukan</div>';
+      return;
+    }
+
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = users.map(u => `
+      <div class="user-result-item" data-uid="${u.id}" data-uname="${escAttr(u.full_name)}">
+        <div style="font-weight:600;font-size:13px">${escHtml(u.full_name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${escHtml(u.email)}</div>
+        <span class="role-badge role-${u.role}">${ROLE_LABELS[u.role] || u.role}</span>
+      </div>
+    `).join('');
+    resultsEl.querySelectorAll('.user-result-item').forEach(el => {
+      el.addEventListener('click', () => startConvWithUser(el.dataset.uid, el.dataset.uname));
+    });
+  }
+
+  function openConversation(convID, initID, partID, clickedEl) {
+    activeConvID = convID;
+    const other = initID === myUserID ? partID : initID;
+    document.getElementById('conv-title').textContent = `Conv: ${shortID(convID)} ↔ ${shortID(other)}`;
+    document.getElementById('conv-title').style.color = 'var(--text)';
+    document.getElementById('btn-refresh').style.display = 'inline-block';
+    document.getElementById('btn-mark-read').style.display = 'inline-block';
+    setInputEnabled(true);
+
+    // highlight active
+    document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+    if (clickedEl) clickedEl.classList.add('active');
+
+    loadMessages();
+  }
+
+  // ── Messages ──────────────────────────────────────────────
+  async function loadMessages() {
+    if (!activeConvID) return;
+    const res = await api('GET', `/chat/${activeConvID}/messages?limit=50`);
+    if (!res.success) { toast(res.message, 'error'); return; }
+
+    const msgs = document.getElementById('messages');
+    if (!res.data || res.data.length === 0) {
+      msgs.innerHTML = '<div class="empty-state"><div>Belum ada pesan dalam percakapan ini</div></div>';
+      return;
+    }
+    msgs.innerHTML = '';
+    res.data.forEach(m => appendMessage(m, true));
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function appendMessage(m, skipScroll = false) {
+    const msgs = document.getElementById('messages');
+
+    // Remove empty state if present
+    const empty = msgs.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    const isMe = m.sender_id === myUserID;
+    const row = document.createElement('div');
+    row.className = `msg-row ${isMe ? 'me' : 'other'}`;
+    row.innerHTML = `
+      <div>
+        ${!isMe ? `<div class="msg-sender">${shortID(m.sender_id)}</div>` : ''}
+        <div class="bubble">${escHtml(m.message)}</div>
+      </div>
+      <div class="msg-time">${fmtTime(m.created_at)}</div>
+    `;
+    msgs.appendChild(row);
+    if (!skipScroll) msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+    if (!text || !activeConvID) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+
+    const res = await api('POST', `/chat/${activeConvID}/messages`, { message: text });
+    if (!res.success) { toast(res.message || 'Gagal kirim', 'error'); return; }
+
+    log(`⬆ SENT msg ${res.data.id.slice(0,8)}…`, 'send');
+    appendMessage(res.data, false);
+  }
+
+  async function markRead() {
+    if (!activeConvID) return;
+    const res = await api('PATCH', `/chat/${activeConvID}/read`);
+    toast(res.success ? 'Marked as read ✓' : res.message, res.success ? 'success' : 'error');
+  }
+
+  // ── Input helpers ─────────────────────────────────────────
+  function setInputEnabled(yes) {
+    document.getElementById('msg-input').disabled = !yes;
+    document.getElementById('btn-send').disabled = !yes;
+  }
+
+  document.getElementById('msg-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  document.getElementById('msg-input').addEventListener('input', function () {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+
+  // Safe for use inside HTML attribute values (double-quoted)
+  function escAttr(str) {
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

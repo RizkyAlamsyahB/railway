@@ -1,0 +1,978 @@
+openapi: 3.0.3
+info:
+  title: Haji Umroh Store BE - Cart API
+  version: 1.0.0
+  description: Dokumentasi OpenAPI 3 untuk endpoint cart/keranjang belanja customer, termasuk melihat cart, menambah item, mengubah jumlah, menghapus item, dan mengosongkan cart.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Cart
+    description: Operasi keranjang belanja customer (memerlukan autentikasi dengan role customer).
+paths:
+  /api/v1/users/cart:
+    get:
+      tags:
+        - Cart
+      summary: Ambil keranjang belanja customer
+      description: |
+        Mengembalikan keranjang belanja customer yang sedang login beserta seluruh item di dalamnya.
+        Cart dibuat otomatis (lazy create) saat pertama kali diakses.
+
+        **Harga live:**
+        Harga setiap item diambil langsung dari `product_variants.price` saat request dilakukan,
+        bukan snapshot harga saat item ditambahkan. Ini memastikan customer selalu melihat harga terkini.
+
+        **Field `is_available`:**
+        Bernilai `true` hanya jika variant aktif (`is_active = true`) DAN product berstatus `published`.
+        Item yang tidak available tetap ditampilkan di cart agar customer bisa menghapusnya,
+        namun tidak dihitung dalam `total`.
+
+        **Field `total`:**
+        Total hanya menjumlahkan subtotal dari item yang `is_available = true`.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Hanya user dengan role `customer` yang diizinkan.
+      operationId: getCart
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Cart berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessGetCartEnvelope'
+              example:
+                success: true
+                message: "cart retrieved successfully"
+                data:
+                  id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  status: active
+                  items:
+                    - id: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                      product_variant_id: 11111111-2222-3333-4444-555555555555
+                      variant_name: Default
+                      sku: TOKOH-SAJAD000-00
+                      product_id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+                      product_name: Sajadah Premium Madinah
+                      product_slug: sajadah-premium-madinah
+                      image_url: products/aaaaaaaa/images/img001/photo.jpg
+                      price: 150000
+                      currency: IDR
+                      qty: 2
+                      subtotal: 300000
+                      stock_on_hand: 100
+                      is_available: true
+                      created_at: "2026-02-18T10:00:00Z"
+                  item_count: 1
+                  total: 300000
+                  currency: IDR
+                  updated_at: "2026-02-18T10:05:00Z"
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "an unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
+    delete:
+      tags:
+        - Cart
+      summary: Kosongkan seluruh cart
+      description: |
+        Menghapus semua item dari keranjang belanja customer.
+        Operasi ini idempotent — jika cart sudah kosong atau belum pernah dibuat, tetap mengembalikan sukses.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Hanya user dengan role `customer` yang diizinkan.
+      operationId: clearCart
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Cart berhasil dikosongkan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNullDataEnvelope'
+              example:
+                success: true
+                message: "cart cleared"
+                data: null
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "an unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/cart/items:
+    post:
+      tags:
+        - Cart
+      summary: Tambah item ke cart
+      description: |
+        Menambahkan product variant ke keranjang belanja customer.
+        Jika variant yang sama sudah ada di cart, jumlahnya akan ditambahkan (upsert).
+        Cart dibuat otomatis jika belum ada.
+
+        **Validasi:**
+        - Product variant harus ada dan aktif (`is_active = true`).
+        - Product harus berstatus `published`.
+        - Jumlah total (qty existing + qty baru) tidak boleh melebihi `stock_on_hand`.
+
+        **Perilaku upsert:**
+        Jika variant sudah ada di cart, qty di-increment (bukan di-replace).
+        Contoh: cart sudah berisi variant X qty 2, lalu request menambah qty 3 → total menjadi 5.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Hanya user dengan role `customer` yang diizinkan.
+      operationId: addCartItem
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCartItemRequest'
+            example:
+              product_variant_id: 11111111-2222-3333-4444-555555555555
+              qty: 2
+      responses:
+        '201':
+          description: Item berhasil ditambahkan ke cart.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCartItemActionEnvelope'
+              example:
+                success: true
+                message: "item added to cart"
+                data:
+                  cart_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  item_id: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal, variant tidak aktif, atau product tidak available).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingVariantId:
+                  summary: Product variant ID wajib diisi
+                  value:
+                    success: false
+                    message: "validation failed"
+                    data: null
+                    errors: "Key: 'AddCartItemRequest.ProductVariantID' Error:Field validation for 'ProductVariantID' failed on the 'required' tag"
+                    meta: null
+                invalidQty:
+                  summary: Qty harus minimal 1
+                  value:
+                    success: false
+                    message: "validation failed"
+                    data: null
+                    errors: "Key: 'AddCartItemRequest.Qty' Error:Field validation for 'Qty' failed on the 'min' tag"
+                    meta: null
+                variantNotActive:
+                  summary: Variant tidak aktif
+                  value:
+                    success: false
+                    message: "product variant is not active"
+                    data: null
+                    errors: null
+                    meta: null
+                productNotAvailable:
+                  summary: Product tidak tersedia (bukan status published)
+                  value:
+                    success: false
+                    message: "product is not available"
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Product variant tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "product variant not found"
+                data: null
+                errors: null
+                meta: null
+        '409':
+          description: Stok tidak mencukupi untuk jumlah yang diminta.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient stock for requested quantity"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "an unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/cart/items/{itemId}:
+    patch:
+      tags:
+        - Cart
+      summary: Update jumlah item di cart
+      description: |
+        Mengubah jumlah (qty) dari item yang ada di keranjang belanja.
+        Qty yang diberikan akan menggantikan qty lama (bukan increment).
+
+        **Validasi:**
+        - Item harus ada di cart.
+        - Item harus milik cart user yang sedang login.
+        - Qty baru tidak boleh melebihi `stock_on_hand` variant.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Hanya user dengan role `customer` yang diizinkan.
+      operationId: updateCartItem
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          description: UUID dari cart item yang akan diupdate.
+          schema:
+            type: string
+            format: uuid
+          example: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCartItemRequest'
+            example:
+              qty: 5
+      responses:
+        '200':
+          description: Qty item berhasil diupdate.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCartItemActionEnvelope'
+              example:
+                success: true
+                message: "cart item updated"
+                data:
+                  cart_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  item_id: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal atau item ID bukan UUID).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidItemId:
+                  summary: Item ID bukan UUID valid
+                  value:
+                    success: false
+                    message: "invalid item ID"
+                    data: null
+                    errors: "itemId must be a valid UUID"
+                    meta: null
+                invalidQty:
+                  summary: Qty harus minimal 1
+                  value:
+                    success: false
+                    message: "validation failed"
+                    data: null
+                    errors: "Key: 'UpdateCartItemRequest.Qty' Error:Field validation for 'Qty' failed on the 'min' tag"
+                    meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki akses — bukan customer atau item bukan milik cart user ini.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                insufficientPermissions:
+                  summary: Bukan role customer
+                  value:
+                    success: false
+                    message: "insufficient permissions"
+                    data: null
+                    errors: null
+                    meta: null
+                itemNotOwned:
+                  summary: Item bukan milik cart user ini
+                  value:
+                    success: false
+                    message: "cart item does not belong to your cart"
+                    data: null
+                    errors: null
+                    meta: null
+        '404':
+          description: Cart item atau product variant tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                itemNotFound:
+                  summary: Cart item tidak ditemukan
+                  value:
+                    success: false
+                    message: "cart item not found"
+                    data: null
+                    errors: null
+                    meta: null
+                variantNotFound:
+                  summary: Product variant tidak ditemukan
+                  value:
+                    success: false
+                    message: "product variant not found"
+                    data: null
+                    errors: null
+                    meta: null
+        '409':
+          description: Stok tidak mencukupi untuk jumlah yang diminta.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient stock for requested quantity"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "an unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
+    delete:
+      tags:
+        - Cart
+      summary: Hapus item dari cart
+      description: |
+        Menghapus satu item dari keranjang belanja customer.
+
+        **Validasi:**
+        - Item harus ada di cart.
+        - Item harus milik cart user yang sedang login.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Hanya user dengan role `customer` yang diizinkan.
+      operationId: removeCartItem
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          description: UUID dari cart item yang akan dihapus.
+          schema:
+            type: string
+            format: uuid
+          example: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+      responses:
+        '200':
+          description: Item berhasil dihapus dari cart.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNullDataEnvelope'
+              example:
+                success: true
+                message: "item removed from cart"
+                data: null
+                errors: null
+                meta: null
+        '400':
+          description: Item ID bukan UUID valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "invalid item ID"
+                data: null
+                errors: "itemId must be a valid UUID"
+                meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki akses — bukan customer atau item bukan milik cart user ini.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                insufficientPermissions:
+                  summary: Bukan role customer
+                  value:
+                    success: false
+                    message: "insufficient permissions"
+                    data: null
+                    errors: null
+                    meta: null
+                itemNotOwned:
+                  summary: Item bukan milik cart user ini
+                  value:
+                    success: false
+                    message: "cart item does not belong to your cart"
+                    data: null
+                    errors: null
+                    meta: null
+        '404':
+          description: Cart item tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "cart item not found"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "an unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token yang didapat dari endpoint login.
+
+  headers:
+    RequestIDHeader:
+      description: Unique request ID untuk tracing dan debugging.
+      schema:
+        type: string
+        format: uuid
+      example: 550e8400-e29b-41d4-a716-446655440000
+
+  schemas:
+    # ──────────── Request Schemas ────────────
+
+    AddCartItemRequest:
+      type: object
+      required:
+        - product_variant_id
+        - qty
+      properties:
+        product_variant_id:
+          type: string
+          format: uuid
+          description: ID product variant yang ingin ditambahkan ke cart.
+          example: 11111111-2222-3333-4444-555555555555
+        qty:
+          type: integer
+          minimum: 1
+          description: Jumlah item yang ingin ditambahkan.
+          example: 2
+
+    UpdateCartItemRequest:
+      type: object
+      required:
+        - qty
+      properties:
+        qty:
+          type: integer
+          minimum: 1
+          description: Jumlah baru untuk item ini (menggantikan qty lama).
+          example: 5
+
+    # ──────────── Response Data Schemas ────────────
+
+    CartItemResponseData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID cart item.
+          example: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+        product_variant_id:
+          type: string
+          format: uuid
+          description: ID product variant.
+          example: 11111111-2222-3333-4444-555555555555
+        variant_name:
+          type: string
+          description: Nama variant.
+          example: Default
+        sku:
+          type: string
+          description: SKU variant.
+          example: TOKOH-SAJAD000-00
+        product_id:
+          type: string
+          format: uuid
+          description: ID product.
+          example: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+        product_name:
+          type: string
+          description: Nama product.
+          example: Sajadah Premium Madinah
+        product_slug:
+          type: string
+          description: Slug product.
+          example: sajadah-premium-madinah
+        image_url:
+          type: string
+          nullable: true
+          description: URL gambar utama product (null jika tidak ada).
+          example: products/aaaaaaaa/images/img001/photo.jpg
+        price:
+          type: number
+          format: double
+          description: Harga live per unit dari product variant (bukan snapshot).
+          example: 150000
+        currency:
+          type: string
+          description: Mata uang harga.
+          example: IDR
+        qty:
+          type: integer
+          description: Jumlah item di cart.
+          example: 2
+        subtotal:
+          type: number
+          format: double
+          description: "Subtotal item (price × qty)."
+          example: 300000
+        stock_on_hand:
+          type: integer
+          description: Stok tersedia saat ini.
+          example: 100
+        is_available:
+          type: boolean
+          description: "Apakah item bisa di-checkout (variant aktif DAN product published)."
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          description: Waktu item ditambahkan ke cart.
+          example: "2026-02-18T10:00:00Z"
+
+    GetCartResponseData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID cart.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        status:
+          type: string
+          enum: [active, converted, abandoned]
+          description: Status cart.
+          example: active
+        items:
+          type: array
+          description: Daftar item di cart dengan data product yang diperkaya.
+          items:
+            $ref: '#/components/schemas/CartItemResponseData'
+        item_count:
+          type: integer
+          description: Jumlah item di cart.
+          example: 1
+        total:
+          type: number
+          format: double
+          description: Total harga dari item yang available saja.
+          example: 300000
+        currency:
+          type: string
+          description: Mata uang total.
+          example: IDR
+        updated_at:
+          type: string
+          format: date-time
+          description: Waktu update terakhir pada cart.
+          example: "2026-02-18T10:05:00Z"
+
+    CartItemActionResponseData:
+      type: object
+      properties:
+        cart_id:
+          type: string
+          format: uuid
+          description: ID cart.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        item_id:
+          type: string
+          format: uuid
+          description: ID cart item.
+          example: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+
+    # ──────────── Envelope Schemas ────────────
+
+    SuccessGetCartEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "cart retrieved successfully"
+        data:
+          $ref: '#/components/schemas/GetCartResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCartItemActionEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "item added to cart"
+        data:
+          $ref: '#/components/schemas/CartItemActionResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessNullDataEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "cart cleared"
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: Pesan error.
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          description: Detail error tambahan (biasanya string validasi error).
+        meta:
+          nullable: true
+          example: null
