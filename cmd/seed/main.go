@@ -117,6 +117,16 @@ func main() {
 
 	log.Println("all users seeded successfully")
 	log.Printf("dev credentials (non-admin): password = %s", devPassword)
+
+	// Find the CS user to use as creator for reply templates
+	var csUser User
+	if err := db.Where("lower(email) = lower(?)", "cs@dev.local").First(&csUser).Error; err != nil {
+		log.Fatalf("failed to find CS user for reply template seeder: %v", err)
+	}
+
+	if err := SeedReplyTemplates(db, csUser.ID); err != nil {
+		log.Fatalf("failed to seed reply templates: %v", err)
+	}
 }
 
 func seedUserRecord(db *gorm.DB, u seedUser) error {

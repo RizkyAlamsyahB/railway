@@ -30,7 +30,7 @@ db-setup: db-create migrate-up
 
 ## seed: Seed the admin user from ADMIN_* environment variables
 seed: migrate-up
-	go run cmd/seed/main.go
+	go run ./cmd/seed/...
 
 ## migrate-up: Run all pending database migrations
 migrate-up:
