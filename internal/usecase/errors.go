@@ -16,6 +16,7 @@ const (
 var (
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrNotAdmin           = errors.New("user does not have admin access")
+	ErrNotCS              = errors.New("user does not have customer service access")
 	ErrAccountInactive    = errors.New("account is not active")
 )
 
@@ -81,4 +82,24 @@ var (
 	ErrVariantNotActive    = errors.New("product variant is not active")
 	ErrProductNotAvailable = errors.New("product is not available")
 	ErrInsufficientStock   = errors.New("insufficient stock")
+)
+
+// --- CS errors ---
+
+var (
+	ErrTicketNotFound           = errors.New("ticket not found")
+	ErrConversationNotFound     = errors.New("conversation not found")
+	ErrConversationNotAllowed   = errors.New("chat between these roles is not allowed")
+	ErrConversationUnauthorized = errors.New("you are not a participant of this conversation")
+	ErrReplyTemplateNotFound    = errors.New("reply template not found")
+	ErrCSUserNotFound           = errors.New("user not found")
+
+	// ticket attachment
+	ErrInvalidAttachmentContentType = errors.New("invalid attachment content type; allowed: image/png, image/jpeg, video/mp4")
+	ErrAttachmentTooLarge           = errors.New("attachment exceeds maximum size of 5 MB")
+	ErrAttachmentNotUploaded        = errors.New("attachment not found in storage; upload it first")
+
+	// reply template
+	ErrInvalidReplyTemplateCategory = errors.New("invalid reply template category")
+	ErrShortcutAlreadyExists        = errors.New("shortcut already exists")
 )

@@ -8,6 +8,7 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/config"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/handler"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/router"
+	ws "github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/websocket"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/database"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/email"
@@ -98,8 +99,33 @@ func Initialize() (*App, error) {
 	cartUseCase := usecase.NewCartUseCase(cartRepo, productRepo, storageProvider)
 	cartHandler := handler.NewCartHandler(cartUseCase)
 
+	// CS auth feature
+	csAuthUseCase := usecase.NewCSAuthUseCase(userRepo, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
+	csLoginHandler := handler.NewCSLoginHandler(csAuthUseCase)
+
+	// CS module
+	ticketRepo := repository.NewTicketRepository(db)
+	chatRepo := repository.NewChatRepository(db)
+	replyTemplateRepo := repository.NewReplyTemplateRepository(db)
+
+	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, storageProvider)
+	chatUseCase := usecase.NewChatUseCase(chatRepo, userRepo)
+	replyTemplateUseCase := usecase.NewReplyTemplateUseCase(replyTemplateRepo)
+	csDashboardUseCase := usecase.NewCSDashboardUseCase(ticketRepo, chatRepo)
+	csUserUseCase := usecase.NewCSUserUseCase(userRepo, ticketRepo)
+
+	// WebSocket Hub (runs in background goroutine)
+	hub := ws.NewHub()
+	wsHandler := ws.NewHandler(hub, cfg.JWT.Secret)
+
+	ticketHandler := handler.NewTicketHandler(ticketUseCase)
+	chatHandler := handler.NewChatHandler(chatUseCase, hub)
+	replyTemplateHandler := handler.NewReplyTemplateHandler(replyTemplateUseCase)
+	csDashboardHandler := handler.NewCSDashboardHandler(csDashboardUseCase)
+	csUserHandler := handler.NewCSUserHandler(csUserUseCase, ticketUseCase)
+
 	// Setup router
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, wsHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:  cfg,
