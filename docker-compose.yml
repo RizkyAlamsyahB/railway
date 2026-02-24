@@ -6,35 +6,29 @@ services:
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-      - --entrypoints.postgres.address=:5432
       - --api.dashboard=true
     ports:
       - "80:80"
       - "443:443"
-      - "5432:5432"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
   postgres:
     image: postgres:17-alpine
+    ports:
+      - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: haji_umroh_store
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    labels:
-      - traefik.enable=true
-      - traefik.tcp.routers.postgres.rule=Host(`${TRAEFIK_POSTGRES_DOMAIN}`)
-      - traefik.tcp.routers.postgres.entrypoints=postgres
-      - traefik.tcp.routers.postgres.service=postgres-svc
-      - traefik.tcp.services.postgres-svc.loadbalancer.server.port=5432
 
   migrate:
     image: migrate/migrate:v4.18.3
@@ -46,7 +40,7 @@ services:
     command:
       [
         "-path", "/migrations",
-        "-database", "postgres://postgres:postgres@postgres:5432/haji_umroh_store?sslmode=disable",
+        "-database", "postgres://${DB_USER}:${DB_PASSWORD}@postgres:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}",
         "up"
       ]
     restart: on-failure
