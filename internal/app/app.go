@@ -98,8 +98,13 @@ func Initialize() (*App, error) {
 	cartUseCase := usecase.NewCartUseCase(cartRepo, productRepo, storageProvider)
 	cartHandler := handler.NewCartHandler(cartUseCase)
 
+	// Finance feature
+	financeRepo := repository.NewFinanceRepository(db)
+	financeUseCase := usecase.NewFinanceUseCase(financeRepo)
+	financeHandler := handler.NewFinanceHandler(financeUseCase)
+
 	// Setup router
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, financeHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:  cfg,

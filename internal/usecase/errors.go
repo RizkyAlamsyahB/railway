@@ -82,3 +82,15 @@ var (
 	ErrProductNotAvailable = errors.New("product is not available")
 	ErrInsufficientStock   = errors.New("insufficient stock")
 )
+
+// --- Finance errors ---
+
+var (
+	ErrInvalidMonth            = errors.New("invalid month format, expected YYYY-MM")
+	ErrInvalidPaymentStatus    = errors.New("invalid payment status")
+	ErrInvalidRefundStatus     = errors.New("invalid refund status")
+	ErrInvalidPayoutStatus     = errors.New("invalid payout status")
+	ErrInvalidRefundTransition = errors.New("invalid refund status transition")
+	ErrRefundNotFound          = errors.New("refund not found")
+	ErrPayoutNotFound          = errors.New("payout batch not found")
+)

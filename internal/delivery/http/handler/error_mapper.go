@@ -76,6 +76,15 @@ var errorRules = []errorRule{
 	{usecase.ErrVariantNotActive, http.StatusBadRequest, "product variant is not active"},
 	{usecase.ErrProductNotAvailable, http.StatusBadRequest, "product is not available"},
 	{usecase.ErrInsufficientStock, http.StatusConflict, "insufficient stock for requested quantity"},
+
+	// Finance
+	{usecase.ErrInvalidMonth, http.StatusBadRequest, "invalid month format, expected YYYY-MM"},
+	{usecase.ErrInvalidPaymentStatus, http.StatusBadRequest, "invalid payment status"},
+	{usecase.ErrInvalidRefundStatus, http.StatusBadRequest, "invalid refund status"},
+	{usecase.ErrInvalidPayoutStatus, http.StatusBadRequest, "invalid payout status"},
+	{usecase.ErrInvalidRefundTransition, http.StatusBadRequest, "invalid refund status transition"},
+	{usecase.ErrRefundNotFound, http.StatusNotFound, "refund not found"},
+	{usecase.ErrPayoutNotFound, http.StatusNotFound, "payout batch not found"},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.

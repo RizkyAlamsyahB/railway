@@ -42,4 +42,5 @@ const (
 	RoleAdmin    = "admin"
 	RoleUMKM     = "umkm"
 	RoleCustomer = "customer"
+	RoleFinance  = "finance"
 )
