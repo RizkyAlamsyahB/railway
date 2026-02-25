@@ -99,6 +99,11 @@ var (
 	ErrAttachmentTooLarge           = errors.New("attachment exceeds maximum size of 5 MB")
 	ErrAttachmentNotUploaded        = errors.New("attachment not found in storage; upload it first")
 
+	// ticket ownership
+	ErrTicketAlreadyTaken     = errors.New("ticket is already assigned to another CS")
+	ErrTicketNotAssignedToYou = errors.New("only the assigned CS can perform this action")
+	ErrTicketClosed           = errors.New("ticket is already resolved or closed")
+
 	// reply template
 	ErrInvalidReplyTemplateCategory = errors.New("invalid reply template category")
 	ErrShortcutAlreadyExists        = errors.New("shortcut already exists")

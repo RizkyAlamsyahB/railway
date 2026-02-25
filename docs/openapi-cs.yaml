@@ -1,0 +1,873 @@
+openapi: 3.0.3
+info:
+  title: Haji Umroh Store BE - CS API
+  version: 1.0.0
+  description: |
+    Dokumentasi OpenAPI 3 untuk modul Customer Service: autentikasi CS dan manajemen Reply Template.
+
+    **Alur autentikasi:**
+    1. Login via `POST /api/v1/cs/login` → dapatkan `token`
+    2. Gunakan token sebagai `Authorization: Bearer <token>` untuk semua endpoint di bawah `/customer-service`
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: CS Authentication
+    description: Operasi autentikasi untuk akun Customer Service.
+  - name: Reply Template
+    description: Manajemen template balasan cepat untuk Customer Service. Membutuhkan autentikasi role `cs`.
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token yang didapat dari endpoint Login CS.
+
+  headers:
+    RequestIDHeader:
+      description: ID unik untuk setiap request, berguna untuk tracing.
+      schema:
+        type: string
+        example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+
+  schemas:
+    # ──────────── Request Schemas ────────────
+
+    CSLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Alamat email akun Customer Service.
+          example: cs@dev.local
+        password:
+          type: string
+          description: Password akun Customer Service.
+          example: Password123!
+
+    CreateReplyTemplateRequest:
+      type: object
+      required:
+        - title
+        - category
+        - sub_key
+        - content
+      properties:
+        title:
+          type: string
+          maxLength: 150
+          description: Judul template. Maksimal 150 karakter.
+          example: Konfirmasi Pesanan Diterima
+        category:
+          type: string
+          description: |
+            Kategori template. Nilai valid:
+            `general`, `order`, `payment`, `refund`, `shipping`, `product`, `account`,
+            `complaint`, `return`, `promo`, `voucher`, `technical`, `verification`,
+            `vendor`, `stock`, `cancellation`, `delivery`, `pickup`, `subscription`,
+            `review`, `fraud`, `other`
+          example: order
+          enum:
+            - general
+            - order
+            - payment
+            - refund
+            - shipping
+            - product
+            - account
+            - complaint
+            - return
+            - promo
+            - voucher
+            - technical
+            - verification
+            - vendor
+            - stock
+            - cancellation
+            - delivery
+            - pickup
+            - subscription
+            - review
+            - fraud
+            - other
+        sub_key:
+          type: string
+          description: |
+            Kunci sub-kategori. Akan di-normalize menjadi bagian dari `shortcut`.
+            Contoh: `"konfirmasi pesanan diterima"` → shortcut: `/order/konfirmasi-pesanan-diterima`
+          example: konfirmasi pesanan diterima
+        content:
+          type: string
+          description: |
+            Isi pesan template. Mendukung placeholder dinamis seperti `{order_number}`, `{customer_name}`, dll.
+          example: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}\nStatus: Menunggu Pembayaran\n\nSilakan selesaikan pembayaran sebelum {expired_at}."
+
+    UpdateReplyTemplateRequest:
+      type: object
+      description: Semua field bersifat opsional (partial update). `category` tidak dapat diubah setelah dibuat.
+      properties:
+        title:
+          type: string
+          maxLength: 150
+          description: Judul baru template.
+          example: Konfirmasi Pesanan Diterima (Revisi)
+        sub_key:
+          type: string
+          description: Jika diubah, `shortcut` akan otomatis di-recalculate.
+          example: order confirmed updated
+        content:
+          type: string
+          description: Isi pesan baru.
+          example: "Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅"
+        is_active:
+          type: boolean
+          description: Status aktif template.
+          example: true
+
+    # ──────────── Response Schemas ────────────
+
+    CSLoginResponseData:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT Bearer Token untuk autentikasi endpoint CS.
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user_id:
+          type: string
+          format: uuid
+          description: ID akun Customer Service.
+          example: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+        full_name:
+          type: string
+          description: Nama lengkap Customer Service.
+          example: Dev Customer Service
+        email:
+          type: string
+          format: email
+          description: Email akun Customer Service.
+          example: cs@dev.local
+
+    ReplyTemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID unik reply template.
+          example: 6f669159-9740-4cd2-be7d-de966969836f
+        title:
+          type: string
+          description: Judul template.
+          example: Konfirmasi Pesanan Diterima
+        shortcut:
+          type: string
+          description: Shortcut auto-generated dari category + sub_key. Format `/category/sub-key`.
+          example: /order/konfirmasi-pesanan-diterima
+        category:
+          type: string
+          description: Kategori template (immutable setelah dibuat).
+          example: order
+        content:
+          type: string
+          description: Isi pesan template.
+          example: "Alhamdulillah, pesanan Anda telah kami terima! ✅"
+        is_active:
+          type: boolean
+          description: Status aktif template.
+          example: true
+        created_by:
+          type: string
+          format: uuid
+          description: ID CS yang membuat template.
+          example: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID CS yang terakhir update template.
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-24T07:57:40.193Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-24T07:57:40.193Z"
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total_items:
+          type: integer
+          example: 59
+        total_pages:
+          type: integer
+          example: 6
+
+    # ──────────── Envelope Schemas ────────────
+
+    SuccessCSLoginEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: login successful
+        data:
+          $ref: '#/components/schemas/CSLoginResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCreateTemplateEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: template created
+        data:
+          $ref: '#/components/schemas/ReplyTemplateResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessGetTemplateEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: template retrieved
+        data:
+          $ref: '#/components/schemas/ReplyTemplateResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessUpdateTemplateEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: template updated
+        data:
+          $ref: '#/components/schemas/ReplyTemplateResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessListTemplatesEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: templates retrieved
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReplyTemplateResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    SuccessDeleteTemplateEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: template deleted
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: Pesan error.
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          description: Detail error tambahan.
+        meta:
+          nullable: true
+          example: null
+
+paths:
+  # ──────────── CS Authentication ────────────
+
+  /api/v1/cs/login:
+    post:
+      tags:
+        - CS Authentication
+      summary: Login CS
+      description: |
+        Login untuk akun Customer Service. Mengembalikan JWT Bearer Token yang digunakan untuk semua endpoint CS.
+
+        **Catatan:** Salin nilai `token` dari response ke header `Authorization: Bearer <token>`.
+      operationId: loginCS
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CSLoginRequest'
+            example:
+              email: cs@dev.local
+              password: Password123!
+      responses:
+        '200':
+          description: Login berhasil. Token JWT dikembalikan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCSLoginEnvelope'
+              example:
+                success: true
+                message: login successful
+                data:
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  user_id: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+                  full_name: Dev Customer Service
+                  email: cs@dev.local
+                errors: null
+                meta: null
+        '400':
+          description: Validasi request gagal (field kosong atau format tidak valid).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "Key: 'CSLoginRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
+                data: null
+                errors: null
+                meta: null
+        '401':
+          description: Email atau password salah.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid email or password
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Akun ditemukan tapi bukan role CS.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "access denied: cs only"
+                data: null
+                errors: null
+                meta: null
+
+  # ──────────── Reply Template ────────────
+
+  /api/v1/customer-service/reply-templates:
+    get:
+      tags:
+        - Reply Template
+      summary: List Reply Templates
+      description: |
+        Menampilkan daftar reply template dengan pagination, filter kategori, dan full-text search.
+
+        **Auth:** Bearer Token (Role: `cs`)
+      operationId: listReplyTemplates
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: "Nomor halaman (default: 1)."
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: limit
+          in: query
+          description: "Jumlah item per halaman (default: 10, maksimal: 100)."
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            example: 10
+        - name: category
+          in: query
+          description: |
+            Filter berdasarkan kategori. Nilai valid:
+            `general`, `order`, `payment`, `refund`, `shipping`, `product`, `account`,
+            `complaint`, `return`, `promo`, `voucher`, `technical`, `verification`,
+            `vendor`, `stock`, `cancellation`, `delivery`, `pickup`, `subscription`,
+            `review`, `fraud`, `other`
+          required: false
+          schema:
+            type: string
+            example: order
+        - name: q
+          in: query
+          description: Pencarian berdasarkan `title` atau `shortcut` (case-insensitive).
+          required: false
+          schema:
+            type: string
+            example: konfirmasi
+      responses:
+        '200':
+          description: Daftar template berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessListTemplatesEnvelope'
+              example:
+                success: true
+                message: templates retrieved
+                data:
+                  - id: 6f669159-9740-4cd2-be7d-de966969836f
+                    title: Konfirmasi Pesanan Diterima
+                    shortcut: /order/konfirmasi-pesanan-diterima
+                    category: order
+                    content: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}"
+                    is_active: true
+                    created_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+                    updated_by: null
+                    created_at: "2026-02-24T07:57:40.193Z"
+                    updated_at: "2026-02-24T07:57:40.193Z"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 1
+                  total_pages: 1
+        '401':
+          description: Token tidak valid atau tidak disertakan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: unauthorized
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Role tidak memiliki akses (bukan CS).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+
+    post:
+      tags:
+        - Reply Template
+      summary: Create Reply Template
+      description: |
+        Membuat reply template baru.
+
+        **Aturan shortcut auto-generate:**
+        - Format: `/{category}/{normalized_sub_key}`
+        - Normalisasi `sub_key`: lowercase, karakter non-alphanumeric diganti `-`, trim
+        - Contoh: `sub_key: "konfirmasi pesanan diterima"` → `shortcut: /order/konfirmasi-pesanan-diterima`
+        - Shortcut harus unik — jika sudah ada, akan dikembalikan error 409.
+
+        **Auth:** Bearer Token (Role: `cs`)
+      operationId: createReplyTemplate
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReplyTemplateRequest'
+            example:
+              title: Konfirmasi Pesanan Diterima
+              category: order
+              sub_key: konfirmasi pesanan diterima
+              content: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}\nStatus: Menunggu Pembayaran\n\nSilakan selesaikan pembayaran sebelum {expired_at}."
+      responses:
+        '201':
+          description: Template berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCreateTemplateEnvelope'
+              example:
+                success: true
+                message: template created
+                data:
+                  id: 6f669159-9740-4cd2-be7d-de966969836f
+                  title: Konfirmasi Pesanan Diterima
+                  shortcut: /order/konfirmasi-pesanan-diterima
+                  category: order
+                  content: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}"
+                  is_active: true
+                  created_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+                  updated_by: null
+                  created_at: "2026-02-24T08:00:00.000Z"
+                  updated_at: "2026-02-24T08:00:00.000Z"
+                errors: null
+                meta: null
+        '400':
+          description: Validasi request gagal (field wajib kosong atau terlalu panjang).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "Key: 'CreateReplyTemplateRequest.Title' Error:Field validation for 'Title' failed on the 'required' tag"
+                data: null
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak valid atau tidak disertakan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: unauthorized
+                data: null
+                errors: null
+                meta: null
+        '409':
+          description: Shortcut yang di-generate sudah digunakan oleh template lain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: shortcut already exists
+                data: null
+                errors: null
+                meta: null
+        '422':
+          description: Kategori tidak termasuk dalam daftar kategori yang valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid reply template category
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/customer-service/reply-templates/{id}:
+    get:
+      tags:
+        - Reply Template
+      summary: Get Reply Template by ID
+      description: |
+        Mendapatkan detail satu reply template berdasarkan UUID-nya.
+
+        **Auth:** Bearer Token (Role: `cs`)
+      operationId: getReplyTemplateByID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID reply template.
+          schema:
+            type: string
+            format: uuid
+            example: 6f669159-9740-4cd2-be7d-de966969836f
+      responses:
+        '200':
+          description: Detail template berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessGetTemplateEnvelope'
+              example:
+                success: true
+                message: template retrieved
+                data:
+                  id: 6f669159-9740-4cd2-be7d-de966969836f
+                  title: Konfirmasi Pesanan Diterima
+                  shortcut: /order/konfirmasi-pesanan-diterima
+                  category: order
+                  content: "Alhamdulillah, pesanan Anda telah kami terima! ✅"
+                  is_active: true
+                  created_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+                  updated_by: null
+                  created_at: "2026-02-24T07:57:40.193Z"
+                  updated_at: "2026-02-24T07:57:40.193Z"
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak valid atau tidak disertakan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: unauthorized
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Template dengan ID tersebut tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: reply template not found
+                data: null
+                errors: null
+                meta: null
+
+    put:
+      tags:
+        - Reply Template
+      summary: Update Reply Template
+      description: |
+        Update reply template secara partial. Semua field opsional.
+
+        **Aturan penting:**
+        - `category` **tidak dapat diubah** setelah template dibuat (immutable).
+        - Jika `sub_key` diubah, `shortcut` akan otomatis di-recalculate menggunakan category lama + sub_key baru.
+        - Jika shortcut hasil recalculate sudah digunakan template lain → 409 Conflict.
+
+        **Auth:** Bearer Token (Role: `cs`)
+      operationId: updateReplyTemplate
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID reply template yang akan diupdate.
+          schema:
+            type: string
+            format: uuid
+            example: 6f669159-9740-4cd2-be7d-de966969836f
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReplyTemplateRequest'
+            example:
+              title: Konfirmasi Pesanan Diterima (Revisi)
+              sub_key: order confirmed updated
+              content: "Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅"
+              is_active: true
+      responses:
+        '200':
+          description: Template berhasil diupdate.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessUpdateTemplateEnvelope'
+              example:
+                success: true
+                message: template updated
+                data:
+                  id: 6f669159-9740-4cd2-be7d-de966969836f
+                  title: Konfirmasi Pesanan Diterima (Revisi)
+                  shortcut: /order/order-confirmed-updated
+                  category: order
+                  content: "Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅"
+                  is_active: true
+                  created_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+                  updated_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+                  created_at: "2026-02-24T07:57:40.193Z"
+                  updated_at: "2026-02-24T09:00:00.000Z"
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak valid atau tidak disertakan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: unauthorized
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Template dengan ID tersebut tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: reply template not found
+                data: null
+                errors: null
+                meta: null
+        '409':
+          description: Shortcut hasil recalculate sudah digunakan template lain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: shortcut already exists
+                data: null
+                errors: null
+                meta: null
+
+    delete:
+      tags:
+        - Reply Template
+      summary: Delete Reply Template
+      description: |
+        Menghapus reply template secara permanen berdasarkan UUID-nya.
+
+        **Auth:** Bearer Token (Role: `cs`)
+      operationId: deleteReplyTemplate
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID reply template yang akan dihapus.
+          schema:
+            type: string
+            format: uuid
+            example: 6f669159-9740-4cd2-be7d-de966969836f
+      responses:
+        '200':
+          description: Template berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessDeleteTemplateEnvelope'
+              example:
+                success: true
+                message: template deleted
+                data: null
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak valid atau tidak disertakan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: unauthorized
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Template dengan ID tersebut tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: reply template not found
+                data: null
+                errors: null
+                meta: null

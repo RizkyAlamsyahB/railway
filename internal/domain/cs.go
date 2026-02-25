@@ -29,6 +29,10 @@ type Ticket struct {
 	ClosedAt              *time.Time `json:"closed_at"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
+
+	// Joined fields (not persisted directly on tickets table)
+	CustomerEmail  string  `json:"-" gorm:"-"`
+	AssignedCSName *string `json:"-" gorm:"-"`
 }
 
 type TicketMessage struct {
@@ -128,10 +132,6 @@ type UpdateTicketStatusRequest struct {
 	Notes  *string `json:"notes"`
 }
 
-type AssignTicketRequest struct {
-	AssignedCSID uuid.UUID `json:"assigned_cs_id" binding:"required"`
-}
-
 type AddTicketMessageRequest struct {
 	Message        string `json:"message"          binding:"required"`
 	IsInternalNote bool   `json:"is_internal_note"`
@@ -149,7 +149,9 @@ type TicketResponse struct {
 	ID                    uuid.UUID  `json:"id"`
 	TicketNumber          string     `json:"ticket_number"`
 	CustomerID            uuid.UUID  `json:"customer_id"`
+	CustomerEmail         string     `json:"customer_email"`
 	AssignedCSID          *uuid.UUID `json:"assigned_cs_id"`
+	AssignedCSName        *string    `json:"assigned_cs_name"`
 	OrderNumber           string     `json:"order_number"`
 	Phone                 string     `json:"phone"`
 	ReporterName          string     `json:"reporter_name"`
@@ -392,11 +394,11 @@ type TicketUseCase interface {
 	ListTickets(ctx context.Context, params TicketListParams) ([]TicketResponse, *PaginationMeta, error)
 	// CS / Customer: detail tiket
 	GetTicket(ctx context.Context, id uuid.UUID) (*TicketResponse, error)
-	// CS: update status
+	// CS: ambil tiket (self-assign, first-come-first-served)
+	TakeTicket(ctx context.Context, csID, ticketID uuid.UUID) (*TicketResponse, error)
+	// CS: update status (hanya CS pemilik tiket)
 	UpdateTicketStatus(ctx context.Context, csID, ticketID uuid.UUID, req UpdateTicketStatusRequest) (*TicketResponse, error)
-	// CS: assign / re-assign
-	AssignTicket(ctx context.Context, csID, ticketID uuid.UUID, req AssignTicketRequest) (*TicketResponse, error)
-	// CS / Customer: tambah pesan
+	// CS: tambah pesan + kirim email ke customer (hanya CS pemilik tiket)
 	AddTicketMessage(ctx context.Context, senderID uuid.UUID, isCS bool, ticketID uuid.UUID, req AddTicketMessageRequest) (*TicketMessageResponse, error)
 	// CS: list pesan tiket
 	ListTicketMessages(ctx context.Context, ticketID uuid.UUID) ([]TicketMessageResponse, error)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,11 +15,13 @@ import (
 
 type ticketUseCase struct {
 	ticketRepo domain.TicketRepository
+	userRepo   domain.UserRepository
+	email      domain.EmailProvider
 	storage    domain.StorageProvider
 }
 
-func NewTicketUseCase(ticketRepo domain.TicketRepository, storage domain.StorageProvider) domain.TicketUseCase {
-	return &ticketUseCase{ticketRepo: ticketRepo, storage: storage}
+func NewTicketUseCase(ticketRepo domain.TicketRepository, userRepo domain.UserRepository, email domain.EmailProvider, storage domain.StorageProvider) domain.TicketUseCase {
+	return &ticketUseCase{ticketRepo: ticketRepo, userRepo: userRepo, email: email, storage: storage}
 }
 
 // generateTicketNumber creates a ticket number in format TKT-YYYYMMDD-NNNN.
@@ -107,6 +111,7 @@ func (uc *ticketUseCase) ListTickets(ctx context.Context, params domain.TicketLi
 	}
 	resp := make([]domain.TicketResponse, len(tickets))
 	for i, t := range tickets {
+		uc.enrichTicket(ctx, &t)
 		resp[i] = *toTicketResponse(t)
 	}
 	return resp, meta, nil
@@ -120,6 +125,52 @@ func (uc *ticketUseCase) GetTicket(ctx context.Context, id uuid.UUID) (*domain.T
 		}
 		return nil, fmt.Errorf("failed to get ticket: %w", err)
 	}
+	uc.enrichTicket(ctx, t)
+	return toTicketResponse(*t), nil
+}
+
+// TakeTicket lets a CS self-assign an open/unassigned ticket (first-come-first-served).
+func (uc *ticketUseCase) TakeTicket(ctx context.Context, csID, ticketID uuid.UUID) (*domain.TicketResponse, error) {
+	t, err := uc.ticketRepo.FindByID(ctx, ticketID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTicketNotFound
+		}
+		return nil, fmt.Errorf("failed to find ticket: %w", err)
+	}
+
+	// Already resolved or closed → read-only
+	if t.Status == domain.TicketStatusResolved || t.Status == domain.TicketStatusClosed {
+		return nil, ErrTicketClosed
+	}
+
+	// Already assigned to someone else → reject
+	if t.AssignedCSID != nil && *t.AssignedCSID != csID {
+		return nil, ErrTicketAlreadyTaken
+	}
+
+	now := time.Now()
+	t.AssignedCSID = &csID
+	t.Status = domain.TicketStatusOnProgress
+	t.UpdatedAt = now
+
+	if err := uc.ticketRepo.Update(ctx, t); err != nil {
+		return nil, fmt.Errorf("failed to take ticket: %w", err)
+	}
+
+	// Log status change
+	oldStatus := domain.TicketStatusOpen
+	statusLog := &domain.TicketStatusLog{
+		ID:        uuid.New(),
+		TicketID:  ticketID,
+		ChangedBy: csID,
+		OldStatus: &oldStatus,
+		NewStatus: domain.TicketStatusOnProgress,
+		CreatedAt: now,
+	}
+	_ = uc.ticketRepo.CreateStatusLog(ctx, statusLog)
+
+	uc.enrichTicket(ctx, t)
 	return toTicketResponse(*t), nil
 }
 
@@ -130,6 +181,16 @@ func (uc *ticketUseCase) UpdateTicketStatus(ctx context.Context, csID, ticketID 
 			return nil, ErrTicketNotFound
 		}
 		return nil, fmt.Errorf("failed to find ticket: %w", err)
+	}
+
+	// Only the assigned CS can change status
+	if t.AssignedCSID == nil || *t.AssignedCSID != csID {
+		return nil, ErrTicketNotAssignedToYou
+	}
+
+	// Already resolved or closed → no further status changes
+	if t.Status == domain.TicketStatusResolved || t.Status == domain.TicketStatusClosed {
+		return nil, ErrTicketClosed
 	}
 
 	oldStatus := t.Status
@@ -148,7 +209,7 @@ func (uc *ticketUseCase) UpdateTicketStatus(ctx context.Context, csID, ticketID 
 		return nil, fmt.Errorf("failed to update ticket: %w", err)
 	}
 
-	log := &domain.TicketStatusLog{
+	statusLog := &domain.TicketStatusLog{
 		ID:        uuid.New(),
 		TicketID:  ticketID,
 		ChangedBy: csID,
@@ -157,12 +218,13 @@ func (uc *ticketUseCase) UpdateTicketStatus(ctx context.Context, csID, ticketID 
 		Notes:     req.Notes,
 		CreatedAt: now,
 	}
-	_ = uc.ticketRepo.CreateStatusLog(ctx, log)
+	_ = uc.ticketRepo.CreateStatusLog(ctx, statusLog)
 
+	uc.enrichTicket(ctx, t)
 	return toTicketResponse(*t), nil
 }
 
-func (uc *ticketUseCase) AssignTicket(ctx context.Context, csID, ticketID uuid.UUID, req domain.AssignTicketRequest) (*domain.TicketResponse, error) {
+func (uc *ticketUseCase) AddTicketMessage(ctx context.Context, senderID uuid.UUID, isCS bool, ticketID uuid.UUID, req domain.AddTicketMessageRequest) (*domain.TicketMessageResponse, error) {
 	t, err := uc.ticketRepo.FindByID(ctx, ticketID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -171,23 +233,16 @@ func (uc *ticketUseCase) AssignTicket(ctx context.Context, csID, ticketID uuid.U
 		return nil, fmt.Errorf("failed to find ticket: %w", err)
 	}
 
-	t.AssignedCSID = &req.AssignedCSID
-	t.UpdatedAt = time.Now()
-
-	if err := uc.ticketRepo.Update(ctx, t); err != nil {
-		return nil, fmt.Errorf("failed to assign ticket: %w", err)
+	// Only the assigned CS can send messages on this ticket
+	if isCS {
+		if t.AssignedCSID == nil || *t.AssignedCSID != senderID {
+			return nil, ErrTicketNotAssignedToYou
+		}
 	}
 
-	return toTicketResponse(*t), nil
-}
-
-func (uc *ticketUseCase) AddTicketMessage(ctx context.Context, senderID uuid.UUID, isCS bool, ticketID uuid.UUID, req domain.AddTicketMessageRequest) (*domain.TicketMessageResponse, error) {
-	_, err := uc.ticketRepo.FindByID(ctx, ticketID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrTicketNotFound
-		}
-		return nil, fmt.Errorf("failed to find ticket: %w", err)
+	// Resolved or closed tickets are read-only
+	if t.Status == domain.TicketStatusResolved || t.Status == domain.TicketStatusClosed {
+		return nil, ErrTicketClosed
 	}
 
 	msg := &domain.TicketMessage{
@@ -202,6 +257,11 @@ func (uc *ticketUseCase) AddTicketMessage(ctx context.Context, senderID uuid.UUI
 
 	if err := uc.ticketRepo.CreateMessage(ctx, msg); err != nil {
 		return nil, fmt.Errorf("failed to add message: %w", err)
+	}
+
+	// Send email to customer (non-blocking, best-effort)
+	if isCS && !req.IsInternalNote {
+		go uc.sendTicketReplyEmail(t, req.Message)
 	}
 
 	return toTicketMessageResponse(*msg), nil
@@ -226,4 +286,93 @@ func (uc *ticketUseCase) ListTicketMessages(ctx context.Context, ticketID uuid.U
 		resp[i] = *toTicketMessageResponse(m)
 	}
 	return resp, nil
+}
+
+// ============================================================
+// Private helpers
+// ============================================================
+
+// enrichTicket populates joined fields (CustomerEmail, AssignedCSName) by
+// looking up the related users. Errors are swallowed — the fields will simply
+// remain zero-valued if the lookup fails.
+func (uc *ticketUseCase) enrichTicket(ctx context.Context, t *domain.Ticket) {
+	if customer, err := uc.userRepo.FindByID(ctx, t.CustomerID); err == nil {
+		t.CustomerEmail = customer.Email
+	}
+	if t.AssignedCSID != nil {
+		if cs, err := uc.userRepo.FindByID(ctx, *t.AssignedCSID); err == nil {
+			t.AssignedCSName = &cs.FullName
+		}
+	}
+}
+
+// sendTicketReplyEmail sends the CS reply to the customer's email via SMTP.
+// It runs in a background goroutine and logs errors rather than propagating them.
+func (uc *ticketUseCase) sendTicketReplyEmail(t *domain.Ticket, message string) {
+	// Look up customer email
+	customer, err := uc.userRepo.FindByID(context.Background(), t.CustomerID)
+	if err != nil {
+		log.Printf("[ticket-email] failed to find customer %s: %v", t.CustomerID, err)
+		return
+	}
+
+	// Replace template placeholders with actual ticket/customer data
+	message = resolveTemplatePlaceholders(message, t, customer)
+
+	subject := fmt.Sprintf("Balasan Tiket %s — %s", t.TicketNumber, t.Subject)
+	body := fmt.Sprintf(`<html><body>
+<p>Assalamu'alaikum <strong>%s</strong>,</p>
+<p>Berikut balasan dari tim Customer Service kami untuk tiket <strong>%s</strong>:</p>
+<hr/>
+<div style="padding:12px;background:#f9f6f0;border-left:4px solid #d4a853;margin:16px 0;white-space:pre-wrap;">%s</div>
+<hr/>
+<p><em>Pesan ini dikirim otomatis dari sistem Haji &amp; Umrah Store. Anda dapat membalas langsung ke email ini untuk melanjutkan percakapan.</em></p>
+<p>Jazakumullahu khairan,<br/>Tim Customer Service<br/>Haji &amp; Umrah Store</p>
+</body></html>`, customer.FullName, t.TicketNumber, message)
+
+	emailMsg := domain.EmailMessage{
+		To:      []string{customer.Email},
+		Subject: subject,
+		Body:    body,
+		IsHTML:  true,
+	}
+
+	if err := uc.email.Send(context.Background(), emailMsg); err != nil {
+		log.Printf("[ticket-email] failed to send email for ticket %s to %s: %v", t.TicketNumber, customer.Email, err)
+	} else {
+		log.Printf("[ticket-email] email sent for ticket %s to %s", t.TicketNumber, customer.Email)
+	}
+}
+
+// resolveTemplatePlaceholders replaces {variable} placeholders in a reply
+// template message with actual data from the ticket and customer.
+// Unknown placeholders (e.g. {tracking_number} when no shipping data exists)
+// are left as-is so CS can manually fill them before sending, or they serve
+// as a visual cue that the data wasn't available.
+func resolveTemplatePlaceholders(message string, t *domain.Ticket, customer *domain.User) string {
+	replacements := map[string]string{
+		// Ticket data
+		"{ticket_number}": t.TicketNumber,
+		"{order_number}":  t.OrderNumber,
+		"{subject}":       t.Subject,
+		"{detail}":        t.Detail,
+		"{status}":        t.Status,
+		"{source}":        t.Source,
+		"{phone}":         t.Phone,
+
+		// Customer data
+		"{customer_name}":  customer.FullName,
+		"{customer_email}": customer.Email,
+		"{reporter_name}":  t.ReporterName,
+	}
+
+	// Add customer phone if available
+	if customer.Phone != nil {
+		replacements["{customer_phone}"] = *customer.Phone
+	}
+
+	for placeholder, value := range replacements {
+		message = strings.ReplaceAll(message, placeholder, value)
+	}
+	return message
 }
