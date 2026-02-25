@@ -7,6 +7,8 @@ servers:
   - url: http://localhost:8080
     description: Local development server
 tags:
+  - name: Finance Auth
+    description: Autentikasi untuk role finance.
   - name: Finance Dashboard
     description: Ringkasan metrik keuangan dan transaksi hari ini.
   - name: Finance Transactions
@@ -18,6 +20,61 @@ tags:
 security:
   - BearerAuth: []
 paths:
+  /api/v1/users/login:
+    post:
+      tags:
+        - Finance Auth
+      summary: Login finance
+      description: |
+        Autentikasi user dengan role `finance` menggunakan endpoint user login.
+        Mengembalikan JWT token dan data user.
+      operationId: loginFinance
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+            example:
+              email: finance@dev.local
+              password: Password123!
+      responses:
+        '200':
+          description: Login berhasil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessUserLoginEnvelope'
+              example:
+                success: true
+                message: login successful
+                data:
+                  token: <JWT_TOKEN>
+                  user:
+                    id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                    email: finance@dev.local
+                    full_name: Dev Finance
+                    birth_date: null
+                    phone: "081200000004"
+                    status: active
+                    email_verified_at: "2026-02-10T10:20:30Z"
+                    role: finance
+                    created_at: "2026-02-10T10:20:30Z"
+                    updated_at: "2026-02-10T10:20:30Z"
+                errors: null
+                meta: null
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
   /api/v1/finance/dashboard:
     get:
       tags:
@@ -588,6 +645,90 @@ components:
             - failed
             - expired
             - refunded
+    UserLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: finance@dev.local
+        password:
+          type: string
+          example: Password123!
+    UserLoginResponse:
+      type: object
+      required:
+        - token
+        - user
+      properties:
+        token:
+          type: string
+          example: <JWT_TOKEN>
+        user:
+          $ref: '#/components/schemas/UserResponse'
+    UserResponse:
+      type: object
+      required:
+        - id
+        - email
+        - full_name
+        - status
+        - role
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+        email:
+          type: string
+          format: email
+          example: finance@dev.local
+        full_name:
+          type: string
+          example: Dev Finance
+        birth_date:
+          type: string
+          format: date-time
+          nullable: true
+          example: "1990-05-12T00:00:00Z"
+        phone:
+          type: string
+          nullable: true
+          example: "081200000004"
+        status:
+          type: string
+          enum:
+            - pending
+            - active
+            - blocked
+          example: active
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-10T10:20:30Z"
+        role:
+          type: string
+          enum:
+            - admin
+            - umkm
+            - customer
+            - cs
+            - finance
+          example: finance
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T10:20:30Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T10:20:30Z"
     FinancePayoutItem:
       type: object
       required:
@@ -760,6 +901,29 @@ components:
           nullable: true
         meta:
           nullable: true
+    SuccessUserLoginEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: login successful
+        data:
+          $ref: '#/components/schemas/UserLoginResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
     SuccessFinanceTransactionListEnvelope:
       type: object
       required:
