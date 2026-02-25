@@ -87,9 +87,9 @@ func (h *TicketHandler) UpdateTicketStatus(c *gin.Context) {
 	response.OK(c, "ticket status updated", ticket)
 }
 
-// AssignTicket godoc
-// PATCH /customer-service/tickets/:id/assign
-func (h *TicketHandler) AssignTicket(c *gin.Context) {
+// TakeTicket godoc
+// PATCH /customer-service/tickets/:id/take
+func (h *TicketHandler) TakeTicket(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.BadRequest(c, "invalid ticket id", nil)
@@ -97,18 +97,12 @@ func (h *TicketHandler) AssignTicket(c *gin.Context) {
 	}
 	csID := c.MustGet(middleware.ContextKeyUserID).(uuid.UUID)
 
-	var req domain.AssignTicketRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, err.Error(), nil)
-		return
-	}
-
-	ticket, err := h.uc.AssignTicket(c.Request.Context(), csID, id, req)
+	ticket, err := h.uc.TakeTicket(c.Request.Context(), csID, id)
 	if err != nil {
 		HandleUsecaseError(c, err)
 		return
 	}
-	response.OK(c, "ticket assigned", ticket)
+	response.OK(c, "ticket taken", ticket)
 }
 
 // AddTicketMessage godoc
