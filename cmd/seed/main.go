@@ -127,6 +127,10 @@ func main() {
 	if err := SeedReplyTemplates(db, csUser.ID); err != nil {
 		log.Fatalf("failed to seed reply templates: %v", err)
 	}
+
+	if err := SeedFinanceDummy(db); err != nil {
+		log.Fatalf("failed to seed finance dummy data: %v", err)
+	}
 }
 
 func seedUserRecord(db *gorm.DB, u seedUser) error {

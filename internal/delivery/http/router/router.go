@@ -5,10 +5,11 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/handler"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
 	ws "github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/websocket"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -93,6 +94,22 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		admin.PATCH("/vendors/:id/reject", adminVendorHandler.Reject)
 		admin.PATCH("/vendors/:id/block", adminVendorHandler.Block)
 		admin.PATCH("/vendors/:id/unblock", adminVendorHandler.Unblock)
+	}
+
+	// Finance routes (requires auth + finance role)
+	finance := v1.Group("/finance")
+	finance.Use(middleware.Auth(jwtSecret))
+	finance.Use(middleware.RequireRoles(domain.RoleFinance))
+	{
+		finance.GET("/dashboard", financeHandler.Dashboard)
+		finance.GET("/transactions", financeHandler.ListTransactions)
+		finance.GET("/transactions/export", financeHandler.ExportTransactions)
+		finance.GET("/payouts", financeHandler.ListPayouts)
+		finance.GET("/payouts/export", financeHandler.ExportPayouts)
+		finance.GET("/refunds", financeHandler.ListRefunds)
+		finance.GET("/refunds/export", financeHandler.ExportRefunds)
+		finance.PATCH("/refunds/:id/status", financeHandler.UpdateRefundStatus)
+		finance.PATCH("/payouts/:id/status", financeHandler.UpdatePayoutStatus)
 	}
 
 	// CS login route (public - no auth required)

@@ -1,0 +1,1042 @@
+openapi: 3.0.3
+info:
+  title: Haji Umroh Store BE - Finance API
+  version: 1.0.0
+  description: Dokumentasi OpenAPI 3 untuk endpoint finance (dashboard, transaksi, payout, refund).
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Finance Auth
+    description: Autentikasi untuk role finance.
+  - name: Finance Dashboard
+    description: Ringkasan metrik keuangan dan transaksi hari ini.
+  - name: Finance Transactions
+    description: Transaksi dan pembayaran.
+  - name: Finance Payouts
+    description: Settlement dan payout vendor.
+  - name: Finance Refunds
+    description: Refund dan dispute.
+security:
+  - BearerAuth: []
+paths:
+  /api/v1/users/login:
+    post:
+      tags:
+        - Finance Auth
+      summary: Login finance
+      description: |
+        Autentikasi user dengan role `finance` menggunakan endpoint user login.
+        Mengembalikan JWT token dan data user.
+      operationId: loginFinance
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+            example:
+              email: finance@dev.local
+              password: Password123!
+      responses:
+        '200':
+          description: Login berhasil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessUserLoginEnvelope'
+              example:
+                success: true
+                message: login successful
+                data:
+                  token: <JWT_TOKEN>
+                  user:
+                    id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                    email: finance@dev.local
+                    full_name: Dev Finance
+                    birth_date: null
+                    phone: "081200000004"
+                    status: active
+                    email_verified_at: "2026-02-10T10:20:30Z"
+                    role: finance
+                    created_at: "2026-02-10T10:20:30Z"
+                    updated_at: "2026-02-10T10:20:30Z"
+                errors: null
+                meta: null
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/dashboard:
+    get:
+      tags:
+        - Finance Dashboard
+      summary: Dashboard keuangan
+      operationId: financeDashboard
+      parameters:
+        - name: month
+          in: query
+          description: Bulan dalam format YYYY-MM (UTC). Default bulan sekarang.
+          required: false
+          schema:
+            type: string
+            example: "2026-01"
+      responses:
+        '200':
+          description: Dashboard keuangan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessFinanceDashboardEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/transactions:
+    get:
+      tags:
+        - Finance Transactions
+      summary: Daftar transaksi & pembayaran
+      operationId: listFinanceTransactions
+      parameters:
+        - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: status
+          in: query
+          description: Filter status pembayaran.
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - paid
+              - failed
+              - expired
+              - refunded
+      responses:
+        '200':
+          description: Transaksi berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessFinanceTransactionListEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/transactions/export:
+    get:
+      tags:
+        - Finance Transactions
+      summary: Export transaksi & pembayaran (CSV)
+      operationId: exportFinanceTransactions
+      parameters:
+        - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: status
+          in: query
+          description: Filter status pembayaran.
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - paid
+              - failed
+              - expired
+              - refunded
+      responses:
+        '200':
+          description: CSV berhasil dibuat.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/payouts:
+    get:
+      tags:
+        - Finance Payouts
+      summary: Daftar settlement & payout
+      operationId: listFinancePayouts
+      parameters:
+        - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: status
+          in: query
+          description: Filter status payout.
+          required: false
+          schema:
+            type: string
+            enum:
+              - ready
+              - schedule
+              - complete
+              - failed
+              - "on hold"
+      responses:
+        '200':
+          description: Payout berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessFinancePayoutListEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/payouts/export:
+    get:
+      tags:
+        - Finance Payouts
+      summary: Export settlement & payout (CSV)
+      operationId: exportFinancePayouts
+      parameters:
+        - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: status
+          in: query
+          description: Filter status payout.
+          required: false
+          schema:
+            type: string
+            enum:
+              - ready
+              - schedule
+              - complete
+              - failed
+              - "on hold"
+      responses:
+        '200':
+          description: CSV berhasil dibuat.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/refunds:
+    get:
+      tags:
+        - Finance Refunds
+      summary: Daftar refund & dispute
+      operationId: listFinanceRefunds
+      parameters:
+        - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: status
+          in: query
+          description: Filter status refund.
+          required: false
+          schema:
+            type: string
+            enum:
+              - requested
+              - approved
+              - rejected
+              - processed
+      responses:
+        '200':
+          description: Refund berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessFinanceRefundListEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/refunds/export:
+    get:
+      tags:
+        - Finance Refunds
+      summary: Export refund & dispute (CSV)
+      operationId: exportFinanceRefunds
+      parameters:
+        - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/SearchParam'
+        - name: status
+          in: query
+          description: Filter status refund.
+          required: false
+          schema:
+            type: string
+            enum:
+              - requested
+              - approved
+              - rejected
+              - processed
+      responses:
+        '200':
+          description: CSV berhasil dibuat.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/refunds/{id}/status:
+    patch:
+      tags:
+        - Finance Refunds
+      summary: Update status refund
+      operationId: updateFinanceRefundStatus
+      parameters:
+        - name: id
+          in: path
+          description: ID refund (UUID).
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRefundStatusRequest'
+      responses:
+        '200':
+          description: Status refund berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessStatusActionEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/payouts/{id}/status:
+    patch:
+      tags:
+        - Finance Payouts
+      summary: Update status payout
+      operationId: updateFinancePayoutStatus
+      parameters:
+        - name: id
+          in: path
+          description: ID payout batch (UUID).
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePayoutStatusRequest'
+      responses:
+        '200':
+          description: Status payout berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessStatusActionEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    RequestIDHeader:
+      description: ID unik request dari middleware RequestID.
+      schema:
+        type: string
+        example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
+  parameters:
+    MonthParam:
+      name: month
+      in: query
+      description: Bulan dalam format YYYY-MM (UTC). Default bulan sekarang.
+      required: false
+      schema:
+        type: string
+        example: "2026-01"
+    PageParam:
+      name: page
+      in: query
+      description: Nomor halaman (default 1).
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        default: 1
+    LimitParam:
+      name: limit
+      in: query
+      description: Jumlah item per halaman (default 10). Nilai <1 atau >100 akan dinormalisasi server menjadi 10.
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 10
+    SearchParam:
+      name: search
+      in: query
+      description: Pencarian case-insensitive.
+      required: false
+      schema:
+        type: string
+  responses:
+    BadRequestResponse:
+      description: Request tidak valid.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: validation failed
+            data: null
+            errors: invalid status
+            meta: null
+    UnauthorizedResponse:
+      description: Token tidak valid atau tidak ada.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: invalid or expired token
+            data: null
+            errors: null
+            meta: null
+    ForbiddenResponse:
+      description: User tidak memiliki izin role finance.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: insufficient permissions
+            data: null
+            errors: null
+            meta: null
+    NotFoundResponse:
+      description: Data tidak ditemukan.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: not found
+            data: null
+            errors: null
+            meta: null
+    InternalServerErrorResponse:
+      description: Internal server error.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: internal server error
+            data: null
+            errors: null
+            meta: null
+  schemas:
+    FinanceDashboardSummary:
+      type: object
+      required:
+        - total_transactions
+        - platform_commission
+        - vendor_payout
+        - processed_refund
+      properties:
+        total_transactions:
+          type: number
+          format: double
+          example: 2450000000
+        platform_commission:
+          type: number
+          format: double
+          example: 890000000
+        vendor_payout:
+          type: number
+          format: double
+          example: 320000000
+        processed_refund:
+          type: number
+          format: double
+          example: 75000000
+    FinanceTodayTransactionItem:
+      type: object
+      required:
+        - date_time
+        - invoice
+        - product
+        - category
+        - price
+        - status
+      properties:
+        date_time:
+          type: string
+          format: date-time
+          example: "2026-01-12T15:35:00Z"
+        invoice:
+          type: string
+          example: inv_123456
+        product:
+          type: string
+          example: Paket 1
+        category:
+          type: string
+          example: Oleh-oleh
+        price:
+          type: number
+          format: double
+          example: 300000
+        status:
+          type: string
+          enum:
+            - pending
+            - paid
+            - failed
+            - expired
+            - refunded
+    FinanceDashboardResponse:
+      type: object
+      required:
+        - month
+        - summary
+        - today_transactions
+      properties:
+        month:
+          type: string
+          example: "2026-01"
+        summary:
+          $ref: '#/components/schemas/FinanceDashboardSummary'
+        today_transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinanceTodayTransactionItem'
+    FinanceTransactionItem:
+      type: object
+      required:
+        - date
+        - invoice
+        - customer
+        - vendor
+        - amount
+        - status
+      properties:
+        date:
+          type: string
+          format: date-time
+          example: "2026-01-01T08:00:00Z"
+        invoice:
+          type: string
+          example: inv_123456
+        customer:
+          type: string
+          example: Kristin Watson
+        vendor:
+          type: string
+          example: Barone LLC.
+        method:
+          type: string
+          nullable: true
+          example: Transfer
+        amount:
+          type: number
+          format: double
+          example: 475.22
+        status:
+          type: string
+          enum:
+            - pending
+            - paid
+            - failed
+            - expired
+            - refunded
+    UserLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: finance@dev.local
+        password:
+          type: string
+          example: Password123!
+    UserLoginResponse:
+      type: object
+      required:
+        - token
+        - user
+      properties:
+        token:
+          type: string
+          example: <JWT_TOKEN>
+        user:
+          $ref: '#/components/schemas/UserResponse'
+    UserResponse:
+      type: object
+      required:
+        - id
+        - email
+        - full_name
+        - status
+        - role
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+        email:
+          type: string
+          format: email
+          example: finance@dev.local
+        full_name:
+          type: string
+          example: Dev Finance
+        birth_date:
+          type: string
+          format: date-time
+          nullable: true
+          example: "1990-05-12T00:00:00Z"
+        phone:
+          type: string
+          nullable: true
+          example: "081200000004"
+        status:
+          type: string
+          enum:
+            - pending
+            - active
+            - blocked
+          example: active
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-10T10:20:30Z"
+        role:
+          type: string
+          enum:
+            - admin
+            - umkm
+            - customer
+            - cs
+            - finance
+          example: finance
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T10:20:30Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-02-10T10:20:30Z"
+    FinancePayoutItem:
+      type: object
+      required:
+        - id
+        - vendor
+        - vendor_type
+        - order_completed
+        - nominal
+        - commission
+        - net_payout
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        vendor:
+          type: string
+          example: Barone LLC.
+        vendor_type:
+          type: string
+          enum:
+            - umrah_souvenir_store
+            - hajj_souvenir_store
+            - general_souvenir_store
+          example: umrah_souvenir_store
+        order_completed:
+          type: integer
+          format: int32
+          example: 177
+        nominal:
+          type: number
+          format: double
+          example: 475.22
+        commission:
+          type: number
+          format: double
+          example: 45.00
+        net_payout:
+          type: number
+          format: double
+          example: 430.22
+        status:
+          type: string
+          enum:
+            - ready
+            - schedule
+            - complete
+            - failed
+            - "on hold"
+    FinanceRefundItem:
+      type: object
+      required:
+        - id
+        - customer
+        - vendor
+        - order_id
+        - amount
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer:
+          type: string
+          example: Devon Lane
+        vendor:
+          type: string
+          example: Barone LLC.
+        order_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          nullable: true
+          example: Barang rusak
+        amount:
+          type: number
+          format: double
+          example: 475.22
+        status:
+          type: string
+          enum:
+            - requested
+            - approved
+            - rejected
+            - processed
+    UpdateRefundStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: Status refund. Alias "pending" akan dipetakan ke "requested".
+          enum:
+            - requested
+            - approved
+            - rejected
+            - processed
+          example: approved
+    UpdatePayoutStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: Status payout. Gunakan "on hold" (dengan spasi) untuk status hold.
+          enum:
+            - ready
+            - schedule
+            - complete
+            - failed
+            - "on hold"
+          example: ready
+    StatusActionResponse:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          example: approved
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - limit
+        - total_items
+        - total_pages
+      properties:
+        page:
+          type: integer
+          format: int32
+          example: 1
+        limit:
+          type: integer
+          format: int32
+          example: 10
+        total_items:
+          type: integer
+          format: int64
+          example: 100
+        total_pages:
+          type: integer
+          format: int32
+          example: 10
+    SuccessFinanceDashboardEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: finance dashboard retrieved successfully
+        data:
+          $ref: '#/components/schemas/FinanceDashboardResponse'
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessUserLoginEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: login successful
+        data:
+          $ref: '#/components/schemas/UserLoginResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessFinanceTransactionListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: transactions retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinanceTransactionItem'
+        errors:
+          nullable: true
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    SuccessFinancePayoutListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: payouts retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinancePayoutItem'
+        errors:
+          nullable: true
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    SuccessFinanceRefundListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: refunds retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinanceRefundItem'
+        errors:
+          nullable: true
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    SuccessStatusActionEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: status updated successfully
+        data:
+          $ref: '#/components/schemas/StatusActionResponse'
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: validation failed
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+        meta:
+          nullable: true
