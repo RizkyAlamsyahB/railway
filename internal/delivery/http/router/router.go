@@ -129,8 +129,8 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		// Tickets
 		csAuth.GET("/tickets", ticketHandler.ListTickets)
 		csAuth.GET("/tickets/:id", ticketHandler.GetTicket)
+		csAuth.PATCH("/tickets/:id/take", ticketHandler.TakeTicket)
 		csAuth.PATCH("/tickets/:id/status", ticketHandler.UpdateTicketStatus)
-		csAuth.PATCH("/tickets/:id/assign", ticketHandler.AssignTicket)
 		csAuth.POST("/tickets/:id/messages", ticketHandler.AddTicketMessage)
 		csAuth.GET("/tickets/:id/messages", ticketHandler.ListTicketMessages)
 

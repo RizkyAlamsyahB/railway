@@ -1,0 +1,940 @@
+{
+  "info": {
+    "name": "UmrahMart - CS Module",
+    "description": "API contract untuk modul Customer Service.\n\nBase URL: `http://localhost:8080/api/v1`\n\n**CS Login:** `POST /cs/login` → dapat token CS\n**Ticket Bantuan:** Customer buat tiket → CS ambil & balas (email dikirim ke customer)\n**Reply Template:** manajemen template balasan cepat\n\nSemua endpoint `/customer-service/*` membutuhkan Bearer Token (Role: cs).\nEndpoint `/tickets` (buat tiket) membutuhkan Bearer Token (Role: customer).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "cs_token",
+      "value": ""
+    },
+    {
+      "key": "customer_token",
+      "value": ""
+    },
+    {
+      "key": "template_id",
+      "value": ""
+    },
+    {
+      "key": "ticket_id",
+      "value": ""
+    },
+    {
+      "key": "attachment_key",
+      "value": ""
+    },
+    {
+      "key": "upload_url",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "CS Authentication",
+      "item": [
+        {
+          "name": "Login CS",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('cs_token', json.data.token);",
+                  "    pm.environment.set('cs_token', json.data.token);",
+                  "    console.log('✅ cs_token saved');",
+                  "} else {",
+                  "    console.log('❌ Login failed, token not saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cs/login",
+              "host": ["{{base_url}}"],
+              "path": ["cs", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"cs@dev.local\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "description": "Login untuk akun Customer Service. Mengembalikan JWT Bearer Token yang digunakan untuk semua endpoint CS.\n\n**Catatan:** Salin nilai `token` dari response ke variabel `cs_token`."
+          },
+          "response": [
+            {
+              "name": "200 - Login Berhasil",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"login successful\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"user_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"full_name\": \"Dev Customer Service\",\n    \"email\": \"cs@dev.local\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Validasi Gagal",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"validation failed\",\n  \"data\": null,\n  \"errors\": \"Key: 'CSLoginRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag\",\n  \"meta\": null\n}"
+            },
+            {
+              "name": "401 - Email/Password Salah",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid email or password\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Bukan Role CS",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"access denied: cs only\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Ticket Bantuan - Customer",
+      "description": "Endpoint yang dipanggil oleh customer untuk membuat tiket bantuan. Butuh Bearer Token role `customer`.",
+      "item": [
+        {
+          "name": "Login Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('customer_token', json.data.token);",
+                  "    console.log('✅ customer_token saved');",
+                  "} else {",
+                  "    console.log('❌ Login failed, token not saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/login",
+              "host": ["{{base_url}}"],
+              "path": ["users", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@dev.local\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "description": "Login sebagai customer untuk mendapatkan token. Token akan otomatis disimpan ke variabel `customer_token`."
+          },
+          "response": [
+            {
+              "name": "200 - Login Berhasil",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"login successful\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"user_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"full_name\": \"Test Customer\",\n    \"email\": \"customer@dev.local\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Presign Ticket Attachment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.object_key) {",
+                  "    pm.collectionVariables.set('attachment_key', json.data.object_key);",
+                  "    console.log('✅ attachment_key saved: ' + json.data.object_key);",
+                  "    if (json.data.upload_url) {",
+                  "        pm.collectionVariables.set('upload_url', json.data.upload_url);",
+                  "        console.log('✅ upload_url saved');",
+                  "    }",
+                  "} else {",
+                  "    console.log('❌ Presign failed, attachment_key not saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/attachment/presign",
+              "host": ["{{base_url}}"],
+              "path": ["tickets", "attachment", "presign"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content_type\": \"image/jpeg\"\n}"
+            },
+            "description": "Generate presigned URL untuk upload attachment tiket. Client upload file langsung ke S3 menggunakan `upload_url`.\n\n**Content type valid:** `image/jpeg`, `image/png`, `image/webp`, `application/pdf`\n\n**Flow:**\n1. Panggil endpoint ini → dapat `upload_url` + `object_key`\n2. Upload file ke `upload_url` (PUT request langsung ke S3)\n3. Gunakan `object_key` sebagai `attachment_key` saat Create Ticket\n\n**Auth:** Bearer Token (Role: customer)"
+          },
+          "response": [
+            {
+              "name": "200 - Presign URL Generated",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"presigned upload URL generated\",\n  \"data\": {\n    \"upload_url\": \"https://s3.amazonaws.com/bucket/tickets/attachments/abc123.jpg?X-Amz-Signature=...\",\n    \"object_key\": \"tickets/attachments/abc123.jpg\",\n    \"content_type\": \"image/jpeg\",\n    \"expires_in\": 1800\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Content Type Tidak Valid",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Key: 'PresignTicketAttachmentRequest.ContentType' Error:Field validation for 'ContentType' failed on the 'required' tag\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Upload Attachment ke S3",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Ambil upload_url dari variabel (di-set otomatis oleh Presign Ticket Attachment)",
+                  "var uploadUrl = pm.collectionVariables.get('upload_url');",
+                  "if (!uploadUrl) {",
+                  "    console.log('⚠️ upload_url belum ada. Jalankan Presign Ticket Attachment dulu!');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "image/jpeg" }
+            ],
+            "url": {
+              "raw": "{{upload_url}}",
+              "host": ["{{upload_url}}"]
+            },
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "description": "Upload file attachment langsung ke S3 menggunakan presigned URL.\n\n**Langkah:**\n1. Pastikan sudah menjalankan **Presign Ticket Attachment** → `upload_url` otomatis tersimpan\n2. Di tab **Body** → pilih **binary** → pilih file gambar (.jpg/.png/.webp) atau PDF\n3. Pastikan **Content-Type** di Header sesuai dengan yang di-request saat presign (misal: `image/jpeg`)\n4. Klik **Send** → harusnya dapat **200 OK** dari S3\n\n**Catatan:** URL ini langsung ke S3, bukan ke API backend. Tidak perlu Authorization header."
+          },
+          "response": [
+            {
+              "name": "200 - Upload Berhasil",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/xml" }],
+              "body": ""
+            },
+            {
+              "name": "403 - URL Expired / Invalid",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [{ "key": "Content-Type", "value": "application/xml" }],
+              "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Error>\n  <Code>AccessDenied</Code>\n  <Message>Request has expired</Message>\n</Error>"
+            }
+          ]
+        },
+        {
+          "name": "Create Ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('ticket_id', json.data.id);",
+                  "    console.log('✅ ticket_id saved: ' + json.data.id);",
+                  "} else {",
+                  "    console.log('❌ Create ticket failed, ticket_id not saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["tickets"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_number\": \"ORD-20260225-001\",\n  \"phone\": \"081234567890\",\n  \"reporter_name\": \"Ahmad Customer\",\n  \"subject\": \"Pesanan belum sampai\",\n  \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai. Mohon dicek.\",\n  \"source\": \"web\",\n  \"attachment_key\": \"{{attachment_key}}\"\n}"
+            },
+            "description": "Customer membuat tiket bantuan baru.\n\n**Field:**\n- `order_number` (required): Nomor pesanan terkait\n- `phone` (required): Nomor telepon pelapor\n- `reporter_name` (required): Nama pelapor\n- `subject` (required): Judul tiket\n- `detail` (required): Deskripsi masalah\n- `source` (required): `app` atau `web`\n- `attachment_key` (required): Object key dari presign upload\n\n**Auth:** Bearer Token (Role: customer)"
+          },
+          "response": [
+            {
+              "name": "201 - Ticket Berhasil Dibuat",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"ticket created\",\n  \"data\": {\n    \"id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n    \"ticket_number\": \"TKT-20260225-0001\",\n    \"customer_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"customer_email\": \"customer@dev.local\",\n    \"assigned_cs_id\": null,\n    \"assigned_cs_name\": null,\n    \"order_number\": \"ORD-20260225-001\",\n    \"phone\": \"081234567890\",\n    \"reporter_name\": \"Ahmad Customer\",\n    \"subject\": \"Pesanan belum sampai\",\n    \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai. Mohon dicek.\",\n    \"status\": \"open\",\n    \"source\": \"web\",\n    \"attachment_url\": \"https://s3.amazonaws.com/bucket/tickets/attachments/abc123.jpg\",\n    \"attachment_content_type\": \"image/jpeg\",\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"created_at\": \"2026-02-25T08:00:00.000Z\",\n    \"updated_at\": \"2026-02-25T08:00:00.000Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Validasi Gagal",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Key: 'CreateTicketRequest.Subject' Error:Field validation for 'Subject' failed on the 'required' tag\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Ticket Bantuan - CS",
+      "description": "Endpoint CS untuk mengelola tiket bantuan. Sistem rebutan: CS mana saja bisa lihat tiket, klik 'Ambil Ticket' untuk self-assign. Hanya CS pemilik tiket yang bisa kirim pesan dan ubah status.\n\nButuh Bearer Token role `cs`.",
+      "item": [
+        {
+          "name": "List Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/tickets?page=1&limit=10&status=open",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "tickets"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Item per halaman (default: 10, maks: 100)"
+                },
+                {
+                  "key": "status",
+                  "value": "open",
+                  "description": "Filter status: open, on_progress, resolved, closed. Kosongkan untuk semua status."
+                },
+                {
+                  "key": "assigned_cs_id",
+                  "value": "",
+                  "description": "Filter tiket milik CS tertentu (UUID). Kosongkan untuk semua.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List semua tiket bantuan dengan pagination dan filter.\n\nSemua CS bisa melihat semua tiket (termasuk yang belum diambil).\n\nResponse mengandung `customer_email` dan `assigned_cs_name` untuk display.\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"tickets retrieved\",\n  \"data\": [\n    {\n      \"id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n      \"ticket_number\": \"TKT-20260225-0001\",\n      \"customer_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"customer_email\": \"customer@dev.local\",\n      \"assigned_cs_id\": null,\n      \"assigned_cs_name\": null,\n      \"order_number\": \"ORD-20260225-001\",\n      \"phone\": \"081234567890\",\n      \"reporter_name\": \"Ahmad Customer\",\n      \"subject\": \"Pesanan belum sampai\",\n      \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai.\",\n      \"status\": \"open\",\n      \"source\": \"web\",\n      \"attachment_url\": \"https://s3.amazonaws.com/bucket/tickets/attachments/abc123.jpg\",\n      \"attachment_content_type\": \"image/jpeg\",\n      \"resolved_at\": null,\n      \"closed_at\": null,\n      \"created_at\": \"2026-02-25T08:00:00.000Z\",\n      \"updated_at\": \"2026-02-25T08:00:00.000Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Ticket Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/tickets/:id",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "tickets", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{ticket_id}}",
+                  "description": "UUID tiket"
+                }
+              ]
+            },
+            "description": "Detail satu tiket. Semua CS bisa lihat detail tiket manapun.\n\nResponse mengandung `customer_email` dan `assigned_cs_name`.\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"ticket retrieved\",\n  \"data\": {\n    \"id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n    \"ticket_number\": \"TKT-20260225-0001\",\n    \"customer_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"customer_email\": \"customer@dev.local\",\n    \"assigned_cs_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"assigned_cs_name\": \"Dev Customer Service\",\n    \"order_number\": \"ORD-20260225-001\",\n    \"phone\": \"081234567890\",\n    \"reporter_name\": \"Ahmad Customer\",\n    \"subject\": \"Pesanan belum sampai\",\n    \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai.\",\n    \"status\": \"on_progress\",\n    \"source\": \"web\",\n    \"attachment_url\": \"https://s3.amazonaws.com/bucket/tickets/attachments/abc123.jpg\",\n    \"attachment_content_type\": \"image/jpeg\",\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"created_at\": \"2026-02-25T08:00:00.000Z\",\n    \"updated_at\": \"2026-02-25T08:15:00.000Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Tiket Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"ticket not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Take Ticket (Ambil Tiket)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/tickets/:id/take",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "tickets", ":id", "take"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{ticket_id}}",
+                  "description": "UUID tiket yang akan diambil"
+                }
+              ]
+            },
+            "description": "CS mengambil tiket (self-assign). Sistem rebutan — siapa cepat dia dapat.\n\n**Behavior:**\n- Tidak perlu request body\n- Otomatis set `assigned_cs_id` ke CS yang memanggil\n- Jika tiket masih `open`, otomatis berubah ke `on_progress`\n- Jika tiket sudah diambil CS lain → **409 Conflict**\n- Setelah diambil, hanya CS ini yang bisa kirim pesan dan ubah status\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Tiket Berhasil Diambil",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"ticket taken\",\n  \"data\": {\n    \"id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n    \"ticket_number\": \"TKT-20260225-0001\",\n    \"customer_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"customer_email\": \"customer@dev.local\",\n    \"assigned_cs_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"assigned_cs_name\": \"Dev Customer Service\",\n    \"order_number\": \"ORD-20260225-001\",\n    \"phone\": \"081234567890\",\n    \"reporter_name\": \"Ahmad Customer\",\n    \"subject\": \"Pesanan belum sampai\",\n    \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai.\",\n    \"status\": \"on_progress\",\n    \"source\": \"web\",\n    \"attachment_url\": \"https://s3.amazonaws.com/bucket/tickets/attachments/abc123.jpg\",\n    \"attachment_content_type\": \"image/jpeg\",\n    \"resolved_at\": null,\n    \"closed_at\": null,\n    \"created_at\": \"2026-02-25T08:00:00.000Z\",\n    \"updated_at\": \"2026-02-25T08:15:00.000Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Tiket Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"ticket not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "409 - Tiket Sudah Diambil CS Lain",
+              "status": "Conflict",
+              "code": 409,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"ticket already taken by another CS\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Ticket Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/tickets/:id/status",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "tickets", ":id", "status"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{ticket_id}}",
+                  "description": "UUID tiket"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"resolved\",\n  \"notes\": \"Pesanan sudah dikirim ulang via JNE REG, resi: JNE1234567890\"\n}"
+            },
+            "description": "Update status tiket. **Hanya CS pemilik tiket** (yang sudah Take) yang boleh mengubah status.\n\n**Status valid:** `open`, `on_progress`, `resolved`, `closed`\n\n**Field:**\n- `status` (required): Status baru\n- `notes` (optional): Catatan perubahan status\n\n**Error:**\n- 403 jika bukan CS pemilik tiket\n- 404 jika tiket tidak ditemukan\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Status Berhasil Diupdate",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"ticket status updated\",\n  \"data\": {\n    \"id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n    \"ticket_number\": \"TKT-20260225-0001\",\n    \"customer_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"customer_email\": \"customer@dev.local\",\n    \"assigned_cs_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"assigned_cs_name\": \"Dev Customer Service\",\n    \"order_number\": \"ORD-20260225-001\",\n    \"phone\": \"081234567890\",\n    \"reporter_name\": \"Ahmad Customer\",\n    \"subject\": \"Pesanan belum sampai\",\n    \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai.\",\n    \"status\": \"resolved\",\n    \"source\": \"web\",\n    \"attachment_url\": \"https://s3.amazonaws.com/bucket/tickets/attachments/abc123.jpg\",\n    \"attachment_content_type\": \"image/jpeg\",\n    \"resolved_at\": \"2026-02-25T10:00:00.000Z\",\n    \"closed_at\": null,\n    \"created_at\": \"2026-02-25T08:00:00.000Z\",\n    \"updated_at\": \"2026-02-25T10:00:00.000Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Bukan CS Pemilik Tiket",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"this ticket is not assigned to you\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Tiket Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"ticket not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Search Shortcut (Reply Template)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/reply-templates?q=/order&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "reply-templates"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "/order",
+                  "description": "Cari shortcut. Contoh: / (semua), /order, /refund, /shipping, /payment, /complaint, /konfirmasi, dll. Bisa juga cari by title."
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "Filter by kategori: order, refund, shipping, payment, complaint, dll. Kosongkan untuk semua.",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Jumlah hasil (default 10, maks 100)"
+                }
+              ]
+            },
+            "description": "Cari reply template berdasarkan shortcut untuk dipakai saat membalas tiket.\n\n**Cara pakai:**\n1. CS ketik `/` di field pesan → trigger search\n2. Request ini dipanggil dengan `q=/` → tampilkan semua template\n3. CS ketik lebih spesifik: `/order`, `/refund`, `/shipping`\n4. Pilih template → isi `content` di-paste ke field pesan\n\n**Contoh shortcut:**\n- `/order/konfirmasi-pesanan-diterima`\n- `/refund/proses-refund`\n- `/shipping/update-resi`\n- `/complaint/mohon-maaf`\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Daftar Template Ditemukan",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"templates retrieved\",\n  \"data\": [\n    {\n      \"id\": \"6f669159-9740-4cd2-be7d-de966969836f\",\n      \"title\": \"Konfirmasi Pesanan Diterima\",\n      \"shortcut\": \"/order/konfirmasi-pesanan-diterima\",\n      \"category\": \"order\",\n      \"content\": \"Alhamdulillah, pesanan Anda telah kami terima! ✅\\n\\nNomor pesanan Anda: {order_number}\\nStatus: Menunggu Pembayaran\",\n      \"is_active\": true,\n      \"created_by\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"updated_by\": null,\n      \"created_at\": \"2026-02-24T07:57:40.193Z\",\n      \"updated_at\": \"2026-02-24T07:57:40.193Z\"\n    },\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-111111111111\",\n      \"title\": \"Pesanan Sedang Dikirim\",\n      \"shortcut\": \"/order/pesanan-sedang-dikirim\",\n      \"category\": \"order\",\n      \"content\": \"Pesanan Anda sedang dalam proses pengiriman 🚚\\n\\nNomor resi: {tracking_number}\\nEstimasi tiba: {estimated_arrival}\",\n      \"is_active\": true,\n      \"created_by\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"updated_by\": null,\n      \"created_at\": \"2026-02-24T07:57:40.193Z\",\n      \"updated_at\": \"2026-02-24T07:57:40.193Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total_items\": 2,\n    \"total_pages\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Add Ticket Message (Kirim Pesan)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/tickets/:id/messages",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "tickets", ":id", "messages"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{ticket_id}}",
+                  "description": "UUID tiket"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Assalamu'alaikum Kak Ahmad, kami sudah cek pesanan Anda. Paket sedang dalam proses pengiriman ulang via JNE REG. Estimasi tiba 3-5 hari kerja. Mohon ditunggu ya 🙏\",\n  \"is_internal_note\": false\n}"
+            },
+            "description": "CS mengirim pesan pada tiket. **Hanya CS pemilik tiket** yang boleh mengirim pesan.\n\n**Field:**\n- `message` (required): Isi pesan\n- `is_internal_note` (optional, default: false): Jika `true`, pesan hanya terlihat oleh CS (catatan internal), tidak dikirim via email ke customer\n\n**Behavior:**\n- Jika `is_internal_note = false` → pesan juga **dikirim ke email customer** via SMTP (background)\n- Jika `is_internal_note = true` → hanya disimpan sebagai catatan internal\n- CS lain yang bukan pemilik tiket → **403 Forbidden**\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "201 - Pesan Berhasil Dikirim",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"message added\",\n  \"data\": {\n    \"id\": \"e2f3a4b5-c6d7-8901-2345-678901abcdef\",\n    \"ticket_id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n    \"sender_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"message\": \"Assalamu'alaikum Kak Ahmad, kami sudah cek pesanan Anda...\",\n    \"is_from_cs\": true,\n    \"is_internal_note\": false,\n    \"created_at\": \"2026-02-25T08:30:00.000Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Bukan CS Pemilik Tiket",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"this ticket is not assigned to you\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Tiket Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"ticket not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Add Internal Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/tickets/:id/messages",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "tickets", ":id", "messages"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{ticket_id}}",
+                  "description": "UUID tiket"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Customer sudah dikabari via WA juga. Tinggal tunggu konfirmasi dari gudang.\",\n  \"is_internal_note\": true\n}"
+            },
+            "description": "Sama endpoint-nya dengan Add Message, tapi `is_internal_note: true` → pesan hanya terlihat CS, **tidak dikirim ke email customer**.\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "201 - Internal Note Tersimpan",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"message added\",\n  \"data\": {\n    \"id\": \"f3a4b5c6-d7e8-9012-3456-789012abcdef\",\n    \"ticket_id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n    \"sender_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"message\": \"Customer sudah dikabari via WA juga. Tinggal tunggu konfirmasi dari gudang.\",\n    \"is_from_cs\": true,\n    \"is_internal_note\": true,\n    \"created_at\": \"2026-02-25T08:35:00.000Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Ticket Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/tickets/:id/messages",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "tickets", ":id", "messages"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{ticket_id}}",
+                  "description": "UUID tiket"
+                }
+              ]
+            },
+            "description": "List semua pesan pada tiket tertentu (termasuk internal notes).\n\nSemua CS bisa melihat pesan tiket manapun.\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"messages retrieved\",\n  \"data\": [\n    {\n      \"id\": \"e2f3a4b5-c6d7-8901-2345-678901abcdef\",\n      \"ticket_id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n      \"sender_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"message\": \"Assalamu'alaikum Kak Ahmad, kami sudah cek pesanan Anda...\",\n      \"is_from_cs\": true,\n      \"is_internal_note\": false,\n      \"created_at\": \"2026-02-25T08:30:00.000Z\"\n    },\n    {\n      \"id\": \"f3a4b5c6-d7e8-9012-3456-789012abcdef\",\n      \"ticket_id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n      \"sender_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"message\": \"Customer sudah dikabari via WA juga.\",\n      \"is_from_cs\": true,\n      \"is_internal_note\": true,\n      \"created_at\": \"2026-02-25T08:35:00.000Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Tiket Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"ticket not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reply Template",
+      "item": [
+        {
+          "name": "List Reply Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cs_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/reply-templates?page=1&limit=10&category=order&q=konfirmasi",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "reply-templates"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Item per halaman (default: 10, maks: 100)"
+                },
+                {
+                  "key": "category",
+                  "value": "order",
+                  "description": "Filter berdasarkan kategori. Nilai valid: general, order, payment, refund, shipping, product, account, complaint, return, promo, voucher, technical, verification, vendor, stock, cancellation, delivery, pickup, subscription, review, fraud, other"
+                },
+                {
+                  "key": "q",
+                  "value": "konfirmasi",
+                  "description": "Search by title atau shortcut (case-insensitive)"
+                }
+              ]
+            },
+            "description": "Menampilkan daftar reply template dengan pagination, filter kategori, dan search. Hanya template aktif yang ditampilkan secara default.\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"templates retrieved\",\n  \"data\": [\n    {\n      \"id\": \"6f669159-9740-4cd2-be7d-de966969836f\",\n      \"title\": \"Konfirmasi Pesanan Diterima\",\n      \"shortcut\": \"/order/konfirmasi-pesanan-diterima\",\n      \"category\": \"order\",\n      \"content\": \"Alhamdulillah, pesanan Anda telah kami terima! ✅\\n\\nNomor pesanan Anda: {order_number}\\nStatus: Menunggu Pembayaran\",\n      \"is_active\": true,\n      \"created_by\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"updated_by\": null,\n      \"created_at\": \"2026-02-24T07:57:40.193Z\",\n      \"updated_at\": \"2026-02-24T07:57:40.193Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "401 - Token Tidak Valid",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"unauthorized\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Bukan Role CS",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"insufficient permissions\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Reply Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cs_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/reply-templates",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "reply-templates"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Konfirmasi Pesanan Diterima\",\n  \"category\": \"order\",\n  \"sub_key\": \"konfirmasi pesanan diterima\",\n  \"content\": \"Alhamdulillah, pesanan Anda telah kami terima! ✅\\n\\nNomor pesanan Anda: {order_number}\\nStatus: Menunggu Pembayaran\\n\\nSilakan selesaikan pembayaran sebelum {expired_at}.\"\n}"
+            },
+            "description": "Membuat reply template baru.\n\n`shortcut` akan otomatis di-generate dari `category` + `sub_key`:\n- `sub_key` di-normalize: lowercase, karakter non-alphanumeric diganti `-`, trim\n- Contoh: `sub_key: \"konfirmasi pesanan diterima\"` → shortcut: `/order/konfirmasi-pesanan-diterima`\n\n**Kategori valid:** general, order, payment, refund, shipping, product, account, complaint, return, promo, voucher, technical, verification, vendor, stock, cancellation, delivery, pickup, subscription, review, fraud, other\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "201 - Template Berhasil Dibuat",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"template created\",\n  \"data\": {\n    \"id\": \"6f669159-9740-4cd2-be7d-de966969836f\",\n    \"title\": \"Konfirmasi Pesanan Diterima\",\n    \"shortcut\": \"/order/konfirmasi-pesanan-diterima\",\n    \"category\": \"order\",\n    \"content\": \"Alhamdulillah, pesanan Anda telah kami terima! ✅\\n\\nNomor pesanan Anda: {order_number}\\nStatus: Menunggu Pembayaran\",\n    \"is_active\": true,\n    \"created_by\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"updated_by\": null,\n    \"created_at\": \"2026-02-24T08:00:00.000Z\",\n    \"updated_at\": \"2026-02-24T08:00:00.000Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Validasi Gagal",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Key: 'CreateReplyTemplateRequest.Title' Error:Field validation for 'Title' failed on the 'required' tag\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "409 - Shortcut Sudah Ada",
+              "status": "Conflict",
+              "code": 409,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"shortcut already exists\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "422 - Kategori Tidak Valid",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid reply template category\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Reply Template by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cs_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/reply-templates/:id",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "reply-templates", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{template_id}}",
+                  "description": "UUID reply template"
+                }
+              ]
+            },
+            "description": "Mendapatkan detail satu reply template berdasarkan ID.\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"template retrieved\",\n  \"data\": {\n    \"id\": \"6f669159-9740-4cd2-be7d-de966969836f\",\n    \"title\": \"Konfirmasi Pesanan Diterima\",\n    \"shortcut\": \"/order/konfirmasi-pesanan-diterima\",\n    \"category\": \"order\",\n    \"content\": \"Alhamdulillah, pesanan Anda telah kami terima! ✅\\n\\nNomor pesanan Anda: {order_number}\",\n    \"is_active\": true,\n    \"created_by\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"updated_by\": null,\n    \"created_at\": \"2026-02-24T07:57:40.193Z\",\n    \"updated_at\": \"2026-02-24T07:57:40.193Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Template Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"reply template not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Reply Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cs_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/reply-templates/:id",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "reply-templates", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{template_id}}",
+                  "description": "UUID reply template"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Konfirmasi Pesanan Diterima (Updated)\",\n  \"sub_key\": \"order confirmed updated\",\n  \"content\": \"Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅\",\n  \"is_active\": true\n}"
+            },
+            "description": "Update reply template. Semua field bersifat opsional (partial update).\n\n**Aturan penting:**\n- `category` **tidak bisa diubah** setelah create (immutable)\n- Jika `sub_key` diubah, `shortcut` akan otomatis di-recalculate\n- Jika shortcut baru sudah dipakai template lain → 409 Conflict\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Template Berhasil Diupdate",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"template updated\",\n  \"data\": {\n    \"id\": \"6f669159-9740-4cd2-be7d-de966969836f\",\n    \"title\": \"Konfirmasi Pesanan Diterima (Updated)\",\n    \"shortcut\": \"/order/order-confirmed-updated\",\n    \"category\": \"order\",\n    \"content\": \"Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅\",\n    \"is_active\": true,\n    \"created_by\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"updated_by\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"created_at\": \"2026-02-24T07:57:40.193Z\",\n    \"updated_at\": \"2026-02-24T09:00:00.000Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Template Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"reply template not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "409 - Shortcut Sudah Ada",
+              "status": "Conflict",
+              "code": 409,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"shortcut already exists\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Reply Template",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cs_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/reply-templates/:id",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "reply-templates", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{template_id}}",
+                  "description": "UUID reply template"
+                }
+              ]
+            },
+            "description": "Menghapus reply template secara permanen berdasarkan ID.\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Template Berhasil Dihapus",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"template deleted\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Template Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"reply template not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

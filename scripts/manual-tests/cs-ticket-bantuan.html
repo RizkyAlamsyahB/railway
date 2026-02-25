@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS Ticket Bantuan — Manual Test</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #d1d5db;
+      --primary: #b8860b;
+      --primary-dark: #8b6508;
+      --danger: #b91c1c;
+      --warning: #b45309;
+      --ok: #166534;
+      --blue: #2563eb;
+      --cyan: #0891b2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, #fdf6e3 0%, #fefcf3 100%);
+    }
+    .container { max-width: 1300px; margin: 16px auto; padding: 0 16px 32px; }
+    h1 { margin: 0 0 4px; font-size: 26px; color: var(--primary-dark); }
+    h2 { margin: 0 0 10px; font-size: 18px; }
+    h3 { margin: 0 0 8px; font-size: 15px; color: var(--muted); }
+    p { margin: 6px 0; }
+    .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .panel.highlight { border-left: 4px solid var(--primary); }
+
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field.full { grid-column: 1 / -1; }
+    label { font-size: 12px; color: var(--muted); font-weight: 600; }
+    input, select, textarea, button { font: inherit; font-size: 14px; }
+    input, select, textarea {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      width: 100%;
+      background: #fff;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    button {
+      border: 0; border-radius: 8px; padding: 8px 14px;
+      background: var(--primary); color: #fff; cursor: pointer;
+      font-weight: 600; font-size: 13px;
+    }
+    button:hover { background: var(--primary-dark); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.btn-sm { padding: 5px 10px; font-size: 12px; }
+    button.btn-blue { background: var(--blue); }
+    button.btn-blue:hover { background: #1d4ed8; }
+    button.btn-cyan { background: var(--cyan); }
+    button.btn-cyan:hover { background: #0e7490; }
+    button.btn-danger { background: var(--danger); }
+    button.btn-danger:hover { background: #991b1b; }
+    button.btn-ok { background: var(--ok); }
+    button.btn-ok:hover { background: #14532d; }
+    button.btn-outline {
+      background: transparent; border: 1px solid var(--line);
+      color: var(--text);
+    }
+    button.btn-outline:hover { background: #f3f4f6; }
+
+    .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 12px; }
+    .tab {
+      padding: 8px 16px; cursor: pointer; font-size: 13px; font-weight: 600;
+      color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px;
+      background: none; border-radius: 0;
+    }
+    .tab.active { color: var(--primary-dark); border-bottom-color: var(--primary); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #fdf6e3; font-size: 11px; text-transform: uppercase; color: var(--muted); }
+    td { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    tr:hover td { background: #fffbeb; }
+    tr.selected td { background: #fef3c7; }
+
+    .badge {
+      padding: 2px 8px; border-radius: 999px; font-size: 11px;
+      display: inline-block; color: #fff; font-weight: 600;
+    }
+    .b-open { background: #f59e0b; }
+    .b-on_progress { background: var(--blue); }
+    .b-resolved { background: var(--ok); }
+    .b-closed { background: var(--muted); }
+
+    .hint { color: var(--muted); font-size: 12px; }
+
+    .msg-list { max-height: 400px; overflow-y: auto; padding: 8px; }
+    .msg-bubble {
+      max-width: 75%; padding: 8px 12px; border-radius: 12px;
+      margin-bottom: 8px; font-size: 13px; line-height: 1.5;
+    }
+    .msg-cs { background: #dbeafe; margin-left: auto; border-bottom-right-radius: 2px; }
+    .msg-customer { background: #f3f4f6; margin-right: auto; border-bottom-left-radius: 2px; }
+    .msg-internal { background: #fef9c3; border: 1px dashed #f59e0b; margin-left: auto; border-bottom-right-radius: 2px; }
+    .msg-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .shortcut-list { max-height: 250px; overflow-y: auto; }
+    .shortcut-item {
+      padding: 8px; border: 1px solid var(--line); border-radius: 8px;
+      margin-bottom: 6px; cursor: pointer; font-size: 12px;
+    }
+    .shortcut-item:hover { background: #fef3c7; }
+    .shortcut-item .sc-shortcut { font-weight: 700; color: var(--primary-dark); }
+    .shortcut-item .sc-title { color: var(--muted); }
+    .shortcut-item .sc-content { margin-top: 4px; white-space: pre-wrap; color: var(--text); }
+
+    .dashboard-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+    .dash-card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px; text-align: center;
+    }
+    .dash-card .num { font-size: 28px; font-weight: 800; color: var(--primary-dark); }
+    .dash-card .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+
+    pre {
+      margin: 0; background: #1a1a2e; color: #e0e0ff;
+      border-radius: 8px; padding: 12px; overflow: auto;
+      max-height: 350px; font-size: 11px;
+    }
+
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    @media (max-width: 900px) {
+      .grid, .grid-3, .split { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>🎧 CS Ticket Bantuan — Manual Test</h1>
+  <p class="subtitle">
+    Full E2E test: Customer buat tiket → CS login → Dashboard → List tickets → Ambil tiket → Cari shortcut → Kirim pesan (email) → Update status
+  </p>
+
+  <!-- ============ CONFIG ============ -->
+  <div class="panel">
+    <h2>⚙️ Config</h2>
+    <div class="grid">
+      <div class="field">
+        <label>Base URL API</label>
+        <input id="baseUrl" value="http://localhost:8080" />
+      </div>
+      <div class="field">
+        <label>Endpoint Info</label>
+        <input id="endpointInfo" readonly style="background:#f9fafb;" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TABS ============ -->
+  <div class="tabs">
+    <button class="tab active" data-tab="tabCustomer">👤 Customer</button>
+    <button class="tab" data-tab="tabCS">🎧 CS Login</button>
+    <button class="tab" data-tab="tabDashboard">📊 Dashboard</button>
+    <button class="tab" data-tab="tabTickets">🎫 Tiket Bantuan</button>
+    <button class="tab" data-tab="tabDetail">📋 Detail & Chat</button>
+    <button class="tab" data-tab="tabTemplates">💬 Reply Templates</button>
+    <button class="tab" data-tab="tabUsers">👥 Data Pengguna</button>
+    <button class="tab" data-tab="tabLog">📝 Log</button>
+  </div>
+
+  <!-- ============ TAB: CUSTOMER ============ -->
+  <div id="tabCustomer" class="tab-content active">
+    <div class="panel highlight">
+      <h2>👤 Customer — Buat Tiket</h2>
+      <h3>1. Login Customer</h3>
+      <div class="grid">
+        <div class="field">
+          <label>Email</label>
+          <input id="custEmail" value="customer@dev.local" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="custPassword" value="Password123!" />
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnCustLogin">Login Customer</button>
+        <span class="hint" id="custLoginStatus"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>2. Presign Attachment</h3>
+      <div class="grid">
+        <div class="field">
+          <label>Content Type</label>
+          <select id="presignContentType">
+            <option value="image/jpeg">image/jpeg</option>
+            <option value="image/png">image/png</option>
+            <option value="image/webp">image/webp</option>
+            <option value="application/pdf">application/pdf</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>File Attachment</label>
+          <input type="file" id="attachmentFile" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnPresign">Presign & Upload</button>
+        <span class="hint" id="presignStatus"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>3. Buat Tiket</h3>
+      <div class="grid">
+        <div class="field">
+          <label>Order Number</label>
+          <input id="ticketOrderNumber" value="ORD-20260225-001" />
+        </div>
+        <div class="field">
+          <label>Phone</label>
+          <input id="ticketPhone" value="081234567890" />
+        </div>
+        <div class="field">
+          <label>Reporter Name</label>
+          <input id="ticketReporter" value="Ahmad Customer" />
+        </div>
+        <div class="field">
+          <label>Source</label>
+          <select id="ticketSource">
+            <option value="web">web</option>
+            <option value="app">app</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Subject</label>
+          <input id="ticketSubject" value="Pesanan belum sampai" />
+        </div>
+        <div class="field full">
+          <label>Detail</label>
+          <textarea id="ticketDetail">Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai. Mohon dicek.</textarea>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnCreateTicket">Buat Tiket</button>
+        <span class="hint" id="createTicketStatus"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: CS LOGIN ============ -->
+  <div id="tabCS" class="tab-content">
+    <div class="panel highlight">
+      <h2>🎧 CS Login</h2>
+      <div class="grid">
+        <div class="field">
+          <label>Email CS</label>
+          <input id="csEmail" value="cs@dev.local" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="csPassword" value="Password123!" />
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnCsLogin">Login CS</button>
+        <span class="hint" id="csLoginStatus"></span>
+      </div>
+      <div class="field full" style="margin-top:10px;">
+        <label>CS Token (auto-filled)</label>
+        <textarea id="csToken" rows="2" style="font-size:11px;"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: DASHBOARD ============ -->
+  <div id="tabDashboard" class="tab-content">
+    <div class="panel highlight">
+      <h2>📊 Dashboard</h2>
+      <div class="row-actions" style="margin-top:0;margin-bottom:10px;">
+        <button id="btnDashboard" class="btn-cyan">Refresh Dashboard</button>
+      </div>
+      <div class="dashboard-cards" id="dashboardCards">
+        <div class="dash-card"><div class="num">-</div><div class="lbl">Total Tickets</div></div>
+        <div class="dash-card"><div class="num">-</div><div class="lbl">Open</div></div>
+        <div class="dash-card"><div class="num">-</div><div class="lbl">On Progress</div></div>
+        <div class="dash-card"><div class="num">-</div><div class="lbl">Resolved</div></div>
+        <div class="dash-card"><div class="num">-</div><div class="lbl">Closed</div></div>
+        <div class="dash-card"><div class="num">-</div><div class="lbl">Unread Msgs</div></div>
+        <div class="dash-card"><div class="num">-</div><div class="lbl">Active Convos</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: TICKETS ============ -->
+  <div id="tabTickets" class="tab-content">
+    <div class="panel highlight">
+      <h2>🎫 Tiket Bantuan</h2>
+      <div class="grid">
+        <div class="field">
+          <label>Filter Status</label>
+          <select id="filterStatus">
+            <option value="">Semua</option>
+            <option value="open">Open</option>
+            <option value="on_progress">On Progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Page / Limit</label>
+          <div style="display:flex;gap:6px;">
+            <input id="ticketPage" type="number" value="1" min="1" style="width:60px;" />
+            <input id="ticketLimit" type="number" value="10" min="1" max="100" style="width:60px;" />
+          </div>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnListTickets" class="btn-blue">List Tiket</button>
+        <span class="hint" id="listTicketsStatus"></span>
+      </div>
+    </div>
+    <div class="panel">
+      <div style="overflow-x:auto;">
+        <table id="ticketsTable">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Ticket #</th>
+              <th>Subject</th>
+              <th>Reporter</th>
+              <th>Status</th>
+              <th>CS</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ticketsBody"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="ticketsPagination"></p>
+    </div>
+  </div>
+
+  <!-- ============ TAB: DETAIL & CHAT ============ -->
+  <div id="tabDetail" class="tab-content">
+    <div class="panel highlight">
+      <h2>📋 Detail Tiket & Percakapan</h2>
+      <div class="grid">
+        <div class="field">
+          <label>Ticket ID (klik dari tabel atau paste manual)</label>
+          <input id="detailTicketId" placeholder="UUID tiket" />
+        </div>
+        <div class="row-actions" style="align-items:end;">
+          <button id="btnGetDetail" class="btn-blue">Get Detail</button>
+          <button id="btnTakeTicket" class="btn-ok">🤚 Ambil Tiket</button>
+          <button id="btnLoadMessages" class="btn-cyan">💬 Load Messages</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="split">
+      <!-- Left: Detail -->
+      <div class="panel">
+        <h3>Info Tiket</h3>
+        <div id="ticketDetailInfo" style="font-size:13px;">
+          <p class="hint">Klik "Get Detail" untuk melihat info tiket.</p>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:10px 0;" />
+        <h3>Update Status</h3>
+        <div class="grid">
+          <div class="field">
+            <label>Status Baru</label>
+            <select id="newStatus">
+              <option value="open">open</option>
+              <option value="on_progress">on_progress</option>
+              <option value="resolved" selected>resolved</option>
+              <option value="closed">closed</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Notes (opsional)</label>
+            <input id="statusNotes" placeholder="Catatan status..." />
+          </div>
+        </div>
+        <div class="row-actions">
+          <button id="btnUpdateStatus" class="btn-ok btn-sm">Update Status</button>
+        </div>
+
+      </div>
+
+      <!-- Right: Messages -->
+      <div class="panel">
+        <h3>💬 Percakapan</h3>
+        <div class="msg-list" id="messagesList">
+          <p class="hint">Klik "Load Messages" untuk melihat percakapan.</p>
+        </div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:10px 0;" />
+
+        <!-- Shortcut search -->
+        <h3>🔍 Cari Shortcut Template</h3>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input id="shortcutSearch" placeholder="Ketik / untuk mulai cari..." style="flex:1;" />
+          <button id="btnSearchShortcut" class="btn-outline btn-sm">Cari</button>
+        </div>
+        <div class="shortcut-list" id="shortcutResults"></div>
+
+        <hr style="border:0;border-top:1px solid var(--line);margin:10px 0;" />
+        <h3>Kirim Pesan</h3>
+        <div class="field">
+          <label>Message</label>
+          <textarea id="messageText" rows="3" placeholder="Tulis pesan atau pilih shortcut..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" id="isInternalNote" /> Internal Note
+          </label>
+          <button id="btnSendMessage" class="btn-ok btn-sm">📤 Kirim Pesan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: REPLY TEMPLATES ============ -->
+  <div id="tabTemplates" class="tab-content">
+    <div class="panel highlight">
+      <h2>💬 Reply Templates</h2>
+      <div class="grid">
+        <div class="field">
+          <label>Search (shortcut/title)</label>
+          <input id="tplSearch" placeholder="/order, konfirmasi, dll..." />
+        </div>
+        <div class="field">
+          <label>Filter Kategori</label>
+          <select id="tplCategory">
+            <option value="">Semua</option>
+            <option value="general">general</option>
+            <option value="order">order</option>
+            <option value="payment">payment</option>
+            <option value="refund">refund</option>
+            <option value="shipping">shipping</option>
+            <option value="product">product</option>
+            <option value="account">account</option>
+            <option value="complaint">complaint</option>
+            <option value="return">return</option>
+            <option value="promo">promo</option>
+            <option value="voucher">voucher</option>
+            <option value="technical">technical</option>
+            <option value="verification">verification</option>
+            <option value="vendor">vendor</option>
+            <option value="stock">stock</option>
+            <option value="cancellation">cancellation</option>
+            <option value="delivery">delivery</option>
+            <option value="pickup">pickup</option>
+            <option value="subscription">subscription</option>
+            <option value="review">review</option>
+            <option value="fraud">fraud</option>
+            <option value="other">other</option>
+          </select>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnListTemplates" class="btn-blue">List Templates</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Title</th>
+              <th>Shortcut</th>
+              <th>Category</th>
+              <th>Content (preview)</th>
+              <th>Active</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="templatesBody"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="templatesPagination"></p>
+    </div>
+
+    <div class="panel">
+      <h3>Buat / Edit Template</h3>
+      <input type="hidden" id="tplEditId" />
+      <div class="grid">
+        <div class="field">
+          <label>Title</label>
+          <input id="tplTitle" placeholder="Konfirmasi Pesanan Diterima" />
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="tplNewCategory">
+            <option value="general">general</option>
+            <option value="order">order</option>
+            <option value="payment">payment</option>
+            <option value="refund">refund</option>
+            <option value="shipping">shipping</option>
+            <option value="product">product</option>
+            <option value="account">account</option>
+            <option value="complaint">complaint</option>
+            <option value="return">return</option>
+            <option value="promo">promo</option>
+            <option value="other">other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sub Key (auto → shortcut)</label>
+          <input id="tplSubKey" placeholder="konfirmasi pesanan diterima" />
+        </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" id="tplIsActive" checked /> Is Active
+          </label>
+        </div>
+        <div class="field full">
+          <label>Content</label>
+          <textarea id="tplContent" rows="4" placeholder="Alhamdulillah, pesanan Anda telah kami terima! ✅"></textarea>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnCreateTemplate" class="btn-ok">Buat Template</button>
+        <button id="btnUpdateTemplate" class="btn-blue" disabled>Update Template</button>
+        <button id="btnClearTplForm" class="btn-outline">Clear Form</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: DATA PENGGUNA ============ -->
+  <div id="tabUsers" class="tab-content">
+    <div class="panel highlight">
+      <h2>👥 Data Pengguna</h2>
+      <div class="grid">
+        <div class="field">
+          <label>Search</label>
+          <input id="userSearch" placeholder="Nama atau email..." />
+        </div>
+        <div class="field">
+          <label>Filter Role</label>
+          <select id="userRole">
+            <option value="">Semua</option>
+            <option value="customer">customer</option>
+            <option value="umkm">umkm</option>
+            <option value="cs">cs</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnListUsers" class="btn-blue">List Users</button>
+      </div>
+    </div>
+    <div class="panel">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="usersBody"></tbody>
+      </table>
+      <p class="hint" id="usersPagination"></p>
+    </div>
+    <div class="panel" id="userDetailPanel" style="display:none;">
+      <h3>Detail User</h3>
+      <pre id="userDetailPre"></pre>
+      <div class="row-actions">
+        <button id="btnUserTickets" class="btn-cyan btn-sm">Lihat Tiket User Ini</button>
+      </div>
+      <div id="userTicketsContainer"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: LOG ============ -->
+  <div id="tabLog" class="tab-content">
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2>📝 Log & Debug</h2>
+        <button id="btnClearLog" class="btn-outline btn-sm">Clear Log</button>
+      </div>
+      <pre id="logBox">Halaman siap.\n</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// State
+// ============================================================
+const S = {
+  customerToken: '',
+  csToken: '',
+  attachmentKey: '',
+  selectedTicketId: '',
+  selectedUserId: '',
+};
+
+// ============================================================
+// Helpers
+// ============================================================
+function ep(path) {
+  return document.getElementById('baseUrl').value.trim().replace(/\/+$/, '') + '/api/v1' + path;
+}
+
+function log(obj) {
+  const box = document.getElementById('logBox');
+  const t = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+  box.textContent += '[' + new Date().toISOString() + '] ' + t + '\n\n';
+  box.scrollTop = box.scrollHeight;
+}
+
+async function api(method, path, body, token) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const url = ep(path);
+  log({ request: method + ' ' + path, body: body || null });
+  const res = await fetch(url, opts);
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  log({ response: method + ' ' + path, status: res.status, body: data });
+  return { ok: res.ok, status: res.status, data };
+}
+
+function statusBadge(status) {
+  return '<span class="badge b-' + status + '">' + status + '</span>';
+}
+
+function shortText(t, max) {
+  if (!t) return '';
+  return t.length > (max||40) ? t.slice(0, max||40) + '...' : t;
+}
+
+function timeAgo(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return Math.floor(diff) + 's ago';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+function setHint(id, text, ok) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = text; el.style.color = ok ? 'var(--ok)' : 'var(--danger)'; }
+}
+
+// ============================================================
+// Tabs
+// ============================================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ============================================================
+// Customer: Login
+// ============================================================
+document.getElementById('btnCustLogin').addEventListener('click', async () => {
+  try {
+    const r = await api('POST', '/users/login', {
+      email: document.getElementById('custEmail').value,
+      password: document.getElementById('custPassword').value
+    });
+    if (r.ok && r.data.data && r.data.data.token) {
+      S.customerToken = r.data.data.token;
+      setHint('custLoginStatus', '✅ Login OK — ' + (r.data.data.user?.full_name || r.data.data.full_name || ''), true);
+    } else {
+      setHint('custLoginStatus', '❌ ' + (r.data.message || 'Login gagal'), false);
+    }
+  } catch (e) { setHint('custLoginStatus', '❌ ' + e, false); }
+});
+
+// ============================================================
+// Customer: Presign + Upload
+// ============================================================
+document.getElementById('btnPresign').addEventListener('click', async () => {
+  try {
+    const ct = document.getElementById('presignContentType').value;
+    const file = document.getElementById('attachmentFile').files[0];
+
+    setHint('presignStatus', '⏳ Generating presign URL...', true);
+    const r = await api('POST', '/tickets/attachment/presign', { content_type: ct }, S.customerToken);
+    if (!r.ok) { setHint('presignStatus', '❌ Presign gagal: ' + r.data.message, false); return; }
+
+    const uploadUrl = r.data.data.upload_url;
+    S.attachmentKey = r.data.data.object_key;
+    setHint('presignStatus', '✅ Presign OK. Key: ' + S.attachmentKey, true);
+
+    if (file) {
+      setHint('presignStatus', '⏳ Uploading file to S3...', true);
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': ct },
+        body: file
+      });
+      if (uploadRes.ok) {
+        setHint('presignStatus', '✅ Upload OK! Key: ' + S.attachmentKey, true);
+        log({ upload: 'success', status: uploadRes.status, key: S.attachmentKey });
+      } else {
+        setHint('presignStatus', '❌ Upload gagal: HTTP ' + uploadRes.status, false);
+        log({ upload: 'failed', status: uploadRes.status });
+      }
+    } else {
+      setHint('presignStatus', '✅ Presign OK (no file selected, skip upload). Key: ' + S.attachmentKey, true);
+    }
+  } catch (e) { setHint('presignStatus', '❌ ' + e, false); }
+});
+
+// ============================================================
+// Customer: Create Ticket
+// ============================================================
+document.getElementById('btnCreateTicket').addEventListener('click', async () => {
+  try {
+    const body = {
+      order_number: document.getElementById('ticketOrderNumber').value,
+      phone: document.getElementById('ticketPhone').value,
+      reporter_name: document.getElementById('ticketReporter').value,
+      subject: document.getElementById('ticketSubject').value,
+      detail: document.getElementById('ticketDetail').value,
+      source: document.getElementById('ticketSource').value,
+      attachment_key: S.attachmentKey,
+    };
+    const r = await api('POST', '/tickets', body, S.customerToken);
+    if (r.ok && r.data.data) {
+      S.selectedTicketId = r.data.data.id;
+      document.getElementById('detailTicketId').value = r.data.data.id;
+      setHint('createTicketStatus', '✅ Tiket dibuat: ' + r.data.data.ticket_number, true);
+    } else {
+      setHint('createTicketStatus', '❌ ' + (r.data.message || 'Gagal'), false);
+    }
+  } catch (e) { setHint('createTicketStatus', '❌ ' + e, false); }
+});
+
+// ============================================================
+// CS: Login
+// ============================================================
+document.getElementById('btnCsLogin').addEventListener('click', async () => {
+  try {
+    const r = await api('POST', '/cs/login', {
+      email: document.getElementById('csEmail').value,
+      password: document.getElementById('csPassword').value
+    });
+    if (r.ok && r.data.data && r.data.data.token) {
+      S.csToken = r.data.data.token;
+      document.getElementById('csToken').value = S.csToken;
+      setHint('csLoginStatus', '✅ Login OK — ' + (r.data.data.user?.full_name || ''), true);
+    } else {
+      setHint('csLoginStatus', '❌ ' + (r.data.message || 'Login gagal'), false);
+    }
+  } catch (e) { setHint('csLoginStatus', '❌ ' + e, false); }
+});
+
+// ============================================================
+// Dashboard
+// ============================================================
+document.getElementById('btnDashboard').addEventListener('click', async () => {
+  const r = await api('GET', '/customer-service/dashboard', null, S.csToken);
+  if (r.ok && r.data.data) {
+    const d = r.data.data;
+    const cards = document.getElementById('dashboardCards');
+    const vals = [
+      d.total_tickets, d.open_tickets, d.on_progress_tickets,
+      d.resolved_tickets, d.closed_tickets, d.unread_messages, d.active_conversations
+    ];
+    cards.querySelectorAll('.dash-card .num').forEach((el, i) => {
+      el.textContent = vals[i] != null ? vals[i] : '-';
+    });
+  }
+});
+
+// ============================================================
+// Tickets: List
+// ============================================================
+document.getElementById('btnListTickets').addEventListener('click', loadTickets);
+
+async function loadTickets() {
+  const status = document.getElementById('filterStatus').value;
+  const page = document.getElementById('ticketPage').value;
+  const limit = document.getElementById('ticketLimit').value;
+  let path = '/customer-service/tickets?page=' + page + '&limit=' + limit;
+  if (status) path += '&status=' + status;
+
+  const r = await api('GET', path, null, S.csToken);
+  const tbody = document.getElementById('ticketsBody');
+  tbody.innerHTML = '';
+
+  if (r.ok && Array.isArray(r.data.data)) {
+    r.data.data.forEach((t, i) => {
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.innerHTML = [
+        '<td>' + (i+1) + '</td>',
+        '<td>' + t.ticket_number + '</td>',
+        '<td title="' + (t.subject||'') + '">' + shortText(t.subject, 30) + '</td>',
+        '<td>' + (t.reporter_name||'-') + '</td>',
+        '<td>' + statusBadge(t.status) + '</td>',
+        '<td>' + (t.assigned_cs_name || '<em style="color:var(--muted);">unassigned</em>') + '</td>',
+        '<td>' + timeAgo(t.created_at) + '</td>',
+        '<td>' +
+          '<button class="btn-sm btn-ok" onclick="takeAndView(\'' + t.id + '\')">🤚 Ambil</button> ' +
+          '<button class="btn-sm btn-blue" onclick="viewTicket(\'' + t.id + '\')">👁️ Detail</button>' +
+        '</td>'
+      ].join('');
+      tbody.appendChild(tr);
+    });
+    const meta = r.data.meta;
+    if (meta) {
+      document.getElementById('ticketsPagination').textContent =
+        'Page ' + meta.page + ' / ' + meta.total_pages + ' (' + meta.total_items + ' items)';
+    }
+    setHint('listTicketsStatus', '✅ ' + r.data.data.length + ' tiket dimuat', true);
+  } else {
+    setHint('listTicketsStatus', '❌ ' + (r.data.message || 'Gagal'), false);
+  }
+}
+
+// ============================================================
+// Tickets: Take & View
+// ============================================================
+window.takeAndView = async function(id) {
+  S.selectedTicketId = id;
+  document.getElementById('detailTicketId').value = id;
+  // switch to detail tab
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector('[data-tab="tabDetail"]').classList.add('active');
+  document.getElementById('tabDetail').classList.add('active');
+  // take
+  const r = await api('PATCH', '/customer-service/tickets/' + id + '/take', null, S.csToken);
+  if (r.ok) {
+    renderTicketDetail(r.data.data);
+    loadMessages(id);
+  } else {
+    alert(r.data.message || 'Gagal ambil tiket');
+    // still try to load detail
+    getTicketDetail(id);
+    loadMessages(id);
+  }
+};
+
+window.viewTicket = function(id) {
+  S.selectedTicketId = id;
+  document.getElementById('detailTicketId').value = id;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector('[data-tab="tabDetail"]').classList.add('active');
+  document.getElementById('tabDetail').classList.add('active');
+  getTicketDetail(id);
+  loadMessages(id);
+};
+
+// ============================================================
+// Detail: Get
+// ============================================================
+document.getElementById('btnGetDetail').addEventListener('click', () => {
+  const id = document.getElementById('detailTicketId').value.trim();
+  if (!id) { alert('Masukkan Ticket ID'); return; }
+  getTicketDetail(id);
+});
+
+async function getTicketDetail(id) {
+  const r = await api('GET', '/customer-service/tickets/' + id, null, S.csToken);
+  if (r.ok && r.data.data) {
+    renderTicketDetail(r.data.data);
+  }
+}
+
+function renderTicketDetail(t) {
+  document.getElementById('ticketDetailInfo').innerHTML = [
+    '<table style="width:100%;font-size:12px;">',
+    '<tr><td><b>Ticket #</b></td><td>' + t.ticket_number + '</td></tr>',
+    '<tr><td><b>Status</b></td><td>' + statusBadge(t.status) + '</td></tr>',
+    '<tr><td><b>CS</b></td><td>' + (t.assigned_cs_name || '<em>unassigned</em>') + '</td></tr>',
+    '<tr><td><b>Reporter</b></td><td>' + t.reporter_name + '</td></tr>',
+    '<tr><td><b>Email</b></td><td>' + (t.customer_email || '-') + '</td></tr>',
+    '<tr><td><b>Phone</b></td><td>' + t.phone + '</td></tr>',
+    '<tr><td><b>Order #</b></td><td>' + t.order_number + '</td></tr>',
+    '<tr><td><b>Subject</b></td><td>' + t.subject + '</td></tr>',
+    '<tr><td><b>Detail</b></td><td>' + t.detail + '</td></tr>',
+    '<tr><td><b>Source</b></td><td>' + t.source + '</td></tr>',
+    t.attachment_url ? '<tr><td><b>Attachment</b></td><td><a href="' + t.attachment_url + '" target="_blank">📎 View</a></td></tr>' : '',
+    '<tr><td><b>Created</b></td><td>' + t.created_at + '</td></tr>',
+    '<tr><td><b>Resolved</b></td><td>' + (t.resolved_at || '-') + '</td></tr>',
+    '<tr><td><b>Closed</b></td><td>' + (t.closed_at || '-') + '</td></tr>',
+    '</table>'
+  ].join('');
+}
+
+// ============================================================
+// Detail: Take Ticket
+// ============================================================
+document.getElementById('btnTakeTicket').addEventListener('click', async () => {
+  const id = document.getElementById('detailTicketId').value.trim();
+  if (!id) { alert('Masukkan Ticket ID'); return; }
+  const r = await api('PATCH', '/customer-service/tickets/' + id + '/take', null, S.csToken);
+  if (r.ok && r.data.data) {
+    renderTicketDetail(r.data.data);
+    alert('✅ Tiket berhasil diambil!');
+  } else {
+    alert('❌ ' + (r.data.message || 'Gagal'));
+  }
+});
+
+// ============================================================
+// Detail: Update Status
+// ============================================================
+document.getElementById('btnUpdateStatus').addEventListener('click', async () => {
+  const id = document.getElementById('detailTicketId').value.trim();
+  if (!id) { alert('Masukkan Ticket ID'); return; }
+  const notes = document.getElementById('statusNotes').value.trim();
+  const body = { status: document.getElementById('newStatus').value };
+  if (notes) body.notes = notes;
+  const r = await api('PATCH', '/customer-service/tickets/' + id + '/status', body, S.csToken);
+  if (r.ok && r.data.data) {
+    renderTicketDetail(r.data.data);
+    alert('✅ Status updated!');
+  } else {
+    alert('❌ ' + (r.data.message || 'Gagal'));
+  }
+});
+
+// ============================================================
+// Messages: Load
+// ============================================================
+document.getElementById('btnLoadMessages').addEventListener('click', () => {
+  const id = document.getElementById('detailTicketId').value.trim();
+  if (id) loadMessages(id);
+});
+
+async function loadMessages(ticketId) {
+  const r = await api('GET', '/customer-service/tickets/' + ticketId + '/messages', null, S.csToken);
+  const container = document.getElementById('messagesList');
+  container.innerHTML = '';
+
+  if (r.ok && Array.isArray(r.data.data) && r.data.data.length > 0) {
+    r.data.data.forEach(m => {
+      const cls = m.is_internal_note ? 'msg-internal' : (m.is_from_cs ? 'msg-cs' : 'msg-customer');
+      const div = document.createElement('div');
+      div.className = 'msg-bubble ' + cls;
+      div.innerHTML =
+        '<div>' + m.message.replace(/\n/g, '<br>') + '</div>' +
+        '<div class="msg-meta">' +
+          (m.is_internal_note ? '📌 Internal Note · ' : '') +
+          (m.is_from_cs ? 'CS' : 'Customer') + ' · ' + timeAgo(m.created_at) +
+        '</div>';
+      container.appendChild(div);
+    });
+    container.scrollTop = container.scrollHeight;
+  } else {
+    container.innerHTML = '<p class="hint">Belum ada pesan.</p>';
+  }
+}
+
+// ============================================================
+// Messages: Send
+// ============================================================
+document.getElementById('btnSendMessage').addEventListener('click', async () => {
+  const id = document.getElementById('detailTicketId').value.trim();
+  if (!id) { alert('Masukkan Ticket ID'); return; }
+  const msg = document.getElementById('messageText').value.trim();
+  if (!msg) { alert('Tulis pesan dulu'); return; }
+  const body = {
+    message: msg,
+    is_internal_note: document.getElementById('isInternalNote').checked
+  };
+  const r = await api('POST', '/customer-service/tickets/' + id + '/messages', body, S.csToken);
+  if (r.ok) {
+    document.getElementById('messageText').value = '';
+    document.getElementById('isInternalNote').checked = false;
+    loadMessages(id);
+  } else {
+    alert('❌ ' + (r.data.message || 'Gagal kirim pesan'));
+  }
+});
+
+// ============================================================
+// Shortcut Search
+// ============================================================
+document.getElementById('btnSearchShortcut').addEventListener('click', searchShortcuts);
+document.getElementById('shortcutSearch').addEventListener('keyup', (e) => {
+  if (e.key === 'Enter') searchShortcuts();
+  // auto-search when typing starts with /
+  const val = e.target.value;
+  if (val.startsWith('/') && val.length >= 1) {
+    clearTimeout(window._scTimer);
+    window._scTimer = setTimeout(searchShortcuts, 400);
+  }
+});
+
+async function searchShortcuts() {
+  const q = document.getElementById('shortcutSearch').value.trim();
+  const r = await api('GET', '/customer-service/reply-templates?q=' + encodeURIComponent(q) + '&limit=20', null, S.csToken);
+  const container = document.getElementById('shortcutResults');
+  container.innerHTML = '';
+
+  if (r.ok && Array.isArray(r.data.data)) {
+    if (r.data.data.length === 0) {
+      container.innerHTML = '<p class="hint">Tidak ada template ditemukan.</p>';
+      return;
+    }
+    r.data.data.forEach(tpl => {
+      const div = document.createElement('div');
+      div.className = 'shortcut-item';
+      div.innerHTML =
+        '<span class="sc-shortcut">' + tpl.shortcut + '</span> ' +
+        '<span class="sc-title">— ' + tpl.title + '</span>' +
+        '<div class="sc-content">' + shortText(tpl.content, 120) + '</div>';
+      div.addEventListener('click', () => {
+        document.getElementById('messageText').value = tpl.content;
+        document.getElementById('shortcutSearch').value = '';
+        container.innerHTML = '';
+      });
+      container.appendChild(div);
+    });
+  }
+}
+
+// ============================================================
+// Reply Templates: List
+// ============================================================
+document.getElementById('btnListTemplates').addEventListener('click', loadTemplates);
+
+async function loadTemplates() {
+  const q = document.getElementById('tplSearch').value.trim();
+  const cat = document.getElementById('tplCategory').value;
+  let path = '/customer-service/reply-templates?limit=50';
+  if (q) path += '&q=' + encodeURIComponent(q);
+  if (cat) path += '&category=' + cat;
+
+  const r = await api('GET', path, null, S.csToken);
+  const tbody = document.getElementById('templatesBody');
+  tbody.innerHTML = '';
+
+  if (r.ok && Array.isArray(r.data.data)) {
+    r.data.data.forEach((tpl, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = [
+        '<td>' + (i+1) + '</td>',
+        '<td>' + tpl.title + '</td>',
+        '<td><code>' + tpl.shortcut + '</code></td>',
+        '<td>' + tpl.category + '</td>',
+        '<td title="' + (tpl.content||'').replace(/"/g, '&quot;') + '">' + shortText(tpl.content, 50) + '</td>',
+        '<td>' + (tpl.is_active ? '✅' : '❌') + '</td>',
+        '<td>' +
+          '<button class="btn-sm btn-blue" onclick="editTemplate(\'' + tpl.id + '\')">✏️</button> ' +
+          '<button class="btn-sm btn-danger" onclick="deleteTemplate(\'' + tpl.id + '\')">🗑️</button>' +
+        '</td>'
+      ].join('');
+      tbody.appendChild(tr);
+    });
+    const meta = r.data.meta;
+    if (meta) {
+      document.getElementById('templatesPagination').textContent =
+        'Page ' + meta.page + ' / ' + meta.total_pages + ' (' + meta.total_items + ' items)';
+    }
+  }
+}
+
+// ============================================================
+// Reply Templates: Create
+// ============================================================
+document.getElementById('btnCreateTemplate').addEventListener('click', async () => {
+  const body = {
+    title: document.getElementById('tplTitle').value.trim(),
+    category: document.getElementById('tplNewCategory').value,
+    sub_key: document.getElementById('tplSubKey').value.trim(),
+    content: document.getElementById('tplContent').value,
+  };
+  if (!body.title || !body.sub_key || !body.content) { alert('Title, Sub Key, dan Content wajib diisi'); return; }
+  const r = await api('POST', '/customer-service/reply-templates', body, S.csToken);
+  if (r.ok) {
+    alert('✅ Template dibuat!');
+    clearTplForm();
+    loadTemplates();
+  } else {
+    alert('❌ ' + (r.data.message || 'Gagal'));
+  }
+});
+
+// ============================================================
+// Reply Templates: Edit / Update
+// ============================================================
+window.editTemplate = async function(id) {
+  const r = await api('GET', '/customer-service/reply-templates/' + id, null, S.csToken);
+  if (r.ok && r.data.data) {
+    const t = r.data.data;
+    document.getElementById('tplEditId').value = t.id;
+    document.getElementById('tplTitle').value = t.title;
+    document.getElementById('tplContent').value = t.content;
+    document.getElementById('tplIsActive').checked = t.is_active;
+    document.getElementById('tplSubKey').value = '';
+    document.getElementById('btnUpdateTemplate').disabled = false;
+    document.getElementById('btnCreateTemplate').disabled = true;
+  }
+};
+
+document.getElementById('btnUpdateTemplate').addEventListener('click', async () => {
+  const id = document.getElementById('tplEditId').value;
+  if (!id) return;
+  const body = {};
+  const title = document.getElementById('tplTitle').value.trim();
+  const subKey = document.getElementById('tplSubKey').value.trim();
+  const content = document.getElementById('tplContent').value;
+  const isActive = document.getElementById('tplIsActive').checked;
+  if (title) body.title = title;
+  if (subKey) body.sub_key = subKey;
+  if (content) body.content = content;
+  body.is_active = isActive;
+
+  const r = await api('PUT', '/customer-service/reply-templates/' + id, body, S.csToken);
+  if (r.ok) {
+    alert('✅ Template updated!');
+    clearTplForm();
+    loadTemplates();
+  } else {
+    alert('❌ ' + (r.data.message || 'Gagal'));
+  }
+});
+
+// ============================================================
+// Reply Templates: Delete
+// ============================================================
+window.deleteTemplate = async function(id) {
+  if (!confirm('Hapus template ini?')) return;
+  const r = await api('DELETE', '/customer-service/reply-templates/' + id, null, S.csToken);
+  if (r.ok) { alert('✅ Template dihapus!'); loadTemplates(); }
+  else { alert('❌ ' + (r.data.message || 'Gagal')); }
+};
+
+function clearTplForm() {
+  document.getElementById('tplEditId').value = '';
+  document.getElementById('tplTitle').value = '';
+  document.getElementById('tplSubKey').value = '';
+  document.getElementById('tplContent').value = '';
+  document.getElementById('tplIsActive').checked = true;
+  document.getElementById('btnUpdateTemplate').disabled = true;
+  document.getElementById('btnCreateTemplate').disabled = false;
+}
+document.getElementById('btnClearTplForm').addEventListener('click', clearTplForm);
+
+// ============================================================
+// Data Pengguna: List
+// ============================================================
+document.getElementById('btnListUsers').addEventListener('click', async () => {
+  const q = document.getElementById('userSearch').value.trim();
+  const role = document.getElementById('userRole').value;
+  let path = '/customer-service/users?limit=20';
+  if (q) path += '&q=' + encodeURIComponent(q);
+  if (role) path += '&role=' + role;
+
+  const r = await api('GET', path, null, S.csToken);
+  const tbody = document.getElementById('usersBody');
+  tbody.innerHTML = '';
+
+  if (r.ok && Array.isArray(r.data.data)) {
+    r.data.data.forEach((u, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = [
+        '<td>' + (i+1) + '</td>',
+        '<td>' + u.full_name + '</td>',
+        '<td>' + u.email + '</td>',
+        '<td>' + u.role + '</td>',
+        '<td>' + u.status + '</td>',
+        '<td><button class="btn-sm btn-blue" onclick="viewUser(\'' + u.id + '\')">Detail</button></td>'
+      ].join('');
+      tbody.appendChild(tr);
+    });
+    const meta = r.data.meta;
+    if (meta) {
+      document.getElementById('usersPagination').textContent =
+        'Page ' + meta.page + ' / ' + meta.total_pages + ' (' + meta.total_items + ' items)';
+    }
+  }
+});
+
+// ============================================================
+// Data Pengguna: Detail + Tickets
+// ============================================================
+window.viewUser = async function(id) {
+  S.selectedUserId = id;
+  const r = await api('GET', '/customer-service/users/' + id, null, S.csToken);
+  if (r.ok && r.data.data) {
+    document.getElementById('userDetailPanel').style.display = 'block';
+    document.getElementById('userDetailPre').textContent = JSON.stringify(r.data.data, null, 2);
+    document.getElementById('userTicketsContainer').innerHTML = '';
+  }
+};
+
+document.getElementById('btnUserTickets').addEventListener('click', async () => {
+  if (!S.selectedUserId) { alert('Pilih user dulu'); return; }
+  const r = await api('GET', '/customer-service/users/' + S.selectedUserId + '/tickets?limit=20', null, S.csToken);
+  const container = document.getElementById('userTicketsContainer');
+  if (r.ok && Array.isArray(r.data.data)) {
+    let html = '<h3 style="margin-top:10px;">Tiket User</h3><table><thead><tr><th>#</th><th>Ticket</th><th>Subject</th><th>Status</th><th>Created</th></tr></thead><tbody>';
+    r.data.data.forEach((t, i) => {
+      html += '<tr><td>' + (i+1) + '</td><td>' + t.ticket_number + '</td><td>' + shortText(t.subject,30) + '</td><td>' + statusBadge(t.status) + '</td><td>' + timeAgo(t.created_at) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  } else {
+    container.innerHTML = '<p class="hint">Tidak ada tiket.</p>';
+  }
+});
+
+// ============================================================
+// Log
+// ============================================================
+document.getElementById('btnClearLog').addEventListener('click', () => {
+  document.getElementById('logBox').textContent = 'Log cleared.\n';
+});
+
+// ============================================================
+// Init
+// ============================================================
+document.getElementById('baseUrl').addEventListener('input', () => {
+  document.getElementById('endpointInfo').value = ep('/customer-service/...');
+});
+document.getElementById('endpointInfo').value = ep('/customer-service/...');
+</script>
+</body>
+</html>

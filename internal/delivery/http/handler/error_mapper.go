@@ -100,6 +100,11 @@ var errorRules = []errorRule{
 	{usecase.ErrAttachmentTooLarge, http.StatusUnprocessableEntity, ""},
 	{usecase.ErrAttachmentNotUploaded, http.StatusUnprocessableEntity, ""},
 
+	// ticket ownership
+	{usecase.ErrTicketAlreadyTaken, http.StatusConflict, "ticket is already assigned to another CS"},
+	{usecase.ErrTicketNotAssignedToYou, http.StatusForbidden, "only the assigned CS can perform this action"},
+	{usecase.ErrTicketClosed, http.StatusUnprocessableEntity, "ticket is already resolved or closed"},
+
 	// reply template
 	{usecase.ErrInvalidReplyTemplateCategory, http.StatusUnprocessableEntity, ""},
 	{usecase.ErrShortcutAlreadyExists, http.StatusConflict, ""},
