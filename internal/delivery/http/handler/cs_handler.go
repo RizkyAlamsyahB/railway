@@ -223,10 +223,12 @@ func (h *ChatHandler) ListConversations(c *gin.Context) {
 	userID := c.MustGet(middleware.ContextKeyUserID).(uuid.UUID)
 
 	params := domain.ConversationListParams{
-		Page:   queryInt(c, "page", 1),
-		Limit:  queryInt(c, "limit", 10),
-		Status: c.Query("status"),
-		UserID: userID,
+		Page:       queryInt(c, "page", 1),
+		Limit:      queryInt(c, "limit", 10),
+		Status:     c.Query("status"),
+		UserID:     userID,
+		Search:     c.Query("search"),
+		RoleFilter: c.Query("role"),
 	}
 
 	convs, meta, err := h.uc.ListConversations(c.Request.Context(), params)

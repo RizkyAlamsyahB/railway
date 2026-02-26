@@ -206,10 +206,12 @@ type ChatMessageListParams struct {
 }
 
 type ConversationListParams struct {
-	Page   int
-	Limit  int
-	Status string
-	UserID uuid.UUID
+	Page       int
+	Limit      int
+	Status     string
+	UserID     uuid.UUID
+	Search     string // search by participant name
+	RoleFilter string // filter by participant role code (admin, cs, umkm, finance, customer)
 }
 
 type ChatableUsersParams struct {
@@ -227,19 +229,25 @@ type ChatableUserResponse struct {
 }
 
 type ConversationResponse struct {
-	ID            uuid.UUID  `json:"id"`
-	InitiatorID   uuid.UUID  `json:"initiator_id"`
-	ParticipantID uuid.UUID  `json:"participant_id"`
-	Status        string     `json:"status"`
-	LastMessageAt *time.Time `json:"last_message_at"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID              uuid.UUID  `json:"id"`
+	InitiatorID     uuid.UUID  `json:"initiator_id"`
+	ParticipantID   uuid.UUID  `json:"participant_id"`
+	Status          string     `json:"status"`
+	LastMessageAt   *time.Time `json:"last_message_at"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	UserName        string     `json:"user_name"`
+	UserRole        string     `json:"user_role"`
+	LastMessage     string     `json:"last_message"`
+	LastMessageTime *time.Time `json:"last_message_time"`
 }
 
 type ChatMessageResponse struct {
 	ID             uuid.UUID  `json:"id"`
 	ConversationID uuid.UUID  `json:"conversation_id"`
 	SenderID       uuid.UUID  `json:"sender_id"`
+	SenderName     string     `json:"sender_name"`
+	SenderRole     string     `json:"sender_role"`
 	Message        string     `json:"message"`
 	AttachmentURL  *string    `json:"attachment_url"`
 	IsRead         bool       `json:"is_read"`
@@ -415,6 +423,9 @@ type ChatRepository interface {
 	ListMessages(ctx context.Context, params ChatMessageListParams) ([]ChatMessage, *PaginationMeta, error)
 	MarkMessagesRead(ctx context.Context, conversationID, readerID uuid.UUID) error
 	CountUnreadMessages(ctx context.Context, userID uuid.UUID) (int64, error)
+
+	// Enriched queries for chat UI
+	GetLastMessage(ctx context.Context, conversationID uuid.UUID) (*ChatMessage, error)
 }
 
 type ReplyTemplateRepository interface {

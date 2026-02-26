@@ -99,6 +99,24 @@ func (uc *chatUseCase) ListConversations(ctx context.Context, params domain.Conv
 	resp := make([]domain.ConversationResponse, len(convs))
 	for i, c := range convs {
 		resp[i] = *toConversationResponse(c)
+
+		// Determine the "other" participant (not the caller)
+		otherID := c.ParticipantID
+		if c.ParticipantID == params.UserID {
+			otherID = c.InitiatorID
+		}
+		if other, uErr := uc.userRepo.FindByID(ctx, otherID); uErr == nil {
+			resp[i].UserName = other.FullName
+			if other.Role != nil {
+				resp[i].UserRole = other.Role.Code
+			}
+		}
+
+		// Get last message text
+		if lastMsg, mErr := uc.chatRepo.GetLastMessage(ctx, c.ID); mErr == nil {
+			resp[i].LastMessage = lastMsg.Message
+			resp[i].LastMessageTime = &lastMsg.CreatedAt
+		}
 	}
 	return resp, meta, nil
 }
@@ -117,7 +135,25 @@ func (uc *chatUseCase) GetConversation(ctx context.Context, conversationID, user
 		return nil, ErrConversationUnauthorized
 	}
 
-	return toConversationResponse(*conv), nil
+	resp := toConversationResponse(*conv)
+
+	// Enrich with other participant info
+	otherID := conv.ParticipantID
+	if conv.ParticipantID == userID {
+		otherID = conv.InitiatorID
+	}
+	if other, uErr := uc.userRepo.FindByID(ctx, otherID); uErr == nil {
+		resp.UserName = other.FullName
+		if other.Role != nil {
+			resp.UserRole = other.Role.Code
+		}
+	}
+	if lastMsg, mErr := uc.chatRepo.GetLastMessage(ctx, conv.ID); mErr == nil {
+		resp.LastMessage = lastMsg.Message
+		resp.LastMessageTime = &lastMsg.CreatedAt
+	}
+
+	return resp, nil
 }
 
 func (uc *chatUseCase) SendMessage(ctx context.Context, conversationID, senderID uuid.UUID, req domain.SendChatMessageRequest) (*domain.ChatMessageResponse, error) {
@@ -151,7 +187,14 @@ func (uc *chatUseCase) SendMessage(ctx context.Context, conversationID, senderID
 	conv.UpdatedAt = now
 	_ = uc.chatRepo.UpdateConversation(ctx, conv)
 
-	return toChatMessageResponse(*msg), nil
+	resp := toChatMessageResponse(*msg)
+	if sender, uErr := uc.userRepo.FindByID(ctx, senderID); uErr == nil {
+		resp.SenderName = sender.FullName
+		if sender.Role != nil {
+			resp.SenderRole = sender.Role.Code
+		}
+	}
+	return resp, nil
 }
 
 func (uc *chatUseCase) ListMessages(ctx context.Context, params domain.ChatMessageListParams, userID uuid.UUID) ([]domain.ChatMessageResponse, *domain.PaginationMeta, error) {
@@ -174,6 +217,12 @@ func (uc *chatUseCase) ListMessages(ctx context.Context, params domain.ChatMessa
 	resp := make([]domain.ChatMessageResponse, len(msgs))
 	for i, m := range msgs {
 		resp[i] = *toChatMessageResponse(m)
+		if sender, uErr := uc.userRepo.FindByID(ctx, m.SenderID); uErr == nil {
+			resp[i].SenderName = sender.FullName
+			if sender.Role != nil {
+				resp[i].SenderRole = sender.Role.Code
+			}
+		}
 	}
 	return resp, meta, nil
 }

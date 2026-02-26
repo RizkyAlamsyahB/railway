@@ -401,10 +401,35 @@ func (r *chatRepository) ListConversations(ctx context.Context, p domain.Convers
 	}
 	offset := (p.Page - 1) * p.Limit
 
+	uid := p.UserID.String()
+
 	q := r.db.WithContext(ctx).Model(&chatConversationModel{}).
-		Where("initiator_id = ? OR participant_id = ?", p.UserID.String(), p.UserID.String())
+		Where("initiator_id = ? OR participant_id = ?", uid, uid)
 	if p.Status != "" {
 		q = q.Where("status = ?", p.Status)
+	}
+
+	// Search by the OTHER participant's full_name
+	if p.Search != "" {
+		like := "%" + p.Search + "%"
+		q = q.Where(
+			`(
+				(initiator_id = ? AND participant_id IN (SELECT id FROM users WHERE LOWER(full_name) LIKE LOWER(?))) OR
+				(participant_id = ? AND initiator_id IN (SELECT id FROM users WHERE LOWER(full_name) LIKE LOWER(?)))
+			)`,
+			uid, like, uid, like,
+		)
+	}
+
+	// Filter by the OTHER participant's role
+	if p.RoleFilter != "" {
+		q = q.Where(
+			`(
+				(initiator_id = ? AND participant_id IN (SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.code = ?)) OR
+				(participant_id = ? AND initiator_id IN (SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.code = ?))
+			)`,
+			uid, p.RoleFilter, uid, p.RoleFilter,
+		)
 	}
 
 	var total int64
@@ -529,6 +554,19 @@ func (r *chatRepository) CountUnreadMessages(ctx context.Context, userID uuid.UU
 		).
 		Count(&count).Error
 	return count, err
+}
+
+func (r *chatRepository) GetLastMessage(ctx context.Context, conversationID uuid.UUID) (*domain.ChatMessage, error) {
+	var m chatMessageModel
+	err := r.db.WithContext(ctx).
+		Where("conversation_id = ?", conversationID.String()).
+		Order("created_at DESC").
+		First(&m).Error
+	if err != nil {
+		return nil, err
+	}
+	msg := toChatMessageDomain(m)
+	return &msg, nil
 }
 
 // ============================================================
