@@ -11,6 +11,12 @@ import (
 // Entities
 // ============================================================
 
+type TicketSubject struct {
+	ID       int    `json:"id"`
+	Label    string `json:"label"`
+	IsActive bool   `json:"is_active"`
+}
+
 type Ticket struct {
 	ID                    uuid.UUID  `json:"id"`
 	TicketNumber          string     `json:"ticket_number"`
@@ -19,7 +25,8 @@ type Ticket struct {
 	OrderNumber           string     `json:"order_number"`
 	Phone                 string     `json:"phone"`
 	ReporterName          string     `json:"reporter_name"`
-	Subject               string     `json:"subject"`
+	SubjectID             int        `json:"subject_id"`
+	Subject               string     `json:"subject"` // resolved from ticket_subjects.label
 	Detail                string     `json:"detail"`
 	Status                string     `json:"status"`
 	Source                string     `json:"source"`
@@ -121,7 +128,7 @@ type CreateTicketRequest struct {
 	OrderNumber   string `json:"order_number"   binding:"required"`
 	Phone         string `json:"phone"          binding:"required"`
 	ReporterName  string `json:"reporter_name"  binding:"required"`
-	Subject       string `json:"subject"        binding:"required"`
+	SubjectID     int    `json:"subject_id"     binding:"required,min=1"`
 	Detail        string `json:"detail"         binding:"required"`
 	Source        string `json:"source"         binding:"required,oneof=app web"`
 	AttachmentKey string `json:"attachment_key" binding:"required"`
@@ -288,26 +295,55 @@ type ReplyTemplateResponse struct {
 
 // --- Dashboard ---
 
+type CSDashboardParams struct {
+	Month int // 1-12
+	Year  int // e.g. 2026
+}
+
 type CSDashboardResponse struct {
-	TotalTickets        int64 `json:"total_tickets"`
-	OpenTickets         int64 `json:"open_tickets"`
-	OnProgressTickets   int64 `json:"on_progress_tickets"`
-	ResolvedTickets     int64 `json:"resolved_tickets"`
-	ClosedTickets       int64 `json:"closed_tickets"`
-	UnreadMessages      int64 `json:"unread_messages"`
-	ActiveConversations int64 `json:"active_conversations"`
+	TodayTickets   int64                   `json:"today_tickets"`
+	WaitingTickets int64                   `json:"waiting_tickets"`
+	DoneTickets    int64                   `json:"done_tickets"`
+	RecentTickets  []DashboardRecentTicket `json:"recent_tickets"`
+}
+
+type DashboardRecentTicket struct {
+	ID           uuid.UUID `json:"id"`
+	TicketNumber string    `json:"ticket_number"`
+	Phone        string    `json:"phone"`
+	ReporterName string    `json:"reporter_name"`
+	Subject      string    `json:"subject"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // --- Reports ---
 
-type CSReportSummaryResponse struct {
-	TotalTickets    int64   `json:"total_tickets"`
-	ResolvedTickets int64   `json:"resolved_tickets"`
-	ClosedTickets   int64   `json:"closed_tickets"`
-	AvgResolutionHr float64 `json:"avg_resolution_hours"`
+type CSReportParams struct {
+	Month string // format "2006-01" (YYYY-MM)
 }
 
-type CSTicketReportRow struct {
+type CSReportResponse struct {
+	Month             string         `json:"month"`
+	TotalTickets      int64          `json:"total_tickets"`
+	ResolvedTickets   int64          `json:"resolved_tickets"`
+	AvgResponseMinute float64        `json:"avg_response_minute"`
+	TopSubjects       []SubjectCount `json:"top_subjects"`
+	TicketsPerDay     []DayCount     `json:"tickets_per_day"`
+}
+
+type SubjectCount struct {
+	SubjectID int    `json:"subject_id"`
+	Label     string `json:"label"`
+	Count     int64  `json:"count"`
+}
+
+type DayCount struct {
+	Date  string `json:"date"` // "2006-01-02"
+	Count int64  `json:"count"`
+}
+
+type CSReportExportRow struct {
 	TicketNumber string     `json:"ticket_number"`
 	Subject      string     `json:"subject"`
 	Status       string     `json:"status"`
@@ -316,14 +352,6 @@ type CSTicketReportRow struct {
 	AssignedCS   *string    `json:"assigned_cs"`
 	ResolvedAt   *time.Time `json:"resolved_at"`
 	CreatedAt    time.Time  `json:"created_at"`
-}
-
-type CSReportTicketParams struct {
-	Page      int
-	Limit     int
-	Status    string
-	StartDate *time.Time
-	EndDate   *time.Time
 }
 
 // --- CS User List (data pengguna) ---
@@ -337,6 +365,11 @@ type CSUserListParams struct {
 // ============================================================
 // Repository Interfaces
 // ============================================================
+
+type TicketSubjectRepository interface {
+	ListActive(ctx context.Context) ([]TicketSubject, error)
+	FindByID(ctx context.Context, id int) (*TicketSubject, error)
+}
 
 type TicketRepository interface {
 	Create(ctx context.Context, ticket *Ticket) error
@@ -355,6 +388,19 @@ type TicketRepository interface {
 
 	// Ticket count for number generation
 	CountOnDate(ctx context.Context, date string) (int64, error)
+
+	// Dashboard queries
+	CountTodayTickets(ctx context.Context) (int64, error)
+	CountWaitingTickets(ctx context.Context, year, month int) (int64, error)
+	CountDoneTickets(ctx context.Context, year, month int) (int64, error)
+	ListRecentUnassigned(ctx context.Context, limit int) ([]Ticket, error)
+
+	// Report queries
+	CountByMonth(ctx context.Context, year, month int) (total int64, resolved int64, err error)
+	AvgFirstResponseMinute(ctx context.Context, year, month int) (float64, error)
+	TopSubjectsByMonth(ctx context.Context, year, month, limit int) ([]SubjectCount, error)
+	TicketsPerDayByMonth(ctx context.Context, year, month int) ([]DayCount, error)
+	ExportByMonth(ctx context.Context, year, month int) ([]CSReportExportRow, error)
 }
 
 type ChatRepository interface {
@@ -429,12 +475,16 @@ type ReplyTemplateUseCase interface {
 }
 
 type CSDashboardUseCase interface {
-	GetDashboard(ctx context.Context) (*CSDashboardResponse, error)
+	GetDashboard(ctx context.Context, params CSDashboardParams) (*CSDashboardResponse, error)
 }
 
 type CSReportUseCase interface {
-	GetSummary(ctx context.Context) (*CSReportSummaryResponse, error)
-	GetTicketReport(ctx context.Context, params CSReportTicketParams) ([]CSTicketReportRow, *PaginationMeta, error)
+	GetReport(ctx context.Context, params CSReportParams) (*CSReportResponse, error)
+	ExportReport(ctx context.Context, params CSReportParams) ([]CSReportExportRow, error)
+}
+
+type TicketSubjectUseCase interface {
+	ListSubjects(ctx context.Context) ([]TicketSubject, error)
 }
 
 type CSUserUseCase interface {

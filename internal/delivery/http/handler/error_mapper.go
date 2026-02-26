@@ -105,6 +105,9 @@ var errorRules = []errorRule{
 	{usecase.ErrTicketNotAssignedToYou, http.StatusForbidden, "only the assigned CS can perform this action"},
 	{usecase.ErrTicketClosed, http.StatusUnprocessableEntity, "ticket is already resolved or closed"},
 
+	// ticket subject
+	{usecase.ErrTicketSubjectNotFound, http.StatusBadRequest, "ticket subject not found"},
+
 	// reply template
 	{usecase.ErrInvalidReplyTemplateCategory, http.StatusUnprocessableEntity, ""},
 	{usecase.ErrShortcutAlreadyExists, http.StatusConflict, ""},

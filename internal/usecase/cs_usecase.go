@@ -163,31 +163,45 @@ func NewCSDashboardUseCase(ticketRepo domain.TicketRepository, chatRepo domain.C
 	return &csDashboardUseCase{ticketRepo: ticketRepo, chatRepo: chatRepo}
 }
 
-func (uc *csDashboardUseCase) GetDashboard(ctx context.Context) (*domain.CSDashboardResponse, error) {
-	statusCounts, err := uc.ticketRepo.CountByStatus(ctx)
+func (uc *csDashboardUseCase) GetDashboard(ctx context.Context, params domain.CSDashboardParams) (*domain.CSDashboardResponse, error) {
+	todayTickets, err := uc.ticketRepo.CountTodayTickets(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count tickets: %w", err)
+		return nil, fmt.Errorf("failed to count today tickets: %w", err)
 	}
 
-	// We don't have a specific "CS user" here for unread count, so we use 0 as placeholder.
-	// The handler should inject the caller's userID via context if needed.
-	activeConvs, err := uc.chatRepo.CountActiveConversations(ctx)
+	waitingTickets, err := uc.ticketRepo.CountWaitingTickets(ctx, params.Year, params.Month)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count conversations: %w", err)
+		return nil, fmt.Errorf("failed to count waiting tickets: %w", err)
 	}
 
-	total := statusCounts[domain.TicketStatusOpen] +
-		statusCounts[domain.TicketStatusOnProgress] +
-		statusCounts[domain.TicketStatusResolved] +
-		statusCounts[domain.TicketStatusClosed]
+	doneTickets, err := uc.ticketRepo.CountDoneTickets(ctx, params.Year, params.Month)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count done tickets: %w", err)
+	}
+
+	recentTickets, err := uc.ticketRepo.ListRecentUnassigned(ctx, 3)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list recent unassigned tickets: %w", err)
+	}
+
+	recent := make([]domain.DashboardRecentTicket, len(recentTickets))
+	for i, t := range recentTickets {
+		recent[i] = domain.DashboardRecentTicket{
+			ID:           t.ID,
+			TicketNumber: t.TicketNumber,
+			Phone:        t.Phone,
+			ReporterName: t.ReporterName,
+			Subject:      t.Subject,
+			Status:       t.Status,
+			CreatedAt:    t.CreatedAt,
+		}
+	}
 
 	return &domain.CSDashboardResponse{
-		TotalTickets:        total,
-		OpenTickets:         statusCounts[domain.TicketStatusOpen],
-		OnProgressTickets:   statusCounts[domain.TicketStatusOnProgress],
-		ResolvedTickets:     statusCounts[domain.TicketStatusResolved],
-		ClosedTickets:       statusCounts[domain.TicketStatusClosed],
-		ActiveConversations: activeConvs,
+		TodayTickets:   todayTickets,
+		WaitingTickets: waitingTickets,
+		DoneTickets:    doneTickets,
+		RecentTickets:  recent,
 	}, nil
 }
 

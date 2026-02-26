@@ -115,6 +115,55 @@
       ]
     },
     {
+      "name": "Dashboard",
+      "description": "Dashboard halaman utama CS. Menampilkan ringkasan tiket dan 3 tiket terbaru yang belum diambil.\n\nButuh Bearer Token role `cs`.",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/dashboard?month=2&year=2026",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "dashboard"],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "2",
+                  "description": "Bulan (1-12). Default: bulan saat ini."
+                },
+                {
+                  "key": "year",
+                  "value": "2026",
+                  "description": "Tahun (e.g. 2026). Default: tahun saat ini."
+                }
+              ]
+            },
+            "description": "Halaman utama dashboard CS.\n\n**Data yang dikembalikan:**\n- `today_tickets` — jumlah tiket masuk hari ini\n- `waiting_tickets` — jumlah tiket menunggu (open + on_progress) di bulan/tahun yang dipilih\n- `done_tickets` — jumlah tiket selesai (resolved + closed) di bulan/tahun yang dipilih\n- `recent_tickets` — 3 tiket terbaru yang **belum diambil** (status open, tanpa CS). Klik 'Ambil Tiket' → navigate ke detail tiket.\n\n**Query params (optional):**\n- `month` (int 1-12, default: bulan ini)\n- `year` (int, default: tahun ini)\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Dashboard Berhasil",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"dashboard retrieved\",\n  \"data\": {\n    \"today_tickets\": 4,\n    \"waiting_tickets\": 16,\n    \"done_tickets\": 32,\n    \"recent_tickets\": [\n      {\n        \"id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n        \"ticket_number\": \"TKT-20260226-0001\",\n        \"phone\": \"081234567890\",\n        \"reporter_name\": \"Sarah\",\n        \"subject\": \"Pengiriman Terlambat\",\n        \"status\": \"open\",\n        \"created_at\": \"2026-02-26T08:30:00Z\"\n      },\n      {\n        \"id\": \"a2b3c4d5-e6f7-8901-2345-678901abcdef\",\n        \"ticket_number\": \"TKT-20260226-0002\",\n        \"phone\": \"085312345678\",\n        \"reporter_name\": \"Ahmad Fauzi\",\n        \"subject\": \"Barang Rusak\",\n        \"status\": \"open\",\n        \"created_at\": \"2026-02-26T08:25:00Z\"\n      },\n      {\n        \"id\": \"b3c4d5e6-f7a8-9012-3456-789012abcdef\",\n        \"ticket_number\": \"TKT-20260226-0003\",\n        \"phone\": \"087712345678\",\n        \"reporter_name\": \"Fatimah Zahra\",\n        \"subject\": \"Pengembalian Dana\",\n        \"status\": \"open\",\n        \"created_at\": \"2026-02-26T08:20:00Z\"\n      }\n    ]\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Month Invalid",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"month must be between 1 and 12\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Ticket Bantuan - Customer",
       "description": "Endpoint yang dipanggil oleh customer untuk membuat tiket bantuan. Butuh Bearer Token role `customer`.",
       "item": [
@@ -160,6 +209,30 @@
               "code": 200,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"success\": true,\n  \"message\": \"login successful\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"user_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"full_name\": \"Test Customer\",\n    \"email\": \"customer@dev.local\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Ticket Subjects",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tickets/subjects",
+              "host": ["{{base_url}}"],
+              "path": ["tickets", "subjects"]
+            },
+            "description": "Daftar subjek tiket yang tersedia untuk dipilih saat membuat tiket baru.\n\nGunakan `id` dari response sebagai nilai `subject_id` saat `POST /tickets`.\n\n**Auth:** Bearer Token (Role: customer)"
+          },
+          "response": [
+            {
+              "name": "200 - Daftar Subjek Tiket",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"ticket subjects retrieved\",\n  \"data\": [\n    { \"id\": 1, \"label\": \"Barang Tidak Sampai\", \"is_active\": true },\n    { \"id\": 2, \"label\": \"Barang Rusak\", \"is_active\": true },\n    { \"id\": 3, \"label\": \"Pengembalian Dana\", \"is_active\": true },\n    { \"id\": 4, \"label\": \"Barang Tidak Sesuai\", \"is_active\": true },\n    { \"id\": 5, \"label\": \"Pengiriman Terlambat\", \"is_active\": true },\n    { \"id\": 6, \"label\": \"Pembatalan Pesanan\", \"is_active\": true },\n    { \"id\": 7, \"label\": \"Kesalahan Produk\", \"is_active\": true },\n    { \"id\": 8, \"label\": \"Akun Bermasalah\", \"is_active\": true },\n    { \"id\": 9, \"label\": \"Pembayaran Gagal\", \"is_active\": true },\n    { \"id\": 10, \"label\": \"Voucher/Promo Tidak Berlaku\", \"is_active\": true },\n    { \"id\": 11, \"label\": \"Pertanyaan Umum\", \"is_active\": true },\n    { \"id\": 12, \"label\": \"Lainnya\", \"is_active\": true }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
             }
           ]
         },
@@ -303,9 +376,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"order_number\": \"ORD-20260225-001\",\n  \"phone\": \"081234567890\",\n  \"reporter_name\": \"Ahmad Customer\",\n  \"subject\": \"Pesanan belum sampai\",\n  \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai. Mohon dicek.\",\n  \"source\": \"web\",\n  \"attachment_key\": \"{{attachment_key}}\"\n}"
+              "raw": "{\n  \"order_number\": \"ORD-20260225-001\",\n  \"phone\": \"081234567890\",\n  \"reporter_name\": \"Ahmad Customer\",\n  \"subject_id\": 1,\n  \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai. Mohon dicek.\",\n  \"source\": \"web\",\n  \"attachment_key\": \"{{attachment_key}}\"\n}"
             },
-            "description": "Customer membuat tiket bantuan baru.\n\n**Field:**\n- `order_number` (required): Nomor pesanan terkait\n- `phone` (required): Nomor telepon pelapor\n- `reporter_name` (required): Nama pelapor\n- `subject` (required): Judul tiket\n- `detail` (required): Deskripsi masalah\n- `source` (required): `app` atau `web`\n- `attachment_key` (required): Object key dari presign upload\n\n**Auth:** Bearer Token (Role: customer)"
+            "description": "Customer membuat tiket bantuan baru.\n\n**Field:**\n- `order_number` (required): Nomor pesanan terkait\n- `phone` (required): Nomor telepon pelapor\n- `reporter_name` (required): Nama pelapor\n- `subject_id` (required, int): ID subjek tiket dari `GET /tickets/subjects`\n- `detail` (required): Deskripsi masalah\n- `source` (required): `app` atau `web`\n- `attachment_key` (required): Object key dari presign upload\n\n**Auth:** Bearer Token (Role: customer)"
           },
           "response": [
             {
@@ -320,7 +393,7 @@
               "status": "Bad Request",
               "code": 400,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
-              "body": "{\n  \"success\": false,\n  \"message\": \"Key: 'CreateTicketRequest.Subject' Error:Field validation for 'Subject' failed on the 'required' tag\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+              "body": "{\n  \"success\": false,\n  \"message\": \"Key: 'CreateTicketRequest.SubjectID' Error:Field validation for 'SubjectID' failed on the 'required' tag\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
             }
           ]
         }
@@ -1085,6 +1158,98 @@
               "code": 404,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"success\": false,\n  \"message\": \"user not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Laporan (Report)",
+      "description": "Endpoint laporan CS. Menampilkan ringkasan tiket per bulan, grafik top kendala, grafik tiket per hari, dan export CSV.\n\nButuh Bearer Token role `cs`.",
+      "item": [
+        {
+          "name": "Get Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/reports?month=2026-02",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "reports"],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "2026-02",
+                  "description": "Periode bulan format YYYY-MM (required)"
+                }
+              ]
+            },
+            "description": "Dashboard laporan CS per bulan.\n\n**Data yang dikembalikan:**\n- `total_tickets` — jumlah total tiket bulan tersebut\n- `resolved_tickets` — jumlah tiket yang selesai (resolved/closed)\n- `avg_response_minute` — rata-rata waktu respon pertama CS (menit)\n- `top_subjects` — top kendala (horizontal bar chart data): subject_id, label, count\n- `tickets_per_day` — tiket per hari (daily bar chart data): date, count\n\n**Query param:**\n- `month` (required): Format `YYYY-MM`, contoh `2026-02`\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Report Berhasil",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"report retrieved\",\n  \"data\": {\n    \"month\": \"2026-02\",\n    \"total_tickets\": 45,\n    \"resolved_tickets\": 38,\n    \"avg_response_minute\": 12.5,\n    \"top_subjects\": [\n      { \"subject_id\": 1, \"label\": \"Barang Tidak Sampai\", \"count\": 15 },\n      { \"subject_id\": 3, \"label\": \"Pengembalian Dana\", \"count\": 10 },\n      { \"subject_id\": 5, \"label\": \"Pengiriman Terlambat\", \"count\": 8 },\n      { \"subject_id\": 2, \"label\": \"Barang Rusak\", \"count\": 6 },\n      { \"subject_id\": 6, \"label\": \"Pembatalan Pesanan\", \"count\": 4 }\n    ],\n    \"tickets_per_day\": [\n      { \"date\": \"2026-02-01\", \"count\": 3 },\n      { \"date\": \"2026-02-02\", \"count\": 1 },\n      { \"date\": \"2026-02-03\", \"count\": 5 },\n      { \"date\": \"2026-02-04\", \"count\": 2 },\n      { \"date\": \"2026-02-05\", \"count\": 4 }\n    ]\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Month Param Missing",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"query param 'month' is required (format: YYYY-MM)\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Format Bulan Salah",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid month format, expected YYYY-MM\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Export Report CSV",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/reports/export?month=2026-02",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "reports", "export"],
+              "query": [
+                {
+                  "key": "month",
+                  "value": "2026-02",
+                  "description": "Periode bulan format YYYY-MM (required)"
+                }
+              ]
+            },
+            "description": "Download laporan tiket dalam format CSV.\n\n**Kolom CSV:**\n- Ticket Number\n- Subject\n- Status\n- Source\n- Reporter\n- Assigned CS\n- Resolved At\n- Created At\n\nFile akan di-download sebagai `laporan-tiket-YYYY-MM.csv`.\n\n**Query param:**\n- `month` (required): Format `YYYY-MM`\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - CSV Downloaded",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                { "key": "Content-Type", "value": "text/csv" },
+                { "key": "Content-Disposition", "value": "attachment; filename=\"laporan-tiket-2026-02.csv\"" }
+              ],
+              "body": "Ticket Number,Subject,Status,Source,Reporter,Assigned CS,Resolved At,Created At\nTKT-20260201-0001,Barang Tidak Sampai,resolved,web,Ahmad Customer,Dev Customer Service,2026-02-05 10:30:00,2026-02-01 08:00:00\nTKT-20260202-0001,Pengembalian Dana,on_progress,app,Siti Pelanggan,,,,2026-02-02 09:15:00"
+            },
+            {
+              "name": "400 - Month Param Missing",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"query param 'month' is required (format: YYYY-MM)\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
             }
           ]
         }
