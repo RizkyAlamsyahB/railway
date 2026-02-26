@@ -14,14 +14,15 @@ import (
 )
 
 type ticketUseCase struct {
-	ticketRepo domain.TicketRepository
-	userRepo   domain.UserRepository
-	email      domain.EmailProvider
-	storage    domain.StorageProvider
+	ticketRepo  domain.TicketRepository
+	subjectRepo domain.TicketSubjectRepository
+	userRepo    domain.UserRepository
+	email       domain.EmailProvider
+	storage     domain.StorageProvider
 }
 
-func NewTicketUseCase(ticketRepo domain.TicketRepository, userRepo domain.UserRepository, email domain.EmailProvider, storage domain.StorageProvider) domain.TicketUseCase {
-	return &ticketUseCase{ticketRepo: ticketRepo, userRepo: userRepo, email: email, storage: storage}
+func NewTicketUseCase(ticketRepo domain.TicketRepository, subjectRepo domain.TicketSubjectRepository, userRepo domain.UserRepository, email domain.EmailProvider, storage domain.StorageProvider) domain.TicketUseCase {
+	return &ticketUseCase{ticketRepo: ticketRepo, subjectRepo: subjectRepo, userRepo: userRepo, email: email, storage: storage}
 }
 
 // generateTicketNumber creates a ticket number in format TKT-YYYYMMDD-NNNN.
@@ -55,6 +56,12 @@ func (uc *ticketUseCase) PresignTicketAttachment(ctx context.Context, req domain
 }
 
 func (uc *ticketUseCase) CreateTicket(ctx context.Context, customerID uuid.UUID, req domain.CreateTicketRequest) (*domain.TicketResponse, error) {
+	// Resolve subject from subject_id
+	subj, err := uc.subjectRepo.FindByID(ctx, req.SubjectID)
+	if err != nil {
+		return nil, ErrTicketSubjectNotFound
+	}
+
 	// Verify attachment was actually uploaded to S3
 	info, err := uc.storage.HeadObject(ctx, req.AttachmentKey)
 	if err != nil || info == nil {
@@ -87,7 +94,8 @@ func (uc *ticketUseCase) CreateTicket(ctx context.Context, customerID uuid.UUID,
 		OrderNumber:           req.OrderNumber,
 		Phone:                 req.Phone,
 		ReporterName:          req.ReporterName,
-		Subject:               req.Subject,
+		SubjectID:             subj.ID,
+		Subject:               subj.Label,
 		Detail:                req.Detail,
 		Status:                domain.TicketStatusOpen,
 		Source:                req.Source,

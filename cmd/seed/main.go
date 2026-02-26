@@ -128,9 +128,19 @@ func main() {
 		log.Fatalf("failed to seed reply templates: %v", err)
 	}
 
-	if err := SeedFinanceDummy(db); err != nil {
-		log.Fatalf("failed to seed finance dummy data: %v", err)
+	// Seed random tickets (spread across last 6 months)
+	var customerUser User
+	if err := db.Where("lower(email) = lower(?)", "customer@dev.local").First(&customerUser).Error; err != nil {
+		log.Fatalf("failed to find customer user for ticket seeder: %v", err)
 	}
+
+	if err := SeedTickets(db, customerUser.ID, csUser.ID); err != nil {
+		log.Fatalf("failed to seed tickets: %v", err)
+	}
+
+	// if err := SeedFinanceDummy(db); err != nil {
+	// 	log.Fatalf("failed to seed finance dummy data: %v", err)
+	// }
 }
 
 func seedUserRecord(db *gorm.DB, u seedUser) error {

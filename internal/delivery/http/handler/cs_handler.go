@@ -1,9 +1,13 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -485,14 +489,148 @@ func NewCSDashboardHandler(uc domain.CSDashboardUseCase) *CSDashboardHandler {
 }
 
 // GetDashboard godoc
-// GET /customer-service/dashboard
+// GET /customer-service/dashboard?month=2&year=2026
 func (h *CSDashboardHandler) GetDashboard(c *gin.Context) {
-	data, err := h.uc.GetDashboard(c.Request.Context())
+	now := time.Now()
+	month := queryInt(c, "month", int(now.Month()))
+	year := queryInt(c, "year", now.Year())
+
+	if month < 1 || month > 12 {
+		response.BadRequest(c, "month must be between 1 and 12", nil)
+		return
+	}
+	if year < 2000 || year > 2100 {
+		response.BadRequest(c, "year must be between 2000 and 2100", nil)
+		return
+	}
+
+	params := domain.CSDashboardParams{Month: month, Year: year}
+	data, err := h.uc.GetDashboard(c.Request.Context(), params)
 	if err != nil {
 		HandleUsecaseError(c, err)
 		return
 	}
 	response.OK(c, "dashboard retrieved", data)
+}
+
+// ============================================================
+// CS Report Handler  (laporan)
+// ============================================================
+
+type CSReportHandler struct {
+	uc domain.CSReportUseCase
+}
+
+func NewCSReportHandler(uc domain.CSReportUseCase) *CSReportHandler {
+	return &CSReportHandler{uc: uc}
+}
+
+// GetReport godoc
+// GET /customer-service/reports?month=2026-01
+func (h *CSReportHandler) GetReport(c *gin.Context) {
+	month := c.Query("month")
+	if month == "" {
+		response.BadRequest(c, "query param 'month' is required (format: YYYY-MM)", nil)
+		return
+	}
+	params := domain.CSReportParams{Month: month}
+	data, err := h.uc.GetReport(c.Request.Context(), params)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+	response.OK(c, "report retrieved", data)
+}
+
+// ExportReport godoc
+// GET /customer-service/reports/export?month=2026-01
+func (h *CSReportHandler) ExportReport(c *gin.Context) {
+	month := c.Query("month")
+	if month == "" {
+		response.BadRequest(c, "query param 'month' is required (format: YYYY-MM)", nil)
+		return
+	}
+	params := domain.CSReportParams{Month: month}
+	rows, err := h.uc.ExportReport(c.Request.Context(), params)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	header := []string{"Ticket Number", "Subject", "Status", "Source", "Reporter", "Assigned CS", "Resolved At", "Created At"}
+	records := make([][]string, len(rows))
+	for i, r := range rows {
+		cs := ""
+		if r.AssignedCS != nil {
+			cs = *r.AssignedCS
+		}
+		resolvedAt := ""
+		if r.ResolvedAt != nil {
+			resolvedAt = r.ResolvedAt.UTC().Format("2006-01-02 15:04:05")
+		}
+		records[i] = []string{
+			r.TicketNumber,
+			r.Subject,
+			r.Status,
+			r.Source,
+			r.ReporterName,
+			cs,
+			resolvedAt,
+			r.CreatedAt.UTC().Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	filename := fmt.Sprintf("laporan-tiket-%s.csv", month)
+	writeCSV(c, filename, header, records)
+}
+
+// writeCSV writes a CSV response.
+func writeCSV(c *gin.Context, filename string, header []string, records [][]string) {
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+
+	if err := writer.Write(header); err != nil {
+		response.InternalServerError(c, "failed to export CSV", err.Error())
+		return
+	}
+	for _, record := range records {
+		if err := writer.Write(record); err != nil {
+			response.InternalServerError(c, "failed to export CSV", err.Error())
+			return
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		response.InternalServerError(c, "failed to export CSV", err.Error())
+		return
+	}
+
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "text/csv", buf.Bytes())
+}
+
+// ============================================================
+// Ticket Subject Handler (list subjects for customer form)
+// ============================================================
+
+type TicketSubjectHandler struct {
+	uc domain.TicketSubjectUseCase
+}
+
+func NewTicketSubjectHandler(uc domain.TicketSubjectUseCase) *TicketSubjectHandler {
+	return &TicketSubjectHandler{uc: uc}
+}
+
+// ListSubjects godoc
+// GET /api/v1/ticket-subjects
+func (h *TicketSubjectHandler) ListSubjects(c *gin.Context) {
+	subjects, err := h.uc.ListSubjects(c.Request.Context())
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+	response.OK(c, "ticket subjects retrieved", subjects)
 }
 
 // ============================================================
@@ -514,7 +652,6 @@ func (h *CSUserHandler) ListUsers(c *gin.Context) {
 	params := domain.CSUserListParams{
 		Page:  queryInt(c, "page", 1),
 		Limit: queryInt(c, "limit", 10),
-		Role:  c.Query("role"),
 		Query: c.Query("q"),
 	}
 

@@ -116,6 +116,9 @@ var (
 	ErrTicketNotAssignedToYou = errors.New("only the assigned CS can perform this action")
 	ErrTicketClosed           = errors.New("ticket is already resolved or closed")
 
+	// ticket subject
+	ErrTicketSubjectNotFound = errors.New("ticket subject not found")
+
 	// reply template
 	ErrInvalidReplyTemplateCategory = errors.New("invalid reply template category")
 	ErrShortcutAlreadyExists        = errors.New("shortcut already exists")

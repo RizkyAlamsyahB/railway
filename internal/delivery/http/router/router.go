@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -150,6 +150,10 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		csAuth.GET("/users", csUserHandler.ListUsers)
 		csAuth.GET("/users/:id", csUserHandler.GetUser)
 		csAuth.GET("/users/:id/tickets", csUserHandler.GetUserTickets)
+
+		// Laporan
+		csAuth.GET("/reports", csReportHandler.GetReport)
+		csAuth.GET("/reports/export", csReportHandler.ExportReport)
 	}
 
 	// Customer: buat tiket baru (requires auth + customer role)
@@ -157,6 +161,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	customerTicket.Use(middleware.Auth(jwtSecret))
 	customerTicket.Use(middleware.RequireRoles("customer"))
 	{
+		customerTicket.GET("/subjects", ticketSubjectHandler.ListSubjects)
 		customerTicket.POST("/attachment/presign", ticketHandler.PresignTicketAttachment)
 		customerTicket.POST("", ticketHandler.CreateTicket)
 	}

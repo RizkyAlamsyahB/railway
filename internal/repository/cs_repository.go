@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -22,6 +23,7 @@ type ticketModel struct {
 	OrderNumber           string     `gorm:"column:order_number"`
 	Phone                 string     `gorm:"column:phone"`
 	ReporterName          string     `gorm:"column:reporter_name"`
+	SubjectID             int        `gorm:"column:subject_id"`
 	Subject               string     `gorm:"column:subject"`
 	Detail                string     `gorm:"column:detail"`
 	Status                string     `gorm:"column:status"`
@@ -120,6 +122,7 @@ func (r *ticketRepository) Create(ctx context.Context, t *domain.Ticket) error {
 		OrderNumber:           t.OrderNumber,
 		Phone:                 t.Phone,
 		ReporterName:          t.ReporterName,
+		SubjectID:             t.SubjectID,
 		Subject:               t.Subject,
 		Detail:                t.Detail,
 		Status:                t.Status,
@@ -202,6 +205,7 @@ func (r *ticketRepository) Update(ctx context.Context, t *domain.Ticket) error {
 		OrderNumber:           t.OrderNumber,
 		Phone:                 t.Phone,
 		ReporterName:          t.ReporterName,
+		SubjectID:             t.SubjectID,
 		Subject:               t.Subject,
 		Detail:                t.Detail,
 		Status:                t.Status,
@@ -238,6 +242,64 @@ func (r *ticketRepository) CountByStatus(ctx context.Context) (map[string]int64,
 		result[row.Status] = row.Count
 	}
 	return result, nil
+}
+
+// --- Dashboard queries ---
+
+func (r *ticketRepository) CountTodayTickets(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT COUNT(*) FROM tickets
+		WHERE DATE(created_at) = CURRENT_DATE
+	`).Scan(&count).Error
+	return count, err
+}
+
+func (r *ticketRepository) CountWaitingTickets(ctx context.Context, year, month int) (int64, error) {
+	start := fmt.Sprintf("%04d-%02d-01", year, month)
+	end := fmt.Sprintf("%04d-%02d-01", year, month%12+1)
+	if month == 12 {
+		end = fmt.Sprintf("%04d-01-01", year+1)
+	}
+	var count int64
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT COUNT(*) FROM tickets
+		WHERE status IN ('open', 'on_progress')
+		  AND created_at >= ? AND created_at < ?
+	`, start, end).Scan(&count).Error
+	return count, err
+}
+
+func (r *ticketRepository) CountDoneTickets(ctx context.Context, year, month int) (int64, error) {
+	start := fmt.Sprintf("%04d-%02d-01", year, month)
+	end := fmt.Sprintf("%04d-%02d-01", year, month%12+1)
+	if month == 12 {
+		end = fmt.Sprintf("%04d-01-01", year+1)
+	}
+	var count int64
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT COUNT(*) FROM tickets
+		WHERE status IN ('resolved', 'closed')
+		  AND created_at >= ? AND created_at < ?
+	`, start, end).Scan(&count).Error
+	return count, err
+}
+
+func (r *ticketRepository) ListRecentUnassigned(ctx context.Context, limit int) ([]domain.Ticket, error) {
+	var models []ticketModel
+	err := r.db.WithContext(ctx).
+		Where("status = ? AND assigned_cs_id IS NULL", "open").
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	tickets := make([]domain.Ticket, len(models))
+	for i, m := range models {
+		tickets[i] = *toTicketDomain(m)
+	}
+	return tickets, nil
 }
 
 func (r *ticketRepository) CreateMessage(ctx context.Context, msg *domain.TicketMessage) error {
@@ -600,6 +662,7 @@ func toTicketDomain(m ticketModel) *domain.Ticket {
 		OrderNumber:           m.OrderNumber,
 		Phone:                 m.Phone,
 		ReporterName:          m.ReporterName,
+		SubjectID:             m.SubjectID,
 		Subject:               m.Subject,
 		Detail:                m.Detail,
 		Status:                m.Status,
@@ -672,6 +735,210 @@ func toReplyTemplateDomain(m replyTemplateModel) *domain.ReplyTemplate {
 		tpl.UpdatedBy = &id
 	}
 	return tpl
+}
+
+// ============================================================
+// Ticket Report Queries
+// ============================================================
+
+func (r *ticketRepository) CountByMonth(ctx context.Context, year, month int) (int64, int64, error) {
+	start := fmt.Sprintf("%04d-%02d-01", year, month)
+	end := fmt.Sprintf("%04d-%02d-01", year, month%12+1)
+	if month == 12 {
+		end = fmt.Sprintf("%04d-01-01", year+1)
+	}
+
+	var total int64
+	if err := r.db.WithContext(ctx).Model(&ticketModel{}).
+		Where("created_at >= ? AND created_at < ?", start, end).
+		Count(&total).Error; err != nil {
+		return 0, 0, err
+	}
+
+	var resolved int64
+	if err := r.db.WithContext(ctx).Model(&ticketModel{}).
+		Where("created_at >= ? AND created_at < ?", start, end).
+		Where("status IN ?", []string{"resolved", "closed"}).
+		Count(&resolved).Error; err != nil {
+		return 0, 0, err
+	}
+	return total, resolved, nil
+}
+
+func (r *ticketRepository) AvgFirstResponseMinute(ctx context.Context, year, month int) (float64, error) {
+	start := fmt.Sprintf("%04d-%02d-01", year, month)
+	end := fmt.Sprintf("%04d-%02d-01", year, month%12+1)
+	if month == 12 {
+		end = fmt.Sprintf("%04d-01-01", year+1)
+	}
+
+	// Average minutes between ticket creation and the first CS message
+	var avg *float64
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT AVG(EXTRACT(EPOCH FROM (fm.first_reply - t.created_at)) / 60) as avg_min
+		FROM tickets t
+		INNER JOIN (
+			SELECT ticket_id, MIN(created_at) AS first_reply
+			FROM ticket_messages
+			WHERE is_from_cs = TRUE
+			GROUP BY ticket_id
+		) fm ON fm.ticket_id = t.id
+		WHERE t.created_at >= ? AND t.created_at < ?
+	`, start, end).Scan(&avg).Error
+	if err != nil {
+		return 0, err
+	}
+	if avg == nil {
+		return 0, nil
+	}
+	return *avg, nil
+}
+
+func (r *ticketRepository) TopSubjectsByMonth(ctx context.Context, year, month, limit int) ([]domain.SubjectCount, error) {
+	start := fmt.Sprintf("%04d-%02d-01", year, month)
+	end := fmt.Sprintf("%04d-%02d-01", year, month%12+1)
+	if month == 12 {
+		end = fmt.Sprintf("%04d-01-01", year+1)
+	}
+
+	type row struct {
+		SubjectID int    `gorm:"column:subject_id"`
+		Label     string `gorm:"column:label"`
+		Count     int64  `gorm:"column:count"`
+	}
+	var rows []row
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT t.subject_id, ts.label, COUNT(*) as count
+		FROM tickets t
+		JOIN ticket_subjects ts ON ts.id = t.subject_id
+		WHERE t.created_at >= ? AND t.created_at < ?
+		GROUP BY t.subject_id, ts.label
+		ORDER BY count DESC
+		LIMIT ?
+	`, start, end, limit).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.SubjectCount, len(rows))
+	for i, r := range rows {
+		result[i] = domain.SubjectCount{SubjectID: r.SubjectID, Label: r.Label, Count: r.Count}
+	}
+	return result, nil
+}
+
+func (r *ticketRepository) TicketsPerDayByMonth(ctx context.Context, year, month int) ([]domain.DayCount, error) {
+	start := fmt.Sprintf("%04d-%02d-01", year, month)
+	end := fmt.Sprintf("%04d-%02d-01", year, month%12+1)
+	if month == 12 {
+		end = fmt.Sprintf("%04d-01-01", year+1)
+	}
+
+	type row struct {
+		Date  string `gorm:"column:date"`
+		Count int64  `gorm:"column:count"`
+	}
+	var rows []row
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT TO_CHAR(created_at, 'YYYY-MM-DD') as date, COUNT(*) as count
+		FROM tickets
+		WHERE created_at >= ? AND created_at < ?
+		GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
+		ORDER BY date
+	`, start, end).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.DayCount, len(rows))
+	for i, r := range rows {
+		result[i] = domain.DayCount{Date: r.Date, Count: r.Count}
+	}
+	return result, nil
+}
+
+func (r *ticketRepository) ExportByMonth(ctx context.Context, year, month int) ([]domain.CSReportExportRow, error) {
+	start := fmt.Sprintf("%04d-%02d-01", year, month)
+	end := fmt.Sprintf("%04d-%02d-01", year, month%12+1)
+	if month == 12 {
+		end = fmt.Sprintf("%04d-01-01", year+1)
+	}
+
+	type row struct {
+		TicketNumber string     `gorm:"column:ticket_number"`
+		Subject      string     `gorm:"column:subject"`
+		Status       string     `gorm:"column:status"`
+		Source       string     `gorm:"column:source"`
+		ReporterName string     `gorm:"column:reporter_name"`
+		AssignedCS   *string    `gorm:"column:assigned_cs"`
+		ResolvedAt   *time.Time `gorm:"column:resolved_at"`
+		CreatedAt    time.Time  `gorm:"column:created_at"`
+	}
+	var rows []row
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT t.ticket_number, ts.label as subject, t.status, t.source,
+		       t.reporter_name, u.full_name as assigned_cs, t.resolved_at, t.created_at
+		FROM tickets t
+		JOIN ticket_subjects ts ON ts.id = t.subject_id
+		LEFT JOIN users u ON u.id = t.assigned_cs_id
+		WHERE t.created_at >= ? AND t.created_at < ?
+		ORDER BY t.created_at DESC
+	`, start, end).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.CSReportExportRow, len(rows))
+	for i, r := range rows {
+		result[i] = domain.CSReportExportRow{
+			TicketNumber: r.TicketNumber,
+			Subject:      r.Subject,
+			Status:       r.Status,
+			Source:       r.Source,
+			ReporterName: r.ReporterName,
+			AssignedCS:   r.AssignedCS,
+			ResolvedAt:   r.ResolvedAt,
+			CreatedAt:    r.CreatedAt,
+		}
+	}
+	return result, nil
+}
+
+// ============================================================
+// Ticket Subject Repository
+// ============================================================
+
+type ticketSubjectModel struct {
+	ID       int    `gorm:"column:id;primaryKey"`
+	Label    string `gorm:"column:label"`
+	IsActive bool   `gorm:"column:is_active"`
+}
+
+func (ticketSubjectModel) TableName() string { return "ticket_subjects" }
+
+type ticketSubjectRepository struct {
+	db *gorm.DB
+}
+
+func NewTicketSubjectRepository(db *gorm.DB) domain.TicketSubjectRepository {
+	return &ticketSubjectRepository{db: db}
+}
+
+func (r *ticketSubjectRepository) ListActive(ctx context.Context) ([]domain.TicketSubject, error) {
+	var rows []ticketSubjectModel
+	if err := r.db.WithContext(ctx).Where("is_active = ?", true).Order("label").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make([]domain.TicketSubject, len(rows))
+	for i, r := range rows {
+		result[i] = domain.TicketSubject{ID: r.ID, Label: r.Label, IsActive: r.IsActive}
+	}
+	return result, nil
+}
+
+func (r *ticketSubjectRepository) FindByID(ctx context.Context, id int) (*domain.TicketSubject, error) {
+	var m ticketSubjectModel
+	if err := r.db.WithContext(ctx).Where("id = ? AND is_active = ?", id, true).First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &domain.TicketSubject{ID: m.ID, Label: m.Label, IsActive: m.IsActive}, nil
 }
 
 // ============================================================
