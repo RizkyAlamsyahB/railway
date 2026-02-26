@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, wsHandler *ws.Handler, checkoutHandler *handler.CheckoutHandler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -52,6 +52,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		userAuth.PATCH("/cart/items/:itemId", cartHandler.UpdateItem)
 		userAuth.DELETE("/cart/items/:itemId", cartHandler.RemoveItem)
 		userAuth.DELETE("/cart", cartHandler.ClearCart)
+		userAuth.POST("/checkout", checkoutHandler.Checkout)
 	}
 
 	// Vendor routes (public registration + login)
@@ -178,6 +179,12 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		chatGroup.POST("/:conversationId/messages", chatHandler.SendMessage)
 		chatGroup.GET("/:conversationId/messages", chatHandler.ListMessages)
 		chatGroup.PATCH("/:conversationId/read", chatHandler.MarkRead)
+	}
+
+	// Webhook routes (public, no auth - verified via callback token)
+	webhooks := v1.Group("/webhooks")
+	{
+		webhooks.POST("/xendit/invoice", checkoutHandler.Webhook)
 	}
 
 	return r

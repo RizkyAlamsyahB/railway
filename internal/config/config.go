@@ -99,9 +99,11 @@ type SMTPConfig struct {
 
 // XenditConfig holds Xendit payment platform configuration.
 type XenditConfig struct {
-	APISecretKey string `mapstructure:"XENDIT_API_SECRET_KEY"`
-	APIPublicKey string `mapstructure:"XENDIT_API_PUBLIC_KEY"`
-	BaseURL      string `mapstructure:"XENDIT_BASE_URL"`
+	APISecretKey             string `mapstructure:"XENDIT_API_SECRET_KEY"`
+	APIPublicKey             string `mapstructure:"XENDIT_API_PUBLIC_KEY"`
+	BaseURL                  string `mapstructure:"XENDIT_BASE_URL"`
+	WebhookVerificationToken string `mapstructure:"XENDIT_WEBHOOK_VERIFICATION_TOKEN"`
+	WebhookURL               string `mapstructure:"XENDIT_WEBHOOK_URL"`
 }
 
 // Config is the root configuration struct containing all configuration sections.
@@ -162,6 +164,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("XENDIT_API_SECRET_KEY", "")
 	viper.SetDefault("XENDIT_API_PUBLIC_KEY", "")
 	viper.SetDefault("XENDIT_BASE_URL", "https://api.xendit.co")
+	viper.SetDefault("XENDIT_WEBHOOK_VERIFICATION_TOKEN", "")
+	viper.SetDefault("XENDIT_WEBHOOK_URL", "")
 
 	// Read .env file (ignore error if file doesn't exist)
 	_ = viper.ReadInConfig()

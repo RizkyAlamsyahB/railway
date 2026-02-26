@@ -24,7 +24,29 @@ const (
 
 // Cart statuses.
 const (
-	CartStatusActive = "active"
+	CartStatusActive    = "active"
+	CartStatusConverted = "converted"
+)
+
+// Order statuses.
+const (
+	OrderStatusPendingPayment = "pending_payment"
+	OrderStatusPaid           = "paid"
+	OrderStatusCanceled       = "canceled"
+)
+
+// Payment statuses (on orders).
+const (
+	PaymentStatusUnpaid = "unpaid"
+	PaymentStatusPaid   = "paid"
+)
+
+// Payment invoice statuses.
+const (
+	InvoiceStatusPending = "pending"
+	InvoiceStatusPaid    = "paid"
+	InvoiceStatusExpired = "expired"
+	InvoiceStatusFailed  = "failed"
 )
 
 // Halal AI review statuses.

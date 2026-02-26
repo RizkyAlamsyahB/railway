@@ -22,8 +22,8 @@ type xenditClient struct {
 	authHeader string
 }
 
-// NewXenditClient creates a new XenPlatformProvider backed by the Xendit REST API.
-func NewXenditClient(cfg config.XenditConfig) (domain.XenPlatformProvider, error) {
+// newXenditClientInternal creates the shared xenditClient from config.
+func newXenditClientInternal(cfg config.XenditConfig) (*xenditClient, error) {
 	if cfg.APISecretKey == "" {
 		return nil, fmt.Errorf("XENDIT_API_SECRET_KEY is required")
 	}
@@ -42,6 +42,18 @@ func NewXenditClient(cfg config.XenditConfig) (domain.XenPlatformProvider, error
 		authHeader: "Basic " + encoded,
 	}, nil
 }
+
+// NewXenditClient creates a new XenPlatformProvider backed by the Xendit REST API.
+func NewXenditClient(cfg config.XenditConfig) (domain.XenPlatformProvider, error) {
+	return newXenditClientInternal(cfg)
+}
+
+// NewXenditInvoiceClient creates a new XenditInvoiceProvider backed by the Xendit REST API.
+func NewXenditInvoiceClient(cfg config.XenditConfig) (domain.XenditInvoiceProvider, error) {
+	return newXenditClientInternal(cfg)
+}
+
+// --- XenPlatformProvider implementation ---
 
 func (c *xenditClient) CreateAccount(ctx context.Context, req domain.XenPlatformCreateAccountRequest) (*domain.XenPlatformAccount, error) {
 	body, err := json.Marshal(req)
@@ -160,7 +172,43 @@ func (c *xenditClient) UpdateAccount(ctx context.Context, id string, req domain.
 	return &account, nil
 }
 
+// --- XenditInvoiceProvider implementation ---
+
+func (c *xenditClient) CreateInvoice(ctx context.Context, forUserID string, req domain.XenditInvoiceRequest) (*domain.XenditInvoiceResponse, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal create invoice request: %w", err)
+	}
+
+	headers := map[string]string{
+		"for-user-id": forUserID,
+	}
+
+	resp, err := c.doRequestWithHeaders(ctx, http.MethodPost, "/v2/invoices", bytes.NewReader(body), headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Xendit create invoice API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	var invoice domain.XenditInvoiceResponse
+	if err := json.NewDecoder(resp.Body).Decode(&invoice); err != nil {
+		return nil, fmt.Errorf("failed to decode create invoice response: %w", err)
+	}
+
+	return &invoice, nil
+}
+
+// --- HTTP helpers ---
+
 func (c *xenditClient) doRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
+	return c.doRequestWithHeaders(ctx, method, path, body, nil)
+}
+
+func (c *xenditClient) doRequestWithHeaders(ctx context.Context, method, path string, body io.Reader, headers map[string]string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
@@ -170,6 +218,9 @@ func (c *xenditClient) doRequest(ctx context.Context, method, path string, body 
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 
 	return c.httpClient.Do(req)

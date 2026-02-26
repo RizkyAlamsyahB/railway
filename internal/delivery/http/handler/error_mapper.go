@@ -81,6 +81,15 @@ var errorRules = []errorRule{
 	{usecase.ErrProductNotAvailable, http.StatusBadRequest, "product is not available"},
 	{usecase.ErrInsufficientStock, http.StatusConflict, "insufficient stock for requested quantity"},
 
+	// Checkout
+	{usecase.ErrCartEmpty, http.StatusBadRequest, "cart is empty"},
+	{usecase.ErrCartHasUnavailableItems, http.StatusConflict, "cart contains unavailable or inactive items"},
+	{usecase.ErrVendorNoXenditAccount, http.StatusBadGateway, ""},
+	{usecase.ErrCheckoutStockInsufficient, http.StatusConflict, ""},
+	{usecase.ErrInvoiceCreationFailed, http.StatusBadGateway, ""},
+	{usecase.ErrOrderNotFound, http.StatusNotFound, "order not found"},
+	{usecase.ErrInvoiceNotFound, http.StatusNotFound, "payment invoice not found"},
+
 	// Finance
 	{usecase.ErrInvalidMonth, http.StatusBadRequest, "invalid month format, expected YYYY-MM"},
 	{usecase.ErrInvalidPaymentStatus, http.StatusBadRequest, "invalid payment status"},

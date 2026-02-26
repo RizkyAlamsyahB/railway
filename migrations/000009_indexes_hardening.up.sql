@@ -8,6 +8,7 @@ CREATE INDEX idx_orders_user_created_at ON orders (user_id, created_at);
 CREATE INDEX idx_orders_vendor_created_at ON orders (vendor_id, created_at);
 CREATE INDEX idx_orders_status_payment_status ON orders (order_status, payment_status);
 CREATE INDEX idx_payment_invoices_order_status ON payment_invoices (order_id, status);
+CREATE UNIQUE INDEX uq_payment_invoices_xendit_id ON payment_invoices (xendit_invoice_id) WHERE xendit_invoice_id IS NOT NULL;
 CREATE INDEX idx_payout_batches_vendor_status ON payout_batches (vendor_id, status);
 CREATE UNIQUE INDEX uq_payout_items_batch_order ON payout_items (payout_batch_id, order_id);
 CREATE INDEX idx_ledger_journals_source ON ledger_journals (source_type, source_id);

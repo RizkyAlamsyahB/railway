@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Haji Umroh Store BE - Users API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint user/customer, termasuk pendaftaran, verifikasi email, login, dan profil user.
+  description: Dokumentasi OpenAPI 3 untuk endpoint user/customer, termasuk pendaftaran, verifikasi email, login, profil user, dan checkout cart.
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -13,6 +13,8 @@ tags:
     description: Operasi autentikasi user (login).
   - name: User Profile
     description: Operasi profil user yang memerlukan autentikasi.
+  - name: Checkout
+    description: Operasi checkout cart customer dan pembuatan invoice pembayaran Xendit.
 paths:
   /api/v1/users/register:
     post:
@@ -595,6 +597,194 @@ paths:
                 errors: null
                 meta: null
 
+  /api/v1/users/checkout:
+    post:
+      tags:
+        - Checkout
+      summary: Checkout cart customer dan buat invoice pembayaran
+      description: |
+        Melakukan checkout untuk seluruh item pada cart aktif customer yang sedang login.
+        Endpoint ini akan membuat order per vendor, lalu membuat invoice Xendit untuk setiap order.
+
+        **Alur checkout:**
+        1. Backend mengambil cart aktif milik user dari JWT.
+        2. Backend memvalidasi semua item cart (variant aktif, product published, stok mencukupi).
+        3. Item dikelompokkan per vendor.
+        4. Untuk setiap vendor:
+           - Order dibuat dengan status `pending_payment`.
+           - Invoice Xendit dibuat atas nama sub-account vendor.
+           - `invoice_url` disimpan dan dikembalikan ke client.
+        5. Jika sukses, cart diubah statusnya menjadi `converted`.
+
+        **Catatan penting:**
+        - Satu checkout dapat menghasilkan lebih dari satu order (multi-vendor).
+        - Endpoint tidak memerlukan request body.
+        - Response berisi URL invoice Xendit yang bisa langsung dipakai customer untuk pembayaran.
+      operationId: checkoutCart
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Checkout berhasil. Order dan invoice pembayaran berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCheckoutEnvelope'
+              example:
+                success: true
+                message: "checkout successful"
+                data:
+                  orders:
+                    - order_id: "11111111-2222-3333-4444-555555555555"
+                      order_no: "ORD-20260225-A1B2C3D4"
+                      vendor_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                      vendor_name: "Oleh-Oleh Madinah Store"
+                      subtotal: 200000
+                      shipping_fee: 0
+                      platform_fee: 6000
+                      grand_total: 206000
+                      invoice_url: "https://checkout.xendit.co/web/67bdcf2a553f2f5bc7f84f11"
+                      expires_at: "2026-02-26T10:30:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (misalnya cart kosong atau user ID tidak valid pada context auth).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                cartEmpty:
+                  summary: Cart kosong
+                  value:
+                    success: false
+                    message: "cart is empty"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidUserIDInToken:
+                  summary: User ID tidak valid di token
+                  value:
+                    success: false
+                    message: "invalid user ID in token"
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        '409':
+          description: Checkout gagal karena konflik data cart/item (item unavailable atau stok tidak mencukupi).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                unavailableItems:
+                  summary: Ada item unavailable dalam cart
+                  value:
+                    success: false
+                    message: "cart contains unavailable or inactive items"
+                    data: null
+                    errors: null
+                    meta: null
+                insufficientStock:
+                  summary: Stok tidak cukup saat checkout
+                  value:
+                    success: false
+                    message: "insufficient stock during checkout: Default"
+                    data: null
+                    errors: null
+                    meta: null
+        '502':
+          description: Integrasi payment gateway gagal (akun vendor belum siap Xendit atau gagal create invoice).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                vendorNoXenditAccount:
+                  summary: Vendor belum memiliki akun Xendit
+                  value:
+                    success: false
+                    message: "vendor does not have a Xendit account: vendor aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                    data: null
+                    errors: null
+                    meta: null
+                invoiceCreationFailed:
+                  summary: Gagal membuat invoice ke Xendit
+                  value:
+                    success: false
+                    message: "failed to create payment invoice: xendit 500"
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
 components:
   securitySchemes:
     BearerAuth:
@@ -817,6 +1007,67 @@ components:
         user:
           $ref: '#/components/schemas/UserResponseData'
 
+    CheckoutOrderResult:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          description: ID order yang dibuat saat checkout.
+          example: 11111111-2222-3333-4444-555555555555
+        order_no:
+          type: string
+          description: Nomor order unik.
+          example: ORD-20260225-A1B2C3D4
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor untuk order ini.
+          example: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+        vendor_name:
+          type: string
+          description: Nama vendor.
+          example: Oleh-Oleh Madinah Store
+        subtotal:
+          type: number
+          format: double
+          description: Total harga item sebelum fee platform.
+          example: 200000
+        shipping_fee:
+          type: number
+          format: double
+          description: Ongkos kirim order (saat ini selalu 0).
+          example: 0
+        platform_fee:
+          type: number
+          format: double
+          description: Biaya platform yang dibebankan ke customer.
+          example: 6000
+        grand_total:
+          type: number
+          format: double
+          description: Total akhir yang harus dibayar customer.
+          example: 206000
+        invoice_url:
+          type: string
+          format: uri
+          description: URL invoice Xendit untuk pembayaran customer.
+          example: https://checkout.xendit.co/web/67bdcf2a553f2f5bc7f84f11
+        expires_at:
+          type: string
+          format: date-time
+          description: Waktu kedaluwarsa invoice pembayaran.
+          example: "2026-02-26T10:30:00Z"
+
+    CheckoutResponseData:
+      type: object
+      properties:
+        orders:
+          type: array
+          description: Daftar order hasil checkout (satu order per vendor).
+          items:
+            $ref: '#/components/schemas/CheckoutOrderResult'
+
     SuccessLoginEnvelope:
       type: object
       properties:
@@ -846,6 +1097,24 @@ components:
           example: "user profile retrieved successfully"
         data:
           $ref: '#/components/schemas/UserResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCheckoutEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "checkout successful"
+        data:
+          $ref: '#/components/schemas/CheckoutResponseData'
         errors:
           nullable: true
           example: null

@@ -70,6 +70,14 @@ func Initialize() (*App, error) {
 
 	log.Println("xendit xenplatform provider initialized")
 
+	// Initialize Xendit Invoice provider
+	xenditInvoiceProvider, err := newXenditInvoiceProvider(cfg.Xendit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize xendit invoice provider: %w", err)
+	}
+
+	log.Println("xendit invoice provider initialized")
+
 	// Wire dependencies
 	healthUseCase := usecase.NewHealthUseCase()
 	healthHandler := handler.NewHealthHandler(healthUseCase)
@@ -144,7 +152,15 @@ func Initialize() (*App, error) {
 	csReportHandler := handler.NewCSReportHandler(csReportUseCase)
 	ticketSubjectHandler := handler.NewTicketSubjectHandler(ticketSubjectUseCase)
 
+	// Checkout & payment feature
+	orderRepo := repository.NewOrderRepository(db)
+	paymentRepo := repository.NewPaymentRepository(db)
+	ledgerRepo := repository.NewLedgerRepository(db)
+	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
+	checkoutHandler := handler.NewCheckoutHandler(checkoutUseCase, cfg.Xendit.WebhookVerificationToken)
+
 	// Setup router
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, cfg.JWT.Secret)
 	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, financeHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, wsHandler, cfg.JWT.Secret)
 
 	return &App{
@@ -175,6 +191,11 @@ func newEmailProvider(cfg config.SMTPConfig) (domain.EmailProvider, error) {
 // newXenPlatformProvider creates the Xendit-backed XenPlatformProvider from config.
 func newXenPlatformProvider(cfg config.XenditConfig) (domain.XenPlatformProvider, error) {
 	return payment.NewXenditClient(cfg)
+}
+
+// newXenditInvoiceProvider creates the Xendit-backed XenditInvoiceProvider from config.
+func newXenditInvoiceProvider(cfg config.XenditConfig) (domain.XenditInvoiceProvider, error) {
+	return payment.NewXenditInvoiceClient(cfg)
 }
 
 // Close cleans up application resources.

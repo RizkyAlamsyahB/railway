@@ -1,0 +1,68 @@
+package handler
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
+)
+
+// CheckoutHandler handles checkout and webhook HTTP requests.
+type CheckoutHandler struct {
+	useCase                  domain.CheckoutUseCase
+	webhookVerificationToken string
+}
+
+// NewCheckoutHandler creates a new CheckoutHandler.
+func NewCheckoutHandler(useCase domain.CheckoutUseCase, webhookVerificationToken string) *CheckoutHandler {
+	return &CheckoutHandler{
+		useCase:                  useCase,
+		webhookVerificationToken: webhookVerificationToken,
+	}
+}
+
+// Checkout handles POST /api/v1/users/checkout.
+func (h *CheckoutHandler) Checkout(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	result, err := h.useCase.Checkout(c.Request.Context(), userID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.Created(c, "checkout successful", result)
+}
+
+// Webhook handles POST /api/v1/webhooks/xendit/invoice.
+func (h *CheckoutHandler) Webhook(c *gin.Context) {
+	// 1. Verify x-callback-token.
+	callbackToken := c.GetHeader("x-callback-token")
+	if callbackToken != h.webhookVerificationToken {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "invalid callback token"})
+		return
+	}
+
+	// 2. Parse payload.
+	var payload domain.XenditWebhookPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid payload"})
+		return
+	}
+
+	// 3. Process webhook.
+	if err := h.useCase.HandleWebhook(c.Request.Context(), payload); err != nil {
+		// Log the error but return 200 to prevent Xendit retries for most errors.
+		// Only return non-200 for truly unexpected infrastructure failures.
+		c.JSON(http.StatusOK, gin.H{"message": "webhook received with errors", "error": err.Error()})
+		return
+	}
+
+	// 4. Return 200 OK per Xendit requirements.
+	c.JSON(http.StatusOK, gin.H{"message": "webhook processed"})
+}

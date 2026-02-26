@@ -12,6 +12,7 @@ DROP INDEX IF EXISTS idx_ledger_journals_source;
 DROP INDEX IF EXISTS uq_payout_items_batch_order;
 DROP INDEX IF EXISTS idx_payout_batches_vendor_status;
 DROP INDEX IF EXISTS idx_payment_invoices_order_status;
+DROP INDEX IF EXISTS uq_payment_invoices_xendit_id;
 DROP INDEX IF EXISTS idx_orders_status_payment_status;
 DROP INDEX IF EXISTS idx_orders_vendor_created_at;
 DROP INDEX IF EXISTS idx_orders_user_created_at;

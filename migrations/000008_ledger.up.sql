@@ -35,3 +35,10 @@ CREATE TABLE ledger_lines (
     CONSTRAINT fk_ledger_lines_journal FOREIGN KEY (journal_id) REFERENCES ledger_journals (id),
     CONSTRAINT fk_ledger_lines_account FOREIGN KEY (account_id) REFERENCES ledger_accounts (id)
 );
+
+-- Seed ledger accounts (chart of accounts)
+INSERT INTO ledger_accounts (id, code, name, account_type, normal_side, is_active) VALUES
+    (gen_random_uuid(), '1100', 'Payment Gateway Receivable', 'asset',     'D', true),
+    (gen_random_uuid(), '2100', 'Vendor Payable',             'liability', 'C', true),
+    (gen_random_uuid(), '4100', 'Platform Fee Revenue',       'revenue',   'C', true),
+    (gen_random_uuid(), '4200', 'Admin Fee Revenue',          'revenue',   'C', true);

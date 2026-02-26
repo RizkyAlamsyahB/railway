@@ -90,6 +90,18 @@ var (
 	ErrInsufficientStock   = errors.New("insufficient stock")
 )
 
+// --- Checkout errors ---
+
+var (
+	ErrCartEmpty                 = errors.New("cart is empty")
+	ErrCartHasUnavailableItems   = errors.New("cart contains unavailable items")
+	ErrVendorNoXenditAccount     = errors.New("vendor does not have a Xendit account")
+	ErrCheckoutStockInsufficient = errors.New("insufficient stock during checkout")
+	ErrInvoiceCreationFailed     = errors.New("failed to create payment invoice")
+	ErrOrderNotFound             = errors.New("order not found")
+	ErrInvoiceNotFound           = errors.New("payment invoice not found")
+)
+
 // --- Finance errors ---
 
 var (
