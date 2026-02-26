@@ -208,7 +208,7 @@ func (uc *csUserUseCase) ListUsers(ctx context.Context, params domain.CSUserList
 	users, total, err := uc.userRepo.List(ctx, domain.UserListParams{
 		Page:   params.Page,
 		Limit:  params.Limit,
-		Role:   params.Role,
+		Role:   "customer",
 		Search: params.Query,
 	})
 	if err != nil {
@@ -253,7 +253,20 @@ func (uc *csUserUseCase) GetUserTickets(ctx context.Context, customerID uuid.UUI
 	}
 	resp := make([]domain.TicketResponse, len(tickets))
 	for i, t := range tickets {
+		uc.enrichTicket(ctx, &t)
 		resp[i] = *toTicketResponse(t)
 	}
 	return resp, meta, nil
+}
+
+// enrichTicket populates CustomerEmail and AssignedCSName from the users table.
+func (uc *csUserUseCase) enrichTicket(ctx context.Context, t *domain.Ticket) {
+	if customer, err := uc.userRepo.FindByID(ctx, t.CustomerID); err == nil && customer != nil {
+		t.CustomerEmail = customer.Email
+	}
+	if t.AssignedCSID != nil {
+		if cs, err := uc.userRepo.FindByID(ctx, *t.AssignedCSID); err == nil && cs != nil {
+			t.AssignedCSName = &cs.FullName
+		}
+	}
 }

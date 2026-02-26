@@ -331,7 +331,6 @@ type CSReportTicketParams struct {
 type CSUserListParams struct {
 	Page  int
 	Limit int
-	Role  string
 	Query string
 }
 

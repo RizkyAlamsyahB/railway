@@ -514,7 +514,6 @@ func (h *CSUserHandler) ListUsers(c *gin.Context) {
 	params := domain.CSUserListParams{
 		Page:  queryInt(c, "page", 1),
 		Limit: queryInt(c, "limit", 10),
-		Role:  c.Query("role"),
 		Query: c.Query("q"),
 	}
 

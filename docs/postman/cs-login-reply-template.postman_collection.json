@@ -32,6 +32,10 @@
     {
       "key": "upload_url",
       "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": ""
     }
   ],
   "item": [
@@ -931,6 +935,156 @@
               "code": 404,
               "header": [{ "key": "Content-Type", "value": "application/json" }],
               "body": "{\n  \"success\": false,\n  \"message\": \"reply template not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Data Pengguna",
+      "description": "Endpoint CS untuk melihat data pengguna dan tiket mereka.\n\nButuh Bearer Token role `cs`.\n\n**Flow:**\n1. List pengguna (search by nama/email)\n2. Klik user → Get detail user\n3. Get daftar tiket user → klik 'Lihat Tiket' → ke detail tiket bantuan\n   - Tiket baru/open: CS bisa ambil (Take) dulu, baru balas\n   - Tiket on_progress (milik CS ini): full access\n   - Tiket on_progress (milik CS lain): view only\n   - Tiket resolved/closed: view only",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/users?page=1&limit=10&q=sarah",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Item per halaman (default: 10)"
+                },
+                {
+                  "key": "q",
+                  "value": "sarah",
+                  "description": "Search by nama atau email (case-insensitive)"
+                }
+              ]
+            },
+            "description": "List data customer dengan pagination dan search. Hanya menampilkan user dengan role `customer`.\n\n**Query params:**\n- `page` (default: 1)\n- `limit` (default: 10)\n- `q`: search by nama/email\n\n**Response fields:** id, email, full_name, phone, status, role, created_at\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"users retrieved\",\n  \"data\": [\n    {\n      \"id\": \"f34f2433-af16-4235-8eac-7...\",\n      \"email\": \"customer@dev.local\",\n      \"full_name\": \"Dev Customer\",\n      \"phone\": \"081234567890\",\n      \"status\": \"active\",\n      \"email_verified_at\": \"2026-02-20T03:39:27.197Z\",\n      \"role\": \"customer\",\n      \"created_at\": \"2026-02-20T03:39:27.197Z\",\n      \"updated_at\": \"2026-02-20T03:39:27.197Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get User Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('user_id', json.data.id);",
+                  "    console.log('✅ user_id saved: ' + json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/users/:id",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "users", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{user_id}}",
+                  "description": "UUID pengguna"
+                }
+              ]
+            },
+            "description": "Detail profil pengguna.\n\nMenampilkan id, email, full_name, phone, status, role, created_at.\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Success",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"user retrieved\",\n  \"data\": {\n    \"id\": \"f34f2433-af16-4235-8eac-7...\",\n    \"email\": \"customer@dev.local\",\n    \"full_name\": \"Dev Customer\",\n    \"phone\": \"081234567890\",\n    \"status\": \"active\",\n    \"email_verified_at\": \"2026-02-20T03:39:27.197Z\",\n    \"role\": \"customer\",\n    \"created_at\": \"2026-02-20T03:39:27.197Z\",\n    \"updated_at\": \"2026-02-20T03:39:27.197Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - User Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"user not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get User Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{cs_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/users/:id/tickets?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["customer-service", "users", ":id", "tickets"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Item per halaman (default: 10)"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{user_id}}",
+                  "description": "UUID pengguna (customer)"
+                }
+              ]
+            },
+            "description": "Daftar tiket milik user tertentu. Dari sini CS bisa klik 'Lihat Tiket' untuk ke detail tiket.\n\n**Behavior navigasi 'Lihat Tiket':**\n- Tiket `open` (belum diambil) → ke detail tiket, CS bisa klik 'Ambil Tiket' dulu\n- Tiket `on_progress` (milik CS ini) → ke detail tiket, full access (kirim pesan, update status)\n- Tiket `on_progress` (milik CS lain) → ke detail tiket, view only\n- Tiket `resolved`/`closed` → ke detail tiket, view only\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - Daftar Tiket User",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"tickets retrieved\",\n  \"data\": [\n    {\n      \"id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n      \"ticket_number\": \"TKT-20260225-0001\",\n      \"customer_id\": \"f34f2433-af16-4235-8eac-7...\",\n      \"customer_email\": \"customer@dev.local\",\n      \"assigned_cs_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"assigned_cs_name\": \"Dev Customer Service\",\n      \"order_number\": \"ORD-20260225-001\",\n      \"phone\": \"081234567890\",\n      \"reporter_name\": \"Ahmad Customer\",\n      \"subject\": \"Pesanan belum sampai\",\n      \"detail\": \"Sudah 7 hari tapi pesanan belum sampai.\",\n      \"status\": \"on_progress\",\n      \"source\": \"web\",\n      \"attachment_url\": \"https://s3.amazonaws.com/bucket/...\",\n      \"attachment_content_type\": \"image/jpeg\",\n      \"resolved_at\": null,\n      \"closed_at\": null,\n      \"created_at\": \"2026-02-25T08:00:00.000Z\",\n      \"updated_at\": \"2026-02-25T08:15:00.000Z\"\n    },\n    {\n      \"id\": \"a2b3c4d5-e6f7-8901-2345-678901abcdef\",\n      \"ticket_number\": \"TKT-20260220-0001\",\n      \"customer_id\": \"f34f2433-af16-4235-8eac-7...\",\n      \"customer_email\": \"customer@dev.local\",\n      \"assigned_cs_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"assigned_cs_name\": \"Dev Customer Service\",\n      \"order_number\": \"ORD-20260218-005\",\n      \"phone\": \"081234567890\",\n      \"reporter_name\": \"Ahmad Customer\",\n      \"subject\": \"Pengembalian Dana\",\n      \"detail\": \"Tolong kembalikan dana saya.\",\n      \"status\": \"resolved\",\n      \"source\": \"app\",\n      \"attachment_url\": null,\n      \"attachment_content_type\": null,\n      \"resolved_at\": \"2026-02-22T10:00:00.000Z\",\n      \"closed_at\": null,\n      \"created_at\": \"2026-02-20T05:00:00.000Z\",\n      \"updated_at\": \"2026-02-22T10:00:00.000Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 2,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "404 - User Tidak Ditemukan",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"user not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
             }
           ]
         }
