@@ -240,6 +240,7 @@ type ConversationResponse struct {
 	UserRole        string     `json:"user_role"`
 	LastMessage     string     `json:"last_message"`
 	LastMessageTime *time.Time `json:"last_message_time"`
+	UnreadCount     int64      `json:"unread_count"`
 }
 
 type ChatMessageResponse struct {
@@ -423,6 +424,7 @@ type ChatRepository interface {
 	ListMessages(ctx context.Context, params ChatMessageListParams) ([]ChatMessage, *PaginationMeta, error)
 	MarkMessagesRead(ctx context.Context, conversationID, readerID uuid.UUID) error
 	CountUnreadMessages(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountUnreadByConversation(ctx context.Context, conversationID, userID uuid.UUID) (int64, error)
 
 	// Enriched queries for chat UI
 	GetLastMessage(ctx context.Context, conversationID uuid.UUID) (*ChatMessage, error)

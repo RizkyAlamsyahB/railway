@@ -70,6 +70,11 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		vendorAuth.POST("/documents/confirm", vendorHandler.ConfirmDocuments)
 		vendorAuth.POST("/products", productHandler.CreateProduct)
 		vendorAuth.POST("/products/:id/images/confirm", productHandler.ConfirmImages)
+
+		// Chat (vendor-specific management)
+		vendorAuth.GET("/chat", chatHandler.ListConversations)
+		vendorAuth.GET("/chat/:conversationId", chatHandler.GetConversation)
+		vendorAuth.PATCH("/chat/:conversationId/read", chatHandler.MarkRead)
 	}
 
 	// Admin login route (public - no auth required)
@@ -95,6 +100,11 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		admin.PATCH("/vendors/:id/reject", adminVendorHandler.Reject)
 		admin.PATCH("/vendors/:id/block", adminVendorHandler.Block)
 		admin.PATCH("/vendors/:id/unblock", adminVendorHandler.Unblock)
+
+		// Chat (admin-specific management)
+		admin.GET("/chat", chatHandler.ListConversations)
+		admin.GET("/chat/:conversationId", chatHandler.GetConversation)
+		admin.PATCH("/chat/:conversationId/read", chatHandler.MarkRead)
 	}
 
 	// Finance routes (requires auth + finance role)
@@ -111,6 +121,11 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		finance.GET("/refunds/export", financeHandler.ExportRefunds)
 		finance.PATCH("/refunds/:id/status", financeHandler.UpdateRefundStatus)
 		finance.PATCH("/payouts/:id/status", financeHandler.UpdatePayoutStatus)
+
+		// Chat (finance-specific management)
+		finance.GET("/chat", chatHandler.ListConversations)
+		finance.GET("/chat/:conversationId", chatHandler.GetConversation)
+		finance.PATCH("/chat/:conversationId/read", chatHandler.MarkRead)
 	}
 
 	// CS login route (public - no auth required)

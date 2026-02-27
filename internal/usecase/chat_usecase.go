@@ -117,6 +117,11 @@ func (uc *chatUseCase) ListConversations(ctx context.Context, params domain.Conv
 			resp[i].LastMessage = lastMsg.Message
 			resp[i].LastMessageTime = &lastMsg.CreatedAt
 		}
+
+		// Unread count for this conversation
+		if cnt, cErr := uc.chatRepo.CountUnreadByConversation(ctx, c.ID, params.UserID); cErr == nil {
+			resp[i].UnreadCount = cnt
+		}
 	}
 	return resp, meta, nil
 }
@@ -151,6 +156,11 @@ func (uc *chatUseCase) GetConversation(ctx context.Context, conversationID, user
 	if lastMsg, mErr := uc.chatRepo.GetLastMessage(ctx, conv.ID); mErr == nil {
 		resp.LastMessage = lastMsg.Message
 		resp.LastMessageTime = &lastMsg.CreatedAt
+	}
+
+	// Unread count
+	if cnt, cErr := uc.chatRepo.CountUnreadByConversation(ctx, conv.ID, userID); cErr == nil {
+		resp.UnreadCount = cnt
 	}
 
 	return resp, nil

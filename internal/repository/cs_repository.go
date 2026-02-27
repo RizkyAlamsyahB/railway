@@ -556,6 +556,15 @@ func (r *chatRepository) CountUnreadMessages(ctx context.Context, userID uuid.UU
 	return count, err
 }
 
+func (r *chatRepository) CountUnreadByConversation(ctx context.Context, conversationID, userID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&chatMessageModel{}).
+		Where("conversation_id = ? AND sender_id <> ? AND is_read = FALSE", conversationID.String(), userID.String()).
+		Count(&count).Error
+	return count, err
+}
+
 func (r *chatRepository) GetLastMessage(ctx context.Context, conversationID uuid.UUID) (*domain.ChatMessage, error) {
 	var m chatMessageModel
 	err := r.db.WithContext(ctx).
