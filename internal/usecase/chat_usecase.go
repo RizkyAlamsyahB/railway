@@ -105,7 +105,7 @@ func (uc *chatUseCase) ListConversations(ctx context.Context, params domain.Conv
 		if c.ParticipantID == params.UserID {
 			otherID = c.InitiatorID
 		}
-		if other, uErr := uc.userRepo.FindByID(ctx, otherID); uErr == nil {
+		if other, uErr := uc.userRepo.FindByID(ctx, otherID); uErr == nil && other != nil {
 			resp[i].UserName = other.FullName
 			if other.Role != nil {
 				resp[i].UserRole = other.Role.Code
@@ -142,7 +142,7 @@ func (uc *chatUseCase) GetConversation(ctx context.Context, conversationID, user
 	if conv.ParticipantID == userID {
 		otherID = conv.InitiatorID
 	}
-	if other, uErr := uc.userRepo.FindByID(ctx, otherID); uErr == nil {
+	if other, uErr := uc.userRepo.FindByID(ctx, otherID); uErr == nil && other != nil {
 		resp.UserName = other.FullName
 		if other.Role != nil {
 			resp.UserRole = other.Role.Code
@@ -188,7 +188,7 @@ func (uc *chatUseCase) SendMessage(ctx context.Context, conversationID, senderID
 	_ = uc.chatRepo.UpdateConversation(ctx, conv)
 
 	resp := toChatMessageResponse(*msg)
-	if sender, uErr := uc.userRepo.FindByID(ctx, senderID); uErr == nil {
+	if sender, uErr := uc.userRepo.FindByID(ctx, senderID); uErr == nil && sender != nil {
 		resp.SenderName = sender.FullName
 		if sender.Role != nil {
 			resp.SenderRole = sender.Role.Code
@@ -217,7 +217,7 @@ func (uc *chatUseCase) ListMessages(ctx context.Context, params domain.ChatMessa
 	resp := make([]domain.ChatMessageResponse, len(msgs))
 	for i, m := range msgs {
 		resp[i] = *toChatMessageResponse(m)
-		if sender, uErr := uc.userRepo.FindByID(ctx, m.SenderID); uErr == nil {
+		if sender, uErr := uc.userRepo.FindByID(ctx, m.SenderID); uErr == nil && sender != nil {
 			resp[i].SenderName = sender.FullName
 			if sender.Role != nil {
 				resp[i].SenderRole = sender.Role.Code
