@@ -225,7 +225,6 @@ func (h *ChatHandler) ListConversations(c *gin.Context) {
 	params := domain.ConversationListParams{
 		Page:       queryInt(c, "page", 1),
 		Limit:      queryInt(c, "limit", 10),
-		Status:     c.Query("status"),
 		UserID:     userID,
 		Search:     c.Query("search"),
 		RoleFilter: c.Query("role"),
@@ -368,6 +367,19 @@ func (h *ChatHandler) SearchChatableUsers(c *gin.Context) {
 		return
 	}
 	response.SuccessWithMeta(c, http.StatusOK, "users retrieved", users, meta)
+}
+
+// StartChatWithCS godoc
+// POST /api/v1/chat/cs — auto-assign customer ke CS tersedia
+func (h *ChatHandler) StartChatWithCS(c *gin.Context) {
+	customerID := c.MustGet(middleware.ContextKeyUserID).(uuid.UUID)
+
+	conv, err := h.uc.StartChatWithCS(c.Request.Context(), customerID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+	response.Created(c, "connected to customer service", conv)
 }
 
 // ============================================================

@@ -66,7 +66,6 @@ type chatConversationModel struct {
 	ID            string     `gorm:"column:id;primaryKey"`
 	InitiatorID   string     `gorm:"column:initiator_id"`
 	ParticipantID string     `gorm:"column:participant_id"`
-	Status        string     `gorm:"column:status"`
 	LastMessageAt *time.Time `gorm:"column:last_message_at"`
 	CreatedAt     time.Time  `gorm:"column:created_at"`
 	UpdatedAt     time.Time  `gorm:"column:updated_at"`
@@ -384,7 +383,6 @@ func (r *chatRepository) CreateConversation(ctx context.Context, conv *domain.Ch
 		ID:            conv.ID.String(),
 		InitiatorID:   conv.InitiatorID.String(),
 		ParticipantID: conv.ParticipantID.String(),
-		Status:        conv.Status,
 		LastMessageAt: conv.LastMessageAt,
 		CreatedAt:     conv.CreatedAt,
 		UpdatedAt:     conv.UpdatedAt,
@@ -405,9 +403,6 @@ func (r *chatRepository) ListConversations(ctx context.Context, p domain.Convers
 
 	q := r.db.WithContext(ctx).Model(&chatConversationModel{}).
 		Where("initiator_id = ? OR participant_id = ?", uid, uid)
-	if p.Status != "" {
-		q = q.Where("status = ?", p.Status)
-	}
 
 	// Search by the OTHER participant's full_name
 	if p.Search != "" {
@@ -467,20 +462,11 @@ func (r *chatRepository) UpdateConversation(ctx context.Context, conv *domain.Ch
 		ID:            conv.ID.String(),
 		InitiatorID:   conv.InitiatorID.String(),
 		ParticipantID: conv.ParticipantID.String(),
-		Status:        conv.Status,
 		LastMessageAt: conv.LastMessageAt,
 		CreatedAt:     conv.CreatedAt,
 		UpdatedAt:     conv.UpdatedAt,
 	}
 	return r.db.WithContext(ctx).Save(&m).Error
-}
-
-func (r *chatRepository) CountActiveConversations(ctx context.Context) (int64, error) {
-	var count int64
-	err := r.db.WithContext(ctx).Model(&chatConversationModel{}).
-		Where("status = ?", domain.ChatConvStatusOpen).
-		Count(&count).Error
-	return count, err
 }
 
 func (r *chatRepository) CreateMessage(ctx context.Context, msg *domain.ChatMessage) error {
@@ -745,7 +731,6 @@ func toChatConvDomain(m chatConversationModel) *domain.ChatConversation {
 		ID:            mustParseUUID(m.ID),
 		InitiatorID:   mustParseUUID(m.InitiatorID),
 		ParticipantID: mustParseUUID(m.ParticipantID),
-		Status:        m.Status,
 		LastMessageAt: m.LastMessageAt,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,

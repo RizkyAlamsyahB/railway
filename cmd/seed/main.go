@@ -138,6 +138,11 @@ func main() {
 		log.Fatalf("failed to seed tickets: %v", err)
 	}
 
+	// Seed FAQ / Pusat Bantuan
+	if err := SeedFAQs(db); err != nil {
+		log.Fatalf("failed to seed FAQs: %v", err)
+	}
+
 	// if err := SeedFinanceDummy(db); err != nil {
 	// 	log.Fatalf("failed to seed finance dummy data: %v", err)
 	// }

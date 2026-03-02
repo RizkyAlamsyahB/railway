@@ -77,7 +77,6 @@ type ChatConversation struct {
 	ID            uuid.UUID  `json:"id"`
 	InitiatorID   uuid.UUID  `json:"initiator_id"`
 	ParticipantID uuid.UUID  `json:"participant_id"`
-	Status        string     `json:"status"`
 	LastMessageAt *time.Time `json:"last_message_at"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
@@ -208,7 +207,6 @@ type ChatMessageListParams struct {
 type ConversationListParams struct {
 	Page       int
 	Limit      int
-	Status     string
 	UserID     uuid.UUID
 	Search     string // search by participant name
 	RoleFilter string // filter by participant role code (admin, cs, umkm, finance, customer)
@@ -232,7 +230,6 @@ type ConversationResponse struct {
 	ID              uuid.UUID  `json:"id"`
 	InitiatorID     uuid.UUID  `json:"initiator_id"`
 	ParticipantID   uuid.UUID  `json:"participant_id"`
-	Status          string     `json:"status"`
 	LastMessageAt   *time.Time `json:"last_message_at"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
@@ -418,7 +415,6 @@ type ChatRepository interface {
 	ListConversations(ctx context.Context, params ConversationListParams) ([]ChatConversation, *PaginationMeta, error)
 	FindConversationByID(ctx context.Context, id uuid.UUID) (*ChatConversation, error)
 	UpdateConversation(ctx context.Context, conv *ChatConversation) error
-	CountActiveConversations(ctx context.Context) (int64, error)
 
 	CreateMessage(ctx context.Context, msg *ChatMessage) error
 	ListMessages(ctx context.Context, params ChatMessageListParams) ([]ChatMessage, *PaginationMeta, error)
@@ -465,6 +461,8 @@ type TicketUseCase interface {
 type ChatUseCase interface {
 	// Mulai / ambil conversation antara dua user
 	StartOrGetConversation(ctx context.Context, initiatorID uuid.UUID, initiatorRole string, req StartConversationRequest) (*ConversationResponse, error)
+	// Auto-assign: mulai chat dengan CS yang tersedia (untuk customer)
+	StartChatWithCS(ctx context.Context, customerID uuid.UUID) (*ConversationResponse, error)
 	// List conversation milik user
 	ListConversations(ctx context.Context, params ConversationListParams) ([]ConversationResponse, *PaginationMeta, error)
 	// Detail conversation

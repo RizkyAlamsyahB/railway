@@ -1,0 +1,784 @@
+{
+  "info": {
+    "name": "UmrahMart - Chat (Customer)",
+    "description": "API contract untuk fitur **Chat** — semua endpoint yang digunakan role **Customer**.\n\nBase URL: `http://localhost:8080/api/v1`\n\n## Aturan Role\nCustomer dapat chat dengan: **CS, UMKM**.\n\n## Endpoint\n- Search users: `GET /chat/users`\n- Start conversation: `POST /chat`\n- Start chat with CS: `POST /chat/cs`\n- List conversations: `GET /chat`\n- Get conversation: `GET /chat/:id`\n- Send message: `POST /chat/:id/messages`\n- List messages: `GET /chat/:id/messages`\n- Mark as read: `PATCH /chat/:id/read`\n\n## WebSocket (Real-time)\nEndpoint: `ws://localhost:8080/api/v1/ws?token=<jwt>`\nBuat WebSocket request terpisah di Postman (New → WebSocket).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "customer_token",
+      "value": ""
+    },
+    {
+      "key": "conversation_id",
+      "value": ""
+    },
+    {
+      "key": "participant_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('customer_token', json.data.token);",
+                  "    console.log('✅ customer_token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@dev.local\",\n  \"password\": \"Password123!\"\n}"
+            },
+            "description": "Login untuk mendapatkan token. Token disimpan otomatis ke `customer_token`."
+          },
+          "response": [
+            {
+              "name": "200 - Login Berhasil",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"login successful\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Search Chatable Users",
+      "item": [
+        {
+          "name": "Search Chatable Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/users?q=&roles=&page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "description": "Keyword pencarian (nama/email)"
+                },
+                {
+                  "key": "roles",
+                  "value": "",
+                  "description": "Filter role: cs, umkm. Kosongkan untuk semua yang diizinkan."
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Jumlah per halaman (default: 10)"
+                }
+              ]
+            },
+            "description": "Cari user yang dapat diajak chat.\n\nRole yang diizinkan: **CS, UMKM**.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Users Retrieved",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"users retrieved\",\n  \"data\": [\n    {\n      \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"full_name\": \"CS Agent Hana\",\n      \"email\": \"user@dev.local\",\n      \"role\": \"cs\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "200 - Empty",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"users retrieved\",\n  \"data\": [],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 0,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "401 - Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"missing or invalid token\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Start Conversation",
+      "item": [
+        {
+          "name": "Start or Get Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('conversation_id', json.data.id);",
+                  "    console.log('✅ conversation_id saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participant_id\": \"{{participant_id}}\"\n}"
+            },
+            "description": "Mulai conversation baru atau ambil yang sudah ada.\n\nJika sudah ada conversation antara kedua user, akan dikembalikan conversation yang ada.\n\nRole yang diizinkan: **CS, UMKM**.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "201 - Conversation Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversation ready\",\n  \"data\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-ef12-345678901abc\",\n    \"initiator_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"participant_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"last_message_at\": \"2026-03-02T09:00:00Z\",\n    \"created_at\": \"2026-03-01T14:00:00Z\",\n    \"updated_at\": \"2026-03-02T09:00:00Z\",\n    \"user_name\": \"CS Agent Hana\",\n    \"user_role\": \"cs\",\n    \"last_message\": \"Ada yang bisa dibantu?\",\n    \"last_message_time\": \"2026-03-02T09:00:00Z\",\n    \"unread_count\": 0\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "201 - Existing Conversation Returned",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversation ready\",\n  \"data\": {\n    \"id\": \"f2a3b4c5-d6e7-8901-f234-567890abcdef\",\n    \"initiator_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"participant_id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"last_message_at\": \"2026-03-02T09:00:00Z\",\n    \"created_at\": \"2026-03-01T14:00:00Z\",\n    \"updated_at\": \"2026-03-02T09:00:00Z\",\n    \"user_name\": \"Toko Umrah Jaya\",\n    \"user_role\": \"umkm\",\n    \"last_message\": \"Pesanan sudah dikirim\",\n    \"last_message_time\": \"2026-03-02T09:00:00Z\",\n    \"unread_count\": 2\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Validation Failed",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"participant_id is required\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Role Not Allowed",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"chat between these roles is not allowed\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "401 - Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"missing or invalid token\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Start Chat with CS",
+      "item": [
+        {
+          "name": "Start Chat with CS (Auto-assign)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('conversation_id', json.data.id);",
+                  "    console.log('✅ conversation_id saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/cs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "cs"
+              ]
+            },
+            "description": "Otomatis terhubung ke CS yang tersedia. Jika sudah ada conversation dengan CS, dikembalikan yang sudah ada.\n\nTidak perlu body.\n\n**Auth:** Bearer Token (Role: customer)"
+          },
+          "response": [
+            {
+              "name": "201 - Connected to CS",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversation ready\",\n  \"data\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-ef12-345678901abc\",\n    \"initiator_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"participant_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"last_message_at\": \"2026-03-02T09:00:00Z\",\n    \"created_at\": \"2026-03-01T14:00:00Z\",\n    \"updated_at\": \"2026-03-02T09:00:00Z\",\n    \"user_name\": \"CS Agent Hana\",\n    \"user_role\": \"cs\",\n    \"last_message\": \"Ada yang bisa dibantu?\",\n    \"last_message_time\": \"2026-03-02T09:00:00Z\",\n    \"unread_count\": 0\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "500 - No CS Available",
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"no CS available\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat?page=1&limit=10&search=&role=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Jumlah per halaman (default: 10)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Cari berdasarkan nama participant."
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "description": "Filter role participant: cs, umkm."
+                }
+              ]
+            },
+            "description": "Daftar semua conversation.\n\nSetiap conversation dilengkapi:\n- `user_name` & `user_role` — info participant lawan bicara\n- `last_message` & `last_message_time` — pesan terakhir\n- `unread_count` — jumlah pesan belum dibaca\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Conversations Retrieved",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversations retrieved\",\n  \"data\": [\n    {\n      \"id\": \"e1f2a3b4-c5d6-7890-ef12-345678901abc\",\n      \"initiator_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"participant_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"last_message_at\": \"2026-03-02T09:00:00Z\",\n      \"created_at\": \"2026-03-01T14:00:00Z\",\n      \"updated_at\": \"2026-03-02T09:00:00Z\",\n      \"user_name\": \"CS Agent Hana\",\n      \"user_role\": \"cs\",\n      \"last_message\": \"Ada yang bisa dibantu?\",\n      \"last_message_time\": \"2026-03-02T09:00:00Z\",\n      \"unread_count\": 1\n    },\n    {\n      \"id\": \"f2a3b4c5-d6e7-8901-f234-567890abcdef\",\n      \"initiator_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"participant_id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"last_message_at\": \"2026-03-02T09:00:00Z\",\n      \"created_at\": \"2026-03-01T14:00:00Z\",\n      \"updated_at\": \"2026-03-02T09:00:00Z\",\n      \"user_name\": \"Toko Umrah Jaya\",\n      \"user_role\": \"umkm\",\n      \"last_message\": \"Pesanan sudah dikirim\",\n      \"last_message_time\": \"2026-03-02T09:00:00Z\",\n      \"unread_count\": 0\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 2,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "200 - Empty",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversations retrieved\",\n  \"data\": [],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 0,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "401 - Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"missing or invalid token\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Conversation Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('conversation_id', json.data.id);",
+                  "    console.log('✅ conversation_id saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/{{conversation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "{{conversation_id}}"
+              ]
+            },
+            "description": "Detail satu conversation. Hanya bisa diakses oleh participant.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Conversation Retrieved",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversation retrieved\",\n  \"data\": {\n    \"id\": \"e1f2a3b4-c5d6-7890-ef12-345678901abc\",\n    \"initiator_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"participant_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n    \"last_message_at\": \"2026-03-02T09:00:00Z\",\n    \"created_at\": \"2026-03-01T14:00:00Z\",\n    \"updated_at\": \"2026-03-02T09:00:00Z\",\n    \"user_name\": \"CS Agent Hana\",\n    \"user_role\": \"cs\",\n    \"last_message\": \"Ada yang bisa dibantu?\",\n    \"last_message_time\": \"2026-03-02T09:00:00Z\",\n    \"unread_count\": 1\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Invalid Conversation ID",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid conversation id\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Not a Participant",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"you are not a participant of this conversation\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Conversation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"conversation not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/{{conversation_id}}/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "{{conversation_id}}",
+                "messages"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Halo, ini pesan dari saya\",\n  \"attachment_url\": \"\"\n}"
+            },
+            "description": "Kirim pesan dalam conversation.\n\n**Body:**\n- `message` (string, required) — isi pesan\n- `attachment_url` (string, optional) — URL lampiran\n\nSetelah pesan disimpan, backend push notifikasi ke participant lawan via WebSocket.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "201 - Message Sent",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"message sent\",\n  \"data\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-e567-890123456789\",\n    \"conversation_id\": \"e1f2a3b4-c5d6-7890-ef12-345678901abc\",\n    \"sender_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"sender_name\": \"Sender Name\",\n    \"sender_role\": \"customer\",\n    \"message\": \"Halo, ini pesan dari saya\",\n    \"attachment_url\": null,\n    \"is_read\": false,\n    \"read_at\": null,\n    \"created_at\": \"2026-03-02T10:16:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Validation Failed",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"message is required\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Not a Participant",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"you are not a participant of this conversation\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Conversation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"conversation not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/{{conversation_id}}/messages?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "{{conversation_id}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Jumlah per halaman (default: 20)"
+                }
+              ]
+            },
+            "description": "Daftar pesan dalam satu conversation.\n\nDiurutkan dari terbaru.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Messages Retrieved",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"messages retrieved\",\n  \"data\": [\n    {\n      \"id\": \"e5f6a7b8-c9d0-1234-e567-890123456789\",\n      \"conversation_id\": \"e1f2a3b4-c5d6-7890-ef12-345678901abc\",\n      \"sender_id\": \"54f3e380-139d-45f0-b2d9-7f97013d57b8\",\n      \"sender_name\": \"CS Agent Hana\",\n      \"sender_role\": \"cs\",\n      \"message\": \"Ada yang bisa dibantu?\",\n      \"attachment_url\": null,\n      \"is_read\": true,\n      \"read_at\": \"2026-03-02T09:05:00Z\",\n      \"created_at\": \"2026-03-02T09:00:00Z\"\n    },\n    {\n      \"id\": \"d4e5f6a7-b8c9-0123-d456-789012345678\",\n      \"conversation_id\": \"e1f2a3b4-c5d6-7890-ef12-345678901abc\",\n      \"sender_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"sender_name\": \"Current User\",\n      \"sender_role\": \"customer\",\n      \"message\": \"Halo, ini pesan dari saya\",\n      \"attachment_url\": null,\n      \"is_read\": false,\n      \"read_at\": null,\n      \"created_at\": \"2026-03-02T08:55:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total_items\": 2,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "200 - Empty",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"messages retrieved\",\n  \"data\": [],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total_items\": 0,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "403 - Not a Participant",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"you are not a participant of this conversation\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Conversation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"conversation not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Mark as Read",
+      "item": [
+        {
+          "name": "Mark Messages as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/{{conversation_id}}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "{{conversation_id}}",
+                "read"
+              ]
+            },
+            "description": "Tandai semua pesan dari lawan bicara sebagai sudah dibaca. Tidak perlu body.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Messages Marked as Read",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"messages marked as read\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Invalid Conversation ID",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid conversation id\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Not a Participant",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"you are not a participant of this conversation\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Conversation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"conversation not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

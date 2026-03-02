@@ -81,9 +81,3 @@ const (
 	TicketSourceApp = "app"
 	TicketSourceWeb = "web"
 )
-
-// Chat conversation statuses.
-const (
-	ChatConvStatusOpen   = "open"
-	ChatConvStatusClosed = "closed"
-)

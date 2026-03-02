@@ -68,7 +68,6 @@ func toConversationResponse(c domain.ChatConversation) *domain.ConversationRespo
 		ID:            c.ID,
 		InitiatorID:   c.InitiatorID,
 		ParticipantID: c.ParticipantID,
-		Status:        c.Status,
 		LastMessageAt: c.LastMessageAt,
 		CreatedAt:     c.CreatedAt,
 		UpdatedAt:     c.UpdatedAt,
