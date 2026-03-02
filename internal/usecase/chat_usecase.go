@@ -38,10 +38,31 @@ func canChat(initiatorRole, participantRole string) bool {
 type chatUseCase struct {
 	chatRepo domain.ChatRepository
 	userRepo domain.UserRepository
+	storage  domain.StorageProvider
 }
 
-func NewChatUseCase(chatRepo domain.ChatRepository, userRepo domain.UserRepository) domain.ChatUseCase {
-	return &chatUseCase{chatRepo: chatRepo, userRepo: userRepo}
+func NewChatUseCase(chatRepo domain.ChatRepository, userRepo domain.UserRepository, storage domain.StorageProvider) domain.ChatUseCase {
+	return &chatUseCase{chatRepo: chatRepo, userRepo: userRepo, storage: storage}
+}
+
+func (uc *chatUseCase) PresignChatAttachment(ctx context.Context, req domain.PresignChatAttachmentRequest) (*domain.PresignChatAttachmentResponse, error) {
+	ct := normalizeContentType(req.ContentType)
+	if !isAllowedChatAttachmentContentType(ct) {
+		return nil, ErrInvalidChatAttachmentContentType
+	}
+
+	objectKey := fmt.Sprintf("chat-attachments/%s/%s", time.Now().Format("2006/01/02"), uuid.New().String())
+	uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, ct, PresignedUploadExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate presigned upload URL: %w", err)
+	}
+
+	return &domain.PresignChatAttachmentResponse{
+		UploadURL:   uploadURL,
+		ObjectKey:   objectKey,
+		ContentType: ct,
+		ExpiresIn:   int(PresignedUploadExpiry.Seconds()),
+	}, nil
 }
 
 func (uc *chatUseCase) StartOrGetConversation(ctx context.Context, initiatorID uuid.UUID, initiatorRole string, req domain.StartConversationRequest) (*domain.ConversationResponse, error) {
@@ -232,13 +253,31 @@ func (uc *chatUseCase) SendMessage(ctx context.Context, conversationID, senderID
 		return nil, ErrConversationUnauthorized
 	}
 
+	// Validate & resolve attachment if provided
+	var attachmentURL *string
+	if req.AttachmentKey != nil && *req.AttachmentKey != "" {
+		info, hErr := uc.storage.HeadObject(ctx, *req.AttachmentKey)
+		if hErr != nil || info == nil {
+			return nil, ErrChatAttachmentNotUploaded
+		}
+		if info.ContentLength > ChatAttachmentMaxBytes {
+			return nil, ErrChatAttachmentTooLarge
+		}
+		ct := normalizeContentType(info.ContentType)
+		if !isAllowedChatAttachmentContentType(ct) {
+			return nil, ErrInvalidChatAttachmentContentType
+		}
+		url := uc.storage.GetURL(*req.AttachmentKey)
+		attachmentURL = &url
+	}
+
 	now := time.Now()
 	msg := &domain.ChatMessage{
 		ID:             uuid.New(),
 		ConversationID: conversationID,
 		SenderID:       senderID,
 		Message:        req.Message,
-		AttachmentURL:  req.AttachmentURL,
+		AttachmentURL:  attachmentURL,
 		IsRead:         false,
 		CreatedAt:      now,
 	}

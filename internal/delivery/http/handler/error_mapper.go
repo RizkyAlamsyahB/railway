@@ -124,6 +124,11 @@ var errorRules = []errorRule{
 	// reply template
 	{usecase.ErrInvalidReplyTemplateCategory, http.StatusUnprocessableEntity, ""},
 	{usecase.ErrShortcutAlreadyExists, http.StatusConflict, ""},
+
+	// chat attachment
+	{usecase.ErrInvalidChatAttachmentContentType, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrChatAttachmentTooLarge, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrChatAttachmentNotUploaded, http.StatusUnprocessableEntity, ""},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.

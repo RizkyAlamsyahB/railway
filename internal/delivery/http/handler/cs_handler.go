@@ -382,6 +382,22 @@ func (h *ChatHandler) StartChatWithCS(c *gin.Context) {
 	response.Created(c, "connected to customer service", conv)
 }
 
+// PresignChatAttachment godoc
+// POST /api/v1/chat/attachment/presign — generate presigned upload URL for chat attachment
+func (h *ChatHandler) PresignChatAttachment(c *gin.Context) {
+	var req domain.PresignChatAttachmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error(), nil)
+		return
+	}
+	result, err := h.uc.PresignChatAttachment(c.Request.Context(), req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+	response.OK(c, "presigned upload URL generated", result)
+}
+
 // ============================================================
 // Reply Template Handler
 // ============================================================

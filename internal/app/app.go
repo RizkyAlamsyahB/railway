@@ -140,7 +140,7 @@ func Initialize() (*App, error) {
 	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, subjectRepo, userRepo, emailProvider, storageProvider)
 	csReportUseCase := usecase.NewCSReportUseCase(ticketRepo)
 	ticketSubjectUseCase := usecase.NewTicketSubjectUseCase(subjectRepo)
-	chatUseCase := usecase.NewChatUseCase(chatRepo, userRepo)
+	chatUseCase := usecase.NewChatUseCase(chatRepo, userRepo, storageProvider)
 	replyTemplateUseCase := usecase.NewReplyTemplateUseCase(replyTemplateRepo)
 	csDashboardUseCase := usecase.NewCSDashboardUseCase(ticketRepo, chatRepo)
 	csUserUseCase := usecase.NewCSUserUseCase(userRepo, ticketRepo)

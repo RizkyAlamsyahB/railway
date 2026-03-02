@@ -56,3 +56,19 @@ func isAllowedTicketAttachmentContentType(contentType string) bool {
 	_, ok := allowedTicketAttachmentContentTypes[contentType]
 	return ok
 }
+
+// Allowed MIME types for chat attachments (images + mp4 video, max 10 MB).
+var allowedChatAttachmentContentTypes = map[string]struct{}{
+	"image/png":  {},
+	"image/jpeg": {},
+	"video/mp4":  {},
+}
+
+const ChatAttachmentMaxBytes int64 = 10 * 1024 * 1024 // 10 MB
+
+// isAllowedChatAttachmentContentType reports whether the given (normalized)
+// content type is acceptable for a chat attachment.
+func isAllowedChatAttachmentContentType(contentType string) bool {
+	_, ok := allowedChatAttachmentContentTypes[contentType]
+	return ok
+}

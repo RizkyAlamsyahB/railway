@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chat CS — Manual Test UI</title>
+  <title>Chat — Manual Test UI</title>
   <style>
     :root {
       --bg: #f5f0e8;
@@ -14,7 +14,6 @@
       --gold: #c8a951;
       --gold-light: #f5ecd5;
       --gold-dark: #a38930;
-      --primary: #c8a951;
       --danger: #dc2626;
       --success: #16a34a;
       --bubble-me: #f5ecd5;
@@ -103,6 +102,10 @@
     .btn-outline { background: transparent; border: 1px solid var(--line); color: var(--text); }
     .btn-outline:hover { background: #f8f8f8; }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .btn-cs-auto {
+      background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff;
+      display: none; width: 100%;
+    }
 
     #user-info {
       padding: 10px 16px; font-size: 12px; background: #f0fdf4;
@@ -271,14 +274,62 @@
     }
     .msg-time { font-size: 10px; color: var(--muted); flex-shrink: 0; }
     .msg-sender { font-size: 10px; color: var(--gold-dark); margin-bottom: 2px; font-weight: 600; }
+    .msg-read-status { font-size: 9px; color: var(--muted); margin-top: 2px; }
+    .msg-read-status.read { color: var(--success); }
+
+    /* Attachment in bubble */
+    .msg-attachment { margin-top: 6px; }
+    .msg-attachment img {
+      max-width: 220px; max-height: 180px; border-radius: 8px;
+      cursor: pointer; object-fit: cover; border: 1px solid var(--line);
+    }
+    .msg-attachment video {
+      max-width: 260px; max-height: 200px; border-radius: 8px;
+      border: 1px solid var(--line);
+    }
+    .msg-attachment a {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12px; color: #2563eb; text-decoration: none;
+      padding: 4px 8px; background: #eff6ff; border-radius: 6px;
+    }
+    .msg-attachment a:hover { background: #dbeafe; }
 
     .chat-input-bar {
       padding: 14px 20px;
       border-top: 1px solid var(--line);
       background: var(--panel);
-      display: flex; gap: 10px; align-items: flex-end;
+      display: flex; flex-direction: column; gap: 8px;
       flex-shrink: 0;
     }
+    .attachment-preview {
+      display: none; align-items: center; gap: 8px;
+      background: #f8fafc; padding: 6px 10px; border-radius: 8px;
+      border: 1px solid var(--line); font-size: 12px;
+    }
+    .attachment-preview .att-icon { font-size: 16px; flex-shrink: 0; }
+    .attachment-preview .att-thumb {
+      width: 40px; height: 40px; border-radius: 6px; object-fit: cover;
+      border: 1px solid var(--line); flex-shrink: 0;
+    }
+    .attachment-preview .att-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 500; }
+    .attachment-preview .att-size { color: var(--muted); flex-shrink: 0; }
+    .attachment-preview .att-remove {
+      cursor: pointer; color: var(--danger); font-weight: 700; font-size: 16px;
+      padding: 0 4px; line-height: 1; flex-shrink: 0;
+    }
+    .attachment-preview .att-remove:hover { opacity: .7; }
+
+    .input-row {
+      display: flex; gap: 10px; align-items: flex-end;
+    }
+    .attach-btn {
+      width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line);
+      background: #fff; color: var(--muted); font-size: 20px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s; flex-shrink: 0;
+    }
+    .attach-btn:hover { background: var(--gold-light); color: var(--gold-dark); border-color: var(--gold); }
+    .attach-btn:disabled { opacity: .3; cursor: not-allowed; }
     #msg-input {
       flex: 1; padding: 10px 14px; font-size: 14px;
       border: 1px solid var(--line); border-radius: 12px; outline: none;
@@ -292,7 +343,7 @@
       background: linear-gradient(135deg, #d4b95e, #c8a951);
       color: #fff; font-size: 18px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: all .15s;
+      transition: all .15s; flex-shrink: 0;
     }
     .send-btn:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(200,169,81,.3); }
     .send-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
@@ -352,6 +403,24 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
     .log-sidebar ::-webkit-scrollbar-thumb { background: #475569; }
+
+    /* ── Image preview modal ────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; animation: fadeIn .2s;
+    }
+    .modal-overlay img {
+      max-width: 90vw; max-height: 90vh; border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.3);
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* ── Hint banner ────────────────────────── */
+    .hint-banner {
+      font-size: 10px; color: var(--muted); padding: 0 50px; line-height: 1.4;
+    }
+    .hint-banner b { color: var(--gold-dark); }
   </style>
 </head>
 <body>
@@ -378,11 +447,10 @@
           <input id="login-pass" type="password" value="Password123!" />
           <label>Login Endpoint</label>
           <select id="login-endpoint">
-            <option value="/cs/login">CS (cs/login)</option>
-            <option value="/users/login">Customer (users/login)</option>
-            <option value="/users/login">Finance (users/login)</option>
-            <option value="/vendors/login">UMKM (vendors/login)</option>
-            <option value="/admin/login">Admin (admin/login)</option>
+            <option value="/cs/login" data-role="cs">CS (/cs/login)</option>
+            <option value="/users/login" data-role="customer">Customer (/users/login)</option>
+            <option value="/vendors/login" data-role="umkm">Vendor / UMKM (/vendors/login)</option>
+            <option value="/admin/login" data-role="admin">Admin (/admin/login)</option>
           </select>
           <div style="display:flex;gap:6px;margin-top:4px">
             <button class="btn btn-gold" style="flex:1" onclick="doLogin()">Login</button>
@@ -398,13 +466,14 @@
     <div class="conv-header">
       <div class="conv-header-title">Conversations</div>
       <div class="search-bar">
-        <input id="conv-search" placeholder="Cari…" oninput="debouncedConvSearch()" />
+        <input id="conv-search" placeholder="Cari nama participant…" oninput="debouncedConvSearch()" />
         <div class="search-icon" onclick="loadConversations()">🔍</div>
       </div>
       <div class="filter-row">
         <select id="conv-role-filter" onchange="loadConversations()">
-          <option value="">Semua</option>
+          <option value="">Semua Role</option>
         </select>
+        <span style="font-size:11px;color:var(--muted)" id="conv-count"></span>
       </div>
     </div>
 
@@ -416,6 +485,7 @@
     <!-- Start new conversation -->
     <div class="start-conv">
       <label>➕ Mulai Percakapan Baru</label>
+      <button class="btn btn-cs-auto btn-sm" id="btn-start-cs" onclick="startChatWithCS()">🎧 Auto-connect ke CS</button>
       <div id="role-chips" class="role-chips" style="display:none"></div>
       <input id="user-search" placeholder="Cari nama atau email…" oninput="debouncedUserSearch()" />
       <div id="user-results"></div>
@@ -431,7 +501,7 @@
         <div class="chat-header-role" id="chat-header-role"></div>
       </div>
       <button class="btn btn-outline btn-sm" onclick="loadMessages()" id="btn-refresh" style="display:none">↻ Refresh</button>
-      <button class="btn btn-outline btn-sm" onclick="markRead()" id="btn-mark-read" style="display:none">✓ Read</button>
+      <button class="btn btn-outline btn-sm" onclick="doMarkRead()" id="btn-mark-read" style="display:none">✓ Read</button>
     </div>
 
     <div id="messages">
@@ -442,8 +512,23 @@
     </div>
 
     <div class="chat-input-bar">
-      <textarea id="msg-input" rows="1" placeholder="Kirim Pesan…" disabled></textarea>
-      <button class="send-btn" id="btn-send" onclick="sendMessage()" disabled title="Kirim">➤</button>
+      <div class="attachment-preview" id="attachment-preview">
+        <span class="att-icon">📎</span>
+        <img class="att-thumb" id="att-thumb" style="display:none" />
+        <span class="att-name" id="att-name"></span>
+        <span class="att-size" id="att-size"></span>
+        <span class="att-remove" onclick="removeAttachment()" title="Hapus">✕</span>
+      </div>
+      <div class="input-row">
+        <input type="file" id="file-input" accept="image/jpeg,image/png,video/mp4" style="display:none" onchange="onFileSelected(event)" />
+        <button class="attach-btn" id="btn-attach" onclick="document.getElementById('file-input').click()" disabled title="Lampirkan foto/video">📎</button>
+        <textarea id="msg-input" rows="1" placeholder="Kirim pesan…" disabled></textarea>
+        <button class="send-btn" id="btn-send" onclick="sendMessage()" disabled title="Kirim">➤</button>
+      </div>
+      <div class="hint-banner">
+        <b>Attachment:</b> JPG, PNG, MP4 — maks 10 MB.
+        Upload via presign URL ke S3 → <code>attachment_key</code> dikirim bersama pesan.
+      </div>
     </div>
   </div>
 
@@ -462,18 +547,23 @@
 
 <script>
 // ════════════════════════════════════════════════════════════
-//  Configuration
+//  Configuration & State
 // ════════════════════════════════════════════════════════════
 const BASE   = 'http://localhost:8080/api/v1';
 const WS_URL = 'ws://localhost:8080/api/v1/ws';
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'video/mp4'];
 
 let token       = null;
 let myUserID    = null;
 let myRole      = null;
+let myEmail     = null;
 let activeConvID = null;
 let activeConvName = null;
 let ws          = null;
+let pendingAttachment = null; // { file, objectUrl, objectKey }
 
+// Role chat permissions — mirrors backend allowedChat map
 const ALLOWED_CHAT = {
   customer: ['umkm', 'cs'],
   umkm:     ['customer', 'admin', 'cs', 'finance'],
@@ -535,15 +625,18 @@ function fmtTime(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleTimeString('id', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
-
 function fmtDate(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('id', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
-
 function fmtDateTime(iso) {
   if (!iso) return '';
   return fmtTime(iso) + '  ' + fmtDate(iso);
+}
+function fmtFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 function shortID(id) { return id ? id.slice(0, 8) + '…' : '?'; }
@@ -552,9 +645,25 @@ function initial(name) { return name ? name.charAt(0).toUpperCase() : '?'; }
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
-
 function escAttr(str) {
   return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function isImageUrl(url) {
+  if (!url) return false;
+  return /\.(jpe?g|png|gif|webp)($|\?)/i.test(url) || /^data:image\//i.test(url);
+}
+function isVideoUrl(url) {
+  if (!url) return false;
+  return /\.(mp4|webm)($|\?)/i.test(url) || /^data:video\//i.test(url);
+}
+
+function showImageModal(src) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = () => overlay.remove();
+  overlay.innerHTML = `<img src="${escAttr(src)}" />`;
+  document.body.appendChild(overlay);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -584,6 +693,7 @@ async function doLogin() {
   token    = res.data.token;
   myUserID = res.data.user_id ?? res.data.user?.id;
   myRole   = res.data.role ?? res.data.user?.role;
+  myEmail  = email;
 
   // Decode JWT for role/id fallback
   try {
@@ -598,7 +708,10 @@ async function doLogin() {
     `ID: <code onclick="navigator.clipboard.writeText('${myUserID}').then(()=>toast('ID copied!'))" title="Click to copy">${myUserID}</code>`;
 
   toast(`Login berhasil sebagai ${ROLE_LABELS[myRole] || myRole}`);
-  wsLog(`Login: ${email} [${myRole}]`, 'info');
+  wsLog(`Login OK: ${email} [${myRole}] id=${shortID(myUserID)}`, 'info');
+
+  // Show "Start Chat with CS" button only for customers
+  document.getElementById('btn-start-cs').style.display = (myRole === 'customer') ? 'block' : 'none';
 
   renderRoleFilter();
   renderRoleChips();
@@ -607,10 +720,14 @@ async function doLogin() {
 }
 
 function doLogout() {
-  token = null; myUserID = null; myRole = null; activeConvID = null; activeConvName = null;
+  token = null; myUserID = null; myRole = null; myEmail = null;
+  activeConvID = null; activeConvName = null;
+  pendingAttachment = null;
   disconnectWS();
   document.getElementById('user-info').style.display = 'none';
+  document.getElementById('btn-start-cs').style.display = 'none';
   document.getElementById('conv-list').innerHTML = '<div style="padding:20px;font-size:13px;color:var(--muted);text-align:center">Login terlebih dahulu</div>';
+  document.getElementById('conv-count').textContent = '';
   resetChatArea();
   document.getElementById('role-chips').style.display = 'none';
   document.getElementById('role-chips').innerHTML = '';
@@ -630,10 +747,11 @@ function resetChatArea() {
   document.getElementById('btn-refresh').style.display = 'none';
   document.getElementById('btn-mark-read').style.display = 'none';
   setInputEnabled(false);
+  removeAttachment();
 }
 
 // ════════════════════════════════════════════════════════════
-//  WebSocket
+//  WebSocket (read-only push notifications)
 // ════════════════════════════════════════════════════════════
 function connectWS() {
   if (!token) { toast('Login dulu', 'error'); return; }
@@ -654,12 +772,14 @@ function connectWS() {
       const frame = JSON.parse(e.data);
       if (frame.type === 'chat_message') {
         if (frame.conversation_id === activeConvID) {
-          const msgData = frame.data;
-          appendMessage(msgData, false);
+          appendMessage(frame.data, false);
+          // Auto mark-read since we're viewing this conversation
+          markRead();
         } else {
           toast('💬 Pesan baru di conversation lain');
-          loadConversations();
         }
+        // Refresh list to update last_message & unread_count
+        loadConversations();
       }
     } catch {}
   };
@@ -686,7 +806,7 @@ function updateWSBadge(connected) {
 }
 
 // ════════════════════════════════════════════════════════════
-//  Conversations
+//  Conversations — GET /chat?search=&role=&page=&limit=
 // ════════════════════════════════════════════════════════════
 let _convSearchTimer = null;
 function debouncedConvSearch() {
@@ -706,19 +826,24 @@ async function loadConversations() {
 
   const res = await api('GET', '/chat?' + params.toString());
   const list = document.getElementById('conv-list');
+  const countEl = document.getElementById('conv-count');
 
   if (!res.success) {
     wsLog('loadConversations error: ' + (res.message || ''), 'error');
     list.innerHTML = '<div style="padding:20px;font-size:13px;color:#f87171;text-align:center">Gagal memuat percakapan</div>';
+    countEl.textContent = '';
     return;
   }
 
-  if (!res.data || res.data.length === 0) {
+  const data = res.data || [];
+  countEl.textContent = data.length > 0 ? `${data.length} percakapan` : '';
+
+  if (data.length === 0) {
     list.innerHTML = '<div style="padding:20px;font-size:13px;color:var(--muted);text-align:center">Belum ada percakapan</div>';
     return;
   }
 
-  list.innerHTML = res.data.map(c => {
+  list.innerHTML = data.map(c => {
     const name     = c.user_name || 'Unknown';
     const role     = c.user_role || '';
     const preview  = c.last_message || '';
@@ -748,7 +873,6 @@ function openConversation(convID, name, role) {
   activeConvID   = convID;
   activeConvName = name;
 
-  // Update chat header
   document.getElementById('chat-header-name').textContent = name || shortID(convID);
   document.getElementById('chat-header-name').style.color = 'var(--text)';
   document.getElementById('chat-header-role').textContent = ROLE_LABELS[role] || role || '';
@@ -758,6 +882,7 @@ function openConversation(convID, name, role) {
   document.getElementById('btn-refresh').style.display = 'inline-block';
   document.getElementById('btn-mark-read').style.display = 'inline-block';
   setInputEnabled(true);
+  removeAttachment();
 
   // Highlight active in list
   document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
@@ -767,12 +892,12 @@ function openConversation(convID, name, role) {
   }
 
   loadMessages();
-  // Auto mark-read when opening conversation, then refresh badge
+  // Auto mark-read, then refresh badges
   markRead().then(() => loadConversations());
 }
 
 // ════════════════════════════════════════════════════════════
-//  Messages
+//  Messages — GET/POST /chat/:id/messages
 // ════════════════════════════════════════════════════════════
 async function loadMessages() {
   if (!activeConvID) return;
@@ -787,7 +912,9 @@ async function loadMessages() {
 
   msgs.innerHTML = '';
   let lastDate = '';
-  res.data.forEach(m => {
+  // API returns newest-first → reverse for chronological display
+  const sorted = [...res.data].reverse();
+  sorted.forEach(m => {
     const msgDate = fmtDate(m.created_at);
     if (msgDate !== lastDate) {
       lastDate = msgDate;
@@ -801,6 +928,17 @@ async function loadMessages() {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+function renderAttachment(url) {
+  if (!url) return '';
+  if (isImageUrl(url)) {
+    return `<div class="msg-attachment"><img src="${escAttr(url)}" onclick="showImageModal('${escAttr(url)}')" alt="attachment" loading="lazy" /></div>`;
+  }
+  if (isVideoUrl(url)) {
+    return `<div class="msg-attachment"><video src="${escAttr(url)}" controls preload="metadata"></video></div>`;
+  }
+  return `<div class="msg-attachment"><a href="${escAttr(url)}" target="_blank" rel="noopener">📎 Lampiran</a></div>`;
+}
+
 function appendMessage(m, skipScroll = false) {
   const msgs = document.getElementById('messages');
   const empty = msgs.querySelector('.empty-state');
@@ -811,12 +949,28 @@ function appendMessage(m, skipScroll = false) {
     ? `${m.sender_name}${m.sender_role ? ' (' + (ROLE_LABELS[m.sender_role] || m.sender_role) + ')' : ''}`
     : shortID(m.sender_id);
 
+  const attachHtml = renderAttachment(m.attachment_url);
+
+  // Read status for own messages
+  let readHtml = '';
+  if (isMe) {
+    if (m.is_read) {
+      readHtml = `<div class="msg-read-status read">✓✓ Dibaca${m.read_at ? ' ' + fmtTime(m.read_at) : ''}</div>`;
+    } else {
+      readHtml = `<div class="msg-read-status">✓ Terkirim</div>`;
+    }
+  }
+
   const row = document.createElement('div');
   row.className = `msg-row ${isMe ? 'me' : 'other'}`;
   row.innerHTML = `
     <div>
       ${!isMe ? `<div class="msg-sender">${escHtml(senderLabel)}</div>` : ''}
-      <div class="bubble">${escHtml(m.message)}</div>
+      <div class="bubble">
+        ${m.message ? escHtml(m.message) : ''}
+        ${attachHtml}
+      </div>
+      ${readHtml}
     </div>
     <div class="msg-time">${fmtTime(m.created_at)}</div>
   `;
@@ -824,37 +978,174 @@ function appendMessage(m, skipScroll = false) {
   if (!skipScroll) msgs.scrollTop = msgs.scrollHeight;
 }
 
+// ── Send Message — POST /chat/:id/messages ──
 async function sendMessage() {
   const input = document.getElementById('msg-input');
   const text = input.value.trim();
-  if (!text || !activeConvID) return;
+  if (!text && !pendingAttachment) return;
+  if (!activeConvID) return;
+
+  const body = {};
+  body.message = text || '📎'; // message is required by backend
+
+  // If attachment is pending, upload to S3 via presign flow first
+  if (pendingAttachment) {
+    wsLog(`⬆ Uploading attachment: ${pendingAttachment.file.name} (${fmtFileSize(pendingAttachment.file.size)})`, 'send');
+    const key = await uploadAttachment(pendingAttachment.file);
+    if (!key) {
+      // upload failed — error already shown
+      return;
+    }
+    body.attachment_key = key;
+    wsLog(`✅ Uploaded → key=${key}`, 'send');
+  }
 
   input.value = '';
   input.style.height = 'auto';
+  removeAttachment();
 
-  const res = await api('POST', `/chat/${activeConvID}/messages`, { message: text });
+  const res = await api('POST', `/chat/${activeConvID}/messages`, body);
   if (!res.success) { toast(res.message || 'Gagal kirim', 'error'); return; }
 
   wsLog(`⬆ SENT msg ${shortID(res.data.id)}`, 'send');
   appendMessage(res.data, false);
-
-  // Refresh conversation list to update last_message
   loadConversations();
 }
 
+// ── Presign + Upload to S3 ──
+async function uploadAttachment(file) {
+  // Step 1: Get presigned URL
+  const presignRes = await api('POST', '/chat/attachment/presign', { content_type: file.type });
+  if (!presignRes.success) {
+    toast(presignRes.message || 'Presign gagal', 'error');
+    wsLog('Presign failed: ' + (presignRes.message || ''), 'error');
+    return null;
+  }
+  const { upload_url, object_key, content_type } = presignRes.data;
+  wsLog(`📋 Presign OK: key=${object_key}`, 'info');
+
+  // Step 2: Upload file directly to S3
+  try {
+    const uploadRes = await fetch(upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': content_type },
+      body: file,
+    });
+    if (!uploadRes.ok) {
+      toast(`Upload ke S3 gagal: ${uploadRes.status}`, 'error');
+      wsLog(`S3 upload failed: HTTP ${uploadRes.status}`, 'error');
+      return null;
+    }
+    wsLog(`☁️ S3 upload OK (${uploadRes.status})`, 'send');
+    return object_key;
+  } catch (err) {
+    toast('Upload error: ' + err.message, 'error');
+    wsLog('S3 upload error: ' + err.message, 'error');
+    return null;
+  }
+}
+
+// ── Mark Read — PATCH /chat/:id/read ──
 async function markRead() {
   if (!activeConvID) return;
-  const res = await api('PATCH', `/chat/${activeConvID}/read`);
-  toast(res.success ? 'Marked as read ✓' : (res.message || 'Error'), res.success ? 'success' : 'error');
+  return api('PATCH', `/chat/${activeConvID}/read`);
+}
+
+function doMarkRead() {
+  markRead().then(res => {
+    if (res && res.success) {
+      toast('Marked as read ✓');
+      wsLog(`✓ Marked read: ${shortID(activeConvID)}`, 'send');
+      loadMessages();
+      loadConversations();
+    } else {
+      toast(res?.message || 'Error', 'error');
+    }
+  });
 }
 
 // ════════════════════════════════════════════════════════════
-//  User Search (Start new conversation)
+//  Attachment handling (client-side validation)
+// ════════════════════════════════════════════════════════════
+function onFileSelected(event) {
+  const file = event.target.files[0];
+  event.target.value = ''; // reset so same file can be re-selected
+  if (!file) return;
+
+  // Validate MIME type
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    toast(`Tipe file tidak diizinkan: ${file.type}. Hanya JPG, PNG, MP4.`, 'error');
+    wsLog(`Attachment rejected: ${file.type} not allowed`, 'error');
+    return;
+  }
+
+  // Validate size (10 MB)
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    toast(`File terlalu besar: ${fmtFileSize(file.size)}. Maksimal 10 MB.`, 'error');
+    wsLog(`Attachment rejected: ${fmtFileSize(file.size)} > 10 MB`, 'error');
+    return;
+  }
+
+  // Read as Object URL for preview (lightweight, no base64 in memory)
+  const objectUrl = URL.createObjectURL(file);
+  pendingAttachment = { file, objectUrl };
+  document.getElementById('att-name').textContent = file.name;
+  document.getElementById('att-size').textContent = fmtFileSize(file.size);
+
+  // Show image thumbnail if applicable
+  const thumb = document.getElementById('att-thumb');
+  if (file.type.startsWith('image/')) {
+    thumb.src = objectUrl;
+    thumb.style.display = 'block';
+  } else {
+    thumb.style.display = 'none';
+  }
+
+  document.getElementById('attachment-preview').style.display = 'flex';
+  wsLog(`📎 Attachment: ${file.name} (${fmtFileSize(file.size)}, ${file.type})`, 'info');
+}
+
+function removeAttachment() {
+  if (pendingAttachment && pendingAttachment.objectUrl) {
+    URL.revokeObjectURL(pendingAttachment.objectUrl);
+  }
+  pendingAttachment = null;
+  document.getElementById('attachment-preview').style.display = 'none';
+  document.getElementById('att-name').textContent = '';
+  document.getElementById('att-size').textContent = '';
+  document.getElementById('att-thumb').style.display = 'none';
+}
+
+// ════════════════════════════════════════════════════════════
+//  Start Chat with CS — POST /chat/cs (customer only)
+// ════════════════════════════════════════════════════════════
+async function startChatWithCS() {
+  if (!token) { toast('Login dulu', 'error'); return; }
+  if (myRole !== 'customer') { toast('Hanya customer yang bisa auto-connect ke CS', 'error'); return; }
+
+  wsLog('⬆ POST /chat/cs (auto-assign CS)', 'send');
+  const res = await api('POST', '/chat/cs');
+
+  if (!res.success) {
+    toast(res.message || 'Gagal menghubungkan ke CS', 'error');
+    wsLog('startChatWithCS error: ' + (res.message || ''), 'error');
+    return;
+  }
+
+  toast(`Terhubung ke CS: ${res.data.user_name || 'CS Agent'}`);
+  wsLog(`CS conversation ready → ${shortID(res.data.id)}`, 'send');
+
+  await loadConversations();
+  openConversation(res.data.id, res.data.user_name || 'CS Agent', res.data.user_role || 'cs');
+}
+
+// ════════════════════════════════════════════════════════════
+//  User Search — GET /chat/users?q=&roles=&page=&limit=
 // ════════════════════════════════════════════════════════════
 function renderRoleFilter() {
   const sel = document.getElementById('conv-role-filter');
   const allowed = ALLOWED_CHAT[myRole] || [];
-  sel.innerHTML = '<option value="">Semua</option>' +
+  sel.innerHTML = '<option value="">Semua Role</option>' +
     allowed.map(r => `<option value="${r}">${ROLE_LABELS[r] || r}</option>`).join('');
 }
 
@@ -902,7 +1193,7 @@ async function searchChatableUsers() {
   resultsEl.innerHTML = users.map(u => `
     <div class="user-result-item" data-uid="${u.id}" data-uname="${escAttr(u.full_name)}">
       <div style="font-weight:600;font-size:13px">${escHtml(u.full_name)}</div>
-      <div style="font-size:11px;color:var(--muted)">${escHtml(u.email)}</div>
+      <div style="font-size:11px;color:var(--muted)">${escHtml(u.email)} · <code style="font-size:10px;background:#e5e7eb;padding:1px 5px;border-radius:3px">${shortID(u.id)}</code></div>
       <span class="conv-role-tag role-${u.role}" style="font-size:10px;padding:2px 8px">${ROLE_LABELS[u.role] || u.role}</span>
     </div>
   `).join('');
@@ -911,21 +1202,22 @@ async function searchChatableUsers() {
   });
 }
 
+// ── Start Conversation — POST /chat ──
 async function startConvWithUser(userID, userName) {
   if (!token) { toast('Login dulu', 'error'); return; }
   if (userID === myUserID) { toast('Tidak bisa chat dengan diri sendiri', 'error'); return; }
 
-  wsLog(`startConvWithUser → ${userName} (${shortID(userID)})`, 'send');
+  wsLog(`⬆ POST /chat { participant_id: ${shortID(userID)} }`, 'send');
   const res = await api('POST', '/chat', { participant_id: userID });
 
   if (!res.success) {
     toast(res.message || 'Gagal memulai chat', 'error');
-    wsLog('startConvWithUser error: ' + (res.message || ''), 'error');
+    wsLog('startConv error: ' + (res.message || ''), 'error');
     return;
   }
 
   toast(`Chat dengan ${userName} siap!`);
-  wsLog(`Conversation started → ${shortID(res.data.id)}`, 'send');
+  wsLog(`Conversation ready → ${shortID(res.data.id)}`, 'send');
 
   document.getElementById('user-results').style.display = 'none';
   document.getElementById('user-search').value = '';
@@ -940,6 +1232,7 @@ async function startConvWithUser(userID, userName) {
 function setInputEnabled(yes) {
   document.getElementById('msg-input').disabled = !yes;
   document.getElementById('btn-send').disabled  = !yes;
+  document.getElementById('btn-attach').disabled = !yes;
 }
 
 document.getElementById('msg-input').addEventListener('keydown', (e) => {

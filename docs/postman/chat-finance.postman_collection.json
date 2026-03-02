@@ -20,6 +20,14 @@
     {
       "key": "participant_id",
       "value": ""
+    },
+    {
+      "key": "chat_attachment_key",
+      "value": ""
+    },
+    {
+      "key": "chat_upload_url",
+      "value": ""
     }
   ],
   "item": [
@@ -169,6 +177,142 @@
               "body": "{\n  \"success\": false,\n  \"message\": \"missing or invalid token\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
             }
           ]
+        },
+        {
+          "name": "Presign Chat Attachment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "    pm.collectionVariables.set('chat_attachment_key', json.data.object_key);",
+                  "    pm.collectionVariables.set('chat_upload_url', json.data.upload_url);",
+                  "    console.log('✅ chat_attachment_key saved: ' + json.data.object_key);",
+                  "    console.log('✅ chat_upload_url saved: ' + json.data.upload_url);",
+                  "} else {",
+                  "    console.log('❌ Presign failed');",
+                  "}",
+                  "pm.test('presign success', function() {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.upload_url).to.be.a('string');",
+                  "    pm.expect(json.data.object_key).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content_type\": \"image/jpeg\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/chat/attachment/presign",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "attachment",
+                "presign"
+              ]
+            },
+            "description": "Generate presigned URL untuk upload chat attachment ke S3.\n\n**Content type valid:** `image/jpeg`, `image/png`, `video/mp4`\n**Max file size:** 10 MB\n\n**Flow:**\n1. Panggil endpoint ini → dapat `upload_url` + `object_key`\n2. Upload file ke `upload_url` (PUT request langsung ke S3)\n3. Gunakan `object_key` sebagai `attachment_key` saat Send Message\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 — Presigned URL Generated",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/chat/attachment/presign"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"presigned upload URL generated\",\n  \"data\": {\n    \"upload_url\": \"https://s3.amazonaws.com/bucket/chat-attachments/2026/03/02/abc123?X-Amz-Signature=...\",\n    \"object_key\": \"chat-attachments/2026/03/02/abc123\",\n    \"content_type\": \"image/jpeg\",\n    \"expires_in\": 1800\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "422 — Invalid Content Type",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/chat/attachment/presign"
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid chat attachment content type; allowed: image/png, image/jpeg, video/mp4\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Upload Chat Attachment ke S3",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "var uploadUrl = pm.collectionVariables.get('chat_upload_url');",
+                  "if (!uploadUrl) {",
+                  "    console.log('⚠️ chat_upload_url belum ada. Jalankan Presign Chat Attachment dulu!');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/jpeg"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "url": {
+              "raw": "{{chat_upload_url}}",
+              "host": [
+                "{{chat_upload_url}}"
+              ]
+            },
+            "description": "Upload file langsung ke S3 menggunakan presigned URL.\n\n**Langkah:**\n1. Pastikan sudah menjalankan **Presign Chat Attachment** → `chat_upload_url` tersimpan otomatis\n2. Di tab **Body** → pilih **binary** → pilih file (JPG/PNG/MP4, maks 10 MB)\n3. Pastikan **Content-Type** di Header sesuai (misal: `image/jpeg`)\n4. Klik **Send** → 200 OK dari S3\n\n**Catatan:** URL ini langsung ke S3, bukan ke API backend. Tidak perlu Authorization header."
+          },
+          "response": []
         }
       ]
     },
