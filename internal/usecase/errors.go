@@ -141,4 +141,9 @@ var (
 	// reply template
 	ErrInvalidReplyTemplateCategory = errors.New("invalid reply template category")
 	ErrShortcutAlreadyExists        = errors.New("shortcut already exists")
+
+	// chat attachment
+	ErrInvalidChatAttachmentContentType = errors.New("invalid chat attachment content type; allowed: image/png, image/jpeg, video/mp4")
+	ErrChatAttachmentTooLarge           = errors.New("chat attachment exceeds maximum size of 10 MB")
+	ErrChatAttachmentNotUploaded        = errors.New("chat attachment not found in storage; upload it first")
 )

@@ -189,9 +189,20 @@ type StartConversationRequest struct {
 	ParticipantID uuid.UUID `json:"participant_id" binding:"required"`
 }
 
+type PresignChatAttachmentRequest struct {
+	ContentType string `json:"content_type" binding:"required"`
+}
+
+type PresignChatAttachmentResponse struct {
+	UploadURL   string `json:"upload_url"`
+	ObjectKey   string `json:"object_key"`
+	ContentType string `json:"content_type"`
+	ExpiresIn   int    `json:"expires_in"` // seconds
+}
+
 type SendChatMessageRequest struct {
 	Message       string  `json:"message"        binding:"required"`
-	AttachmentURL *string `json:"attachment_url"`
+	AttachmentKey *string `json:"attachment_key"`
 }
 
 type MarkMessagesReadRequest struct {
@@ -459,6 +470,8 @@ type TicketUseCase interface {
 }
 
 type ChatUseCase interface {
+	// Presign upload URL untuk attachment chat
+	PresignChatAttachment(ctx context.Context, req PresignChatAttachmentRequest) (*PresignChatAttachmentResponse, error)
 	// Mulai / ambil conversation antara dua user
 	StartOrGetConversation(ctx context.Context, initiatorID uuid.UUID, initiatorRole string, req StartConversationRequest) (*ConversationResponse, error)
 	// Auto-assign: mulai chat dengan CS yang tersedia (untuk customer)
@@ -467,7 +480,7 @@ type ChatUseCase interface {
 	ListConversations(ctx context.Context, params ConversationListParams) ([]ConversationResponse, *PaginationMeta, error)
 	// Detail conversation
 	GetConversation(ctx context.Context, conversationID, userID uuid.UUID) (*ConversationResponse, error)
-	// Kirim pesan
+	// Kirim pesan (validasi attachment di S3 jika attachment_key disertakan)
 	SendMessage(ctx context.Context, conversationID, senderID uuid.UUID, req SendChatMessageRequest) (*ChatMessageResponse, error)
 	// List pesan dalam conversation
 	ListMessages(ctx context.Context, params ChatMessageListParams, userID uuid.UUID) ([]ChatMessageResponse, *PaginationMeta, error)

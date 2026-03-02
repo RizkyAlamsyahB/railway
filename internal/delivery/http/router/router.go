@@ -193,7 +193,8 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	{
 		chatGroup.GET("/users", chatHandler.SearchChatableUsers)
 		chatGroup.POST("", chatHandler.StartOrGetConversation)
-		chatGroup.POST("/cs", chatHandler.StartChatWithCS) // Auto-assign customer ke CS
+		chatGroup.POST("/cs", chatHandler.StartChatWithCS)                       // Auto-assign customer ke CS
+		chatGroup.POST("/attachment/presign", chatHandler.PresignChatAttachment) // Presign upload URL
 		chatGroup.GET("", chatHandler.ListConversations)
 		chatGroup.GET("/:conversationId", chatHandler.GetConversation)
 		chatGroup.POST("/:conversationId/messages", chatHandler.SendMessage)
