@@ -123,6 +123,7 @@ var (
 	ErrConversationUnauthorized = errors.New("you are not a participant of this conversation")
 	ErrReplyTemplateNotFound    = errors.New("reply template not found")
 	ErrCSUserNotFound           = errors.New("user not found")
+	ErrNoCSAvailable            = errors.New("no customer service agent is available right now")
 
 	// ticket attachment
 	ErrInvalidAttachmentContentType = errors.New("invalid attachment content type; allowed: image/png, image/jpeg, video/mp4")

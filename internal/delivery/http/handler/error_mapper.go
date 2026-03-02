@@ -106,6 +106,7 @@ var errorRules = []errorRule{
 	{usecase.ErrConversationUnauthorized, http.StatusForbidden, "you are not a participant of this conversation"},
 	{usecase.ErrReplyTemplateNotFound, http.StatusNotFound, "reply template not found"},
 	{usecase.ErrCSUserNotFound, http.StatusNotFound, "user not found"},
+	{usecase.ErrNoCSAvailable, http.StatusServiceUnavailable, "no customer service agent is available right now"},
 
 	// ticket attachment
 	{usecase.ErrInvalidAttachmentContentType, http.StatusUnprocessableEntity, ""},

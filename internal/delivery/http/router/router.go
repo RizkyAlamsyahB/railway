@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, checkoutHandler *handler.CheckoutHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, checkoutHandler *handler.CheckoutHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, faqHandler *handler.FAQHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -30,6 +30,10 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		// Public catalog routes
 		v1.GET("/categories", catalogHandler.ListCategories)
 		v1.GET("/shipping-services", catalogHandler.ListShippingServices)
+
+		// Public FAQ / Pusat Bantuan
+		v1.GET("/faq", faqHandler.ListFAQs)
+		v1.GET("/faq/categories", faqHandler.ListCategories)
 	}
 
 	// User routes (public registration + email verification + login)
@@ -189,6 +193,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	{
 		chatGroup.GET("/users", chatHandler.SearchChatableUsers)
 		chatGroup.POST("", chatHandler.StartOrGetConversation)
+		chatGroup.POST("/cs", chatHandler.StartChatWithCS) // Auto-assign customer ke CS
 		chatGroup.GET("", chatHandler.ListConversations)
 		chatGroup.GET("/:conversationId", chatHandler.GetConversation)
 		chatGroup.POST("/:conversationId/messages", chatHandler.SendMessage)

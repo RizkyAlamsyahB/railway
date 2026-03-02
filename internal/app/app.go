@@ -132,6 +132,11 @@ func Initialize() (*App, error) {
 	replyTemplateRepo := repository.NewReplyTemplateRepository(db)
 	subjectRepo := repository.NewTicketSubjectRepository(db)
 
+	// FAQ / Pusat Bantuan
+	faqRepo := repository.NewFAQRepository(db)
+	faqUseCase := usecase.NewFAQUseCase(faqRepo)
+	faqHandler := handler.NewFAQHandler(faqUseCase)
+
 	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, subjectRepo, userRepo, emailProvider, storageProvider)
 	csReportUseCase := usecase.NewCSReportUseCase(ticketRepo)
 	ticketSubjectUseCase := usecase.NewTicketSubjectUseCase(subjectRepo)
@@ -161,7 +166,7 @@ func Initialize() (*App, error) {
 
 	// Setup router
 	// r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, cfg.JWT.Secret)
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, financeHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, wsHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, financeHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, faqHandler, wsHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:      cfg,

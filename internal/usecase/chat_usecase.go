@@ -81,7 +81,6 @@ func (uc *chatUseCase) StartOrGetConversation(ctx context.Context, initiatorID u
 		ID:            uuid.New(),
 		InitiatorID:   initiatorID,
 		ParticipantID: req.ParticipantID,
-		Status:        domain.ChatConvStatusOpen,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -89,6 +88,61 @@ func (uc *chatUseCase) StartOrGetConversation(ctx context.Context, initiatorID u
 		return nil, fmt.Errorf("failed to create conversation: %w", err)
 	}
 	return toConversationResponse(*conv), nil
+}
+
+func (uc *chatUseCase) StartChatWithCS(ctx context.Context, customerID uuid.UUID) (*domain.ConversationResponse, error) {
+	// Find all active CS users
+	csUsers, _, err := uc.userRepo.List(ctx, domain.UserListParams{
+		Page: 1, Limit: 100, Role: domain.RoleCS,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list CS users: %w", err)
+	}
+	if len(csUsers) == 0 {
+		return nil, ErrNoCSAvailable
+	}
+
+	// Check if customer already has an open conversation with any CS
+	for _, cs := range csUsers {
+		conv, fErr := uc.chatRepo.FindConversation(ctx, customerID, cs.ID)
+		if fErr != nil && !errors.Is(fErr, gorm.ErrRecordNotFound) {
+			continue
+		}
+		if conv != nil {
+			resp := toConversationResponse(*conv)
+			resp.UserName = cs.FullName
+			if cs.Role != nil {
+				resp.UserRole = cs.Role.Code
+			}
+			if lastMsg, mErr := uc.chatRepo.GetLastMessage(ctx, conv.ID); mErr == nil {
+				resp.LastMessage = lastMsg.Message
+				resp.LastMessageTime = &lastMsg.CreatedAt
+			}
+			return resp, nil
+		}
+	}
+
+	// No existing conversation — pick the first available CS (simple round-robin)
+	chosen := csUsers[0]
+
+	now := time.Now()
+	conv := &domain.ChatConversation{
+		ID:            uuid.New(),
+		InitiatorID:   customerID,
+		ParticipantID: chosen.ID,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := uc.chatRepo.CreateConversation(ctx, conv); err != nil {
+		return nil, fmt.Errorf("failed to create conversation: %w", err)
+	}
+
+	resp := toConversationResponse(*conv)
+	resp.UserName = chosen.FullName
+	if chosen.Role != nil {
+		resp.UserRole = chosen.Role.Code
+	}
+	return resp, nil
 }
 
 func (uc *chatUseCase) ListConversations(ctx context.Context, params domain.ConversationListParams) ([]domain.ConversationResponse, *domain.PaginationMeta, error) {
