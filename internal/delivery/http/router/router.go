@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, checkoutHandler *handler.CheckoutHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, faqHandler *handler.FAQHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, checkoutHandler *handler.CheckoutHandler, xenditWebhookHandler *handler.XenditWebhookHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, faqHandler *handler.FAQHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -74,6 +74,8 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		vendorAuth.POST("/documents/confirm", vendorHandler.ConfirmDocuments)
 		vendorAuth.POST("/products", productHandler.CreateProduct)
 		vendorAuth.POST("/products/:id/images/confirm", productHandler.ConfirmImages)
+		vendorAuth.GET("/balance", vendorHandler.GetBalance)
+		vendorAuth.POST("/withdrawals", vendorHandler.RequestWithdrawal)
 
 		// Chat (vendor-specific management)
 		vendorAuth.GET("/chat", chatHandler.ListConversations)
@@ -206,6 +208,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	webhooks := v1.Group("/webhooks")
 	{
 		webhooks.POST("/xendit/invoice", checkoutHandler.Webhook)
+		webhooks.POST("/xendit/payout", xenditWebhookHandler.Payout)
 	}
 
 	return r

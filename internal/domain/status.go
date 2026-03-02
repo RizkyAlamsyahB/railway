@@ -32,7 +32,11 @@ const (
 const (
 	OrderStatusPendingPayment = "pending_payment"
 	OrderStatusPaid           = "paid"
+	OrderStatusPacked         = "packed"
+	OrderStatusShipped        = "shipped"
+	OrderStatusCompleted      = "completed"
 	OrderStatusCanceled       = "canceled"
+	OrderStatusRefunded       = "refunded"
 )
 
 // Payment statuses (on orders).

@@ -58,6 +58,14 @@ var errorRules = []errorRule{
 	// Xendit
 	{usecase.ErrXenditAccountCreation, http.StatusBadGateway, ""},
 
+	// Withdrawal
+	{usecase.ErrInvalidChannelCode, http.StatusBadRequest, ""},
+	{usecase.ErrXenditPayoutFailed, http.StatusBadGateway, ""},
+	{usecase.ErrVendorBankNotFound, http.StatusNotFound, "vendor bank account not found"},
+	{usecase.ErrInsufficientBalance, http.StatusBadRequest, "insufficient available balance"},
+	{usecase.ErrBelowMinWithdrawal, http.StatusBadRequest, ""},
+	{usecase.ErrBalanceNotFound, http.StatusNotFound, "vendor balance not found"},
+
 	// Product
 	{usecase.ErrVendorNotActive, http.StatusForbidden, "vendor is not active"},
 	{usecase.ErrCategoryNotFound, http.StatusBadRequest, "category not found"},

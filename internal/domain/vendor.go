@@ -227,6 +227,122 @@ type VendorRepository interface {
 
 	// UpdateStatus updates the vendor's columns specified in the updates map.
 	UpdateStatus(ctx context.Context, vendorID uuid.UUID, updates map[string]interface{}) error
+
+	// FindPayoutBatchByID returns the payout batch with the given ID, or nil if not found.
+	FindPayoutBatchByID(ctx context.Context, id uuid.UUID) (*PayoutBatch, error)
+
+	// UpdatePayoutBatch updates the payout batch record with Xendit response data.
+	UpdatePayoutBatch(ctx context.Context, batch *PayoutBatch) error
+
+	// --- Balance & Withdrawal ---
+
+	// InitBalance creates a zero-balance row for a newly registered vendor.
+	InitBalance(ctx context.Context, vendorID uuid.UUID) error
+
+	// GetBalance returns the vendor's current balance, or nil if not found.
+	GetBalance(ctx context.Context, vendorID uuid.UUID) (*VendorBalance, error)
+
+	// CreditBalance adds amount to available_balance and total_earned atomically.
+	CreditBalance(ctx context.Context, vendorID uuid.UUID, amount float64) error
+
+	// DebitBalance moves amount from available_balance to pending_balance atomically.
+	// Returns error if available_balance < amount.
+	DebitBalance(ctx context.Context, vendorID uuid.UUID, amount float64) error
+
+	// CompleteWithdrawal moves amount from pending_balance to total_withdrawn atomically.
+	CompleteWithdrawal(ctx context.Context, vendorID uuid.UUID, amount float64) error
+
+	// FailWithdrawal moves amount from pending_balance back to available_balance atomically.
+	FailWithdrawal(ctx context.Context, vendorID uuid.UUID, amount float64) error
+
+	// CreateWithdrawal inserts a new vendor_withdrawals record.
+	CreateWithdrawal(ctx context.Context, withdrawal *VendorWithdrawal) error
+
+	// FindWithdrawalByID returns withdrawal by its primary key, or nil if not found.
+	FindWithdrawalByID(ctx context.Context, id uuid.UUID) (*VendorWithdrawal, error)
+
+	// UpdateWithdrawal updates an existing vendor_withdrawals record.
+	UpdateWithdrawal(ctx context.Context, withdrawal *VendorWithdrawal) error
+
+	// ApplyWithdrawalWebhookUpdate applies status/xendit updates and optional balance movement atomically.
+	ApplyWithdrawalWebhookUpdate(ctx context.Context, withdrawalID uuid.UUID, newStatus string, xenditStatus string, xenditPayoutID *string, failedReason *string, balanceAction string) error
+}
+
+// Balance actions applied during payout webhook processing.
+const (
+	WithdrawalBalanceActionNone             = "none"
+	WithdrawalBalanceActionComplete         = "complete"
+	WithdrawalBalanceActionFail             = "fail"
+	WithdrawalBalanceActionReverseCompleted = "reverse_completed"
+)
+
+// PayoutBatch represents the payout_batches table (used by the finance admin module).
+type PayoutBatch struct {
+	ID             uuid.UUID  `json:"id"`
+	VendorID       uuid.UUID  `json:"vendor_id"`
+	PeriodStart    time.Time  `json:"period_start"`
+	PeriodEnd      time.Time  `json:"period_end"`
+	Status         string     `json:"status"`
+	TotalGross     float64    `json:"total_gross"`
+	TotalFee       float64    `json:"total_fee"`
+	TotalNet       float64    `json:"total_net"`
+	PaidAt         *time.Time `json:"paid_at,omitempty"`
+	CreatedBy      uuid.UUID  `json:"created_by"`
+	XenditPayoutID *string    `json:"xendit_payout_id,omitempty"`
+	ChannelCode    *string    `json:"channel_code,omitempty"`
+	Description    *string    `json:"description,omitempty"`
+	XenditStatus   *string    `json:"xendit_status,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+// VendorBalance represents the vendor_balances table.
+type VendorBalance struct {
+	VendorID         uuid.UUID `json:"vendor_id"`
+	AvailableBalance float64   `json:"available_balance"`
+	PendingBalance   float64   `json:"pending_balance"`
+	TotalEarned      float64   `json:"total_earned"`
+	TotalWithdrawn   float64   `json:"total_withdrawn"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// VendorWithdrawal represents the vendor_withdrawals table.
+type VendorWithdrawal struct {
+	ID             uuid.UUID `json:"id"`
+	VendorID       uuid.UUID `json:"vendor_id"`
+	Amount         float64   `json:"amount"`
+	ChannelCode    string    `json:"channel_code"`
+	Status         string    `json:"status"`
+	XenditPayoutID *string   `json:"xendit_payout_id,omitempty"`
+	XenditStatus   *string   `json:"xendit_status,omitempty"`
+	Description    *string   `json:"description,omitempty"`
+	FailedReason   *string   `json:"failed_reason,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// VendorWithdrawRequest is the input DTO for vendor self-service withdrawal.
+type VendorWithdrawRequest struct {
+	Amount      float64 `json:"amount" binding:"required,gte=10000"`
+	ChannelCode string  `json:"channel_code" binding:"required"`
+}
+
+// VendorWithdrawResponse is the output DTO for a successful withdrawal request.
+type VendorWithdrawResponse struct {
+	WithdrawalID   uuid.UUID `json:"withdrawal_id"`
+	XenditPayoutID string    `json:"xendit_payout_id"`
+	Status         string    `json:"status"`
+	XenditStatus   string    `json:"xendit_status"`
+	Amount         float64   `json:"amount"`
+	ChannelCode    string    `json:"channel_code"`
+}
+
+// VendorBalanceResponse is the output DTO for the vendor balance endpoint.
+type VendorBalanceResponse struct {
+	AvailableBalance float64 `json:"available_balance"`
+	PendingBalance   float64 `json:"pending_balance"`
+	TotalEarned      float64 `json:"total_earned"`
+	TotalWithdrawn   float64 `json:"total_withdrawn"`
 }
 
 // VendorUseCase defines the interface for vendor business operations.
@@ -240,6 +356,15 @@ type VendorUseCase interface {
 
 	// Login authenticates a vendor user and returns a JWT token with vendor claims.
 	Login(ctx context.Context, req VendorLoginRequest) (*VendorLoginResponse, error)
+
+	// GetBalance returns the vendor's current balance.
+	GetBalance(ctx context.Context, vendorID uuid.UUID) (*VendorBalanceResponse, error)
+
+	// RequestWithdrawal initiates a self-service withdrawal to the vendor's bank account via Xendit.
+	RequestWithdrawal(ctx context.Context, vendorID uuid.UUID, req VendorWithdrawRequest) (*VendorWithdrawResponse, error)
+
+	// HandlePayoutWebhook processes Xendit payout webhook callbacks for vendor withdrawals.
+	HandlePayoutWebhook(ctx context.Context, payload XenditPayoutWebhookPayload) error
 }
 
 // AdminVendorReasonRequest is the input DTO for reject/block actions that require a reason.

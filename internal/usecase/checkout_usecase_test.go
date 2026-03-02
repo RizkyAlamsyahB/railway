@@ -280,6 +280,7 @@ func TestCheckout(t *testing.T) {
 func TestHandleWebhook(t *testing.T) {
 	invoiceID := uuid.MustParse("00000000-0000-0000-0000-000000000010")
 	orderID := uuid.MustParse("00000000-0000-0000-0000-000000000011")
+	vendorID := uuid.MustParse("00000000-0000-0000-0000-000000000012")
 
 	paidAt := time.Now().Format(time.RFC3339)
 	paidPayload := domain.XenditWebhookPayload{
@@ -310,6 +311,7 @@ func TestHandleWebhook(t *testing.T) {
 
 	order := &domain.Order{
 		ID:       orderID,
+		VendorID: vendorID,
 		OrderNo:  "ORD-20250101-ABCD1234",
 		Subtotal: 200000,
 	}
@@ -336,12 +338,13 @@ func TestHandleWebhook(t *testing.T) {
 				pmr.EXPECT().UpdateInvoiceStatus(gomock.Any(), invoiceID, domain.InvoiceStatusPaid, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				or.EXPECT().UpdateOrderStatus(gomock.Any(), orderID, domain.OrderStatusPaid, domain.PaymentStatusPaid, gomock.Any(), gomock.Any()).Return(nil)
 				// recordPaymentLedger
-				or.EXPECT().FindByID(gomock.Any(), orderID).Return(order, nil)
+				or.EXPECT().FindByID(gomock.Any(), orderID).Return(order, nil).Times(2)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "1100").Return(acctReceivable, nil)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "2100").Return(acctVendorPayable, nil)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "4100").Return(acctPlatformFee, nil)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "4200").Return(acctAdminFee, nil)
 				lr.EXPECT().CreateJournalWithLines(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+				vr.EXPECT().CreditBalance(gomock.Any(), vendorID, 200000.0).Return(nil)
 			},
 			wantErr: nil,
 		},

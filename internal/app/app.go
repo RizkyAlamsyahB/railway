@@ -78,6 +78,14 @@ func Initialize() (*App, error) {
 
 	log.Println("xendit invoice provider initialized")
 
+	// Initialize Xendit Payout provider
+	xenditPayoutProvider, err := newXenditPayoutProvider(cfg.Xendit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize xendit payout provider: %w", err)
+	}
+
+	log.Println("xendit payout provider initialized")
+
 	// Wire dependencies
 	healthUseCase := usecase.NewHealthUseCase()
 	healthHandler := handler.NewHealthHandler(healthUseCase)
@@ -90,7 +98,7 @@ func Initialize() (*App, error) {
 	adminLoginHandler := handler.NewAdminLoginHandler(adminAuthUseCase)
 
 	vendorRepo := repository.NewVendorRepository(db)
-	vendorUseCase := usecase.NewVendorUseCase(userRepo, vendorRepo, storageProvider, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
+	vendorUseCase := usecase.NewVendorUseCase(userRepo, vendorRepo, storageProvider, xenditPayoutProvider, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	vendorHandler := handler.NewVendorHandler(vendorUseCase)
 
 	adminVendorUseCase := usecase.NewAdminVendorUseCase(vendorRepo, userRepo, storageProvider, xenPlatformProvider)
@@ -163,10 +171,11 @@ func Initialize() (*App, error) {
 	ledgerRepo := repository.NewLedgerRepository(db)
 	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
 	checkoutHandler := handler.NewCheckoutHandler(checkoutUseCase, cfg.Xendit.WebhookVerificationToken)
+	xenditWebhookHandler := handler.NewXenditWebhookHandler(vendorUseCase, cfg.Xendit.WebhookVerificationToken)
 
 	// Setup router
 	// r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, cfg.JWT.Secret)
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, financeHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, faqHandler, wsHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, xenditWebhookHandler, financeHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, faqHandler, wsHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:      cfg,
@@ -201,6 +210,11 @@ func newXenPlatformProvider(cfg config.XenditConfig) (domain.XenPlatformProvider
 // newXenditInvoiceProvider creates the Xendit-backed XenditInvoiceProvider from config.
 func newXenditInvoiceProvider(cfg config.XenditConfig) (domain.XenditInvoiceProvider, error) {
 	return payment.NewXenditInvoiceClient(cfg)
+}
+
+// newXenditPayoutProvider creates the Xendit-backed XenditPayoutProvider from config.
+func newXenditPayoutProvider(cfg config.XenditConfig) (domain.XenditPayoutProvider, error) {
+	return payment.NewXenditPayoutClient(cfg)
 }
 
 // Close cleans up application resources.

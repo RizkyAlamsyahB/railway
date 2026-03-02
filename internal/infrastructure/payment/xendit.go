@@ -202,6 +202,42 @@ func (c *xenditClient) CreateInvoice(ctx context.Context, forUserID string, req 
 	return &invoice, nil
 }
 
+// --- XenditPayoutProvider implementation ---
+
+// NewXenditPayoutClient creates a new XenditPayoutProvider backed by the Xendit REST API.
+func NewXenditPayoutClient(cfg config.XenditConfig) (domain.XenditPayoutProvider, error) {
+	return newXenditClientInternal(cfg)
+}
+
+func (c *xenditClient) CreatePayout(ctx context.Context, forUserID string, idempotencyKey string, req domain.XenditPayoutRequest) (*domain.XenditPayoutResponse, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal create payout request: %w", err)
+	}
+
+	headers := map[string]string{
+		"for-user-id":     forUserID,
+		"Idempotency-key": idempotencyKey,
+	}
+
+	resp, err := c.doRequestWithHeaders(ctx, http.MethodPost, "/v2/payouts", bytes.NewReader(body), headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Xendit create payout API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	var payout domain.XenditPayoutResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payout); err != nil {
+		return nil, fmt.Errorf("failed to decode create payout response: %w", err)
+	}
+
+	return &payout, nil
+}
+
 // --- HTTP helpers ---
 
 func (c *xenditClient) doRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {

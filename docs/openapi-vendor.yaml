@@ -15,6 +15,10 @@ tags:
     description: Manajemen dokumen vendor.
   - name: Vendor Products
     description: Manajemen produk vendor.
+  - name: Vendor Balance
+    description: Operasi saldo dan penarikan vendor (Tokopedia-style self-service).
+  - name: Xendit Webhook
+    description: Endpoint callback webhook dari Xendit.
 paths:
   /api/v1/vendors/register:
     post:
@@ -892,6 +896,389 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/vendors/balance:
+    get:
+      tags:
+        - Vendor Balance
+      summary: Lihat saldo vendor
+      description: |
+        Menampilkan saldo terkini vendor yang sedang login.
+
+        **Response fields:**
+        - `available_balance` — Saldo yang tersedia untuk ditarik.
+        - `pending_balance` — Saldo yang sedang diproses (withdrawal in-progress).
+        - `total_earned` — Total pendapatan sepanjang waktu.
+        - `total_withdrawn` — Total yang sudah ditarik.
+
+        Saldo vendor bertambah otomatis saat pembayaran order dikonfirmasi.
+        Net = subtotal order (grand_total - platform_fee).
+      operationId: getVendorBalance
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Saldo vendor berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorBalanceEnvelope'
+              example:
+                success: true
+                message: vendor balance retrieved
+                data:
+                  available_balance: 500000
+                  pending_balance: 100000
+                  total_earned: 1500000
+                  total_withdrawn: 900000
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Saldo vendor belum diinisialisasi.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor balance not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/vendors/withdrawals:
+    post:
+      tags:
+        - Vendor Balance
+      summary: Request penarikan saldo ke rekening bank
+      description: |
+        Menginisiasi penarikan saldo vendor ke rekening bank yang terdaftar melalui Xendit Payout API.
+
+        **Alur:**
+        1. Vendor mengirim `amount` dan `channel_code`.
+        2. Sistem memvalidasi: vendor aktif, saldo mencukupi, minimum Rp 10.000.
+        3. Saldo dipindahkan dari `available_balance` ke `pending_balance`.
+        4. Record `vendor_withdrawals` dibuat dengan status `pending`.
+        5. Sistem memanggil Xendit Payout API.
+        6. Jika berhasil, status diupdate ke `processing`.
+        7. Jika gagal, saldo dikembalikan ke `available_balance` dan status menjadi `failed`.
+
+        **Aturan:**
+        - Memerlukan autentikasi JWT dengan role `umkm`.
+        - Vendor harus berstatus `active` dan memiliki Xendit account.
+        - Minimum penarikan: Rp 10.000.
+        - Tidak ada cooldown antar penarikan.
+        - Channel code harus valid (saat ini: `ID_BCA`).
+      operationId: requestVendorWithdrawal
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorWithdrawRequest'
+            example:
+              amount: 100000
+              channel_code: ID_BCA
+      responses:
+        '200':
+          description: Penarikan berhasil disubmit ke Xendit.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorWithdrawEnvelope'
+              example:
+                success: true
+                message: withdrawal request submitted successfully
+                data:
+                  withdrawal_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                  xendit_payout_id: dsbrs_a12b3c4d5e6f7890abcdef1234567890
+                  status: processing
+                  xendit_status: ACCEPTED
+                  amount: 100000
+                  channel_code: ID_BCA
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid (validasi gagal, channel code tidak valid, saldo tidak cukup, atau di bawah minimum).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'VendorWithdrawRequest.Amount' Error:Field validation for 'Amount' failed on the 'required' tag"
+                    meta: null
+                invalidChannelCode:
+                  summary: Channel code tidak valid
+                  value:
+                    success: false
+                    message: invalid payout channel code
+                    data: null
+                    errors: null
+                    meta: null
+                insufficientBalance:
+                  summary: Saldo tidak mencukupi
+                  value:
+                    success: false
+                    message: insufficient available balance
+                    data: null
+                    errors: null
+                    meta: null
+                belowMinimum:
+                  summary: Di bawah minimum penarikan Rp 10.000
+                  value:
+                    success: false
+                    message: "amount is below minimum withdrawal of Rp 10.000"
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Vendor tidak aktif atau user bukan vendor.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                vendorNotActive:
+                  summary: Vendor belum aktif
+                  value:
+                    success: false
+                    message: vendor is not active
+                    data: null
+                    errors: null
+                    meta: null
+        '404':
+          description: Vendor, user pemilik vendor, rekening bank vendor, atau saldo vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                bankNotFound:
+                  summary: Rekening bank vendor tidak ditemukan
+                  value:
+                    success: false
+                    message: vendor bank account not found
+                    data: null
+                    errors: null
+                    meta: null
+                balanceNotFound:
+                  summary: Saldo vendor belum diinisialisasi
+                  value:
+                    success: false
+                    message: vendor balance not found
+                    data: null
+                    errors: null
+                    meta: null
+                vendorNotFound:
+                  summary: Vendor tidak ditemukan
+                  value:
+                    success: false
+                    message: vendor not found
+                    data: null
+                    errors: null
+                    meta: null
+                userNotFound:
+                  summary: User pemilik vendor tidak ditemukan
+                  value:
+                    success: false
+                    message: user not found
+                    data: null
+                    errors: null
+                    meta: null
+        '502':
+          description: Vendor belum terhubung ke akun Xendit atau gagal memanggil Xendit Payout API.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                noXenditAccount:
+                  summary: Vendor belum memiliki Xendit account
+                  value:
+                    success: false
+                    message: vendor does not have a Xendit account
+                    data: null
+                    errors: null
+                    meta: null
+                xenditPayoutFailed:
+                  summary: Gagal membuat payout ke Xendit
+                  value:
+                    success: false
+                    message: failed to create payout via Xendit
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/webhooks/xendit/payout:
+    post:
+      tags:
+        - Xendit Webhook
+      summary: Webhook notifikasi status payout Xendit
+      description: |
+        Endpoint callback dari Xendit untuk update status payout vendor withdrawal.
+
+        **Catatan penting:**
+        - Endpoint ini public (tanpa JWT), diverifikasi menggunakan header `x-callback-token`.
+        - `data.reference_id` harus berisi UUID internal `vendor_withdrawals.id`.
+        - Handler bersifat idempotent untuk event duplicate/retry.
+        - Untuk event `payout.reversed`, sistem otomatis rollback saldo (sesuai kebijakan bisnis saat ini).
+      operationId: xenditPayoutWebhook
+      security: []
+      parameters:
+        - in: header
+          name: x-callback-token
+          required: true
+          schema:
+            type: string
+          description: Token verifikasi webhook dari Xendit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XenditPayoutWebhookPayload'
+            example:
+              business_id: 62c589ea1f995274c6fd8f47
+              event: payout.succeeded
+              data:
+                id: p-out-f1f6b6a7-c307-4ea8-b650-7499888cf646
+                reference_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                amount: 100000
+                currency: IDR
+                status: SUCCEEDED
+                channel_code: ID_BCA
+                failure_code: ""
+                created: '2024-09-01T07:50:46.013124437Z'
+                updated: '2024-09-01T07:52:10.012531923Z'
+      responses:
+        '200':
+          description: Webhook diterima dan diproses (termasuk no-op/idempotent).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XenditWebhookResponse'
+              examples:
+                processed:
+                  summary: Berhasil diproses
+                  value:
+                    message: webhook processed
+                processedWithErrors:
+                  summary: Diterima tapi ada error bisnis/internal
+                  value:
+                    message: webhook received with errors
+                    error: failed to apply payout webhook update
+        '400':
+          description: Payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XenditWebhookResponse'
+              example:
+                message: invalid payload
+        '401':
+          description: Callback token tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XenditWebhookResponse'
+              example:
+                message: invalid callback token
+components:
   securitySchemes:
     BearerAuth:
       type: http
@@ -1611,3 +1998,210 @@ paths:
         meta:
           nullable: true
           example: null
+    VendorBalanceResponse:
+      type: object
+      required:
+        - available_balance
+        - pending_balance
+        - total_earned
+        - total_withdrawn
+      properties:
+        available_balance:
+          type: number
+          format: double
+          description: Saldo yang tersedia untuk ditarik.
+          example: 500000
+        pending_balance:
+          type: number
+          format: double
+          description: Saldo yang sedang diproses (withdrawal in-progress).
+          example: 100000
+        total_earned:
+          type: number
+          format: double
+          description: Total pendapatan sepanjang waktu.
+          example: 1500000
+        total_withdrawn:
+          type: number
+          format: double
+          description: Total yang sudah berhasil ditarik.
+          example: 900000
+    VendorWithdrawRequest:
+      type: object
+      required:
+        - amount
+        - channel_code
+      properties:
+        amount:
+          type: number
+          format: double
+          minimum: 10000
+          description: Jumlah yang akan ditarik dalam IDR. Minimum Rp 10.000.
+          example: 100000
+        channel_code:
+          type: string
+          description: |
+            Kode channel bank tujuan penarikan.
+            Saat ini hanya mendukung `ID_BCA`.
+          enum:
+            - ID_BCA
+          example: ID_BCA
+    VendorWithdrawResponse:
+      type: object
+      required:
+        - withdrawal_id
+        - xendit_payout_id
+        - status
+        - xendit_status
+        - amount
+        - channel_code
+      properties:
+        withdrawal_id:
+          type: string
+          format: uuid
+          description: ID penarikan.
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        xendit_payout_id:
+          type: string
+          description: ID payout dari Xendit.
+          example: dsbrs_a12b3c4d5e6f7890abcdef1234567890
+        status:
+          type: string
+          description: Status penarikan di sistem.
+          enum:
+            - pending
+            - processing
+            - completed
+            - failed
+          example: processing
+        xendit_status:
+          type: string
+          description: Status payout dari Xendit.
+          example: ACCEPTED
+        amount:
+          type: number
+          format: double
+          description: Jumlah penarikan dalam IDR.
+          example: 100000
+        channel_code:
+          type: string
+          description: Channel code bank tujuan.
+          example: ID_BCA
+    SuccessVendorBalanceEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor balance retrieved
+        data:
+          $ref: '#/components/schemas/VendorBalanceResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorWithdrawEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: withdrawal request submitted successfully
+        data:
+          $ref: '#/components/schemas/VendorWithdrawResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    XenditPayoutWebhookData:
+      type: object
+      required:
+        - reference_id
+      properties:
+        id:
+          type: string
+          description: ID payout dari Xendit.
+          example: p-out-f1f6b6a7-c307-4ea8-b650-7499888cf646
+        reference_id:
+          type: string
+          description: ID referensi internal dari sistem (UUID `vendor_withdrawals.id`).
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        amount:
+          type: number
+          format: double
+          description: Nominal payout.
+          example: 100000
+        currency:
+          type: string
+          example: IDR
+        status:
+          type: string
+          description: Status payout dari Xendit.
+          example: SUCCEEDED
+        channel_code:
+          type: string
+          example: ID_BCA
+        failure_code:
+          type: string
+          nullable: true
+          example: null
+        created:
+          type: string
+          format: date-time
+          nullable: true
+        updated:
+          type: string
+          format: date-time
+          nullable: true
+    XenditPayoutWebhookPayload:
+      type: object
+      required:
+        - event
+        - data
+      properties:
+        business_id:
+          type: string
+          description: ID bisnis Xendit pengirim webhook.
+          example: 62c589ea1f995274c6fd8f47
+        event:
+          type: string
+          description: Event payout webhook.
+          enum:
+            - payout.succeeded
+            - payout.failed
+            - payout.reversed
+          example: payout.succeeded
+        data:
+          $ref: '#/components/schemas/XenditPayoutWebhookData'
+    XenditWebhookResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: webhook processed
+        error:
+          type: string
+          nullable: true
+          example: failed to apply payout webhook update

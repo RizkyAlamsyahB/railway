@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/config"
@@ -25,6 +26,23 @@ func setupTestServer(t *testing.T, handler http.HandlerFunc) (domain.XenPlatform
 	})
 	if err != nil {
 		t.Fatalf("failed to create xendit client: %v", err)
+	}
+
+	return client, server
+}
+
+func setupPayoutTestServer(t *testing.T, handler http.HandlerFunc) (domain.XenditPayoutProvider, *httptest.Server) {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	client, err := payment.NewXenditPayoutClient(config.XenditConfig{
+		APISecretKey: "test-api-secret-key",
+		APIPublicKey: "test-api-public-key",
+		BaseURL:      server.URL,
+	})
+	if err != nil {
+		t.Fatalf("failed to create xendit payout client: %v", err)
 	}
 
 	return client, server
@@ -429,4 +447,83 @@ func TestXenditClient_UpdateAccount(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestXenditPayoutClient_CreatePayout(t *testing.T) {
+	req := domain.XenditPayoutRequest{
+		ReferenceID: "wd-123",
+		ChannelCode: "ID_BCA",
+		ChannelProperties: domain.XenditPayoutChannelProperties{
+			AccountNumber:     "1234567890",
+			AccountHolderName: "Ahmad",
+		},
+		Amount:      100000,
+		Description: "Withdrawal test",
+		Currency:    "IDR",
+	}
+
+	t.Run("success", func(t *testing.T) {
+		client, _ := setupPayoutTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				t.Errorf("expected POST, got %s", r.Method)
+			}
+			if r.URL.Path != "/v2/payouts" {
+				t.Errorf("expected path /v2/payouts, got %s", r.URL.Path)
+			}
+			if r.Header.Get("for-user-id") != "acc_123" {
+				t.Errorf("expected for-user-id acc_123, got %s", r.Header.Get("for-user-id"))
+			}
+			if r.Header.Get("Idempotency-key") != "idem-123" {
+				t.Errorf("expected Idempotency-key idem-123, got %s", r.Header.Get("Idempotency-key"))
+			}
+
+			var body domain.XenditPayoutRequest
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatalf("failed to decode request body: %v", err)
+			}
+			if body.ReferenceID != req.ReferenceID {
+				t.Errorf("expected reference_id %s, got %s", req.ReferenceID, body.ReferenceID)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(domain.XenditPayoutResponse{
+				ID:          "payout_123",
+				ReferenceID: req.ReferenceID,
+				Status:      "ACCEPTED",
+				ChannelCode: req.ChannelCode,
+				Amount:      req.Amount,
+				Currency:    req.Currency,
+			})
+		})
+
+		resp, err := client.CreatePayout(context.Background(), "acc_123", "idem-123", req)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resp.ID != "payout_123" {
+			t.Errorf("expected payout id payout_123, got %s", resp.ID)
+		}
+		if resp.Status != "ACCEPTED" {
+			t.Errorf("expected status ACCEPTED, got %s", resp.Status)
+		}
+	})
+
+	t.Run("api error", func(t *testing.T) {
+		client, _ := setupPayoutTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(domain.XenPlatformErrorResponse{
+				ErrorCode: "NOT_FOUND",
+				Message:   "The requested resource was not found",
+			})
+		})
+
+		_, err := client.CreatePayout(context.Background(), "acc_123", "idem-123", req)
+		if err == nil {
+			t.Fatal("expected error but got nil")
+		}
+		if !strings.Contains(err.Error(), "status 404") {
+			t.Errorf("expected error to contain status 404, got %v", err)
+		}
+	})
 }

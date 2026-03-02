@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GORM model structs (internal to repository layer).
@@ -207,6 +208,328 @@ func (r *vendorRepository) UpdateStatus(ctx context.Context, vendorID uuid.UUID,
 	return r.db.WithContext(ctx).Model(&vendorModel{}).
 		Where("id = ?", vendorID.String()).
 		Updates(updates).Error
+}
+
+type payoutBatchModel struct {
+	ID             string     `gorm:"column:id;primaryKey"`
+	VendorID       string     `gorm:"column:vendor_id"`
+	PeriodStart    time.Time  `gorm:"column:period_start"`
+	PeriodEnd      time.Time  `gorm:"column:period_end"`
+	Status         string     `gorm:"column:status"`
+	TotalGross     float64    `gorm:"column:total_gross"`
+	TotalFee       float64    `gorm:"column:total_fee"`
+	TotalNet       float64    `gorm:"column:total_net"`
+	PaidAt         *time.Time `gorm:"column:paid_at"`
+	CreatedBy      string     `gorm:"column:created_by"`
+	XenditPayoutID *string    `gorm:"column:xendit_payout_id"`
+	ChannelCode    *string    `gorm:"column:channel_code"`
+	Description    *string    `gorm:"column:description"`
+	XenditStatus   *string    `gorm:"column:xendit_status"`
+	CreatedAt      time.Time  `gorm:"column:created_at"`
+	UpdatedAt      time.Time  `gorm:"column:updated_at"`
+}
+
+func (payoutBatchModel) TableName() string { return "payout_batches" }
+
+func (r *vendorRepository) FindPayoutBatchByID(ctx context.Context, id uuid.UUID) (*domain.PayoutBatch, error) {
+	var model payoutBatchModel
+	if err := r.db.WithContext(ctx).Where("id = ?", id.String()).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainPayoutBatch(&model), nil
+}
+
+func (r *vendorRepository) UpdatePayoutBatch(ctx context.Context, batch *domain.PayoutBatch) error {
+	return r.db.WithContext(ctx).Model(&payoutBatchModel{}).
+		Where("id = ?", batch.ID.String()).
+		Updates(map[string]interface{}{
+			"status":           batch.Status,
+			"xendit_payout_id": batch.XenditPayoutID,
+			"channel_code":     batch.ChannelCode,
+			"description":      batch.Description,
+			"xendit_status":    batch.XenditStatus,
+			"updated_at":       time.Now(),
+		}).Error
+}
+
+func toDomainPayoutBatch(m *payoutBatchModel) *domain.PayoutBatch {
+	id, _ := uuid.Parse(m.ID)
+	vendorID, _ := uuid.Parse(m.VendorID)
+	createdBy, _ := uuid.Parse(m.CreatedBy)
+
+	return &domain.PayoutBatch{
+		ID:             id,
+		VendorID:       vendorID,
+		PeriodStart:    m.PeriodStart,
+		PeriodEnd:      m.PeriodEnd,
+		Status:         m.Status,
+		TotalGross:     m.TotalGross,
+		TotalFee:       m.TotalFee,
+		TotalNet:       m.TotalNet,
+		PaidAt:         m.PaidAt,
+		CreatedBy:      createdBy,
+		XenditPayoutID: m.XenditPayoutID,
+		ChannelCode:    m.ChannelCode,
+		Description:    m.Description,
+		XenditStatus:   m.XenditStatus,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+	}
+}
+
+// --- Balance & Withdrawal GORM models ---
+
+type vendorBalanceModel struct {
+	VendorID         string    `gorm:"column:vendor_id;primaryKey"`
+	AvailableBalance float64   `gorm:"column:available_balance"`
+	PendingBalance   float64   `gorm:"column:pending_balance"`
+	TotalEarned      float64   `gorm:"column:total_earned"`
+	TotalWithdrawn   float64   `gorm:"column:total_withdrawn"`
+	UpdatedAt        time.Time `gorm:"column:updated_at"`
+}
+
+func (vendorBalanceModel) TableName() string { return "vendor_balances" }
+
+type vendorWithdrawalModel struct {
+	ID             string    `gorm:"column:id;primaryKey"`
+	VendorID       string    `gorm:"column:vendor_id"`
+	Amount         float64   `gorm:"column:amount"`
+	ChannelCode    string    `gorm:"column:channel_code"`
+	Status         string    `gorm:"column:status"`
+	XenditPayoutID *string   `gorm:"column:xendit_payout_id"`
+	XenditStatus   *string   `gorm:"column:xendit_status"`
+	Description    *string   `gorm:"column:description"`
+	FailedReason   *string   `gorm:"column:failed_reason"`
+	CreatedAt      time.Time `gorm:"column:created_at"`
+	UpdatedAt      time.Time `gorm:"column:updated_at"`
+}
+
+func (vendorWithdrawalModel) TableName() string { return "vendor_withdrawals" }
+
+func (r *vendorRepository) InitBalance(ctx context.Context, vendorID uuid.UUID) error {
+	m := vendorBalanceModel{
+		VendorID:         vendorID.String(),
+		AvailableBalance: 0,
+		PendingBalance:   0,
+		TotalEarned:      0,
+		TotalWithdrawn:   0,
+		UpdatedAt:        time.Now(),
+	}
+	return r.db.WithContext(ctx).Create(&m).Error
+}
+
+func (r *vendorRepository) GetBalance(ctx context.Context, vendorID uuid.UUID) (*domain.VendorBalance, error) {
+	var m vendorBalanceModel
+	if err := r.db.WithContext(ctx).Where("vendor_id = ?", vendorID.String()).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainVendorBalance(&m), nil
+}
+
+func (r *vendorRepository) CreditBalance(ctx context.Context, vendorID uuid.UUID, amount float64) error {
+	return r.db.WithContext(ctx).Model(&vendorBalanceModel{}).
+		Where("vendor_id = ?", vendorID.String()).
+		Updates(map[string]interface{}{
+			"available_balance": gorm.Expr("available_balance + ?", amount),
+			"total_earned":      gorm.Expr("total_earned + ?", amount),
+			"updated_at":        time.Now(),
+		}).Error
+}
+
+func (r *vendorRepository) DebitBalance(ctx context.Context, vendorID uuid.UUID, amount float64) error {
+	result := r.db.WithContext(ctx).Model(&vendorBalanceModel{}).
+		Where("vendor_id = ? AND available_balance >= ?", vendorID.String(), amount).
+		Updates(map[string]interface{}{
+			"available_balance": gorm.Expr("available_balance - ?", amount),
+			"pending_balance":   gorm.Expr("pending_balance + ?", amount),
+			"updated_at":        time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("insufficient balance or vendor not found")
+	}
+	return nil
+}
+
+func (r *vendorRepository) CompleteWithdrawal(ctx context.Context, vendorID uuid.UUID, amount float64) error {
+	return r.db.WithContext(ctx).Model(&vendorBalanceModel{}).
+		Where("vendor_id = ?", vendorID.String()).
+		Updates(map[string]interface{}{
+			"pending_balance": gorm.Expr("pending_balance - ?", amount),
+			"total_withdrawn": gorm.Expr("total_withdrawn + ?", amount),
+			"updated_at":      time.Now(),
+		}).Error
+}
+
+func (r *vendorRepository) FailWithdrawal(ctx context.Context, vendorID uuid.UUID, amount float64) error {
+	return r.db.WithContext(ctx).Model(&vendorBalanceModel{}).
+		Where("vendor_id = ?", vendorID.String()).
+		Updates(map[string]interface{}{
+			"pending_balance":   gorm.Expr("pending_balance - ?", amount),
+			"available_balance": gorm.Expr("available_balance + ?", amount),
+			"updated_at":        time.Now(),
+		}).Error
+}
+
+func (r *vendorRepository) CreateWithdrawal(ctx context.Context, withdrawal *domain.VendorWithdrawal) error {
+	m := toVendorWithdrawalModel(withdrawal)
+	return r.db.WithContext(ctx).Create(&m).Error
+}
+
+func (r *vendorRepository) FindWithdrawalByID(ctx context.Context, id uuid.UUID) (*domain.VendorWithdrawal, error) {
+	var m vendorWithdrawalModel
+	if err := r.db.WithContext(ctx).Where("id = ?", id.String()).First(&m).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainVendorWithdrawal(&m), nil
+}
+
+func (r *vendorRepository) UpdateWithdrawal(ctx context.Context, withdrawal *domain.VendorWithdrawal) error {
+	return r.db.WithContext(ctx).Model(&vendorWithdrawalModel{}).
+		Where("id = ?", withdrawal.ID.String()).
+		Updates(map[string]interface{}{
+			"status":           withdrawal.Status,
+			"xendit_payout_id": withdrawal.XenditPayoutID,
+			"xendit_status":    withdrawal.XenditStatus,
+			"description":      withdrawal.Description,
+			"failed_reason":    withdrawal.FailedReason,
+			"updated_at":       time.Now(),
+		}).Error
+}
+
+func (r *vendorRepository) ApplyWithdrawalWebhookUpdate(ctx context.Context, withdrawalID uuid.UUID, newStatus string, xenditStatus string, xenditPayoutID *string, failedReason *string, balanceAction string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var wm vendorWithdrawalModel
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", withdrawalID.String()).
+			First(&wm).Error; err != nil {
+			return err
+		}
+
+		updates := map[string]interface{}{
+			"updated_at": time.Now(),
+		}
+		if xenditStatus != "" {
+			updates["xendit_status"] = xenditStatus
+		}
+		if newStatus != "" {
+			updates["status"] = newStatus
+		}
+		if xenditPayoutID != nil && *xenditPayoutID != "" {
+			updates["xendit_payout_id"] = *xenditPayoutID
+		}
+		if failedReason != nil && *failedReason != "" {
+			updates["failed_reason"] = *failedReason
+		}
+
+		if err := tx.Model(&vendorWithdrawalModel{}).
+			Where("id = ?", withdrawalID.String()).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+
+		if balanceAction == domain.WithdrawalBalanceActionNone {
+			return nil
+		}
+
+		var balUpdates map[string]interface{}
+		balanceQuery := tx.Model(&vendorBalanceModel{}).Where("vendor_id = ?", wm.VendorID)
+
+		switch balanceAction {
+		case domain.WithdrawalBalanceActionComplete:
+			balanceQuery = balanceQuery.Where("pending_balance >= ?", wm.Amount)
+			balUpdates = map[string]interface{}{
+				"pending_balance": gorm.Expr("pending_balance - ?", wm.Amount),
+				"total_withdrawn": gorm.Expr("total_withdrawn + ?", wm.Amount),
+				"updated_at":      time.Now(),
+			}
+		case domain.WithdrawalBalanceActionFail:
+			balanceQuery = balanceQuery.Where("pending_balance >= ?", wm.Amount)
+			balUpdates = map[string]interface{}{
+				"pending_balance":   gorm.Expr("pending_balance - ?", wm.Amount),
+				"available_balance": gorm.Expr("available_balance + ?", wm.Amount),
+				"updated_at":        time.Now(),
+			}
+		case domain.WithdrawalBalanceActionReverseCompleted:
+			balanceQuery = balanceQuery.Where("total_withdrawn >= ?", wm.Amount)
+			balUpdates = map[string]interface{}{
+				"total_withdrawn":   gorm.Expr("total_withdrawn - ?", wm.Amount),
+				"available_balance": gorm.Expr("available_balance + ?", wm.Amount),
+				"updated_at":        time.Now(),
+			}
+		default:
+			return errors.New("invalid withdrawal balance action")
+		}
+
+		res := balanceQuery.Updates(balUpdates)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errors.New("failed to apply withdrawal balance update")
+		}
+		return nil
+	})
+}
+
+// --- Balance & Withdrawal mappers ---
+
+func toDomainVendorBalance(m *vendorBalanceModel) *domain.VendorBalance {
+	vendorID, _ := uuid.Parse(m.VendorID)
+	return &domain.VendorBalance{
+		VendorID:         vendorID,
+		AvailableBalance: m.AvailableBalance,
+		PendingBalance:   m.PendingBalance,
+		TotalEarned:      m.TotalEarned,
+		TotalWithdrawn:   m.TotalWithdrawn,
+		UpdatedAt:        m.UpdatedAt,
+	}
+}
+
+func toDomainVendorWithdrawal(m *vendorWithdrawalModel) *domain.VendorWithdrawal {
+	id, _ := uuid.Parse(m.ID)
+	vendorID, _ := uuid.Parse(m.VendorID)
+	return &domain.VendorWithdrawal{
+		ID:             id,
+		VendorID:       vendorID,
+		Amount:         m.Amount,
+		ChannelCode:    m.ChannelCode,
+		Status:         m.Status,
+		XenditPayoutID: m.XenditPayoutID,
+		XenditStatus:   m.XenditStatus,
+		Description:    m.Description,
+		FailedReason:   m.FailedReason,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+	}
+}
+
+func toVendorWithdrawalModel(w *domain.VendorWithdrawal) vendorWithdrawalModel {
+	return vendorWithdrawalModel{
+		ID:             w.ID.String(),
+		VendorID:       w.VendorID.String(),
+		Amount:         w.Amount,
+		ChannelCode:    w.ChannelCode,
+		Status:         w.Status,
+		XenditPayoutID: w.XenditPayoutID,
+		XenditStatus:   w.XenditStatus,
+		Description:    w.Description,
+		FailedReason:   w.FailedReason,
+		CreatedAt:      w.CreatedAt,
+		UpdatedAt:      w.UpdatedAt,
+	}
 }
 
 // Mapper helpers.

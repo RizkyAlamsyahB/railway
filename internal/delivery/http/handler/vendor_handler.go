@@ -71,3 +71,37 @@ func (h *VendorHandler) ConfirmDocuments(c *gin.Context) {
 
 	response.OK(c, "documents confirmed successfully", result)
 }
+
+// GetBalance handles GET /api/v1/vendors/balance
+func (h *VendorHandler) GetBalance(c *gin.Context) {
+	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)
+	vendorID, _ := vendorIDVal.(uuid.UUID)
+
+	result, err := h.useCase.GetBalance(c.Request.Context(), vendorID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "vendor balance retrieved", result)
+}
+
+// RequestWithdrawal handles POST /api/v1/vendors/withdrawals
+func (h *VendorHandler) RequestWithdrawal(c *gin.Context) {
+	var req domain.VendorWithdrawRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)
+	vendorID, _ := vendorIDVal.(uuid.UUID)
+
+	result, err := h.useCase.RequestWithdrawal(c.Request.Context(), vendorID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "withdrawal request submitted successfully", result)
+}

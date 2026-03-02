@@ -351,6 +351,19 @@ func (uc *checkoutUseCase) handlePaid(ctx context.Context, invoice *domain.Payme
 		return fmt.Errorf("record ledger: %w", err)
 	}
 
+	// 4. Credit vendor balance (net = subtotal, i.e. grand_total - platform_fee).
+	//    This makes the revenue immediately available for vendor self-service withdrawal.
+	order, err := uc.orderRepo.FindByID(ctx, invoice.OrderID)
+	if err != nil {
+		return fmt.Errorf("find order for balance credit: %w", err)
+	}
+	if order != nil {
+		netAmount := order.Subtotal // vendor revenue = subtotal (platform fee is not theirs)
+		if err := uc.vendorRepo.CreditBalance(ctx, order.VendorID, netAmount); err != nil {
+			return fmt.Errorf("credit vendor balance: %w", err)
+		}
+	}
+
 	return nil
 }
 

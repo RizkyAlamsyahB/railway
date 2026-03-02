@@ -79,6 +79,20 @@ var (
 	ErrXenditAccountCreation = errors.New("failed to create xendit account")
 )
 
+// --- Withdrawal errors ---
+
+var (
+	ErrInvalidChannelCode  = errors.New("invalid payout channel code")
+	ErrXenditPayoutFailed  = errors.New("failed to create payout via Xendit")
+	ErrVendorBankNotFound  = errors.New("vendor bank account not found")
+	ErrInsufficientBalance = errors.New("insufficient available balance")
+	ErrBelowMinWithdrawal  = errors.New("amount is below minimum withdrawal of Rp 10.000")
+	ErrBalanceNotFound     = errors.New("vendor balance record not found")
+)
+
+// MinWithdrawalAmount is the minimum withdrawal amount in IDR.
+const MinWithdrawalAmount = 10000
+
 // --- Cart errors ---
 
 var (

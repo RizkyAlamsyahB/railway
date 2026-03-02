@@ -25,3 +25,11 @@ const (
 	PayoutStatusFailed   = "failed"
 	PayoutStatusOnHold   = "on hold"
 )
+
+// Vendor withdrawal statuses.
+const (
+	WithdrawalStatusPending    = "pending"
+	WithdrawalStatusProcessing = "processing"
+	WithdrawalStatusCompleted  = "completed"
+	WithdrawalStatusFailed     = "failed"
+)
