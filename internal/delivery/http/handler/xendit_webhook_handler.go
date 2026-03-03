@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -36,6 +37,14 @@ func (h *XenditWebhookHandler) Payout(c *gin.Context) {
 	}
 
 	if err := h.vendorUseCase.HandlePayoutWebhook(c.Request.Context(), payload); err != nil {
+		log.Printf(
+			"[xendit-payout-webhook] processing failed: event=%s reference_id=%s payout_id=%s status=%s err=%v",
+			payload.Event,
+			payload.Data.ReferenceID,
+			payload.Data.ID,
+			payload.Data.Status,
+			err,
+		)
 		c.JSON(http.StatusOK, gin.H{"message": "webhook received with errors", "error": err.Error()})
 		return
 	}

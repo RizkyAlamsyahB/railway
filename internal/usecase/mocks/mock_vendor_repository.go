@@ -42,6 +42,20 @@ func (m *MockVendorRepository) EXPECT() *MockVendorRepositoryMockRecorder {
 	return m.recorder
 }
 
+// ApplyWithdrawalWebhookUpdate mocks base method.
+func (m *MockVendorRepository) ApplyWithdrawalWebhookUpdate(ctx context.Context, withdrawalID uuid.UUID, newStatus, xenditStatus string, xenditPayoutID, failedReason *string, balanceAction string, completion *domain.WithdrawalCompletionData) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyWithdrawalWebhookUpdate", ctx, withdrawalID, newStatus, xenditStatus, xenditPayoutID, failedReason, balanceAction, completion)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ApplyWithdrawalWebhookUpdate indicates an expected call of ApplyWithdrawalWebhookUpdate.
+func (mr *MockVendorRepositoryMockRecorder) ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, newStatus, xenditStatus, xenditPayoutID, failedReason, balanceAction, completion any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyWithdrawalWebhookUpdate", reflect.TypeOf((*MockVendorRepository)(nil).ApplyWithdrawalWebhookUpdate), ctx, withdrawalID, newStatus, xenditStatus, xenditPayoutID, failedReason, balanceAction, completion)
+}
+
 // CompleteWithdrawal mocks base method.
 func (m *MockVendorRepository) CompleteWithdrawal(ctx context.Context, vendorID uuid.UUID, amount float64) error {
 	m.ctrl.T.Helper()
@@ -68,20 +82,6 @@ func (m *MockVendorRepository) ConfirmDocumentsAndUpdateStatus(ctx context.Conte
 func (mr *MockVendorRepositoryMockRecorder) ConfirmDocumentsAndUpdateStatus(ctx, vendorID, documents, newStatus any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfirmDocumentsAndUpdateStatus", reflect.TypeOf((*MockVendorRepository)(nil).ConfirmDocumentsAndUpdateStatus), ctx, vendorID, documents, newStatus)
-}
-
-// ApplyWithdrawalWebhookUpdate mocks base method.
-func (m *MockVendorRepository) ApplyWithdrawalWebhookUpdate(ctx context.Context, withdrawalID uuid.UUID, newStatus, xenditStatus string, xenditPayoutID, failedReason *string, balanceAction string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApplyWithdrawalWebhookUpdate", ctx, withdrawalID, newStatus, xenditStatus, xenditPayoutID, failedReason, balanceAction)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ApplyWithdrawalWebhookUpdate indicates an expected call of ApplyWithdrawalWebhookUpdate.
-func (mr *MockVendorRepositoryMockRecorder) ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, newStatus, xenditStatus, xenditPayoutID, failedReason, balanceAction any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyWithdrawalWebhookUpdate", reflect.TypeOf((*MockVendorRepository)(nil).ApplyWithdrawalWebhookUpdate), ctx, withdrawalID, newStatus, xenditStatus, xenditPayoutID, failedReason, balanceAction)
 }
 
 // Create mocks base method.
@@ -214,21 +214,6 @@ func (mr *MockVendorRepositoryMockRecorder) FindDocumentsByVendorID(ctx, vendorI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindDocumentsByVendorID", reflect.TypeOf((*MockVendorRepository)(nil).FindDocumentsByVendorID), ctx, vendorID)
 }
 
-// FindWithdrawalByID mocks base method.
-func (m *MockVendorRepository) FindWithdrawalByID(ctx context.Context, id uuid.UUID) (*domain.VendorWithdrawal, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindWithdrawalByID", ctx, id)
-	ret0, _ := ret[0].(*domain.VendorWithdrawal)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindWithdrawalByID indicates an expected call of FindWithdrawalByID.
-func (mr *MockVendorRepositoryMockRecorder) FindWithdrawalByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindWithdrawalByID", reflect.TypeOf((*MockVendorRepository)(nil).FindWithdrawalByID), ctx, id)
-}
-
 // FindPayoutBatchByID mocks base method.
 func (m *MockVendorRepository) FindPayoutBatchByID(ctx context.Context, id uuid.UUID) (*domain.PayoutBatch, error) {
 	m.ctrl.T.Helper()
@@ -242,6 +227,21 @@ func (m *MockVendorRepository) FindPayoutBatchByID(ctx context.Context, id uuid.
 func (mr *MockVendorRepositoryMockRecorder) FindPayoutBatchByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPayoutBatchByID", reflect.TypeOf((*MockVendorRepository)(nil).FindPayoutBatchByID), ctx, id)
+}
+
+// FindWithdrawalByID mocks base method.
+func (m *MockVendorRepository) FindWithdrawalByID(ctx context.Context, id uuid.UUID) (*domain.VendorWithdrawal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindWithdrawalByID", ctx, id)
+	ret0, _ := ret[0].(*domain.VendorWithdrawal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindWithdrawalByID indicates an expected call of FindWithdrawalByID.
+func (mr *MockVendorRepositoryMockRecorder) FindWithdrawalByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindWithdrawalByID", reflect.TypeOf((*MockVendorRepository)(nil).FindWithdrawalByID), ctx, id)
 }
 
 // GetBalance mocks base method.

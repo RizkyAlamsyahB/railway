@@ -30,14 +30,27 @@ var optionalDocTypes = []string{
 // allDocTypes combines required + optional for presigned URL generation.
 var allDocTypes = append(append([]string{}, requiredDocTypes...), optionalDocTypes...)
 
+const (
+	defaultWithdrawalFeeEstimateFixed = 0.0
+	fixedPayoutFeeActual              = 3000.0
+)
+
+// VendorWithdrawalPolicy defines fee estimation behavior for vendor withdrawals.
+type VendorWithdrawalPolicy struct {
+	FeeEstimateFixed float64
+	MinNetAmount     float64
+}
+
 type vendorUseCase struct {
-	userRepo     domain.UserRepository
-	vendorRepo   domain.VendorRepository
-	storage      domain.StorageProvider
-	xenditPayout domain.XenditPayoutProvider
-	jwtSecret    string
-	jwtExpiry    int
-	jwtIssuer    string
+	userRepo                   domain.UserRepository
+	vendorRepo                 domain.VendorRepository
+	storage                    domain.StorageProvider
+	xenditPayout               domain.XenditPayoutProvider
+	jwtSecret                  string
+	jwtExpiry                  int
+	jwtIssuer                  string
+	withdrawalFeeEstimateFixed float64
+	withdrawalMinNetAmount     float64
 }
 
 // NewVendorUseCase creates a new VendorUseCase.
@@ -49,15 +62,32 @@ func NewVendorUseCase(
 	jwtSecret string,
 	jwtExpiry int,
 	jwtIssuer string,
+	policy ...VendorWithdrawalPolicy,
 ) domain.VendorUseCase {
+	cfg := VendorWithdrawalPolicy{
+		FeeEstimateFixed: defaultWithdrawalFeeEstimateFixed,
+		MinNetAmount:     MinWithdrawalAmount,
+	}
+	if len(policy) > 0 {
+		cfg = policy[0]
+	}
+	if cfg.FeeEstimateFixed < 0 {
+		cfg.FeeEstimateFixed = defaultWithdrawalFeeEstimateFixed
+	}
+	if cfg.MinNetAmount < MinWithdrawalAmount {
+		cfg.MinNetAmount = MinWithdrawalAmount
+	}
+
 	return &vendorUseCase{
-		userRepo:     userRepo,
-		vendorRepo:   vendorRepo,
-		storage:      storage,
-		xenditPayout: xenditPayout,
-		jwtSecret:    jwtSecret,
-		jwtExpiry:    jwtExpiry,
-		jwtIssuer:    jwtIssuer,
+		userRepo:                   userRepo,
+		vendorRepo:                 vendorRepo,
+		storage:                    storage,
+		xenditPayout:               xenditPayout,
+		jwtSecret:                  jwtSecret,
+		jwtExpiry:                  jwtExpiry,
+		jwtIssuer:                  jwtIssuer,
+		withdrawalFeeEstimateFixed: cfg.FeeEstimateFixed,
+		withdrawalMinNetAmount:     cfg.MinNetAmount,
 	}
 }
 
@@ -356,6 +386,12 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 		return nil, ErrBelowMinWithdrawal
 	}
 
+	estimatedFee := roundCurrencyAmount(uc.withdrawalFeeEstimateFixed)
+	estimatedNetAmount := roundCurrencyAmount(req.Amount - estimatedFee)
+	if estimatedNetAmount < uc.withdrawalMinNetAmount {
+		return nil, ErrWithdrawalNetAmountTooSmall
+	}
+
 	// 3. Find vendor and validate it's active + has Xendit account.
 	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
 	if err != nil {
@@ -412,14 +448,18 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 	description := fmt.Sprintf("Withdrawal for vendor %s", vendor.DisplayName)
 
 	withdrawal := &domain.VendorWithdrawal{
-		ID:          withdrawalID,
-		VendorID:    vendorID,
-		Amount:      req.Amount,
-		ChannelCode: req.ChannelCode,
-		Status:      domain.WithdrawalStatusPending,
-		Description: &description,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:            withdrawalID,
+		VendorID:      vendorID,
+		Amount:        req.Amount,
+		ChannelCode:   req.ChannelCode,
+		Status:        domain.WithdrawalStatusPending,
+		FeeEstimated:  estimatedFee,
+		AmountNet:     estimatedNetAmount,
+		TotalDeducted: req.Amount,
+		FeeStatus:     domain.WithdrawalFeeStatusPending,
+		Description:   &description,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 
 	if err := uc.vendorRepo.CreateWithdrawal(ctx, withdrawal); err != nil {
@@ -437,7 +477,7 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 			AccountNumber:     bankAccount.AccountNumber,
 			AccountHolderName: bankAccount.AccountHolderName,
 		},
-		Amount:      req.Amount,
+		Amount:      estimatedNetAmount,
 		Description: description,
 		Currency:    "IDR",
 		ReceiptNotification: &domain.XenditPayoutReceiptNotification{
@@ -452,6 +492,7 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 		_ = uc.vendorRepo.FailWithdrawal(ctx, vendorID, req.Amount)
 		failedReason := err.Error()
 		withdrawal.Status = domain.WithdrawalStatusFailed
+		withdrawal.FeeStatus = domain.WithdrawalFeeStatusFailed
 		withdrawal.FailedReason = &failedReason
 		_ = uc.vendorRepo.UpdateWithdrawal(ctx, withdrawal)
 		return nil, fmt.Errorf("%w: %v", ErrXenditPayoutFailed, err)
@@ -472,12 +513,15 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 	}
 
 	return &domain.VendorWithdrawResponse{
-		WithdrawalID:   withdrawalID,
-		XenditPayoutID: xenditPayoutID,
-		Status:         withdrawal.Status,
-		XenditStatus:   xenditStatus,
-		Amount:         req.Amount,
-		ChannelCode:    channelCode,
+		WithdrawalID:       withdrawalID,
+		XenditPayoutID:     xenditPayoutID,
+		Status:             withdrawal.Status,
+		XenditStatus:       xenditStatus,
+		Amount:             req.Amount,
+		RequestedAmount:    req.Amount,
+		EstimatedFee:       estimatedFee,
+		EstimatedNetAmount: estimatedNetAmount,
+		ChannelCode:        channelCode,
 	}, nil
 }
 
@@ -514,6 +558,27 @@ func (uc *vendorUseCase) HandlePayoutWebhook(ctx context.Context, payload domain
 		return nil
 	}
 
+	if balanceAction == domain.WithdrawalBalanceActionComplete {
+		completion, err := buildWithdrawalCompletionDataFromFixedFee(withdrawal, fixedPayoutFeeActual)
+		if err != nil {
+			return fmt.Errorf("invalid payout completion data: %w", err)
+		}
+
+		if err := uc.vendorRepo.ApplyWithdrawalWebhookUpdate(
+			ctx,
+			withdrawal.ID,
+			newStatus,
+			xenditStatus,
+			xenditPayoutID,
+			failedReason,
+			balanceAction,
+			completion,
+		); err != nil {
+			return fmt.Errorf("failed to apply payout webhook completion update: %w", err)
+		}
+		return nil
+	}
+
 	// If there is no state/balance mutation and nothing new from Xendit, skip write.
 	if newStatus == "" && balanceAction == domain.WithdrawalBalanceActionNone && xenditStatus == "" && xenditPayoutID == nil && failedReason == nil {
 		return nil
@@ -527,11 +592,39 @@ func (uc *vendorUseCase) HandlePayoutWebhook(ctx context.Context, payload domain
 		xenditPayoutID,
 		failedReason,
 		balanceAction,
+		nil,
 	); err != nil {
 		return fmt.Errorf("failed to apply payout webhook update: %w", err)
 	}
 
 	return nil
+}
+
+func buildWithdrawalCompletionDataFromFixedFee(withdrawal *domain.VendorWithdrawal, fixedFeeActual float64) (*domain.WithdrawalCompletionData, error) {
+	if withdrawal == nil {
+		return nil, fmt.Errorf("missing withdrawal")
+	}
+
+	feeActual := roundCurrencyAmount(fixedFeeActual)
+	if feeActual < 0 {
+		return nil, fmt.Errorf("negative fee actual")
+	}
+
+	netAmount := roundCurrencyAmount(withdrawal.Amount - feeActual)
+	if netAmount <= 0 {
+		return nil, fmt.Errorf("invalid net amount")
+	}
+
+	totalDeducted := roundCurrencyAmount(withdrawal.Amount)
+	if totalDeducted <= 0 {
+		return nil, fmt.Errorf("invalid total deducted")
+	}
+
+	return &domain.WithdrawalCompletionData{
+		FeeActual:     feeActual,
+		NetAmount:     netAmount,
+		TotalDeducted: totalDeducted,
+	}, nil
 }
 
 func normalizeXenditPayoutWebhookStatus(event, status string) string {
@@ -606,4 +699,8 @@ func shouldIgnorePayoutWebhookForFinalState(currentStatus, event, xenditStatus s
 	default:
 		return false
 	}
+}
+
+func roundCurrencyAmount(amount float64) float64 {
+	return math.Round(amount*100) / 100
 }

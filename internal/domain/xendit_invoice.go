@@ -45,4 +45,8 @@ type XenditInvoiceProvider interface {
 	// CreateInvoice creates a Xendit invoice on behalf of a sub-account.
 	// forUserID is the vendor's Xendit account ID (sent as the for-user-id header).
 	CreateInvoice(ctx context.Context, forUserID string, req XenditInvoiceRequest) (*XenditInvoiceResponse, error)
+
+	// ExpireInvoice manually expires a pending Xendit invoice.
+	// forUserID is the vendor's Xendit account ID (sent as the for-user-id header).
+	ExpireInvoice(ctx context.Context, forUserID string, invoiceID string) error
 }

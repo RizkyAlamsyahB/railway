@@ -3,6 +3,7 @@ package payment_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -43,6 +44,23 @@ func setupPayoutTestServer(t *testing.T, handler http.HandlerFunc) (domain.Xendi
 	})
 	if err != nil {
 		t.Fatalf("failed to create xendit payout client: %v", err)
+	}
+
+	return client, server
+}
+
+func setupInvoiceTestServer(t *testing.T, handler http.HandlerFunc) (domain.XenditInvoiceProvider, *httptest.Server) {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	client, err := payment.NewXenditInvoiceClient(config.XenditConfig{
+		APISecretKey: "test-api-secret-key",
+		APIPublicKey: "test-api-public-key",
+		BaseURL:      server.URL,
+	})
+	if err != nil {
+		t.Fatalf("failed to create xendit invoice client: %v", err)
 	}
 
 	return client, server
@@ -524,6 +542,131 @@ func TestXenditPayoutClient_CreatePayout(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "status 404") {
 			t.Errorf("expected error to contain status 404, got %v", err)
+		}
+	})
+}
+
+func TestXenditInvoiceClient_ExpireInvoice(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		client, _ := setupInvoiceTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				t.Errorf("expected POST, got %s", r.Method)
+			}
+			if r.URL.Path != "/v2/invoices/inv_123/expire!" {
+				t.Errorf("expected path /v2/invoices/inv_123/expire!, got %s", r.URL.Path)
+			}
+			if r.Header.Get("for-user-id") != "acc_123" {
+				t.Errorf("expected for-user-id acc_123, got %s", r.Header.Get("for-user-id"))
+			}
+			w.WriteHeader(http.StatusOK)
+		})
+
+		if err := client.ExpireInvoice(context.Background(), "acc_123", "inv_123"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("api error", func(t *testing.T) {
+		client, _ := setupInvoiceTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(domain.XenPlatformErrorResponse{
+				ErrorCode: "INVOICE_ALREADY_PAID",
+				Message:   "Invoice has already been paid",
+			})
+		})
+
+		err := client.ExpireInvoice(context.Background(), "acc_123", "inv_123")
+		if err == nil {
+			t.Fatal("expected error but got nil")
+		}
+		if !strings.Contains(err.Error(), "status 409") {
+			t.Errorf("expected error to contain status 409, got %v", err)
+		}
+	})
+}
+
+func TestXenditPayoutClient_GetTransactionByReference(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		client, _ := setupPayoutTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				t.Errorf("expected GET, got %s", r.Method)
+			}
+			if r.URL.Path != "/transactions" {
+				t.Errorf("expected path /transactions, got %s", r.URL.Path)
+			}
+			if r.Header.Get("for-user-id") != "acc_123" {
+				t.Errorf("expected for-user-id acc_123, got %s", r.Header.Get("for-user-id"))
+			}
+			if r.URL.Query().Get("reference_id") != "wd-123" {
+				t.Errorf("expected reference_id wd-123, got %s", r.URL.Query().Get("reference_id"))
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": []map[string]interface{}{
+					{
+						"id":           "txn_123",
+						"reference_id": "wd-123",
+						"amount":       96000,
+						"fee":          4000,
+						"status":       "SUCCEEDED",
+						"currency":     "IDR",
+						"channel_code": "ID_BCA",
+					},
+				},
+			})
+		})
+
+		tx, err := client.GetTransactionByReference(context.Background(), "acc_123", "wd-123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if tx.ID != "txn_123" {
+			t.Errorf("expected tx id txn_123, got %s", tx.ID)
+		}
+		if tx.Fee != 4000 {
+			t.Errorf("expected fee 4000, got %f", tx.Fee)
+		}
+		if tx.Amount != 96000 {
+			t.Errorf("expected amount 96000, got %f", tx.Amount)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		client, _ := setupPayoutTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": []map[string]interface{}{},
+			})
+		})
+
+		_, err := client.GetTransactionByReference(context.Background(), "acc_123", "wd-404")
+		if !errors.Is(err, domain.ErrXenditTransactionNotFound) {
+			t.Fatalf("expected ErrXenditTransactionNotFound, got %v", err)
+		}
+	})
+
+	t.Run("fee unavailable", func(t *testing.T) {
+		client, _ := setupPayoutTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": []map[string]interface{}{
+					{
+						"id":           "txn_123",
+						"reference_id": "wd-123",
+						"amount":       100000,
+						"status":       "SUCCEEDED",
+						"currency":     "IDR",
+						"channel_code": "ID_BCA",
+					},
+				},
+			})
+		})
+
+		_, err := client.GetTransactionByReference(context.Background(), "acc_123", "wd-123")
+		if !errors.Is(err, domain.ErrXenditTransactionFeeUnavailable) {
+			t.Fatalf("expected ErrXenditTransactionFeeUnavailable, got %v", err)
 		}
 	})
 }

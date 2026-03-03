@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,10 +12,10 @@ import (
 )
 
 const (
-	platformAdminFee = 5000 // Rp 5,000
-	platformAppFee   = 1000 // Rp 1,000
+	platformAdminFee = 5000                              // Rp 5,000
+	platformAppFee   = 1000                              // Rp 1,000
 	platformFeeTotal = platformAdminFee + platformAppFee // Rp 6,000
-	invoiceDuration  = 86400 // 24 hours in seconds
+	invoiceDuration  = 86400                             // 24 hours in seconds
 )
 
 type checkoutUseCase struct {
@@ -62,6 +63,13 @@ type enrichedItem struct {
 	cartItem domain.CartItem
 	variant  domain.ProductVariant
 	product  domain.Product
+}
+
+type createdCheckoutUnit struct {
+	orderID             uuid.UUID
+	vendorXenditAccount string
+	xenditInvoiceID     *string
+	paymentInvoiceID    *uuid.UUID
 }
 
 func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*domain.CheckoutResponse, error) {
@@ -125,6 +133,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 
 	// 5. For each vendor group: create order -> call Xendit -> save invoice.
 	var results []domain.CheckoutOrderResult
+	var createdUnits []createdCheckoutUnit
 	now := time.Now()
 
 	for vendorID, items := range vendorGroups {
@@ -140,6 +149,10 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 		// 5b. Build order.
 		orderID := uuid.New()
 		orderNo := generateOrderNo(now)
+		createdUnit := createdCheckoutUnit{
+			orderID:             orderID,
+			vendorXenditAccount: *vendor.XenditAccountID,
+		}
 
 		var subtotal float64
 		orderItems := make([]domain.OrderItem, 0, len(items))
@@ -193,8 +206,11 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 
 		// 5c. Create order + decrement stock in DB transaction.
 		if err := uc.orderRepo.CreateOrderWithItems(ctx, order, orderItems); err != nil {
-			return nil, fmt.Errorf("create order: %w", err)
+			checkoutErr := fmt.Errorf("create order: %w", err)
+			return nil, uc.failCheckoutWithCompensation(ctx, createdUnits, checkoutErr)
 		}
+		createdUnits = append(createdUnits, createdUnit)
+		unitIdx := len(createdUnits) - 1
 
 		// 5d. Call Xendit to create invoice.
 		externalInvoiceID := fmt.Sprintf("INV-%s-%s", orderNo, uuid.New().String()[:8])
@@ -222,8 +238,10 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 
 		xenditResp, err := uc.xenditInvoice.CreateInvoice(ctx, *vendor.XenditAccountID, xenditReq)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvoiceCreationFailed, err)
+			checkoutErr := fmt.Errorf("%w: %v", ErrInvoiceCreationFailed, err)
+			return nil, uc.failCheckoutWithCompensation(ctx, createdUnits, checkoutErr)
 		}
+		createdUnits[unitIdx].xenditInvoiceID = &xenditResp.ID
 
 		// 5e. Parse expiry date.
 		expiresAt, _ := time.Parse(time.RFC3339, xenditResp.ExpiryDate)
@@ -244,8 +262,11 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 			UpdatedAt:         now,
 		}
 		if err := uc.paymentRepo.CreateInvoice(ctx, paymentInvoice); err != nil {
-			return nil, fmt.Errorf("save payment invoice: %w", err)
+			checkoutErr := fmt.Errorf("save payment invoice: %w", err)
+			return nil, uc.failCheckoutWithCompensation(ctx, createdUnits, checkoutErr)
 		}
+		paymentInvoiceID := paymentInvoice.ID
+		createdUnits[unitIdx].paymentInvoiceID = &paymentInvoiceID
 
 		results = append(results, domain.CheckoutOrderResult{
 			OrderID:     orderID,
@@ -267,6 +288,55 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 	}
 
 	return &domain.CheckoutResponse{Orders: results}, nil
+}
+
+func (uc *checkoutUseCase) failCheckoutWithCompensation(ctx context.Context, createdUnits []createdCheckoutUnit, checkoutErr error) error {
+	if len(createdUnits) == 0 {
+		return checkoutErr
+	}
+
+	if err := uc.compensateCheckoutFailure(ctx, createdUnits, checkoutErr); err != nil {
+		return fmt.Errorf("%w: checkout error: %v; compensation error: %v", ErrCheckoutCompensationFailed, checkoutErr, err)
+	}
+
+	return checkoutErr
+}
+
+func (uc *checkoutUseCase) compensateCheckoutFailure(ctx context.Context, createdUnits []createdCheckoutUnit, checkoutErr error) error {
+	var compensationErrs []string
+	rollbackNotes := fmt.Sprintf("Checkout rolled back: %v", checkoutErr)
+	rawPayload := map[string]interface{}{
+		"rollback_reason": checkoutErr.Error(),
+	}
+
+	for i := len(createdUnits) - 1; i >= 0; i-- {
+		unit := createdUnits[i]
+
+		if unit.xenditInvoiceID != nil {
+			if err := uc.xenditInvoice.ExpireInvoice(ctx, unit.vendorXenditAccount, *unit.xenditInvoiceID); err != nil {
+				compensationErrs = append(compensationErrs, fmt.Sprintf("expire invoice for order %s: %v", unit.orderID, err))
+			}
+		}
+
+		if unit.paymentInvoiceID != nil {
+			if err := uc.paymentRepo.UpdateInvoiceStatus(ctx, *unit.paymentInvoiceID, domain.InvoiceStatusFailed, nil, nil, nil, rawPayload); err != nil {
+				compensationErrs = append(compensationErrs, fmt.Sprintf("mark payment invoice failed for order %s: %v", unit.orderID, err))
+			}
+		}
+
+		if err := uc.orderRepo.UpdateOrderStatus(ctx, unit.orderID, domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, nil, &rollbackNotes); err != nil {
+			compensationErrs = append(compensationErrs, fmt.Sprintf("cancel order %s: %v", unit.orderID, err))
+		}
+
+		if err := uc.orderRepo.RestoreStock(ctx, unit.orderID); err != nil {
+			compensationErrs = append(compensationErrs, fmt.Sprintf("restore stock for order %s: %v", unit.orderID, err))
+		}
+	}
+
+	if len(compensationErrs) > 0 {
+		return errors.New(strings.Join(compensationErrs, "; "))
+	}
+	return nil
 }
 
 func (uc *checkoutUseCase) HandleWebhook(ctx context.Context, payload domain.XenditWebhookPayload) error {
@@ -324,6 +394,18 @@ func (uc *checkoutUseCase) HandleWebhook(ctx context.Context, payload domain.Xen
 }
 
 func (uc *checkoutUseCase) handlePaid(ctx context.Context, invoice *domain.PaymentInvoice, payload domain.XenditWebhookPayload) error {
+	// Guard against late paid webhooks for orders already canceled/settled.
+	order, err := uc.orderRepo.FindByID(ctx, invoice.OrderID)
+	if err != nil {
+		return fmt.Errorf("find order for paid webhook: %w", err)
+	}
+	if order == nil {
+		return ErrOrderNotFound
+	}
+	if order.OrderStatus != domain.OrderStatusPendingPayment {
+		return nil
+	}
+
 	// 1. Update payment invoice to paid.
 	var paidAt *time.Time
 	if payload.PaidAt != nil {
@@ -347,21 +429,15 @@ func (uc *checkoutUseCase) handlePaid(ctx context.Context, invoice *domain.Payme
 	}
 
 	// 3. Record ledger journal (double-entry bookkeeping).
-	if err := uc.recordPaymentLedger(ctx, invoice, payload.PaidAmount); err != nil {
+	if err := uc.recordPaymentLedger(ctx, invoice, order, payload.PaidAmount); err != nil {
 		return fmt.Errorf("record ledger: %w", err)
 	}
 
 	// 4. Credit vendor balance (net = subtotal, i.e. grand_total - platform_fee).
 	//    This makes the revenue immediately available for vendor self-service withdrawal.
-	order, err := uc.orderRepo.FindByID(ctx, invoice.OrderID)
-	if err != nil {
-		return fmt.Errorf("find order for balance credit: %w", err)
-	}
-	if order != nil {
-		netAmount := order.Subtotal // vendor revenue = subtotal (platform fee is not theirs)
-		if err := uc.vendorRepo.CreditBalance(ctx, order.VendorID, netAmount); err != nil {
-			return fmt.Errorf("credit vendor balance: %w", err)
-		}
+	netAmount := order.Subtotal // vendor revenue = subtotal (platform fee is not theirs)
+	if err := uc.vendorRepo.CreditBalance(ctx, order.VendorID, netAmount); err != nil {
+		return fmt.Errorf("credit vendor balance: %w", err)
 	}
 
 	return nil
@@ -389,16 +465,7 @@ func (uc *checkoutUseCase) handleExpired(ctx context.Context, invoice *domain.Pa
 	return nil
 }
 
-func (uc *checkoutUseCase) recordPaymentLedger(ctx context.Context, invoice *domain.PaymentInvoice, paidAmount float64) error {
-	// Find the order to get fee breakdown.
-	order, err := uc.orderRepo.FindByID(ctx, invoice.OrderID)
-	if err != nil {
-		return fmt.Errorf("find order for ledger: %w", err)
-	}
-	if order == nil {
-		return fmt.Errorf("order not found for ledger: %s", invoice.OrderID)
-	}
-
+func (uc *checkoutUseCase) recordPaymentLedger(ctx context.Context, invoice *domain.PaymentInvoice, order *domain.Order, paidAmount float64) error {
 	// Find ledger accounts.
 	gatewayReceivable, err := uc.ledgerRepo.FindAccountByCode(ctx, "1100")
 	if err != nil || gatewayReceivable == nil {

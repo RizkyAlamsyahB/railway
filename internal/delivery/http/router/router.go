@@ -31,9 +31,15 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		v1.GET("/categories", catalogHandler.ListCategories)
 		v1.GET("/shipping-services", catalogHandler.ListShippingServices)
 
-		// Public FAQ / Pusat Bantuan
-		v1.GET("/faq", faqHandler.ListFAQs)
-		v1.GET("/faq/categories", faqHandler.ListCategories)
+	}
+
+	// FAQ / Pusat Bantuan (requires auth + customer role)
+	faqGroup := v1.Group("/faq")
+	faqGroup.Use(middleware.Auth(jwtSecret))
+	faqGroup.Use(middleware.RequireRoles("customer"))
+	{
+		faqGroup.GET("", faqHandler.ListFAQs)
+		faqGroup.GET("/categories", faqHandler.ListCategories)
 	}
 
 	// User routes (public registration + email verification + login)

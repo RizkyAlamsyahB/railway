@@ -98,7 +98,19 @@ func Initialize() (*App, error) {
 	adminLoginHandler := handler.NewAdminLoginHandler(adminAuthUseCase)
 
 	vendorRepo := repository.NewVendorRepository(db)
-	vendorUseCase := usecase.NewVendorUseCase(userRepo, vendorRepo, storageProvider, xenditPayoutProvider, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
+	vendorUseCase := usecase.NewVendorUseCase(
+		userRepo,
+		vendorRepo,
+		storageProvider,
+		xenditPayoutProvider,
+		cfg.JWT.Secret,
+		cfg.JWT.ExpiryHours,
+		cfg.JWT.Issuer,
+		usecase.VendorWithdrawalPolicy{
+			FeeEstimateFixed: cfg.Withdrawal.FeeEstimateFixed,
+			MinNetAmount:     cfg.Withdrawal.MinNetAmount,
+		},
+	)
 	vendorHandler := handler.NewVendorHandler(vendorUseCase)
 
 	adminVendorUseCase := usecase.NewAdminVendorUseCase(vendorRepo, userRepo, storageProvider, xenPlatformProvider)

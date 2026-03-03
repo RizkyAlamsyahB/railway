@@ -294,17 +294,23 @@ type vendorBalanceModel struct {
 func (vendorBalanceModel) TableName() string { return "vendor_balances" }
 
 type vendorWithdrawalModel struct {
-	ID             string    `gorm:"column:id;primaryKey"`
-	VendorID       string    `gorm:"column:vendor_id"`
-	Amount         float64   `gorm:"column:amount"`
-	ChannelCode    string    `gorm:"column:channel_code"`
-	Status         string    `gorm:"column:status"`
-	XenditPayoutID *string   `gorm:"column:xendit_payout_id"`
-	XenditStatus   *string   `gorm:"column:xendit_status"`
-	Description    *string   `gorm:"column:description"`
-	FailedReason   *string   `gorm:"column:failed_reason"`
-	CreatedAt      time.Time `gorm:"column:created_at"`
-	UpdatedAt      time.Time `gorm:"column:updated_at"`
+	ID                  string    `gorm:"column:id;primaryKey"`
+	VendorID            string    `gorm:"column:vendor_id"`
+	Amount              float64   `gorm:"column:amount"`
+	ChannelCode         string    `gorm:"column:channel_code"`
+	Status              string    `gorm:"column:status"`
+	FeeEstimated        float64   `gorm:"column:fee_estimated"`
+	FeeActual           *float64  `gorm:"column:fee_actual"`
+	AmountNet           float64   `gorm:"column:amount_net"`
+	TotalDeducted       float64   `gorm:"column:total_deducted"`
+	FeeStatus           string    `gorm:"column:fee_status"`
+	XenditPayoutID      *string   `gorm:"column:xendit_payout_id"`
+	XenditStatus        *string   `gorm:"column:xendit_status"`
+	XenditTransactionID *string   `gorm:"column:xendit_transaction_id"`
+	Description         *string   `gorm:"column:description"`
+	FailedReason        *string   `gorm:"column:failed_reason"`
+	CreatedAt           time.Time `gorm:"column:created_at"`
+	UpdatedAt           time.Time `gorm:"column:updated_at"`
 }
 
 func (vendorWithdrawalModel) TableName() string { return "vendor_withdrawals" }
@@ -399,16 +405,31 @@ func (r *vendorRepository) UpdateWithdrawal(ctx context.Context, withdrawal *dom
 	return r.db.WithContext(ctx).Model(&vendorWithdrawalModel{}).
 		Where("id = ?", withdrawal.ID.String()).
 		Updates(map[string]interface{}{
-			"status":           withdrawal.Status,
-			"xendit_payout_id": withdrawal.XenditPayoutID,
-			"xendit_status":    withdrawal.XenditStatus,
-			"description":      withdrawal.Description,
-			"failed_reason":    withdrawal.FailedReason,
-			"updated_at":       time.Now(),
+			"status":                withdrawal.Status,
+			"fee_estimated":         withdrawal.FeeEstimated,
+			"fee_actual":            withdrawal.FeeActual,
+			"amount_net":            withdrawal.AmountNet,
+			"total_deducted":        withdrawal.TotalDeducted,
+			"fee_status":            withdrawal.FeeStatus,
+			"xendit_payout_id":      withdrawal.XenditPayoutID,
+			"xendit_status":         withdrawal.XenditStatus,
+			"xendit_transaction_id": withdrawal.XenditTransactionID,
+			"description":           withdrawal.Description,
+			"failed_reason":         withdrawal.FailedReason,
+			"updated_at":            time.Now(),
 		}).Error
 }
 
-func (r *vendorRepository) ApplyWithdrawalWebhookUpdate(ctx context.Context, withdrawalID uuid.UUID, newStatus string, xenditStatus string, xenditPayoutID *string, failedReason *string, balanceAction string) error {
+func (r *vendorRepository) ApplyWithdrawalWebhookUpdate(
+	ctx context.Context,
+	withdrawalID uuid.UUID,
+	newStatus string,
+	xenditStatus string,
+	xenditPayoutID *string,
+	failedReason *string,
+	balanceAction string,
+	completion *domain.WithdrawalCompletionData,
+) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var wm vendorWithdrawalModel
 		if err := tx.
@@ -433,6 +454,17 @@ func (r *vendorRepository) ApplyWithdrawalWebhookUpdate(ctx context.Context, wit
 		if failedReason != nil && *failedReason != "" {
 			updates["failed_reason"] = *failedReason
 		}
+		if completion != nil {
+			updates["fee_actual"] = completion.FeeActual
+			updates["amount_net"] = completion.NetAmount
+			updates["total_deducted"] = completion.TotalDeducted
+			updates["fee_status"] = domain.WithdrawalFeeStatusResolved
+			if completion.XenditTransactionID != nil && *completion.XenditTransactionID != "" {
+				updates["xendit_transaction_id"] = *completion.XenditTransactionID
+			}
+		} else if newStatus == domain.WithdrawalStatusFailed {
+			updates["fee_status"] = domain.WithdrawalFeeStatusResolved
+		}
 
 		if err := tx.Model(&vendorWithdrawalModel{}).
 			Where("id = ?", withdrawalID.String()).
@@ -449,11 +481,29 @@ func (r *vendorRepository) ApplyWithdrawalWebhookUpdate(ctx context.Context, wit
 
 		switch balanceAction {
 		case domain.WithdrawalBalanceActionComplete:
+			totalDeducted := wm.TotalDeducted
+			if completion != nil {
+				totalDeducted = completion.TotalDeducted
+			}
+			if totalDeducted <= 0 {
+				totalDeducted = wm.Amount
+			}
+
+			diff := totalDeducted - wm.Amount
 			balanceQuery = balanceQuery.Where("pending_balance >= ?", wm.Amount)
+			if diff > 0 {
+				balanceQuery = balanceQuery.Where("available_balance >= ?", diff)
+			}
+
 			balUpdates = map[string]interface{}{
 				"pending_balance": gorm.Expr("pending_balance - ?", wm.Amount),
-				"total_withdrawn": gorm.Expr("total_withdrawn + ?", wm.Amount),
+				"total_withdrawn": gorm.Expr("total_withdrawn + ?", totalDeducted),
 				"updated_at":      time.Now(),
+			}
+			if diff > 0 {
+				balUpdates["available_balance"] = gorm.Expr("available_balance - ?", diff)
+			} else if diff < 0 {
+				balUpdates["available_balance"] = gorm.Expr("available_balance + ?", -diff)
 			}
 		case domain.WithdrawalBalanceActionFail:
 			balanceQuery = balanceQuery.Where("pending_balance >= ?", wm.Amount)
@@ -463,10 +513,14 @@ func (r *vendorRepository) ApplyWithdrawalWebhookUpdate(ctx context.Context, wit
 				"updated_at":        time.Now(),
 			}
 		case domain.WithdrawalBalanceActionReverseCompleted:
-			balanceQuery = balanceQuery.Where("total_withdrawn >= ?", wm.Amount)
+			totalDeducted := wm.TotalDeducted
+			if totalDeducted <= 0 {
+				totalDeducted = wm.Amount
+			}
+			balanceQuery = balanceQuery.Where("total_withdrawn >= ?", totalDeducted)
 			balUpdates = map[string]interface{}{
-				"total_withdrawn":   gorm.Expr("total_withdrawn - ?", wm.Amount),
-				"available_balance": gorm.Expr("available_balance + ?", wm.Amount),
+				"total_withdrawn":   gorm.Expr("total_withdrawn - ?", totalDeducted),
+				"available_balance": gorm.Expr("available_balance + ?", totalDeducted),
 				"updated_at":        time.Now(),
 			}
 		default:
@@ -502,33 +556,45 @@ func toDomainVendorWithdrawal(m *vendorWithdrawalModel) *domain.VendorWithdrawal
 	id, _ := uuid.Parse(m.ID)
 	vendorID, _ := uuid.Parse(m.VendorID)
 	return &domain.VendorWithdrawal{
-		ID:             id,
-		VendorID:       vendorID,
-		Amount:         m.Amount,
-		ChannelCode:    m.ChannelCode,
-		Status:         m.Status,
-		XenditPayoutID: m.XenditPayoutID,
-		XenditStatus:   m.XenditStatus,
-		Description:    m.Description,
-		FailedReason:   m.FailedReason,
-		CreatedAt:      m.CreatedAt,
-		UpdatedAt:      m.UpdatedAt,
+		ID:                  id,
+		VendorID:            vendorID,
+		Amount:              m.Amount,
+		ChannelCode:         m.ChannelCode,
+		Status:              m.Status,
+		FeeEstimated:        m.FeeEstimated,
+		FeeActual:           m.FeeActual,
+		AmountNet:           m.AmountNet,
+		TotalDeducted:       m.TotalDeducted,
+		FeeStatus:           m.FeeStatus,
+		XenditPayoutID:      m.XenditPayoutID,
+		XenditStatus:        m.XenditStatus,
+		XenditTransactionID: m.XenditTransactionID,
+		Description:         m.Description,
+		FailedReason:        m.FailedReason,
+		CreatedAt:           m.CreatedAt,
+		UpdatedAt:           m.UpdatedAt,
 	}
 }
 
 func toVendorWithdrawalModel(w *domain.VendorWithdrawal) vendorWithdrawalModel {
 	return vendorWithdrawalModel{
-		ID:             w.ID.String(),
-		VendorID:       w.VendorID.String(),
-		Amount:         w.Amount,
-		ChannelCode:    w.ChannelCode,
-		Status:         w.Status,
-		XenditPayoutID: w.XenditPayoutID,
-		XenditStatus:   w.XenditStatus,
-		Description:    w.Description,
-		FailedReason:   w.FailedReason,
-		CreatedAt:      w.CreatedAt,
-		UpdatedAt:      w.UpdatedAt,
+		ID:                  w.ID.String(),
+		VendorID:            w.VendorID.String(),
+		Amount:              w.Amount,
+		ChannelCode:         w.ChannelCode,
+		Status:              w.Status,
+		FeeEstimated:        w.FeeEstimated,
+		FeeActual:           w.FeeActual,
+		AmountNet:           w.AmountNet,
+		TotalDeducted:       w.TotalDeducted,
+		FeeStatus:           w.FeeStatus,
+		XenditPayoutID:      w.XenditPayoutID,
+		XenditStatus:        w.XenditStatus,
+		XenditTransactionID: w.XenditTransactionID,
+		Description:         w.Description,
+		FailedReason:        w.FailedReason,
+		CreatedAt:           w.CreatedAt,
+		UpdatedAt:           w.UpdatedAt,
 	}
 }
 

@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // Payout channel code constants.
 const (
@@ -56,6 +59,26 @@ type XenditPayoutProvider interface {
 	// forUserID is the vendor's Xendit account ID (sent as the for-user-id header).
 	// idempotencyKey is used to prevent duplicate payouts (sent as the Idempotency-key header).
 	CreatePayout(ctx context.Context, forUserID string, idempotencyKey string, req XenditPayoutRequest) (*XenditPayoutResponse, error)
+
+	// GetTransactionByReference fetches the latest payout transaction by reference ID.
+	// forUserID is the vendor's Xendit account ID (sent as the for-user-id header).
+	GetTransactionByReference(ctx context.Context, forUserID string, referenceID string) (*XenditTransaction, error)
+}
+
+var (
+	ErrXenditTransactionNotFound       = errors.New("xendit transaction not found")
+	ErrXenditTransactionFeeUnavailable = errors.New("xendit transaction fee is unavailable")
+)
+
+// XenditTransaction represents a payout transaction entry from the Transactions API.
+type XenditTransaction struct {
+	ID          string  `json:"id"`
+	ReferenceID string  `json:"reference_id"`
+	Amount      float64 `json:"amount"`
+	Fee         float64 `json:"fee"`
+	Status      string  `json:"status"`
+	Currency    string  `json:"currency"`
+	ChannelCode string  `json:"channel_code"`
 }
 
 // Xendit payout webhook event constants.

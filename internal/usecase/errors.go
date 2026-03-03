@@ -82,12 +82,13 @@ var (
 // --- Withdrawal errors ---
 
 var (
-	ErrInvalidChannelCode  = errors.New("invalid payout channel code")
-	ErrXenditPayoutFailed  = errors.New("failed to create payout via Xendit")
-	ErrVendorBankNotFound  = errors.New("vendor bank account not found")
-	ErrInsufficientBalance = errors.New("insufficient available balance")
-	ErrBelowMinWithdrawal  = errors.New("amount is below minimum withdrawal of Rp 10.000")
-	ErrBalanceNotFound     = errors.New("vendor balance record not found")
+	ErrInvalidChannelCode          = errors.New("invalid payout channel code")
+	ErrXenditPayoutFailed          = errors.New("failed to create payout via Xendit")
+	ErrVendorBankNotFound          = errors.New("vendor bank account not found")
+	ErrInsufficientBalance         = errors.New("insufficient available balance")
+	ErrBelowMinWithdrawal          = errors.New("amount is below minimum withdrawal of Rp 10.000")
+	ErrWithdrawalNetAmountTooSmall = errors.New("net payout amount after fee is below minimum withdrawal of Rp 10.000")
+	ErrBalanceNotFound             = errors.New("vendor balance record not found")
 )
 
 // MinWithdrawalAmount is the minimum withdrawal amount in IDR.
@@ -107,13 +108,14 @@ var (
 // --- Checkout errors ---
 
 var (
-	ErrCartEmpty                 = errors.New("cart is empty")
-	ErrCartHasUnavailableItems   = errors.New("cart contains unavailable items")
-	ErrVendorNoXenditAccount     = errors.New("vendor does not have a Xendit account")
-	ErrCheckoutStockInsufficient = errors.New("insufficient stock during checkout")
-	ErrInvoiceCreationFailed     = errors.New("failed to create payment invoice")
-	ErrOrderNotFound             = errors.New("order not found")
-	ErrInvoiceNotFound           = errors.New("payment invoice not found")
+	ErrCartEmpty                  = errors.New("cart is empty")
+	ErrCartHasUnavailableItems    = errors.New("cart contains unavailable items")
+	ErrVendorNoXenditAccount      = errors.New("vendor does not have a Xendit account")
+	ErrCheckoutStockInsufficient  = errors.New("insufficient stock during checkout")
+	ErrInvoiceCreationFailed      = errors.New("failed to create payment invoice")
+	ErrCheckoutCompensationFailed = errors.New("checkout compensation failed")
+	ErrOrderNotFound              = errors.New("order not found")
+	ErrInvoiceNotFound            = errors.New("payment invoice not found")
 )
 
 // --- Finance errors ---

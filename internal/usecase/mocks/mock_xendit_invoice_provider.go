@@ -55,3 +55,17 @@ func (mr *MockXenditInvoiceProviderMockRecorder) CreateInvoice(ctx, forUserID, r
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateInvoice", reflect.TypeOf((*MockXenditInvoiceProvider)(nil).CreateInvoice), ctx, forUserID, req)
 }
+
+// ExpireInvoice mocks base method.
+func (m *MockXenditInvoiceProvider) ExpireInvoice(ctx context.Context, forUserID, invoiceID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExpireInvoice", ctx, forUserID, invoiceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ExpireInvoice indicates an expected call of ExpireInvoice.
+func (mr *MockXenditInvoiceProviderMockRecorder) ExpireInvoice(ctx, forUserID, invoiceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpireInvoice", reflect.TypeOf((*MockXenditInvoiceProvider)(nil).ExpireInvoice), ctx, forUserID, invoiceID)
+}

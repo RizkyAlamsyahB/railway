@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +48,16 @@ func (uc *cartUseCase) getOrCreateCart(ctx context.Context, userID uuid.UUID) (*
 		UpdatedAt: now,
 	}
 	if err := uc.cartRepo.Create(ctx, cart); err != nil {
+		// Handle race conditions when another request creates the active cart first.
+		if isUniqueConstraintViolation(err) {
+			existing, findErr := uc.cartRepo.FindByUserID(ctx, userID)
+			if findErr != nil {
+				return nil, fmt.Errorf("failed to create cart: %w (failed to refetch active cart: %v)", err, findErr)
+			}
+			if existing != nil {
+				return existing, nil
+			}
+		}
 		return nil, fmt.Errorf("failed to create cart: %w", err)
 	}
 	return cart, nil
@@ -298,4 +309,14 @@ func (uc *cartUseCase) ClearCart(ctx context.Context, userID uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func isUniqueConstraintViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate key value violates unique constraint") ||
+		strings.Contains(msg, "violates unique constraint")
 }

@@ -1051,6 +1051,15 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 				if resp.Amount != 100000 {
 					t.Errorf("expected amount 100000, got %f", resp.Amount)
 				}
+				if resp.RequestedAmount != 100000 {
+					t.Errorf("expected requested_amount 100000, got %f", resp.RequestedAmount)
+				}
+				if resp.EstimatedFee != 0 {
+					t.Errorf("expected estimated_fee 0, got %f", resp.EstimatedFee)
+				}
+				if resp.EstimatedNetAmount != 100000 {
+					t.Errorf("expected estimated_net_amount 100000, got %f", resp.EstimatedNetAmount)
+				}
 			},
 		},
 		{
@@ -1185,6 +1194,36 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 	}
 }
 
+func TestRequestWithdrawal_NetAmountBelowMin(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	userRepo := mocks.NewMockUserRepository(ctrl)
+	vendorRepo := mocks.NewMockVendorRepository(ctrl)
+	storage := mocks.NewMockStorageProvider(ctrl)
+	xenditPayout := mocks.NewMockXenditPayoutProvider(ctrl)
+
+	uc := NewVendorUseCase(
+		userRepo,
+		vendorRepo,
+		storage,
+		xenditPayout,
+		"test-secret",
+		3600,
+		"test-issuer",
+		VendorWithdrawalPolicy{
+			FeeEstimateFixed: 6000,
+			MinNetAmount:     10000,
+		},
+	)
+
+	_, err := uc.RequestWithdrawal(context.Background(), uuid.New(), domain.VendorWithdrawRequest{
+		Amount:      10000,
+		ChannelCode: domain.PayoutChannelIDBCA,
+	})
+	if !errors.Is(err, ErrWithdrawalNetAmountTooSmall) {
+		t.Fatalf("expected ErrWithdrawalNetAmountTooSmall, got %v", err)
+	}
+}
+
 func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 	withdrawalID := uuid.New()
 	vendorID := uuid.New()
@@ -1192,8 +1231,12 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 	type testCase struct {
 		name       string
 		payload    domain.XenditPayoutWebhookPayload
-		setupMocks func(ctx context.Context, vendorRepo *mocks.MockVendorRepository)
-		wantErr    bool
+		setupMocks func(
+			ctx context.Context,
+			vendorRepo *mocks.MockVendorRepository,
+			xenditPayout *mocks.MockXenditPayoutProvider,
+		)
+		wantErr bool
 	}
 
 	tests := []testCase{
@@ -1207,7 +1250,11 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:      domain.XenditPayoutStatusSucceeded,
 				},
 			},
-			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository) {
+			setupMocks: func(
+				ctx context.Context,
+				vendorRepo *mocks.MockVendorRepository,
+				_ *mocks.MockXenditPayoutProvider,
+			) {
 				vendorRepo.EXPECT().FindWithdrawalByID(ctx, withdrawalID).Return(&domain.VendorWithdrawal{
 					ID:       withdrawalID,
 					VendorID: vendorID,
@@ -1215,10 +1262,13 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:   domain.WithdrawalStatusProcessing,
 				}, nil)
 				vendorRepo.EXPECT().
-					ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, domain.WithdrawalStatusCompleted, domain.XenditPayoutStatusSucceeded, gomock.Any(), gomock.Nil(), domain.WithdrawalBalanceActionComplete).
-					DoAndReturn(func(_ context.Context, _ uuid.UUID, _ string, _ string, xenditPayoutID *string, _ *string, _ string) error {
+					ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, domain.WithdrawalStatusCompleted, domain.XenditPayoutStatusSucceeded, gomock.Any(), gomock.Nil(), domain.WithdrawalBalanceActionComplete, gomock.Any()).
+					DoAndReturn(func(_ context.Context, _ uuid.UUID, _ string, _ string, xenditPayoutID *string, _ *string, _ string, completion *domain.WithdrawalCompletionData) error {
 						if xenditPayoutID == nil || *xenditPayoutID != "xnd_payout_123" {
 							t.Fatalf("unexpected xendit_payout_id: %+v", xenditPayoutID)
+						}
+						if completion == nil || completion.FeeActual != 3000 || completion.NetAmount != 97000 || completion.TotalDeducted != 100000 {
+							t.Fatalf("unexpected completion data: %+v", completion)
 						}
 						return nil
 					})
@@ -1234,7 +1284,11 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					FailureCode: "PAYOUT_REJECTED",
 				},
 			},
-			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository) {
+			setupMocks: func(
+				ctx context.Context,
+				vendorRepo *mocks.MockVendorRepository,
+				_ *mocks.MockXenditPayoutProvider,
+			) {
 				vendorRepo.EXPECT().FindWithdrawalByID(ctx, withdrawalID).Return(&domain.VendorWithdrawal{
 					ID:       withdrawalID,
 					VendorID: vendorID,
@@ -1242,8 +1296,8 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:   domain.WithdrawalStatusProcessing,
 				}, nil)
 				vendorRepo.EXPECT().
-					ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, domain.WithdrawalStatusFailed, domain.XenditPayoutStatusFailed, gomock.Nil(), gomock.Any(), domain.WithdrawalBalanceActionFail).
-					DoAndReturn(func(_ context.Context, _ uuid.UUID, _ string, _ string, _ *string, failedReason *string, _ string) error {
+					ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, domain.WithdrawalStatusFailed, domain.XenditPayoutStatusFailed, gomock.Nil(), gomock.Any(), domain.WithdrawalBalanceActionFail, gomock.Nil()).
+					DoAndReturn(func(_ context.Context, _ uuid.UUID, _ string, _ string, _ *string, failedReason *string, _ string, _ *domain.WithdrawalCompletionData) error {
 						if failedReason == nil || *failedReason == "" {
 							t.Fatal("expected failed reason to be set")
 						}
@@ -1260,15 +1314,20 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:      domain.XenditPayoutStatusReversed,
 				},
 			},
-			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository) {
+			setupMocks: func(
+				ctx context.Context,
+				vendorRepo *mocks.MockVendorRepository,
+				_ *mocks.MockXenditPayoutProvider,
+			) {
 				vendorRepo.EXPECT().FindWithdrawalByID(ctx, withdrawalID).Return(&domain.VendorWithdrawal{
-					ID:       withdrawalID,
-					VendorID: vendorID,
-					Amount:   100000,
-					Status:   domain.WithdrawalStatusCompleted,
+					ID:            withdrawalID,
+					VendorID:      vendorID,
+					Amount:        100000,
+					TotalDeducted: 100000,
+					Status:        domain.WithdrawalStatusCompleted,
 				}, nil)
 				vendorRepo.EXPECT().
-					ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, domain.WithdrawalStatusFailed, domain.XenditPayoutStatusReversed, gomock.Nil(), gomock.Nil(), domain.WithdrawalBalanceActionReverseCompleted).
+					ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, domain.WithdrawalStatusFailed, domain.XenditPayoutStatusReversed, gomock.Nil(), gomock.Nil(), domain.WithdrawalBalanceActionReverseCompleted, gomock.Nil()).
 					Return(nil)
 			},
 		},
@@ -1281,7 +1340,11 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:      domain.XenditPayoutStatusSucceeded,
 				},
 			},
-			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository) {
+			setupMocks: func(
+				ctx context.Context,
+				vendorRepo *mocks.MockVendorRepository,
+				_ *mocks.MockXenditPayoutProvider,
+			) {
 				vendorRepo.EXPECT().FindWithdrawalByID(ctx, withdrawalID).Return(nil, nil)
 			},
 		},
@@ -1294,7 +1357,11 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:      domain.XenditPayoutStatusSucceeded,
 				},
 			},
-			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository) {
+			setupMocks: func(
+				ctx context.Context,
+				vendorRepo *mocks.MockVendorRepository,
+				_ *mocks.MockXenditPayoutProvider,
+			) {
 				vendorRepo.EXPECT().FindWithdrawalByID(ctx, withdrawalID).Return(&domain.VendorWithdrawal{
 					ID:       withdrawalID,
 					VendorID: vendorID,
@@ -1302,7 +1369,7 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:   domain.WithdrawalStatusCompleted,
 				}, nil)
 				vendorRepo.EXPECT().
-					ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, "", domain.XenditPayoutStatusSucceeded, gomock.Nil(), gomock.Nil(), domain.WithdrawalBalanceActionNone).
+					ApplyWithdrawalWebhookUpdate(ctx, withdrawalID, "", domain.XenditPayoutStatusSucceeded, gomock.Nil(), gomock.Nil(), domain.WithdrawalBalanceActionNone, gomock.Nil()).
 					Return(nil)
 			},
 		},
@@ -1315,7 +1382,11 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:      domain.XenditPayoutStatusFailed,
 				},
 			},
-			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository) {
+			setupMocks: func(
+				ctx context.Context,
+				vendorRepo *mocks.MockVendorRepository,
+				_ *mocks.MockXenditPayoutProvider,
+			) {
 				vendorRepo.EXPECT().FindWithdrawalByID(ctx, withdrawalID).Return(&domain.VendorWithdrawal{
 					ID:       withdrawalID,
 					VendorID: vendorID,
@@ -1323,6 +1394,30 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:   domain.WithdrawalStatusCompleted,
 				}, nil)
 			},
+		},
+		{
+			name: "succeeded with amount below fixed fee returns error",
+			payload: domain.XenditPayoutWebhookPayload{
+				Event: domain.XenditPayoutWebhookEventSucceeded,
+				Data: domain.XenditPayoutWebhookData{
+					ID:          "xnd_payout_123",
+					ReferenceID: withdrawalID.String(),
+					Status:      domain.XenditPayoutStatusSucceeded,
+				},
+			},
+			setupMocks: func(
+				ctx context.Context,
+				vendorRepo *mocks.MockVendorRepository,
+				_ *mocks.MockXenditPayoutProvider,
+			) {
+				vendorRepo.EXPECT().FindWithdrawalByID(ctx, withdrawalID).Return(&domain.VendorWithdrawal{
+					ID:       withdrawalID,
+					VendorID: vendorID,
+					Amount:   2500,
+					Status:   domain.WithdrawalStatusProcessing,
+				}, nil)
+			},
+			wantErr: true,
 		},
 		{
 			name: "invalid reference id returns error",
@@ -1333,17 +1428,22 @@ func TestHandlePayoutWebhook_TableDriven(t *testing.T) {
 					Status:      domain.XenditPayoutStatusSucceeded,
 				},
 			},
-			setupMocks: func(_ context.Context, _ *mocks.MockVendorRepository) {},
-			wantErr:    true,
+			setupMocks: func(
+				_ context.Context,
+				_ *mocks.MockVendorRepository,
+				_ *mocks.MockXenditPayoutProvider,
+			) {
+			},
+			wantErr: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, vendorRepo, _, _, uc := setupVendorWithdrawalUseCase(t)
+			_, vendorRepo, _, xenditPayout, uc := setupVendorWithdrawalUseCase(t)
 			ctx := context.Background()
 
-			tc.setupMocks(ctx, vendorRepo)
+			tc.setupMocks(ctx, vendorRepo, xenditPayout)
 			err := uc.HandlePayoutWebhook(ctx, tc.payload)
 
 			if tc.wantErr && err == nil {

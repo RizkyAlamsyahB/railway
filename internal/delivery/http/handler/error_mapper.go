@@ -64,6 +64,7 @@ var errorRules = []errorRule{
 	{usecase.ErrVendorBankNotFound, http.StatusNotFound, "vendor bank account not found"},
 	{usecase.ErrInsufficientBalance, http.StatusBadRequest, "insufficient available balance"},
 	{usecase.ErrBelowMinWithdrawal, http.StatusBadRequest, ""},
+	{usecase.ErrWithdrawalNetAmountTooSmall, http.StatusBadRequest, ""},
 	{usecase.ErrBalanceNotFound, http.StatusNotFound, "vendor balance not found"},
 
 	// Product
@@ -95,6 +96,7 @@ var errorRules = []errorRule{
 	{usecase.ErrVendorNoXenditAccount, http.StatusBadGateway, ""},
 	{usecase.ErrCheckoutStockInsufficient, http.StatusConflict, ""},
 	{usecase.ErrInvoiceCreationFailed, http.StatusBadGateway, ""},
+	{usecase.ErrCheckoutCompensationFailed, http.StatusBadGateway, ""},
 	{usecase.ErrOrderNotFound, http.StatusNotFound, "order not found"},
 	{usecase.ErrInvoiceNotFound, http.StatusNotFound, "payment invoice not found"},
 

@@ -202,6 +202,25 @@ func (c *xenditClient) CreateInvoice(ctx context.Context, forUserID string, req 
 	return &invoice, nil
 }
 
+func (c *xenditClient) ExpireInvoice(ctx context.Context, forUserID string, invoiceID string) error {
+	headers := map[string]string{
+		"for-user-id": forUserID,
+	}
+
+	path := fmt.Sprintf("/v2/invoices/%s/expire!", url.PathEscape(invoiceID))
+	resp, err := c.doRequestWithHeaders(ctx, http.MethodPost, path, nil, headers)
+	if err != nil {
+		return fmt.Errorf("failed to call Xendit expire invoice API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return c.handleErrorResponse(resp)
+	}
+
+	return nil
+}
+
 // --- XenditPayoutProvider implementation ---
 
 // NewXenditPayoutClient creates a new XenditPayoutProvider backed by the Xendit REST API.
@@ -236,6 +255,111 @@ func (c *xenditClient) CreatePayout(ctx context.Context, forUserID string, idemp
 	}
 
 	return &payout, nil
+}
+
+func (c *xenditClient) GetTransactionByReference(ctx context.Context, forUserID string, referenceID string) (*domain.XenditTransaction, error) {
+	query := url.Values{}
+	query.Set("reference_id", referenceID)
+	query.Set("limit", "1")
+
+	path := "/transactions?" + query.Encode()
+	headers := map[string]string{
+		"for-user-id": forUserID,
+	}
+
+	resp, err := c.doRequestWithHeaders(ctx, http.MethodGet, path, nil, headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Xendit transactions API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read transactions response: %w", err)
+	}
+
+	items, err := parseXenditTransactions(bodyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode transactions response: %w", err)
+	}
+	if len(items) == 0 {
+		return nil, domain.ErrXenditTransactionNotFound
+	}
+
+	fee, err := extractTransactionFee(items[0])
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.XenditTransaction{
+		ID:          items[0].ID,
+		ReferenceID: items[0].ReferenceID,
+		Amount:      items[0].Amount,
+		Fee:         fee,
+		Status:      items[0].Status,
+		Currency:    items[0].Currency,
+		ChannelCode: items[0].ChannelCode,
+	}, nil
+}
+
+type xenditTransactionListResponse struct {
+	Data []xenditTransactionItem `json:"data"`
+}
+
+type xenditTransactionItem struct {
+	ID          string                 `json:"id"`
+	ReferenceID string                 `json:"reference_id"`
+	Amount      float64                `json:"amount"`
+	Fee         *float64               `json:"fee"`
+	FeeAmount   *float64               `json:"fee_amount"`
+	Fees        []xenditTransactionFee `json:"fees"`
+	Status      string                 `json:"status"`
+	Currency    string                 `json:"currency"`
+	ChannelCode string                 `json:"channel_code"`
+}
+
+type xenditTransactionFee struct {
+	Amount float64 `json:"amount"`
+}
+
+func parseXenditTransactions(bodyBytes []byte) ([]xenditTransactionItem, error) {
+	var wrapped xenditTransactionListResponse
+	if err := json.Unmarshal(bodyBytes, &wrapped); err == nil && wrapped.Data != nil {
+		return wrapped.Data, nil
+	}
+
+	var list []xenditTransactionItem
+	if err := json.Unmarshal(bodyBytes, &list); err == nil {
+		return list, nil
+	}
+
+	var single xenditTransactionItem
+	if err := json.Unmarshal(bodyBytes, &single); err == nil && single.ID != "" {
+		return []xenditTransactionItem{single}, nil
+	}
+
+	return nil, fmt.Errorf("unexpected transactions response payload")
+}
+
+func extractTransactionFee(item xenditTransactionItem) (float64, error) {
+	if item.Fee != nil {
+		return *item.Fee, nil
+	}
+	if item.FeeAmount != nil {
+		return *item.FeeAmount, nil
+	}
+	if len(item.Fees) > 0 {
+		total := 0.0
+		for _, f := range item.Fees {
+			total += f.Amount
+		}
+		return total, nil
+	}
+	return 0, domain.ErrXenditTransactionFeeUnavailable
 }
 
 // --- HTTP helpers ---

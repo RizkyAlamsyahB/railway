@@ -55,3 +55,18 @@ func (mr *MockXenditPayoutProviderMockRecorder) CreatePayout(ctx, forUserID, ide
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePayout", reflect.TypeOf((*MockXenditPayoutProvider)(nil).CreatePayout), ctx, forUserID, idempotencyKey, req)
 }
+
+// GetTransactionByReference mocks base method.
+func (m *MockXenditPayoutProvider) GetTransactionByReference(ctx context.Context, forUserID, referenceID string) (*domain.XenditTransaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTransactionByReference", ctx, forUserID, referenceID)
+	ret0, _ := ret[0].(*domain.XenditTransaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTransactionByReference indicates an expected call of GetTransactionByReference.
+func (mr *MockXenditPayoutProviderMockRecorder) GetTransactionByReference(ctx, forUserID, referenceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionByReference", reflect.TypeOf((*MockXenditPayoutProvider)(nil).GetTransactionByReference), ctx, forUserID, referenceID)
+}

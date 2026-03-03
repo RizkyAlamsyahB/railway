@@ -106,15 +106,22 @@ type XenditConfig struct {
 	WebhookURL               string `mapstructure:"XENDIT_WEBHOOK_URL"`
 }
 
+// WithdrawalConfig holds vendor withdrawal fee policy configuration.
+type WithdrawalConfig struct {
+	FeeEstimateFixed float64 `mapstructure:"WITHDRAWAL_FEE_ESTIMATE_FIXED"`
+	MinNetAmount     float64 `mapstructure:"WITHDRAWAL_MIN_NET_AMOUNT"`
+}
+
 // Config is the root configuration struct containing all configuration sections.
 type Config struct {
-	App      AppConfig      `mapstructure:",squash"`
-	Database DatabaseConfig `mapstructure:",squash"`
-	JWT      JWTConfig      `mapstructure:",squash"`
-	Admin    AdminConfig    `mapstructure:",squash"`
-	Storage  StorageConfig  `mapstructure:",squash"`
-	SMTP     SMTPConfig     `mapstructure:",squash"`
-	Xendit   XenditConfig   `mapstructure:",squash"`
+	App        AppConfig        `mapstructure:",squash"`
+	Database   DatabaseConfig   `mapstructure:",squash"`
+	JWT        JWTConfig        `mapstructure:",squash"`
+	Admin      AdminConfig      `mapstructure:",squash"`
+	Storage    StorageConfig    `mapstructure:",squash"`
+	SMTP       SMTPConfig       `mapstructure:",squash"`
+	Xendit     XenditConfig     `mapstructure:",squash"`
+	Withdrawal WithdrawalConfig `mapstructure:",squash"`
 }
 
 // Load reads configuration from the .env file and environment variables.
@@ -166,6 +173,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("XENDIT_BASE_URL", "https://api.xendit.co")
 	viper.SetDefault("XENDIT_WEBHOOK_VERIFICATION_TOKEN", "")
 	viper.SetDefault("XENDIT_WEBHOOK_URL", "")
+	viper.SetDefault("WITHDRAWAL_FEE_ESTIMATE_FIXED", 0)
+	viper.SetDefault("WITHDRAWAL_MIN_NET_AMOUNT", 10000)
 
 	// Read .env file (ignore error if file doesn't exist)
 	_ = viper.ReadInConfig()

@@ -336,6 +336,20 @@ func TestAddItem(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name: "success - cart create races and uses existing active cart",
+			req:  domain.AddCartItemRequest{ProductVariantID: variantID.String(), Qty: 1},
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {
+				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(activeVariant(variantID, productID), nil)
+				pr.EXPECT().FindByID(gomock.Any(), productID).Return(publishedProduct(productID), nil)
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, nil)
+				cr.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New(`duplicate key value violates unique constraint "uq_carts_user_active"`))
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
+				cr.EXPECT().FindItemByCartAndVariant(gomock.Any(), cartID, variantID).Return(nil, nil)
+				cr.EXPECT().UpsertItem(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: nil,
+		},
+		{
 			name:    "error - invalid variant UUID",
 			req:     domain.AddCartItemRequest{ProductVariantID: "not-a-uuid", Qty: 1},
 			setup:   func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository) {},

@@ -265,7 +265,7 @@ type VendorRepository interface {
 	UpdateWithdrawal(ctx context.Context, withdrawal *VendorWithdrawal) error
 
 	// ApplyWithdrawalWebhookUpdate applies status/xendit updates and optional balance movement atomically.
-	ApplyWithdrawalWebhookUpdate(ctx context.Context, withdrawalID uuid.UUID, newStatus string, xenditStatus string, xenditPayoutID *string, failedReason *string, balanceAction string) error
+	ApplyWithdrawalWebhookUpdate(ctx context.Context, withdrawalID uuid.UUID, newStatus string, xenditStatus string, xenditPayoutID *string, failedReason *string, balanceAction string, completion *WithdrawalCompletionData) error
 }
 
 // Balance actions applied during payout webhook processing.
@@ -275,6 +275,21 @@ const (
 	WithdrawalBalanceActionFail             = "fail"
 	WithdrawalBalanceActionReverseCompleted = "reverse_completed"
 )
+
+// Fee resolution statuses for vendor withdrawals.
+const (
+	WithdrawalFeeStatusPending  = "pending"
+	WithdrawalFeeStatusResolved = "resolved"
+	WithdrawalFeeStatusFailed   = "failed"
+)
+
+// WithdrawalCompletionData contains the fee-aware completion values from Xendit transaction data.
+type WithdrawalCompletionData struct {
+	FeeActual           float64 `json:"fee_actual"`
+	NetAmount           float64 `json:"net_amount"`
+	TotalDeducted       float64 `json:"total_deducted"`
+	XenditTransactionID *string `json:"xendit_transaction_id,omitempty"`
+}
 
 // PayoutBatch represents the payout_batches table (used by the finance admin module).
 type PayoutBatch struct {
@@ -308,17 +323,23 @@ type VendorBalance struct {
 
 // VendorWithdrawal represents the vendor_withdrawals table.
 type VendorWithdrawal struct {
-	ID             uuid.UUID `json:"id"`
-	VendorID       uuid.UUID `json:"vendor_id"`
-	Amount         float64   `json:"amount"`
-	ChannelCode    string    `json:"channel_code"`
-	Status         string    `json:"status"`
-	XenditPayoutID *string   `json:"xendit_payout_id,omitempty"`
-	XenditStatus   *string   `json:"xendit_status,omitempty"`
-	Description    *string   `json:"description,omitempty"`
-	FailedReason   *string   `json:"failed_reason,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID                  uuid.UUID `json:"id"`
+	VendorID            uuid.UUID `json:"vendor_id"`
+	Amount              float64   `json:"amount"`
+	ChannelCode         string    `json:"channel_code"`
+	Status              string    `json:"status"`
+	FeeEstimated        float64   `json:"fee_estimated"`
+	FeeActual           *float64  `json:"fee_actual,omitempty"`
+	AmountNet           float64   `json:"amount_net"`
+	TotalDeducted       float64   `json:"total_deducted"`
+	FeeStatus           string    `json:"fee_status"`
+	XenditPayoutID      *string   `json:"xendit_payout_id,omitempty"`
+	XenditStatus        *string   `json:"xendit_status,omitempty"`
+	XenditTransactionID *string   `json:"xendit_transaction_id,omitempty"`
+	Description         *string   `json:"description,omitempty"`
+	FailedReason        *string   `json:"failed_reason,omitempty"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 // VendorWithdrawRequest is the input DTO for vendor self-service withdrawal.
@@ -329,12 +350,15 @@ type VendorWithdrawRequest struct {
 
 // VendorWithdrawResponse is the output DTO for a successful withdrawal request.
 type VendorWithdrawResponse struct {
-	WithdrawalID   uuid.UUID `json:"withdrawal_id"`
-	XenditPayoutID string    `json:"xendit_payout_id"`
-	Status         string    `json:"status"`
-	XenditStatus   string    `json:"xendit_status"`
-	Amount         float64   `json:"amount"`
-	ChannelCode    string    `json:"channel_code"`
+	WithdrawalID       uuid.UUID `json:"withdrawal_id"`
+	XenditPayoutID     string    `json:"xendit_payout_id"`
+	Status             string    `json:"status"`
+	XenditStatus       string    `json:"xendit_status"`
+	Amount             float64   `json:"amount"`
+	RequestedAmount    float64   `json:"requested_amount"`
+	EstimatedFee       float64   `json:"estimated_fee"`
+	EstimatedNetAmount float64   `json:"estimated_net_amount"`
+	ChannelCode        string    `json:"channel_code"`
 }
 
 // VendorBalanceResponse is the output DTO for the vendor balance endpoint.

@@ -222,8 +222,44 @@ func TestCheckout(t *testing.T) {
 				vr.EXPECT().FindByID(gomock.Any(), vendorID).Return(fixtureVendor(vendorID), nil)
 				or.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				xi.EXPECT().CreateInvoice(gomock.Any(), "xa-vendor-123", gomock.Any()).Return(nil, errors.New("xendit 500"))
+				or.EXPECT().UpdateOrderStatus(gomock.Any(), gomock.Any(), domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, gomock.Any(), gomock.Any()).Return(nil)
+				or.EXPECT().RestoreStock(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: ErrInvoiceCreationFailed,
+		},
+		{
+			name: "payment invoice save error triggers compensation",
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
+				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
+				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
+				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
+				vr.EXPECT().FindByID(gomock.Any(), vendorID).Return(fixtureVendor(vendorID), nil)
+				or.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+				xi.EXPECT().CreateInvoice(gomock.Any(), "xa-vendor-123", gomock.Any()).Return(fixtureXenditInvoiceResponse(), nil)
+				pmr.EXPECT().CreateInvoice(gomock.Any(), gomock.Any()).Return(errDB)
+				xi.EXPECT().ExpireInvoice(gomock.Any(), "xa-vendor-123", "xinv-001").Return(nil)
+				or.EXPECT().UpdateOrderStatus(gomock.Any(), gomock.Any(), domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, gomock.Any(), gomock.Any()).Return(nil)
+				or.EXPECT().RestoreStock(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: errDB,
+		},
+		{
+			name: "compensation failure returns checkout compensation failed",
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
+				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
+				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
+				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
+				vr.EXPECT().FindByID(gomock.Any(), vendorID).Return(fixtureVendor(vendorID), nil)
+				or.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+				xi.EXPECT().CreateInvoice(gomock.Any(), "xa-vendor-123", gomock.Any()).Return(nil, errors.New("xendit 500"))
+				or.EXPECT().UpdateOrderStatus(gomock.Any(), gomock.Any(), domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, gomock.Any(), gomock.Any()).Return(errDB)
+				or.EXPECT().RestoreStock(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: ErrCheckoutCompensationFailed,
 		},
 		{
 			name: "find cart DB error",
@@ -310,10 +346,18 @@ func TestHandleWebhook(t *testing.T) {
 	}
 
 	order := &domain.Order{
-		ID:       orderID,
-		VendorID: vendorID,
-		OrderNo:  "ORD-20250101-ABCD1234",
-		Subtotal: 200000,
+		ID:          orderID,
+		VendorID:    vendorID,
+		OrderNo:     "ORD-20250101-ABCD1234",
+		Subtotal:    200000,
+		OrderStatus: domain.OrderStatusPendingPayment,
+	}
+	canceledOrder := &domain.Order{
+		ID:          orderID,
+		VendorID:    vendorID,
+		OrderNo:     "ORD-20250101-ABCD1234",
+		Subtotal:    200000,
+		OrderStatus: domain.OrderStatusCanceled,
 	}
 
 	acctReceivable := &domain.LedgerAccount{ID: uuid.New(), Code: "1100"}
@@ -335,16 +379,27 @@ func TestHandleWebhook(t *testing.T) {
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), paidPayload.ExternalID).Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
 				// handlePaid
+				or.EXPECT().FindByID(gomock.Any(), orderID).Return(order, nil)
 				pmr.EXPECT().UpdateInvoiceStatus(gomock.Any(), invoiceID, domain.InvoiceStatusPaid, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				or.EXPECT().UpdateOrderStatus(gomock.Any(), orderID, domain.OrderStatusPaid, domain.PaymentStatusPaid, gomock.Any(), gomock.Any()).Return(nil)
 				// recordPaymentLedger
-				or.EXPECT().FindByID(gomock.Any(), orderID).Return(order, nil).Times(2)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "1100").Return(acctReceivable, nil)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "2100").Return(acctVendorPayable, nil)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "4100").Return(acctPlatformFee, nil)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "4200").Return(acctAdminFee, nil)
 				lr.EXPECT().CreateJournalWithLines(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				vr.EXPECT().CreditBalance(gomock.Any(), vendorID, 200000.0).Return(nil)
+			},
+			wantErr: nil,
+		},
+		{
+			name:    "PAID - ignored for canceled order",
+			payload: paidPayload,
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PAID").Return(false, nil)
+				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), paidPayload.ExternalID).Return(invoice, nil)
+				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
+				or.EXPECT().FindByID(gomock.Any(), orderID).Return(canceledOrder, nil)
 			},
 			wantErr: nil,
 		},
