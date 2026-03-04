@@ -41,6 +41,21 @@ func (m *MockXenditPayoutProvider) EXPECT() *MockXenditPayoutProviderMockRecorde
 	return m.recorder
 }
 
+// ListPayoutChannels mocks base method.
+func (m *MockXenditPayoutProvider) ListPayoutChannels(ctx context.Context, params domain.XenditListPayoutChannelsParams) ([]domain.XenditPayoutChannel, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPayoutChannels", ctx, params)
+	ret0, _ := ret[0].([]domain.XenditPayoutChannel)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPayoutChannels indicates an expected call of ListPayoutChannels.
+func (mr *MockXenditPayoutProviderMockRecorder) ListPayoutChannels(ctx, params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPayoutChannels", reflect.TypeOf((*MockXenditPayoutProvider)(nil).ListPayoutChannels), ctx, params)
+}
+
 // CreatePayout mocks base method.
 func (m *MockXenditPayoutProvider) CreatePayout(ctx context.Context, forUserID, idempotencyKey string, req domain.XenditPayoutRequest) (*domain.XenditPayoutResponse, error) {
 	m.ctrl.T.Helper()

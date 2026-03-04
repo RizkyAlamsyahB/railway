@@ -228,6 +228,43 @@ func NewXenditPayoutClient(cfg config.XenditConfig) (domain.XenditPayoutProvider
 	return newXenditClientInternal(cfg)
 }
 
+func (c *xenditClient) ListPayoutChannels(ctx context.Context, params domain.XenditListPayoutChannelsParams) ([]domain.XenditPayoutChannel, error) {
+	query := url.Values{}
+	if params.Currency != "" {
+		query.Set("currency", params.Currency)
+	}
+	if params.ChannelCategory != "" {
+		query.Set("channel_category", params.ChannelCategory)
+	}
+
+	path := "/payouts_channels"
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Xendit list payout channels API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read payout channels response: %w", err)
+	}
+
+	channels, err := parseXenditPayoutChannels(bodyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode payout channels response: %w", err)
+	}
+
+	return channels, nil
+}
+
 func (c *xenditClient) CreatePayout(ctx context.Context, forUserID string, idempotencyKey string, req domain.XenditPayoutRequest) (*domain.XenditPayoutResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -310,6 +347,20 @@ type xenditTransactionListResponse struct {
 	Data []xenditTransactionItem `json:"data"`
 }
 
+type xenditPayoutChannelsListResponse struct {
+	Data []xenditPayoutChannelItem `json:"data"`
+}
+
+type xenditPayoutChannelItem struct {
+	ChannelCode     string `json:"channel_code"`
+	ChannelName     string `json:"channel_name"`
+	Currency        string `json:"currency"`
+	ChannelCategory string `json:"channel_category"`
+	IsActivated     *bool  `json:"is_activated"`
+	IsAvailable     *bool  `json:"is_available"`
+	IsEnabled       *bool  `json:"is_enabled"`
+}
+
 type xenditTransactionItem struct {
 	ID          string                 `json:"id"`
 	ReferenceID string                 `json:"reference_id"`
@@ -324,6 +375,48 @@ type xenditTransactionItem struct {
 
 type xenditTransactionFee struct {
 	Amount float64 `json:"amount"`
+}
+
+func parseXenditPayoutChannels(bodyBytes []byte) ([]domain.XenditPayoutChannel, error) {
+	var wrapped xenditPayoutChannelsListResponse
+	if err := json.Unmarshal(bodyBytes, &wrapped); err == nil && wrapped.Data != nil {
+		return toDomainPayoutChannels(wrapped.Data), nil
+	}
+
+	var list []xenditPayoutChannelItem
+	if err := json.Unmarshal(bodyBytes, &list); err == nil {
+		return toDomainPayoutChannels(list), nil
+	}
+
+	var single xenditPayoutChannelItem
+	if err := json.Unmarshal(bodyBytes, &single); err == nil && single.ChannelCode != "" {
+		return toDomainPayoutChannels([]xenditPayoutChannelItem{single}), nil
+	}
+
+	return nil, fmt.Errorf("unexpected payout channels response payload")
+}
+
+func toDomainPayoutChannels(items []xenditPayoutChannelItem) []domain.XenditPayoutChannel {
+	result := make([]domain.XenditPayoutChannel, 0, len(items))
+	for _, item := range items {
+		isActivated := true
+		if item.IsActivated != nil {
+			isActivated = *item.IsActivated
+		} else if item.IsAvailable != nil {
+			isActivated = *item.IsAvailable
+		} else if item.IsEnabled != nil {
+			isActivated = *item.IsEnabled
+		}
+
+		result = append(result, domain.XenditPayoutChannel{
+			ChannelCode:     item.ChannelCode,
+			ChannelName:     item.ChannelName,
+			Currency:        item.Currency,
+			ChannelCategory: item.ChannelCategory,
+			IsActivated:     isActivated,
+		})
+	}
+	return result
 }
 
 func parseXenditTransactions(bodyBytes []byte) ([]xenditTransactionItem, error) {

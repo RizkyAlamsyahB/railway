@@ -1,8 +1,10 @@
 UPDATE payout_batches
 SET status = CASE status
-    WHEN 'ready' THEN 'draft'
     WHEN 'schedule' THEN 'approved'
+    WHEN 'completed' THEN 'paid'
     WHEN 'complete' THEN 'paid'
+    WHEN 'ready' THEN 'draft'
+    WHEN 'on_hold' THEN 'draft'
     WHEN 'on hold' THEN 'draft'
     ELSE status
 END;

@@ -192,6 +192,80 @@ func (r *orderRepository) RestoreStock(ctx context.Context, orderID uuid.UUID) e
 	return nil
 }
 
+func (r *orderRepository) ApplyExpiredWebhookUpdate(ctx context.Context, orderID, invoiceID uuid.UUID, notes *string) (bool, error) {
+	applied := false
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current orderModel
+		if err := tx.Where("id = ?", orderID.String()).First(&current).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return fmt.Errorf("find order: %w", err)
+		}
+
+		// No-op for out-of-order webhooks when order already moved to another state.
+		if current.OrderStatus != domain.OrderStatusPendingPayment {
+			return nil
+		}
+
+		invoiceUpdate := tx.Model(&paymentInvoiceModel{}).
+			Where("id = ? AND status = ?", invoiceID.String(), domain.InvoiceStatusPending).
+			Updates(map[string]interface{}{
+				"status":     domain.InvoiceStatusExpired,
+				"updated_at": time.Now(),
+			})
+		if invoiceUpdate.Error != nil {
+			return fmt.Errorf("update invoice: %w", invoiceUpdate.Error)
+		}
+		if invoiceUpdate.RowsAffected == 0 {
+			return nil
+		}
+
+		if err := tx.Model(&orderModel{}).
+			Where("id = ?", orderID.String()).
+			Updates(map[string]interface{}{
+				"order_status":   domain.OrderStatusCanceled,
+				"payment_status": domain.PaymentStatusUnpaid,
+				"updated_at":     time.Now(),
+			}).Error; err != nil {
+			return fmt.Errorf("update order: %w", err)
+		}
+
+		history := orderStatusHistoryModel{
+			ID:        uuid.New().String(),
+			OrderID:   orderID.String(),
+			OldStatus: &current.OrderStatus,
+			NewStatus: domain.OrderStatusCanceled,
+			ChangedAt: time.Now(),
+			Notes:     notes,
+		}
+		if err := tx.Create(&history).Error; err != nil {
+			return fmt.Errorf("insert status history: %w", err)
+		}
+
+		var items []orderItemModel
+		if err := tx.Where("order_id = ?", orderID.String()).Find(&items).Error; err != nil {
+			return fmt.Errorf("find order items: %w", err)
+		}
+		for _, item := range items {
+			if err := tx.Model(&productVariantModel{}).
+				Where("id = ?", item.ProductVariantID).
+				Update("stock_on_hand", gorm.Expr("stock_on_hand + ?", item.Qty)).Error; err != nil {
+				return fmt.Errorf("restore stock for variant %s: %w", item.ProductVariantID, err)
+			}
+		}
+
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return applied, nil
+}
+
 // Mapper helpers.
 
 func toOrderModel(o *domain.Order) orderModel {

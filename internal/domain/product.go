@@ -94,8 +94,8 @@ type CreateProductRequest struct {
 	WeightGram         *int                        `json:"weight_gram,omitempty" binding:"omitempty,min=0"`
 	IsActive           bool                        `json:"is_active"`
 	ShippingServiceIDs []string                    `json:"shipping_service_ids" binding:"required,min=1,dive,uuid"`
-	Variants           []CreateProductVariantInput  `json:"variants,omitempty" binding:"omitempty,max=20,dive"`
-	Images             []CreateProductImageInput    `json:"images,omitempty" binding:"omitempty,min=1,max=10,dive"`
+	Variants           []CreateProductVariantInput `json:"variants,omitempty" binding:"omitempty,max=20,dive"`
+	Images             []CreateProductImageInput   `json:"images,omitempty" binding:"omitempty,min=1,max=10,dive"`
 }
 
 // ConfirmProductImageItem represents a single image in the confirm-images request.
@@ -154,6 +154,21 @@ type ConfirmProductImagesResponse struct {
 	ImagesConfirmed int       `json:"images_confirmed"`
 }
 
+// ProductListParams holds query parameters for customer product listing.
+type ProductListParams struct {
+	Page   int
+	Limit  int
+	Sort   string
+	Search string
+}
+
+// ProductListItem is the output DTO for customer product listing.
+type ProductListItem struct {
+	ID    uuid.UUID `json:"id"`
+	Name  string    `json:"name"`
+	Price float64   `json:"price"`
+}
+
 // --- Repository Interfaces ---
 
 // ProductRepository defines the interface for product data access.
@@ -186,6 +201,10 @@ type ProductRepository interface {
 
 	// FindVariantByID returns a single product variant by its ID, or nil if not found.
 	FindVariantByID(ctx context.Context, id uuid.UUID) (*ProductVariant, error)
+
+	// ListPublishedForCustomer returns published products that have at least one
+	// active variant with available stock.
+	ListPublishedForCustomer(ctx context.Context, params ProductListParams) ([]ProductListItem, int64, error)
 }
 
 // CategoryRepository defines the interface for category data access.
@@ -225,4 +244,7 @@ type CatalogUseCase interface {
 
 	// ListShippingServices returns all active shipping services.
 	ListShippingServices(ctx context.Context) ([]ShippingService, error)
+
+	// ListProducts returns products available for customers.
+	ListProducts(ctx context.Context, params ProductListParams) ([]ProductListItem, *PaginationMeta, error)
 }

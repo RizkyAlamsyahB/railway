@@ -42,6 +42,21 @@ func (m *MockOrderRepository) EXPECT() *MockOrderRepositoryMockRecorder {
 	return m.recorder
 }
 
+// ApplyExpiredWebhookUpdate mocks base method.
+func (m *MockOrderRepository) ApplyExpiredWebhookUpdate(ctx context.Context, orderID, invoiceID uuid.UUID, notes *string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ApplyExpiredWebhookUpdate", ctx, orderID, invoiceID, notes)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ApplyExpiredWebhookUpdate indicates an expected call of ApplyExpiredWebhookUpdate.
+func (mr *MockOrderRepositoryMockRecorder) ApplyExpiredWebhookUpdate(ctx, orderID, invoiceID, notes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApplyExpiredWebhookUpdate", reflect.TypeOf((*MockOrderRepository)(nil).ApplyExpiredWebhookUpdate), ctx, orderID, invoiceID, notes)
+}
+
 // CreateOrderWithItems mocks base method.
 func (m *MockOrderRepository) CreateOrderWithItems(ctx context.Context, order *domain.Order, items []domain.OrderItem) error {
 	m.ctrl.T.Helper()

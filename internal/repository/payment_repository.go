@@ -95,6 +95,43 @@ func (r *paymentRepository) UpdateInvoiceStatus(ctx context.Context, invoiceID u
 		Updates(updates).Error
 }
 
+func (r *paymentRepository) UpdateInvoiceStatusIfCurrent(
+	ctx context.Context,
+	invoiceID uuid.UUID,
+	expectedCurrentStatus, nextStatus string,
+	paidAt *time.Time,
+	paymentMethod, paymentChannel *string,
+	rawPayload map[string]interface{},
+) (bool, error) {
+	updates := map[string]interface{}{
+		"status":     nextStatus,
+		"updated_at": time.Now(),
+	}
+	if paidAt != nil {
+		updates["paid_at"] = paidAt
+	}
+	if paymentMethod != nil {
+		updates["payment_method"] = *paymentMethod
+	}
+	if paymentChannel != nil {
+		updates["payment_channel"] = *paymentChannel
+	}
+	if rawPayload != nil {
+		data, _ := json.Marshal(rawPayload)
+		s := string(data)
+		updates["raw_payload"] = s
+	}
+
+	result := r.db.WithContext(ctx).Model(&paymentInvoiceModel{}).
+		Where("id = ? AND status = ?", invoiceID.String(), expectedCurrentStatus).
+		Updates(updates)
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return result.RowsAffected > 0, nil
+}
+
 func (r *paymentRepository) CreateEvent(ctx context.Context, event *domain.PaymentEvent) error {
 	model := toPaymentEventModel(event)
 	return r.db.WithContext(ctx).Create(&model).Error

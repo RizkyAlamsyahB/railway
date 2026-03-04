@@ -961,6 +961,105 @@ func TestGetBalance_TableDriven(t *testing.T) {
 	}
 }
 
+func TestListPayoutChannels_TableDriven(t *testing.T) {
+	vendorID := uuid.New()
+	activeVendor := &domain.Vendor{
+		ID:     vendorID,
+		Status: domain.VendorStatusActive,
+	}
+
+	type testCase struct {
+		name       string
+		setupMocks func(ctx context.Context, vendorRepo *mocks.MockVendorRepository, xenditPayout *mocks.MockXenditPayoutProvider)
+		wantErr    error
+		assertResp func(t *testing.T, resp *domain.VendorPayoutChannelsResponse)
+	}
+
+	tests := []testCase{
+		{
+			name: "success with sorting and filtering inactive channel",
+			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository, xenditPayout *mocks.MockXenditPayoutProvider) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor, nil)
+				xenditPayout.EXPECT().
+					ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+						Currency:        "IDR",
+						ChannelCategory: "BANK",
+					}).
+					Return([]domain.XenditPayoutChannel{
+						{ChannelCode: "ID_BRI", ChannelName: "BRI", Currency: "IDR", ChannelCategory: "BANK", IsActivated: true},
+						{ChannelCode: "ID_BCA", ChannelName: "BCA", Currency: "IDR", ChannelCategory: "BANK", IsActivated: true},
+						{ChannelCode: "ID_BNI", ChannelName: "BNI", Currency: "IDR", ChannelCategory: "BANK", IsActivated: false},
+					}, nil)
+			},
+			assertResp: func(t *testing.T, resp *domain.VendorPayoutChannelsResponse) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected response, got nil")
+				}
+				if len(resp.Channels) != 2 {
+					t.Fatalf("expected 2 active channels, got %d", len(resp.Channels))
+				}
+				if resp.Channels[0].ChannelCode != "ID_BCA" || resp.Channels[1].ChannelCode != "ID_BRI" {
+					t.Fatalf("expected sorted channels [ID_BCA ID_BRI], got [%s %s]", resp.Channels[0].ChannelCode, resp.Channels[1].ChannelCode)
+				}
+			},
+		},
+		{
+			name: "vendor not found",
+			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository, _ *mocks.MockXenditPayoutProvider) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
+			},
+			wantErr: ErrVendorNotFound,
+		},
+		{
+			name: "vendor not active",
+			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository, _ *mocks.MockXenditPayoutProvider) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:     vendorID,
+					Status: domain.VendorStatusDraft,
+				}, nil)
+			},
+			wantErr: ErrVendorNotActive,
+		},
+		{
+			name: "xendit unavailable",
+			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository, xenditPayout *mocks.MockXenditPayoutProvider) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor, nil)
+				xenditPayout.EXPECT().
+					ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+						Currency:        "IDR",
+						ChannelCategory: "BANK",
+					}).
+					Return(nil, errors.New("xendit down"))
+			},
+			wantErr: ErrPayoutChannelsUnavailable,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, vendorRepo, _, xenditPayout, uc := setupVendorWithdrawalUseCase(t)
+			ctx := context.Background()
+
+			tc.setupMocks(ctx, vendorRepo, xenditPayout)
+			resp, err := uc.ListPayoutChannels(ctx, vendorID)
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.assertResp != nil {
+				tc.assertResp(t, resp)
+			}
+		})
+	}
+}
+
 func TestRequestWithdrawal_TableDriven(t *testing.T) {
 	xenditAccountID := "xnd_test_123"
 	vendorID := uuid.New()
@@ -995,6 +1094,23 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 		Email: "vendor@example.com",
 	}
 
+	availableChannels := []domain.XenditPayoutChannel{
+		{
+			ChannelCode:     "ID_BCA",
+			ChannelName:     "Bank Central Asia",
+			Currency:        "IDR",
+			ChannelCategory: "BANK",
+			IsActivated:     true,
+		},
+		{
+			ChannelCode:     "ID_BRI",
+			ChannelName:     "Bank Rakyat Indonesia",
+			Currency:        "IDR",
+			ChannelCategory: "BANK",
+			IsActivated:     true,
+		},
+	}
+
 	type testCase struct {
 		name       string
 		req        domain.VendorWithdrawRequest
@@ -1020,6 +1136,12 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 				xenditPayout *mocks.MockXenditPayoutProvider,
 			) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor, nil)
+				xenditPayout.EXPECT().
+					ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+						Currency:        "IDR",
+						ChannelCategory: "BANK",
+					}).
+					Return(availableChannels, nil)
 				vendorRepo.EXPECT().GetBalance(ctx, vendorID).Return(goodBalance, nil)
 				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(goodBankAccount, nil)
 				userRepo.EXPECT().FindByID(ctx, userID).Return(ownerUser, nil)
@@ -1066,12 +1188,18 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 			name: "invalid channel code",
 			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "INVALID"},
 			setupMocks: func(
-				_ context.Context,
+				ctx context.Context,
 				_ *mocks.MockUserRepository,
-				_ *mocks.MockVendorRepository,
-				_ *mocks.MockXenditPayoutProvider,
+				vendorRepo *mocks.MockVendorRepository,
+				xenditPayout *mocks.MockXenditPayoutProvider,
 			) {
-				// no mocks needed — fails at channel code validation
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor, nil)
+				xenditPayout.EXPECT().
+					ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+						Currency:        "IDR",
+						ChannelCategory: "BANK",
+					}).
+					Return(availableChannels, nil)
 			},
 			wantErr: ErrInvalidChannelCode,
 		},
@@ -1095,7 +1223,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 				ctx context.Context,
 				_ *mocks.MockUserRepository,
 				vendorRepo *mocks.MockVendorRepository,
-				_ *mocks.MockXenditPayoutProvider,
+				xenditPayout *mocks.MockXenditPayoutProvider,
 			) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
 					ID:     vendorID,
@@ -1111,7 +1239,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 				ctx context.Context,
 				_ *mocks.MockUserRepository,
 				vendorRepo *mocks.MockVendorRepository,
-				_ *mocks.MockXenditPayoutProvider,
+				xenditPayout *mocks.MockXenditPayoutProvider,
 			) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
 					ID:              vendorID,
@@ -1128,9 +1256,15 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 				ctx context.Context,
 				_ *mocks.MockUserRepository,
 				vendorRepo *mocks.MockVendorRepository,
-				_ *mocks.MockXenditPayoutProvider,
+				xenditPayout *mocks.MockXenditPayoutProvider,
 			) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor, nil)
+				xenditPayout.EXPECT().
+					ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+						Currency:        "IDR",
+						ChannelCategory: "BANK",
+					}).
+					Return(availableChannels, nil)
 				vendorRepo.EXPECT().GetBalance(ctx, vendorID).Return(&domain.VendorBalance{
 					VendorID:         vendorID,
 					AvailableBalance: 100000,
@@ -1148,6 +1282,12 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 				xenditPayout *mocks.MockXenditPayoutProvider,
 			) {
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor, nil)
+				xenditPayout.EXPECT().
+					ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+						Currency:        "IDR",
+						ChannelCategory: "BANK",
+					}).
+					Return(availableChannels, nil)
 				vendorRepo.EXPECT().GetBalance(ctx, vendorID).Return(goodBalance, nil)
 				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(goodBankAccount, nil)
 				userRepo.EXPECT().FindByID(ctx, userID).Return(ownerUser, nil)
@@ -1160,6 +1300,25 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 				vendorRepo.EXPECT().UpdateWithdrawal(ctx, gomock.Any()).Return(nil)
 			},
 			wantErr: ErrXenditPayoutFailed,
+		},
+		{
+			name: "payout channels unavailable",
+			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA"},
+			setupMocks: func(
+				ctx context.Context,
+				_ *mocks.MockUserRepository,
+				vendorRepo *mocks.MockVendorRepository,
+				xenditPayout *mocks.MockXenditPayoutProvider,
+			) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor, nil)
+				xenditPayout.EXPECT().
+					ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+						Currency:        "IDR",
+						ChannelCategory: "BANK",
+					}).
+					Return(nil, errors.New("xendit unavailable"))
+			},
+			wantErr: ErrPayoutChannelsUnavailable,
 		},
 	}
 

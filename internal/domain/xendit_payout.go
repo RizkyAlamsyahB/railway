@@ -11,6 +11,7 @@ const (
 )
 
 // ValidPayoutChannelCodes is the set of supported payout channel codes.
+// Deprecated: use ListPayoutChannels from Xendit API for runtime validation.
 var ValidPayoutChannelCodes = map[string]bool{
 	PayoutChannelIDBCA: true,
 }
@@ -53,8 +54,26 @@ type XenditPayoutResponse struct {
 	ChannelProperties    *XenditPayoutChannelProperties `json:"channel_properties,omitempty"`
 }
 
+// XenditListPayoutChannelsParams defines query filters when listing payout channels.
+type XenditListPayoutChannelsParams struct {
+	Currency        string
+	ChannelCategory string
+}
+
+// XenditPayoutChannel represents a payout channel from Xendit.
+type XenditPayoutChannel struct {
+	ChannelCode     string `json:"channel_code"`
+	ChannelName     string `json:"channel_name"`
+	Currency        string `json:"currency"`
+	ChannelCategory string `json:"channel_category"`
+	IsActivated     bool   `json:"is_activated"`
+}
+
 // XenditPayoutProvider defines the interface for Xendit Payout operations.
 type XenditPayoutProvider interface {
+	// ListPayoutChannels lists payout channels from Xendit.
+	ListPayoutChannels(ctx context.Context, params XenditListPayoutChannelsParams) ([]XenditPayoutChannel, error)
+
 	// CreatePayout creates a payout on behalf of a sub-account.
 	// forUserID is the vendor's Xendit account ID (sent as the for-user-id header).
 	// idempotencyKey is used to prevent duplicate payouts (sent as the Idempotency-key header).

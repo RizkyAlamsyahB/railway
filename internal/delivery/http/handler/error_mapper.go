@@ -61,6 +61,7 @@ var errorRules = []errorRule{
 	// Withdrawal
 	{usecase.ErrInvalidChannelCode, http.StatusBadRequest, ""},
 	{usecase.ErrXenditPayoutFailed, http.StatusBadGateway, ""},
+	{usecase.ErrPayoutChannelsUnavailable, http.StatusBadGateway, ""},
 	{usecase.ErrVendorBankNotFound, http.StatusNotFound, "vendor bank account not found"},
 	{usecase.ErrInsufficientBalance, http.StatusBadRequest, "insufficient available balance"},
 	{usecase.ErrBelowMinWithdrawal, http.StatusBadRequest, ""},
@@ -108,6 +109,9 @@ var errorRules = []errorRule{
 	{usecase.ErrInvalidRefundTransition, http.StatusBadRequest, "invalid refund status transition"},
 	{usecase.ErrRefundNotFound, http.StatusNotFound, "refund not found"},
 	{usecase.ErrPayoutNotFound, http.StatusNotFound, "payout batch not found"},
+
+	// Notifications
+	{usecase.ErrNotificationNotFound, http.StatusNotFound, "notification not found"},
 
 	// CS
 	{usecase.ErrTicketNotFound, http.StatusNotFound, "ticket not found"},

@@ -114,3 +114,18 @@ func (mr *MockPaymentRepositoryMockRecorder) UpdateInvoiceStatus(ctx, invoiceID,
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInvoiceStatus", reflect.TypeOf((*MockPaymentRepository)(nil).UpdateInvoiceStatus), ctx, invoiceID, status, paidAt, paymentMethod, paymentChannel, rawPayload)
 }
+
+// UpdateInvoiceStatusIfCurrent mocks base method.
+func (m *MockPaymentRepository) UpdateInvoiceStatusIfCurrent(ctx context.Context, invoiceID uuid.UUID, expectedCurrentStatus, nextStatus string, paidAt *time.Time, paymentMethod, paymentChannel *string, rawPayload map[string]any) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateInvoiceStatusIfCurrent", ctx, invoiceID, expectedCurrentStatus, nextStatus, paidAt, paymentMethod, paymentChannel, rawPayload)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateInvoiceStatusIfCurrent indicates an expected call of UpdateInvoiceStatusIfCurrent.
+func (mr *MockPaymentRepositoryMockRecorder) UpdateInvoiceStatusIfCurrent(ctx, invoiceID, expectedCurrentStatus, nextStatus, paidAt, paymentMethod, paymentChannel, rawPayload any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInvoiceStatusIfCurrent", reflect.TypeOf((*MockPaymentRepository)(nil).UpdateInvoiceStatusIfCurrent), ctx, invoiceID, expectedCurrentStatus, nextStatus, paidAt, paymentMethod, paymentChannel, rawPayload)
+}

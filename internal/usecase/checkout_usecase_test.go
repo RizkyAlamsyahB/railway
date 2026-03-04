@@ -359,6 +359,13 @@ func TestHandleWebhook(t *testing.T) {
 		Subtotal:    200000,
 		OrderStatus: domain.OrderStatusCanceled,
 	}
+	paidOrder := &domain.Order{
+		ID:          orderID,
+		VendorID:    vendorID,
+		OrderNo:     "ORD-20250101-ABCD1234",
+		Subtotal:    200000,
+		OrderStatus: domain.OrderStatusPaid,
+	}
 
 	acctReceivable := &domain.LedgerAccount{ID: uuid.New(), Code: "1100"}
 	acctVendorPayable := &domain.LedgerAccount{ID: uuid.New(), Code: "2100"}
@@ -380,7 +387,16 @@ func TestHandleWebhook(t *testing.T) {
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
 				// handlePaid
 				or.EXPECT().FindByID(gomock.Any(), orderID).Return(order, nil)
-				pmr.EXPECT().UpdateInvoiceStatus(gomock.Any(), invoiceID, domain.InvoiceStatusPaid, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+				pmr.EXPECT().UpdateInvoiceStatusIfCurrent(
+					gomock.Any(),
+					invoiceID,
+					domain.InvoiceStatusPending,
+					domain.InvoiceStatusPaid,
+					gomock.Any(),
+					gomock.Any(),
+					gomock.Any(),
+					gomock.Any(),
+				).Return(true, nil)
 				or.EXPECT().UpdateOrderStatus(gomock.Any(), orderID, domain.OrderStatusPaid, domain.PaymentStatusPaid, gomock.Any(), gomock.Any()).Return(nil)
 				// recordPaymentLedger
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "1100").Return(acctReceivable, nil)
@@ -389,6 +405,27 @@ func TestHandleWebhook(t *testing.T) {
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "4200").Return(acctAdminFee, nil)
 				lr.EXPECT().CreateJournalWithLines(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				vr.EXPECT().CreditBalance(gomock.Any(), vendorID, 200000.0).Return(nil)
+			},
+			wantErr: nil,
+		},
+		{
+			name:    "PAID - invoice transition already applied",
+			payload: paidPayload,
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PAID").Return(false, nil)
+				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), paidPayload.ExternalID).Return(invoice, nil)
+				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
+				or.EXPECT().FindByID(gomock.Any(), orderID).Return(order, nil)
+				pmr.EXPECT().UpdateInvoiceStatusIfCurrent(
+					gomock.Any(),
+					invoiceID,
+					domain.InvoiceStatusPending,
+					domain.InvoiceStatusPaid,
+					gomock.Any(),
+					gomock.Any(),
+					gomock.Any(),
+					gomock.Any(),
+				).Return(false, nil)
 			},
 			wantErr: nil,
 		},
@@ -411,9 +448,31 @@ func TestHandleWebhook(t *testing.T) {
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), expiredPayload.ExternalID).Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
 				// handleExpired
-				pmr.EXPECT().UpdateInvoiceStatus(gomock.Any(), invoiceID, domain.InvoiceStatusExpired, nil, nil, nil, nil).Return(nil)
-				or.EXPECT().UpdateOrderStatus(gomock.Any(), orderID, domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, gomock.Any(), gomock.Any()).Return(nil)
-				or.EXPECT().RestoreStock(gomock.Any(), orderID).Return(nil)
+				or.EXPECT().FindByID(gomock.Any(), orderID).Return(order, nil)
+				or.EXPECT().ApplyExpiredWebhookUpdate(gomock.Any(), orderID, invoiceID, gomock.Any()).Return(true, nil)
+			},
+			wantErr: nil,
+		},
+		{
+			name:    "EXPIRED - ignored for paid order",
+			payload: expiredPayload,
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:EXPIRED").Return(false, nil)
+				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), expiredPayload.ExternalID).Return(invoice, nil)
+				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
+				or.EXPECT().FindByID(gomock.Any(), orderID).Return(paidOrder, nil)
+			},
+			wantErr: nil,
+		},
+		{
+			name:    "EXPIRED - transition already applied",
+			payload: expiredPayload,
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:EXPIRED").Return(false, nil)
+				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), expiredPayload.ExternalID).Return(invoice, nil)
+				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
+				or.EXPECT().FindByID(gomock.Any(), orderID).Return(order, nil)
+				or.EXPECT().ApplyExpiredWebhookUpdate(gomock.Any(), orderID, invoiceID, gomock.Any()).Return(false, nil)
 			},
 			wantErr: nil,
 		},

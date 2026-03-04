@@ -124,7 +124,7 @@ func Initialize() (*App, error) {
 	productUseCase := usecase.NewProductUseCase(productRepo, vendorRepo, categoryRepo, shippingServiceRepo, storageProvider)
 	productHandler := handler.NewProductHandler(productUseCase)
 
-	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, shippingServiceRepo)
+	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, shippingServiceRepo, productRepo)
 	catalogHandler := handler.NewCatalogHandler(catalogUseCase)
 
 	// User registration & email verification
@@ -141,6 +141,11 @@ func Initialize() (*App, error) {
 	financeRepo := repository.NewFinanceRepository(db)
 	financeUseCase := usecase.NewFinanceUseCase(financeRepo)
 	financeHandler := handler.NewFinanceHandler(financeUseCase)
+
+	// Notifications feature
+	notificationRepo := repository.NewNotificationRepository(db)
+	notificationUseCase := usecase.NewNotificationUseCase(notificationRepo)
+	notificationHandler := handler.NewNotificationHandler(notificationUseCase)
 
 	// CS auth feature
 	csAuthUseCase := usecase.NewCSAuthUseCase(userRepo, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
@@ -187,7 +192,7 @@ func Initialize() (*App, error) {
 
 	// Setup router
 	// r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, cfg.JWT.Secret)
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, xenditWebhookHandler, financeHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, faqHandler, wsHandler, cfg.JWT.Secret)
+	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, xenditWebhookHandler, financeHandler, notificationHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, faqHandler, wsHandler, cfg.JWT.Secret)
 
 	return &App{
 		Config:      cfg,

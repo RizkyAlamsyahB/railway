@@ -369,6 +369,19 @@ type VendorBalanceResponse struct {
 	TotalWithdrawn   float64 `json:"total_withdrawn"`
 }
 
+// VendorPayoutChannelItem represents one payout channel item for vendor frontend.
+type VendorPayoutChannelItem struct {
+	ChannelCode     string `json:"channel_code"`
+	ChannelName     string `json:"channel_name"`
+	Currency        string `json:"currency"`
+	ChannelCategory string `json:"channel_category"`
+}
+
+// VendorPayoutChannelsResponse is the output DTO for vendor payout channels endpoint.
+type VendorPayoutChannelsResponse struct {
+	Channels []VendorPayoutChannelItem `json:"channels"`
+}
+
 // VendorUseCase defines the interface for vendor business operations.
 type VendorUseCase interface {
 	// Register creates a new user (with role umkm), vendor, bank account, and document placeholders,
@@ -383,6 +396,9 @@ type VendorUseCase interface {
 
 	// GetBalance returns the vendor's current balance.
 	GetBalance(ctx context.Context, vendorID uuid.UUID) (*VendorBalanceResponse, error)
+
+	// ListPayoutChannels returns payout channels for vendor withdrawals.
+	ListPayoutChannels(ctx context.Context, vendorID uuid.UUID) (*VendorPayoutChannelsResponse, error)
 
 	// RequestWithdrawal initiates a self-service withdrawal to the vendor's bank account via Xendit.
 	RequestWithdrawal(ctx context.Context, vendorID uuid.UUID, req VendorWithdrawRequest) (*VendorWithdrawResponse, error)

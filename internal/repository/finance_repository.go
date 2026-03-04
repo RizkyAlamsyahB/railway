@@ -70,6 +70,73 @@ func (r *financeRepository) GetDashboardSummary(ctx context.Context, period doma
 	}, nil
 }
 
+func (r *financeRepository) GetReportSummary(ctx context.Context, period domain.FinancePeriod) (*domain.FinanceReportSummary, error) {
+	var grossRevenue sumResult
+	if err := r.db.WithContext(ctx).
+		Table("orders").
+		Select("COALESCE(SUM(grand_total), 0) AS total").
+		Where("placed_at >= ? AND placed_at < ?", period.Start, period.End).
+		Scan(&grossRevenue).Error; err != nil {
+		return nil, err
+	}
+
+	var platformCommission sumResult
+	if err := r.db.WithContext(ctx).
+		Table("orders").
+		Select("COALESCE(SUM(platform_fee), 0) AS total").
+		Where("placed_at >= ? AND placed_at < ?", period.Start, period.End).
+		Scan(&platformCommission).Error; err != nil {
+		return nil, err
+	}
+
+	var vendorPayout sumResult
+	if err := r.db.WithContext(ctx).
+		Table("payout_batches").
+		Select("COALESCE(SUM(total_net), 0) AS total").
+		Where("period_end >= ? AND period_end < ?", period.Start, period.End).
+		Scan(&vendorPayout).Error; err != nil {
+		return nil, err
+	}
+
+	return &domain.FinanceReportSummary{
+		GrossRevenueTotal:    grossRevenue.Total,
+		PlatformCommission:   platformCommission.Total,
+		VendorPayoutTotal:    vendorPayout.Total,
+		TemporaryGrossProfit: grossRevenue.Total,
+	}, nil
+}
+
+func (r *financeRepository) ListReportDailyIncome(ctx context.Context, period domain.FinancePeriod) ([]domain.FinanceReportDailyItem, error) {
+	type row struct {
+		Date   time.Time `gorm:"column:date"`
+		Amount float64   `gorm:"column:amount"`
+	}
+
+	var rows []row
+	if err := r.db.WithContext(ctx).
+		Table("orders o").
+		Select(`
+			DATE(o.placed_at AT TIME ZONE 'UTC') AS date,
+			COALESCE(SUM(o.grand_total), 0) AS amount
+		`).
+		Where("o.placed_at >= ? AND o.placed_at < ?", period.Start, period.End).
+		Group("date").
+		Order("date").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]domain.FinanceReportDailyItem, len(rows))
+	for i, r := range rows {
+		items[i] = domain.FinanceReportDailyItem{
+			Date:   r.Date,
+			Amount: r.Amount,
+		}
+	}
+
+	return items, nil
+}
+
 func (r *financeRepository) ListTodayTransactions(ctx context.Context, dayStart, dayEnd time.Time) ([]domain.FinanceTodayTransactionItem, error) {
 	type row struct {
 		DateTime time.Time      `gorm:"column:date_time"`
@@ -196,6 +263,37 @@ func (r *financeRepository) ListTransactions(ctx context.Context, period domain.
 	return items, total, nil
 }
 
+func (r *financeRepository) GetTransactionSummary(ctx context.Context, period domain.FinancePeriod) (*domain.FinanceTransactionSummary, error) {
+	type summaryRow struct {
+		Total         float64 `gorm:"column:total"`
+		Paid          float64 `gorm:"column:paid"`
+		Pending       float64 `gorm:"column:pending"`
+		FailedExpired float64 `gorm:"column:failed_expired"`
+	}
+
+	var row summaryRow
+	if err := r.db.WithContext(ctx).
+		Table("payment_invoices pi").
+		Joins("JOIN orders o ON o.id = pi.order_id").
+		Select(`
+			COALESCE(SUM(pi.amount), 0) AS total,
+			COALESCE(SUM(CASE WHEN pi.status = 'paid' AND o.payment_status <> 'refunded' THEN pi.amount ELSE 0 END), 0) AS paid,
+			COALESCE(SUM(CASE WHEN pi.status = 'pending' THEN pi.amount ELSE 0 END), 0) AS pending,
+			COALESCE(SUM(CASE WHEN pi.status IN ('failed', 'expired') THEN pi.amount ELSE 0 END), 0) AS failed_expired
+		`).
+		Where("o.created_at >= ? AND o.created_at < ?", period.Start, period.End).
+		Scan(&row).Error; err != nil {
+		return nil, err
+	}
+
+	return &domain.FinanceTransactionSummary{
+		TotalTransactions:  row.Total,
+		PaidTotal:          row.Paid,
+		PendingTotal:       row.Pending,
+		FailedExpiredTotal: row.FailedExpired,
+	}, nil
+}
+
 func (r *financeRepository) transactionBaseQuery(ctx context.Context, period domain.FinancePeriod, params domain.FinanceListParams) *gorm.DB {
 	query := r.db.WithContext(ctx).
 		Table("payment_invoices pi").
@@ -288,6 +386,36 @@ func (r *financeRepository) ListPayouts(ctx context.Context, period domain.Finan
 	return items, total, nil
 }
 
+func (r *financeRepository) GetPayoutSummary(ctx context.Context, period domain.FinancePeriod) (*domain.FinancePayoutSummary, error) {
+	type summaryRow struct {
+		OnHold    float64 `gorm:"column:on_hold"`
+		Schedule  float64 `gorm:"column:schedule"`
+		Completed float64 `gorm:"column:completed"`
+		Failed    float64 `gorm:"column:failed"`
+	}
+
+	var row summaryRow
+	if err := r.db.WithContext(ctx).
+		Table("payout_batches pb").
+		Select(`
+			COALESCE(SUM(CASE WHEN pb.status = 'on_hold' THEN pb.total_net ELSE 0 END), 0) AS on_hold,
+			COALESCE(SUM(CASE WHEN pb.status = 'schedule' THEN pb.total_net ELSE 0 END), 0) AS schedule,
+			COALESCE(SUM(CASE WHEN pb.status = 'completed' THEN pb.total_net ELSE 0 END), 0) AS completed,
+			COALESCE(SUM(CASE WHEN pb.status = 'failed' THEN pb.total_net ELSE 0 END), 0) AS failed
+		`).
+		Where("pb.period_end >= ? AND pb.period_end < ?", period.Start, period.End).
+		Scan(&row).Error; err != nil {
+		return nil, err
+	}
+
+	return &domain.FinancePayoutSummary{
+		OnHoldTotal:    row.OnHold,
+		ScheduleTotal:  row.Schedule,
+		CompletedTotal: row.Completed,
+		FailedTotal:    row.Failed,
+	}, nil
+}
+
 func (r *financeRepository) payoutBaseQuery(ctx context.Context, period domain.FinancePeriod, params domain.FinanceListParams) *gorm.DB {
 	query := r.db.WithContext(ctx).
 		Table("payout_batches pb").
@@ -364,6 +492,37 @@ func (r *financeRepository) ListRefunds(ctx context.Context, period domain.Finan
 	}
 
 	return items, total, nil
+}
+
+func (r *financeRepository) GetRefundSummary(ctx context.Context, period domain.FinancePeriod) (*domain.FinanceRefundSummary, error) {
+	type summaryRow struct {
+		Submitted    int64   `gorm:"column:submitted"`
+		DisputeActive int64  `gorm:"column:dispute_active"`
+		ApprovedAmount float64 `gorm:"column:approved_amount"`
+		Processed    int64   `gorm:"column:processed"`
+	}
+
+	var row summaryRow
+	if err := r.db.WithContext(ctx).
+		Table("refunds r").
+		Joins("JOIN orders o ON o.id = r.order_id").
+		Select(`
+			COALESCE(SUM(CASE WHEN r.status IN ('requested', 'approved', 'rejected', 'processed') THEN 1 ELSE 0 END), 0) AS submitted,
+			COALESCE(SUM(CASE WHEN r.status = 'requested' THEN 1 ELSE 0 END), 0) AS dispute_active,
+			COALESCE(SUM(CASE WHEN r.status = 'approved' THEN r.amount ELSE 0 END), 0) AS approved_amount,
+			COALESCE(SUM(CASE WHEN r.status = 'approved' THEN 1 ELSE 0 END), 0) AS processed
+		`).
+		Where("o.placed_at >= ? AND o.placed_at < ?", period.Start, period.End).
+		Scan(&row).Error; err != nil {
+		return nil, err
+	}
+
+	return &domain.FinanceRefundSummary{
+		SubmittedCount:     row.Submitted,
+		DisputeActiveCount: row.DisputeActive,
+		ApprovedAmount:     row.ApprovedAmount,
+		ProcessedCount:     row.Processed,
+	}, nil
 }
 
 func (r *financeRepository) refundBaseQuery(ctx context.Context, period domain.FinancePeriod, params domain.FinanceListParams) *gorm.DB {

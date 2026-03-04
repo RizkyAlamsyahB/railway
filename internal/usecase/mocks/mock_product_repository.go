@@ -101,21 +101,6 @@ func (mr *MockProductRepositoryMockRecorder) FindByID(ctx, id any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockProductRepository)(nil).FindByID), ctx, id)
 }
 
-// FindVariantByID mocks base method.
-func (m *MockProductRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (*domain.ProductVariant, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindVariantByID", ctx, id)
-	ret0, _ := ret[0].(*domain.ProductVariant)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindVariantByID indicates an expected call of FindVariantByID.
-func (mr *MockProductRepositoryMockRecorder) FindVariantByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindVariantByID", reflect.TypeOf((*MockProductRepository)(nil).FindVariantByID), ctx, id)
-}
-
 // FindBySlug mocks base method.
 func (m *MockProductRepository) FindBySlug(ctx context.Context, slug string) (*domain.Product, error) {
 	m.ctrl.T.Helper()
@@ -146,6 +131,21 @@ func (mr *MockProductRepositoryMockRecorder) FindImagesByProductID(ctx, productI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindImagesByProductID", reflect.TypeOf((*MockProductRepository)(nil).FindImagesByProductID), ctx, productID)
 }
 
+// FindVariantByID mocks base method.
+func (m *MockProductRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (*domain.ProductVariant, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindVariantByID", ctx, id)
+	ret0, _ := ret[0].(*domain.ProductVariant)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindVariantByID indicates an expected call of FindVariantByID.
+func (mr *MockProductRepositoryMockRecorder) FindVariantByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindVariantByID", reflect.TypeOf((*MockProductRepository)(nil).FindVariantByID), ctx, id)
+}
+
 // FindVariantsByProductID mocks base method.
 func (m *MockProductRepository) FindVariantsByProductID(ctx context.Context, productID uuid.UUID) ([]domain.ProductVariant, error) {
 	m.ctrl.T.Helper()
@@ -159,6 +159,22 @@ func (m *MockProductRepository) FindVariantsByProductID(ctx context.Context, pro
 func (mr *MockProductRepositoryMockRecorder) FindVariantsByProductID(ctx, productID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindVariantsByProductID", reflect.TypeOf((*MockProductRepository)(nil).FindVariantsByProductID), ctx, productID)
+}
+
+// ListPublishedForCustomer mocks base method.
+func (m *MockProductRepository) ListPublishedForCustomer(ctx context.Context, params domain.ProductListParams) ([]domain.ProductListItem, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPublishedForCustomer", ctx, params)
+	ret0, _ := ret[0].([]domain.ProductListItem)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListPublishedForCustomer indicates an expected call of ListPublishedForCustomer.
+func (mr *MockProductRepositoryMockRecorder) ListPublishedForCustomer(ctx, params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPublishedForCustomer", reflect.TypeOf((*MockProductRepository)(nil).ListPublishedForCustomer), ctx, params)
 }
 
 // UpdateImages mocks base method.

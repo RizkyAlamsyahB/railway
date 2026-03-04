@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,6 +34,8 @@ var allDocTypes = append(append([]string{}, requiredDocTypes...), optionalDocTyp
 const (
 	defaultWithdrawalFeeEstimateFixed = 0.0
 	fixedPayoutFeeActual              = 3000.0
+	payoutChannelCurrencyIDR          = "IDR"
+	payoutChannelCategoryBank         = "BANK"
 )
 
 // VendorWithdrawalPolicy defines fee estimation behavior for vendor withdrawals.
@@ -375,13 +378,57 @@ func (uc *vendorUseCase) GetBalance(ctx context.Context, vendorID uuid.UUID) (*d
 	}, nil
 }
 
+func (uc *vendorUseCase) ListPayoutChannels(ctx context.Context, vendorID uuid.UUID) (*domain.VendorPayoutChannelsResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+	if vendor.Status != domain.VendorStatusActive {
+		return nil, ErrVendorNotActive
+	}
+
+	channels, err := uc.fetchIDRBankPayoutChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]domain.VendorPayoutChannelItem, 0, len(channels))
+	seenCodes := make(map[string]struct{}, len(channels))
+	for _, channel := range channels {
+		channelCode := strings.ToUpper(strings.TrimSpace(channel.ChannelCode))
+		if channelCode == "" || !channel.IsActivated {
+			continue
+		}
+		if _, exists := seenCodes[channelCode]; exists {
+			continue
+		}
+		seenCodes[channelCode] = struct{}{}
+
+		items = append(items, domain.VendorPayoutChannelItem{
+			ChannelCode:     channelCode,
+			ChannelName:     strings.TrimSpace(channel.ChannelName),
+			Currency:        strings.TrimSpace(channel.Currency),
+			ChannelCategory: strings.TrimSpace(channel.ChannelCategory),
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].ChannelCode < items[j].ChannelCode
+	})
+
+	return &domain.VendorPayoutChannelsResponse{Channels: items}, nil
+}
+
 func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UUID, req domain.VendorWithdrawRequest) (*domain.VendorWithdrawResponse, error) {
-	// 1. Validate channel code.
-	if !domain.ValidPayoutChannelCodes[req.ChannelCode] {
+	channelCode := strings.ToUpper(strings.TrimSpace(req.ChannelCode))
+	if channelCode == "" {
 		return nil, ErrInvalidChannelCode
 	}
 
-	// 2. Validate minimum withdrawal amount.
+	// 1. Validate minimum withdrawal amount.
 	if req.Amount < MinWithdrawalAmount {
 		return nil, ErrBelowMinWithdrawal
 	}
@@ -392,7 +439,7 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 		return nil, ErrWithdrawalNetAmountTooSmall
 	}
 
-	// 3. Find vendor and validate it's active + has Xendit account.
+	// 2. Find vendor and validate it's active + has Xendit account.
 	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find vendor: %w", err)
@@ -405,6 +452,15 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 	}
 	if vendor.XenditAccountID == nil || *vendor.XenditAccountID == "" {
 		return nil, ErrVendorNoXenditAccount
+	}
+
+	// 3. Load dynamic payout channel list from Xendit and validate channel code.
+	payoutChannels, err := uc.fetchIDRBankPayoutChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !isPayoutChannelAllowed(channelCode, payoutChannels) {
+		return nil, ErrInvalidChannelCode
 	}
 
 	// 4. Check available balance.
@@ -451,7 +507,7 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 		ID:            withdrawalID,
 		VendorID:      vendorID,
 		Amount:        req.Amount,
-		ChannelCode:   req.ChannelCode,
+		ChannelCode:   channelCode,
 		Status:        domain.WithdrawalStatusPending,
 		FeeEstimated:  estimatedFee,
 		AmountNet:     estimatedNetAmount,
@@ -472,7 +528,7 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 	referenceID := withdrawalID.String()
 	xenditReq := domain.XenditPayoutRequest{
 		ReferenceID: referenceID,
-		ChannelCode: req.ChannelCode,
+		ChannelCode: channelCode,
 		ChannelProperties: domain.XenditPayoutChannelProperties{
 			AccountNumber:     bankAccount.AccountNumber,
 			AccountHolderName: bankAccount.AccountHolderName,
@@ -501,7 +557,7 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 	// 11. Update withdrawal with Xendit response.
 	xenditPayoutID := xenditResp.ID
 	xenditStatus := xenditResp.Status
-	channelCode := xenditResp.ChannelCode
+	channelCode = xenditResp.ChannelCode
 
 	withdrawal.XenditPayoutID = &xenditPayoutID
 	withdrawal.XenditStatus = &xenditStatus
@@ -523,6 +579,29 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 		EstimatedNetAmount: estimatedNetAmount,
 		ChannelCode:        channelCode,
 	}, nil
+}
+
+func (uc *vendorUseCase) fetchIDRBankPayoutChannels(ctx context.Context) ([]domain.XenditPayoutChannel, error) {
+	channels, err := uc.xenditPayout.ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+		Currency:        payoutChannelCurrencyIDR,
+		ChannelCategory: payoutChannelCategoryBank,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrPayoutChannelsUnavailable, err)
+	}
+	return channels, nil
+}
+
+func isPayoutChannelAllowed(channelCode string, channels []domain.XenditPayoutChannel) bool {
+	for _, channel := range channels {
+		if !channel.IsActivated {
+			continue
+		}
+		if strings.EqualFold(channel.ChannelCode, channelCode) {
+			return true
+		}
+	}
+	return false
 }
 
 func (uc *vendorUseCase) HandlePayoutWebhook(ctx context.Context, payload domain.XenditPayoutWebhookPayload) error {

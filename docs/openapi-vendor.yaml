@@ -980,6 +980,93 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/vendors/payout-channels:
+    get:
+      tags:
+        - Vendor Balance
+      summary: Ambil daftar payout channel untuk withdrawal
+      description: |
+        Mengambil daftar channel payout dari Xendit untuk kebutuhan UI withdrawal vendor.
+
+        **Aturan filter backend:**
+        - `currency=IDR`
+        - `channel_category=BANK`
+        - hanya channel aktif yang dikembalikan
+
+        Endpoint ini khusus vendor login (`umkm`).
+      operationId: listVendorPayoutChannels
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar payout channel berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorPayoutChannelsEnvelope'
+              example:
+                success: true
+                message: payout channels retrieved successfully
+                data:
+                  channels:
+                    - channel_code: ID_BCA
+                      channel_name: Bank Central Asia
+                      currency: IDR
+                      channel_category: BANK
+                    - channel_code: ID_BRI
+                      channel_name: Bank Rakyat Indonesia
+                      currency: IDR
+                      channel_category: BANK
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User bukan role vendor (`umkm`) atau vendor tidak aktif.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: vendor is not active
+                data: null
+                errors: null
+                meta: null
+        '502':
+          description: Gagal mengambil daftar payout channel dari Xendit.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: payout channels unavailable
+                data: null
+                errors: null
+                meta: null
   /api/v1/vendors/withdrawals:
     post:
       tags:
@@ -1002,7 +1089,7 @@ paths:
         - Vendor harus berstatus `active` dan memiliki Xendit account.
         - Minimum penarikan: Rp 10.000.
         - Tidak ada cooldown antar penarikan.
-        - Channel code harus valid (saat ini: `ID_BCA`).
+        - Channel code harus valid sesuai daftar dari Xendit payout channels (IDR + BANK).
       operationId: requestVendorWithdrawal
       security:
         - BearerAuth: []
@@ -2026,6 +2113,35 @@ components:
           format: double
           description: Total yang sudah berhasil ditarik.
           example: 900000
+    VendorPayoutChannel:
+      type: object
+      required:
+        - channel_code
+        - channel_name
+        - currency
+        - channel_category
+      properties:
+        channel_code:
+          type: string
+          example: ID_BCA
+        channel_name:
+          type: string
+          example: Bank Central Asia
+        currency:
+          type: string
+          example: IDR
+        channel_category:
+          type: string
+          example: BANK
+    VendorPayoutChannelsResponse:
+      type: object
+      required:
+        - channels
+      properties:
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorPayoutChannel'
     VendorWithdrawRequest:
       type: object
       required:
@@ -2042,9 +2158,7 @@ components:
           type: string
           description: |
             Kode channel bank tujuan penarikan.
-            Saat ini hanya mendukung `ID_BCA`.
-          enum:
-            - ID_BCA
+            Nilai valid mengikuti endpoint `GET /api/v1/vendors/payout-channels`.
           example: ID_BCA
     VendorWithdrawResponse:
       type: object
@@ -2104,6 +2218,29 @@ components:
           example: vendor balance retrieved
         data:
           $ref: '#/components/schemas/VendorBalanceResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorPayoutChannelsEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: payout channels retrieved successfully
+        data:
+          $ref: '#/components/schemas/VendorPayoutChannelsResponse'
         errors:
           nullable: true
           example: null

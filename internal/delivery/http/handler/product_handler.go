@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"net/http"
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
@@ -92,4 +95,25 @@ func (h *CatalogHandler) ListShippingServices(c *gin.Context) {
 		return
 	}
 	response.OK(c, "shipping services retrieved successfully", services)
+}
+
+// ListProducts handles GET /api/v1/products
+func (h *CatalogHandler) ListProducts(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	params := domain.ProductListParams{
+		Page:   page,
+		Limit:  limit,
+		Sort:   c.Query("sort"),
+		Search: c.Query("search"),
+	}
+
+	items, meta, err := h.useCase.ListProducts(c.Request.Context(), params)
+	if err != nil {
+		response.InternalServerError(c, "failed to list products", nil)
+		return
+	}
+
+	response.SuccessWithMeta(c, http.StatusOK, "products retrieved successfully", items, meta)
 }

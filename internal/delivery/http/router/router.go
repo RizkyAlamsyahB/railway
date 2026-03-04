@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, checkoutHandler *handler.CheckoutHandler, xenditWebhookHandler *handler.XenditWebhookHandler, financeHandler *handler.FinanceHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, faqHandler *handler.FAQHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
+func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, checkoutHandler *handler.CheckoutHandler, xenditWebhookHandler *handler.XenditWebhookHandler, financeHandler *handler.FinanceHandler, notificationHandler *handler.NotificationHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, faqHandler *handler.FAQHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -28,6 +28,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		v1.GET("/ws", wsHandler.Connect)
 
 		// Public catalog routes
+		v1.GET("/products", catalogHandler.ListProducts)
 		v1.GET("/categories", catalogHandler.ListCategories)
 		v1.GET("/shipping-services", catalogHandler.ListShippingServices)
 
@@ -81,6 +82,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		vendorAuth.POST("/products", productHandler.CreateProduct)
 		vendorAuth.POST("/products/:id/images/confirm", productHandler.ConfirmImages)
 		vendorAuth.GET("/balance", vendorHandler.GetBalance)
+		vendorAuth.GET("/payout-channels", vendorHandler.ListPayoutChannels)
 		vendorAuth.POST("/withdrawals", vendorHandler.RequestWithdrawal)
 
 		// Chat (vendor-specific management)
@@ -131,6 +133,8 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		finance.GET("/payouts/export", financeHandler.ExportPayouts)
 		finance.GET("/refunds", financeHandler.ListRefunds)
 		finance.GET("/refunds/export", financeHandler.ExportRefunds)
+		finance.GET("/reports", financeHandler.FinancialReport)
+		finance.GET("/reports/export", financeHandler.ExportFinancialReport)
 		finance.PATCH("/refunds/:id/status", financeHandler.UpdateRefundStatus)
 		finance.PATCH("/payouts/:id/status", financeHandler.UpdatePayoutStatus)
 
@@ -138,6 +142,17 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		finance.GET("/chat", chatHandler.ListConversations)
 		finance.GET("/chat/:conversationId", chatHandler.GetConversation)
 		finance.PATCH("/chat/:conversationId/read", chatHandler.MarkRead)
+	}
+
+	// Notifications routes (requires auth + admin/finance/cs role)
+	notifications := v1.Group("/notifications")
+	notifications.Use(middleware.Auth(jwtSecret))
+	notifications.Use(middleware.RequireRoles(domain.RoleAdmin, domain.RoleFinance, domain.RoleCS))
+	{
+		notifications.GET("", notificationHandler.List)
+		notifications.GET("/unread-count", notificationHandler.UnreadCount)
+		notifications.PATCH("/read-all", notificationHandler.MarkAllRead)
+		notifications.PATCH("/:id/read", notificationHandler.MarkRead)
 	}
 
 	// CS login route (public - no auth required)

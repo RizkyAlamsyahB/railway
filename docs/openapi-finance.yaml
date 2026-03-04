@@ -17,6 +17,8 @@ tags:
     description: Settlement dan payout vendor.
   - name: Finance Refunds
     description: Refund dan dispute.
+  - name: Finance Reports
+    description: Laporan keuangan bulanan.
 security:
   - BearerAuth: []
 paths:
@@ -197,11 +199,10 @@ paths:
           schema:
             type: string
             enum:
-              - ready
               - schedule
-              - complete
+              - completed
               - failed
-              - "on hold"
+              - on_hold
       responses:
         '200':
           description: Payout berhasil diambil.
@@ -234,11 +235,10 @@ paths:
           schema:
             type: string
             enum:
-              - ready
               - schedule
-              - complete
+              - completed
               - failed
-              - "on hold"
+              - on_hold
       responses:
         '200':
           description: CSV berhasil dibuat.
@@ -311,6 +311,52 @@ paths:
               - approved
               - rejected
               - processed
+      responses:
+        '200':
+          description: CSV berhasil dibuat.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/reports:
+    get:
+      tags:
+        - Finance Reports
+      summary: Laporan keuangan
+      operationId: financeReport
+      parameters:
+        - $ref: '#/components/parameters/MonthParam'
+      responses:
+        '200':
+          description: Laporan keuangan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessFinanceReportEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/finance/reports/export:
+    get:
+      tags:
+        - Finance Reports
+      summary: Export laporan keuangan (CSV)
+      operationId: exportFinanceReport
+      parameters:
+        - $ref: '#/components/parameters/MonthParam'
       responses:
         '200':
           description: CSV berhasil dibuat.
@@ -773,11 +819,46 @@ components:
         status:
           type: string
           enum:
-            - ready
             - schedule
-            - complete
+            - completed
             - failed
-            - "on hold"
+            - on_hold
+    FinancePayoutSummary:
+      type: object
+      required:
+        - on_hold_total
+        - schedule_total
+        - completed_total
+        - failed_total
+      properties:
+        on_hold_total:
+          type: number
+          format: double
+          example: 32500000
+        schedule_total:
+          type: number
+          format: double
+          example: 78000000
+        completed_total:
+          type: number
+          format: double
+          example: 95000000
+        failed_total:
+          type: number
+          format: double
+          example: 5000000
+    FinancePayoutListData:
+      type: object
+      required:
+        - summary
+        - items
+      properties:
+        summary:
+          $ref: '#/components/schemas/FinancePayoutSummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinancePayoutItem'
     FinanceRefundItem:
       type: object
       required:
@@ -815,6 +896,96 @@ components:
             - approved
             - rejected
             - processed
+    FinanceRefundSummary:
+      type: object
+      required:
+        - submitted_count
+        - dispute_active_count
+        - approved_amount
+        - processed_count
+      properties:
+        submitted_count:
+          type: integer
+          format: int64
+          example: 12
+        dispute_active_count:
+          type: integer
+          format: int64
+          example: 5
+        approved_amount:
+          type: number
+          format: double
+          example: 18500000
+        processed_count:
+          type: integer
+          format: int64
+          example: 27
+    FinanceRefundListData:
+      type: object
+      required:
+        - summary
+        - items
+      properties:
+        summary:
+          $ref: '#/components/schemas/FinanceRefundSummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinanceRefundItem'
+    FinanceReportSummary:
+      type: object
+      required:
+        - gross_revenue_total
+        - platform_commission
+        - vendor_payout_total
+        - temporary_gross_profit
+      properties:
+        gross_revenue_total:
+          type: number
+          format: double
+          example: 520000000
+        platform_commission:
+          type: number
+          format: double
+          example: 42500000
+        vendor_payout_total:
+          type: number
+          format: double
+          example: 402000000
+        temporary_gross_profit:
+          type: number
+          format: double
+          example: 520000000
+    FinanceReportDailyItem:
+      type: object
+      required:
+        - date
+        - amount
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2026-01-05"
+        amount:
+          type: number
+          format: double
+          example: 15000000
+    FinanceReportResponse:
+      type: object
+      required:
+        - month
+        - summary
+        - daily_income
+      properties:
+        month:
+          type: string
+          example: "2026-01"
+        summary:
+          $ref: '#/components/schemas/FinanceReportSummary'
+        daily_income:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinanceReportDailyItem'
     UpdateRefundStatusRequest:
       type: object
       required:
@@ -836,14 +1007,13 @@ components:
       properties:
         status:
           type: string
-          description: Status payout. Gunakan "on hold" (dengan spasi) untuk status hold.
+          description: Status payout. Gunakan "on_hold" untuk status hold.
           enum:
-            - ready
             - schedule
-            - complete
+            - completed
             - failed
-            - "on hold"
-          example: ready
+            - on_hold
+          example: schedule
     StatusActionResponse:
       type: object
       required:
@@ -880,6 +1050,51 @@ components:
           type: integer
           format: int32
           example: 10
+    FinanceTransactionSummary:
+      type: object
+      required:
+        - total_transactions
+        - paid_total
+        - pending_total
+        - failed_expired_total
+      properties:
+        total_transactions:
+          type: number
+          format: double
+          example: 125000000
+        paid_total:
+          type: number
+          format: double
+          example: 118000000
+        pending_total:
+          type: number
+          format: double
+          example: 5000000
+        failed_expired_total:
+          type: number
+          format: double
+          example: 2000000
+    FinanceTransactionMeta:
+      allOf:
+        - $ref: '#/components/schemas/PaginationMeta'
+        - type: object
+          required:
+            - summary
+          properties:
+            summary:
+              $ref: '#/components/schemas/FinanceTransactionSummary'
+    FinanceTransactionListData:
+      type: object
+      required:
+        - summary
+        - items
+      properties:
+        summary:
+          $ref: '#/components/schemas/FinanceTransactionSummary'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FinanceTransactionItem'
     SuccessFinanceDashboardEnvelope:
       type: object
       required:
@@ -940,9 +1155,7 @@ components:
           type: string
           example: transactions retrieved successfully
         data:
-          type: array
-          items:
-            $ref: '#/components/schemas/FinanceTransactionItem'
+          $ref: '#/components/schemas/FinanceTransactionListData'
         errors:
           nullable: true
         meta:
@@ -963,9 +1176,7 @@ components:
           type: string
           example: payouts retrieved successfully
         data:
-          type: array
-          items:
-            $ref: '#/components/schemas/FinancePayoutItem'
+          $ref: '#/components/schemas/FinancePayoutListData'
         errors:
           nullable: true
         meta:
@@ -986,13 +1197,32 @@ components:
           type: string
           example: refunds retrieved successfully
         data:
-          type: array
-          items:
-            $ref: '#/components/schemas/FinanceRefundItem'
+          $ref: '#/components/schemas/FinanceRefundListData'
         errors:
           nullable: true
         meta:
           $ref: '#/components/schemas/PaginationMeta'
+    SuccessFinanceReportEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: financial report retrieved successfully
+        data:
+          $ref: '#/components/schemas/FinanceReportResponse'
+        errors:
+          nullable: true
+        meta:
+          nullable: true
     SuccessStatusActionEnvelope:
       type: object
       required:

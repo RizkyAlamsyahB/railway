@@ -1,8 +1,11 @@
 UPDATE payout_batches
 SET status = CASE status
-    WHEN 'draft' THEN 'ready'
+    WHEN 'draft' THEN 'schedule'
     WHEN 'approved' THEN 'schedule'
-    WHEN 'paid' THEN 'complete'
+    WHEN 'ready' THEN 'schedule'
+    WHEN 'paid' THEN 'completed'
+    WHEN 'complete' THEN 'completed'
+    WHEN 'on hold' THEN 'on_hold'
     ELSE status
 END;
 
@@ -11,5 +14,5 @@ ALTER TABLE payout_batches
 
 ALTER TABLE payout_batches
     ADD CONSTRAINT ck_payout_batches_status CHECK (
-        status IN ('ready', 'schedule', 'complete', 'failed', 'on hold')
+        status IN ('schedule', 'completed', 'failed', 'on_hold')
     );

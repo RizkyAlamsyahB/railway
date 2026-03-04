@@ -19,11 +19,10 @@ const (
 
 // Payout batch statuses.
 const (
-	PayoutStatusReady    = "ready"
 	PayoutStatusSchedule = "schedule"
-	PayoutStatusComplete = "complete"
+	PayoutStatusComplete = "completed"
 	PayoutStatusFailed   = "failed"
-	PayoutStatusOnHold   = "on hold"
+	PayoutStatusOnHold   = "on_hold"
 )
 
 // Vendor withdrawal statuses.

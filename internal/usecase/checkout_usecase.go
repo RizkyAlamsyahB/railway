@@ -416,9 +416,21 @@ func (uc *checkoutUseCase) handlePaid(ctx context.Context, invoice *domain.Payme
 	}
 	rawPayload := map[string]interface{}{"webhook_payload": payload}
 
-	if err := uc.paymentRepo.UpdateInvoiceStatus(ctx, invoice.ID, domain.InvoiceStatusPaid,
-		paidAt, &payload.PaymentMethod, &payload.PaymentChannel, rawPayload); err != nil {
+	updated, err := uc.paymentRepo.UpdateInvoiceStatusIfCurrent(
+		ctx,
+		invoice.ID,
+		domain.InvoiceStatusPending,
+		domain.InvoiceStatusPaid,
+		paidAt,
+		&payload.PaymentMethod,
+		&payload.PaymentChannel,
+		rawPayload,
+	)
+	if err != nil {
 		return fmt.Errorf("update invoice status: %w", err)
+	}
+	if !updated {
+		return nil
 	}
 
 	// 2. Update order status to paid.
@@ -444,22 +456,24 @@ func (uc *checkoutUseCase) handlePaid(ctx context.Context, invoice *domain.Payme
 }
 
 func (uc *checkoutUseCase) handleExpired(ctx context.Context, invoice *domain.PaymentInvoice) error {
-	// 1. Update payment invoice to expired.
-	if err := uc.paymentRepo.UpdateInvoiceStatus(ctx, invoice.ID, domain.InvoiceStatusExpired,
-		nil, nil, nil, nil); err != nil {
-		return fmt.Errorf("update invoice status: %w", err)
+	order, err := uc.orderRepo.FindByID(ctx, invoice.OrderID)
+	if err != nil {
+		return fmt.Errorf("find order for expired webhook: %w", err)
+	}
+	if order == nil {
+		return ErrOrderNotFound
+	}
+	if order.OrderStatus != domain.OrderStatusPendingPayment {
+		return nil
 	}
 
-	// 2. Update order to canceled.
 	notes := "Payment link expired"
-	if err := uc.orderRepo.UpdateOrderStatus(ctx, invoice.OrderID,
-		domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, nil, &notes); err != nil {
-		return fmt.Errorf("update order status: %w", err)
+	applied, err := uc.orderRepo.ApplyExpiredWebhookUpdate(ctx, invoice.OrderID, invoice.ID, &notes)
+	if err != nil {
+		return fmt.Errorf("apply expired webhook update: %w", err)
 	}
-
-	// 3. Restore stock.
-	if err := uc.orderRepo.RestoreStock(ctx, invoice.OrderID); err != nil {
-		return fmt.Errorf("restore stock: %w", err)
+	if !applied {
+		return nil
 	}
 
 	return nil

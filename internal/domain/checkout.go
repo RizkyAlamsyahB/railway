@@ -169,6 +169,11 @@ type OrderRepository interface {
 
 	// RestoreStock increments stock_on_hand for each order item's variant.
 	RestoreStock(ctx context.Context, orderID uuid.UUID) error
+
+	// ApplyExpiredWebhookUpdate atomically applies webhook side effects for an expired invoice.
+	// It updates invoice status (pending -> expired), updates order status, writes status history,
+	// and restores stock in a single DB transaction. Returns false when no state change is applied.
+	ApplyExpiredWebhookUpdate(ctx context.Context, orderID, invoiceID uuid.UUID, notes *string) (bool, error)
 }
 
 // PaymentRepository defines the interface for payment invoice and event data access.
@@ -181,6 +186,17 @@ type PaymentRepository interface {
 
 	// UpdateInvoiceStatus updates a payment invoice's status and related payment fields.
 	UpdateInvoiceStatus(ctx context.Context, invoiceID uuid.UUID, status string, paidAt *time.Time, paymentMethod, paymentChannel *string, rawPayload map[string]interface{}) error
+
+	// UpdateInvoiceStatusIfCurrent updates invoice status only when current status matches expectedCurrentStatus.
+	// Returns true when update is applied, false when precondition is not met.
+	UpdateInvoiceStatusIfCurrent(
+		ctx context.Context,
+		invoiceID uuid.UUID,
+		expectedCurrentStatus, nextStatus string,
+		paidAt *time.Time,
+		paymentMethod, paymentChannel *string,
+		rawPayload map[string]interface{},
+	) (bool, error)
 
 	// CreateEvent inserts a payment_events row.
 	CreateEvent(ctx context.Context, event *PaymentEvent) error

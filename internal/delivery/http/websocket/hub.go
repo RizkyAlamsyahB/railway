@@ -34,6 +34,7 @@ type MessageType string
 const (
 	TypeChatMessage  MessageType = "chat_message"
 	TypeTicketUpdate MessageType = "ticket_update"
+	TypeNotificationCreated MessageType = "notification.created"
 )
 
 // WSMessage is the envelope sent to the client over WebSocket.

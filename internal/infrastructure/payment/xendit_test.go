@@ -546,6 +546,77 @@ func TestXenditPayoutClient_CreatePayout(t *testing.T) {
 	})
 }
 
+func TestXenditPayoutClient_ListPayoutChannels(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		client, _ := setupPayoutTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				t.Errorf("expected GET, got %s", r.Method)
+			}
+			if r.URL.Path != "/payouts_channels" {
+				t.Errorf("expected path /payouts_channels, got %s", r.URL.Path)
+			}
+			if r.URL.Query().Get("currency") != "IDR" {
+				t.Errorf("expected currency=IDR, got %s", r.URL.Query().Get("currency"))
+			}
+			if r.URL.Query().Get("channel_category") != "BANK" {
+				t.Errorf("expected channel_category=BANK, got %s", r.URL.Query().Get("channel_category"))
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": []map[string]interface{}{
+					{
+						"channel_code":     "ID_BCA",
+						"channel_name":     "Bank Central Asia",
+						"currency":         "IDR",
+						"channel_category": "BANK",
+						"is_activated":     true,
+					},
+				},
+			})
+		})
+
+		channels, err := client.ListPayoutChannels(context.Background(), domain.XenditListPayoutChannelsParams{
+			Currency:        "IDR",
+			ChannelCategory: "BANK",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(channels) != 1 {
+			t.Fatalf("expected 1 channel, got %d", len(channels))
+		}
+		if channels[0].ChannelCode != "ID_BCA" {
+			t.Errorf("expected channel_code ID_BCA, got %s", channels[0].ChannelCode)
+		}
+		if !channels[0].IsActivated {
+			t.Error("expected channel to be activated")
+		}
+	})
+
+	t.Run("api error", func(t *testing.T) {
+		client, _ := setupPayoutTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(domain.XenPlatformErrorResponse{
+				ErrorCode: "GATEWAY_ERROR",
+				Message:   "xendit upstream error",
+			})
+		})
+
+		_, err := client.ListPayoutChannels(context.Background(), domain.XenditListPayoutChannelsParams{
+			Currency:        "IDR",
+			ChannelCategory: "BANK",
+		})
+		if err == nil {
+			t.Fatal("expected error but got nil")
+		}
+		if !strings.Contains(err.Error(), "status 502") {
+			t.Errorf("expected error to contain status 502, got %v", err)
+		}
+	})
+}
+
 func TestXenditInvoiceClient_ExpireInvoice(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		client, _ := setupInvoiceTestServer(t, func(w http.ResponseWriter, r *http.Request) {

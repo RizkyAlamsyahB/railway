@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -201,6 +202,57 @@ func (r *productRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (
 		return nil, err
 	}
 	return toDomainProductVariant(&model), nil
+}
+
+func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params domain.ProductListParams) ([]domain.ProductListItem, int64, error) {
+	query := r.db.WithContext(ctx).Model(&productModel{}).
+		Joins("JOIN product_variants pv ON pv.product_id = products.id").
+		Where("products.status = ?", domain.ProductStatusPublished).
+		Where("pv.is_active = ?", true).
+		Where("pv.stock_on_hand > 0")
+
+	if params.Search != "" {
+		search := "%" + strings.ToLower(params.Search) + "%"
+		query = query.Where("LOWER(products.name) LIKE ?", search)
+	}
+
+	var total int64
+	if err := query.Distinct("products.id").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	type productListRow struct {
+		ID    string  `gorm:"column:id"`
+		Name  string  `gorm:"column:name"`
+		Price float64 `gorm:"column:price"`
+	}
+
+	offset := (params.Page - 1) * params.Limit
+	listQuery := query.Select("products.id, products.name, MIN(pv.price) AS price, products.created_at").
+		Group("products.id, products.name, products.created_at")
+
+	if params.Sort == "cheapest" {
+		listQuery = listQuery.Order("MIN(pv.price) ASC").Order("products.created_at DESC")
+	} else {
+		listQuery = listQuery.Order("products.created_at DESC")
+	}
+
+	var rows []productListRow
+	if err := listQuery.Offset(offset).Limit(params.Limit).Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]domain.ProductListItem, len(rows))
+	for i, row := range rows {
+		id, _ := uuid.Parse(row.ID)
+		items[i] = domain.ProductListItem{
+			ID:    id,
+			Name:  row.Name,
+			Price: row.Price,
+		}
+	}
+
+	return items, total, nil
 }
 
 // Mapper helpers.

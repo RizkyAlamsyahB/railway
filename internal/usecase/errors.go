@@ -84,6 +84,7 @@ var (
 var (
 	ErrInvalidChannelCode          = errors.New("invalid payout channel code")
 	ErrXenditPayoutFailed          = errors.New("failed to create payout via Xendit")
+	ErrPayoutChannelsUnavailable   = errors.New("payout channels unavailable")
 	ErrVendorBankNotFound          = errors.New("vendor bank account not found")
 	ErrInsufficientBalance         = errors.New("insufficient available balance")
 	ErrBelowMinWithdrawal          = errors.New("amount is below minimum withdrawal of Rp 10.000")
@@ -128,6 +129,12 @@ var (
 	ErrInvalidRefundTransition = errors.New("invalid refund status transition")
 	ErrRefundNotFound          = errors.New("refund not found")
 	ErrPayoutNotFound          = errors.New("payout batch not found")
+)
+
+// --- Notification errors ---
+
+var (
+	ErrNotificationNotFound = errors.New("notification not found")
 )
 
 // --- CS errors ---

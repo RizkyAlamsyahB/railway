@@ -1,0 +1,402 @@
+openapi: 3.0.3
+info:
+  title: Haji Umroh Store BE - Notifications API
+  version: 1.0.0
+  description: Dokumentasi OpenAPI 3 untuk endpoint notifikasi (admin/finance/cs).
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+tags:
+  - name: Notifications
+    description: In-app notifications for admin/finance/cs.
+security:
+  - BearerAuth: []
+paths:
+  /api/v1/notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Daftar notifikasi
+      operationId: listNotifications
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Notifikasi berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNotificationListEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/notifications/unread-count:
+    get:
+      tags:
+        - Notifications
+      summary: Jumlah notifikasi belum dibaca
+      operationId: getUnreadCount
+      responses:
+        '200':
+          description: Unread count berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNotificationUnreadEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/notifications/read-all:
+    patch:
+      tags:
+        - Notifications
+      summary: Tandai semua notifikasi sebagai dibaca
+      operationId: markAllNotificationsRead
+      responses:
+        '200':
+          description: Notifikasi berhasil ditandai sebagai dibaca.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNotificationBulkReadEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+  /api/v1/notifications/{id}/read:
+    patch:
+      tags:
+        - Notifications
+      summary: Tandai notifikasi sebagai dibaca
+      operationId: markNotificationRead
+      parameters:
+        - name: id
+          in: path
+          description: ID notifikasi (UUID).
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notifikasi berhasil ditandai sebagai dibaca.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNotificationReadEnvelope'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/ForbiddenResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorResponse'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    RequestIDHeader:
+      description: ID unik request dari middleware RequestID.
+      schema:
+        type: string
+        example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Nomor halaman (default 1).
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        default: 1
+    LimitParam:
+      name: limit
+      in: query
+      description: Jumlah item per halaman (default 10). Nilai <1 atau >100 akan dinormalisasi server menjadi 10.
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 10
+  responses:
+    UnauthorizedResponse:
+      description: Token tidak valid atau tidak ada.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: invalid or expired token
+            data: null
+            errors: null
+            meta: null
+    ForbiddenResponse:
+      description: User tidak memiliki izin role admin/finance/cs.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: insufficient permissions
+            data: null
+            errors: null
+            meta: null
+    NotFoundResponse:
+      description: Data tidak ditemukan.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: not found
+            data: null
+            errors: null
+            meta: null
+    InternalServerErrorResponse:
+      description: Internal server error.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestIDHeader'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            message: internal server error
+            data: null
+            errors: null
+            meta: null
+  schemas:
+    NotificationItem:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - message
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - chat
+            - ticket
+            - vendor_product
+            - order
+            - refund
+            - payout
+            - system
+        title:
+          type: string
+          example: Vendor menambahkan produk xyz
+        message:
+          type: string
+          example: Segera periksa kelayakan produk tersebut.
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-11-09T10:00:00Z"
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-11-09T11:00:00Z"
+    NotificationUnreadCount:
+      type: object
+      required:
+        - unread_count
+      properties:
+        unread_count:
+          type: integer
+          format: int64
+          example: 5
+    NotificationBulkReadResponse:
+      type: object
+      required:
+        - updated
+      properties:
+        updated:
+          type: integer
+          format: int64
+          example: 8
+    SuccessNotificationListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: notifications retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationItem'
+        errors:
+          nullable: true
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    SuccessNotificationUnreadEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: unread notifications retrieved successfully
+        data:
+          $ref: '#/components/schemas/NotificationUnreadCount'
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessNotificationReadEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: notification marked as read
+        data:
+          $ref: '#/components/schemas/NotificationItem'
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessNotificationBulkReadEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: notifications marked as read
+        data:
+          $ref: '#/components/schemas/NotificationBulkReadResponse'
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - limit
+        - total_items
+        - total_pages
+      properties:
+        page:
+          type: integer
+          format: int32
+          example: 1
+        limit:
+          type: integer
+          format: int32
+          example: 10
+        total_items:
+          type: integer
+          format: int64
+          example: 100
+        total_pages:
+          type: integer
+          format: int32
+          example: 10
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: validation failed
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+        meta:
+          nullable: true

@@ -86,6 +86,20 @@ func (h *VendorHandler) GetBalance(c *gin.Context) {
 	response.OK(c, "vendor balance retrieved", result)
 }
 
+// ListPayoutChannels handles GET /api/v1/vendors/payout-channels
+func (h *VendorHandler) ListPayoutChannels(c *gin.Context) {
+	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)
+	vendorID, _ := vendorIDVal.(uuid.UUID)
+
+	result, err := h.useCase.ListPayoutChannels(c.Request.Context(), vendorID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "payout channels retrieved successfully", result)
+}
+
 // RequestWithdrawal handles POST /api/v1/vendors/withdrawals
 func (h *VendorHandler) RequestWithdrawal(c *gin.Context) {
 	var req domain.VendorWithdrawRequest

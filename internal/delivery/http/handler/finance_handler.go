@@ -20,6 +20,21 @@ type FinanceHandler struct {
 	useCase domain.FinanceUseCase
 }
 
+type financeTransactionListData struct {
+	Summary *domain.FinanceTransactionSummary `json:"summary"`
+	Items   []domain.FinanceTransactionItem   `json:"items"`
+}
+
+type financePayoutListData struct {
+	Summary *domain.FinancePayoutSummary `json:"summary"`
+	Items   []domain.FinancePayoutItem   `json:"items"`
+}
+
+type financeRefundListData struct {
+	Summary *domain.FinanceRefundSummary `json:"summary"`
+	Items   []domain.FinanceRefundItem   `json:"items"`
+}
+
 // NewFinanceHandler creates a new FinanceHandler.
 func NewFinanceHandler(uc domain.FinanceUseCase) *FinanceHandler {
 	return &FinanceHandler{useCase: uc}
@@ -48,7 +63,18 @@ func (h *FinanceHandler) ListTransactions(c *gin.Context) {
 		return
 	}
 
-	response.SuccessWithMeta(c, http.StatusOK, "transactions retrieved successfully", items, meta)
+	summary, err := h.useCase.GetTransactionSummary(c.Request.Context(), params.Month)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	data := financeTransactionListData{
+		Summary: summary,
+		Items:   items,
+	}
+
+	response.SuccessWithMeta(c, http.StatusOK, "transactions retrieved successfully", data, meta)
 }
 
 // ExportTransactions handles GET /api/v1/finance/transactions/export
@@ -61,7 +87,7 @@ func (h *FinanceHandler) ExportTransactions(c *gin.Context) {
 		return
 	}
 
-	header := []string{"Tanggal", "Invoice", "Customer", "Mitra", "Metode", "Nominal", "Status"}
+	header := []string{"Tanggal", "Invoice", "Customer", "vendor", "Metode", "Nominal", "Status"}
 	records := make([][]string, 0, len(items)+1)
 	for _, item := range items {
 		method := ""
@@ -92,7 +118,18 @@ func (h *FinanceHandler) ListPayouts(c *gin.Context) {
 		return
 	}
 
-	response.SuccessWithMeta(c, http.StatusOK, "payouts retrieved successfully", items, meta)
+	summary, err := h.useCase.GetPayoutSummary(c.Request.Context(), params.Month)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	data := financePayoutListData{
+		Summary: summary,
+		Items:   items,
+	}
+
+	response.SuccessWithMeta(c, http.StatusOK, "payouts retrieved successfully", data, meta)
 }
 
 // ExportPayouts handles GET /api/v1/finance/payouts/export
@@ -132,7 +169,18 @@ func (h *FinanceHandler) ListRefunds(c *gin.Context) {
 		return
 	}
 
-	response.SuccessWithMeta(c, http.StatusOK, "refunds retrieved successfully", items, meta)
+	summary, err := h.useCase.GetRefundSummary(c.Request.Context(), params.Month)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	data := financeRefundListData{
+		Summary: summary,
+		Items:   items,
+	}
+
+	response.SuccessWithMeta(c, http.StatusOK, "refunds retrieved successfully", data, meta)
 }
 
 // ExportRefunds handles GET /api/v1/finance/refunds/export
@@ -164,6 +212,41 @@ func (h *FinanceHandler) ExportRefunds(c *gin.Context) {
 	}
 
 	h.writeCSV(c, "refunds.csv", header, records)
+}
+
+// FinancialReport handles GET /api/v1/finance/reports
+func (h *FinanceHandler) FinancialReport(c *gin.Context) {
+	month := c.Query("month")
+
+	result, err := h.useCase.GetFinancialReport(c.Request.Context(), month)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "financial report retrieved successfully", result)
+}
+
+// ExportFinancialReport handles GET /api/v1/finance/reports/export
+func (h *FinanceHandler) ExportFinancialReport(c *gin.Context) {
+	month := c.Query("month")
+
+	report, err := h.useCase.GetFinancialReport(c.Request.Context(), month)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	header := []string{"Tanggal", "Nominal"}
+	records := make([][]string, 0, len(report.DailyIncome)+1)
+	for _, item := range report.DailyIncome {
+		records = append(records, []string{
+			item.Date.UTC().Format("2006-01-02"),
+			formatAmount(item.Amount),
+		})
+	}
+
+	h.writeCSV(c, "financial_report.csv", header, records)
 }
 
 // UpdateRefundStatus handles PATCH /api/v1/finance/refunds/:id/status

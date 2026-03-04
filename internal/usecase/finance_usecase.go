@@ -43,6 +43,29 @@ func (uc *financeUseCase) GetDashboard(ctx context.Context, month string) (*doma
 	}, nil
 }
 
+func (uc *financeUseCase) GetFinancialReport(ctx context.Context, month string) (*domain.FinanceReportResponse, error) {
+	period, monthLabel, err := uc.parseMonth(month)
+	if err != nil {
+		return nil, err
+	}
+
+	summary, err := uc.repo.GetReportSummary(ctx, period)
+	if err != nil {
+		return nil, err
+	}
+
+	dailyIncome, err := uc.repo.ListReportDailyIncome(ctx, period)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.FinanceReportResponse{
+		Month:       monthLabel,
+		Summary:     *summary,
+		DailyIncome: dailyIncome,
+	}, nil
+}
+
 func (uc *financeUseCase) ListTransactions(ctx context.Context, params domain.FinanceListParams) ([]domain.FinanceTransactionItem, *domain.PaginationMeta, error) {
 	page, limit := normalizePaging(params.Page, params.Limit)
 	params.Page = page
@@ -64,6 +87,15 @@ func (uc *financeUseCase) ListTransactions(ctx context.Context, params domain.Fi
 
 	meta := buildPaginationMeta(page, limit, total)
 	return items, meta, nil
+}
+
+func (uc *financeUseCase) GetTransactionSummary(ctx context.Context, month string) (*domain.FinanceTransactionSummary, error) {
+	period, _, err := uc.parseMonth(month)
+	if err != nil {
+		return nil, err
+	}
+
+	return uc.repo.GetTransactionSummary(ctx, period)
 }
 
 func (uc *financeUseCase) ExportTransactions(ctx context.Context, params domain.FinanceListParams) ([]domain.FinanceTransactionItem, error) {
@@ -112,6 +144,15 @@ func (uc *financeUseCase) ListPayouts(ctx context.Context, params domain.Finance
 
 	meta := buildPaginationMeta(page, limit, total)
 	return items, meta, nil
+}
+
+func (uc *financeUseCase) GetPayoutSummary(ctx context.Context, month string) (*domain.FinancePayoutSummary, error) {
+	period, _, err := uc.parseMonth(month)
+	if err != nil {
+		return nil, err
+	}
+
+	return uc.repo.GetPayoutSummary(ctx, period)
 }
 
 func (uc *financeUseCase) ExportPayouts(ctx context.Context, params domain.FinanceListParams) ([]domain.FinancePayoutItem, error) {
@@ -164,6 +205,15 @@ func (uc *financeUseCase) ListRefunds(ctx context.Context, params domain.Finance
 
 	meta := buildPaginationMeta(page, limit, total)
 	return items, meta, nil
+}
+
+func (uc *financeUseCase) GetRefundSummary(ctx context.Context, month string) (*domain.FinanceRefundSummary, error) {
+	period, _, err := uc.parseMonth(month)
+	if err != nil {
+		return nil, err
+	}
+
+	return uc.repo.GetRefundSummary(ctx, period)
 }
 
 func (uc *financeUseCase) ExportRefunds(ctx context.Context, params domain.FinanceListParams) ([]domain.FinanceRefundItem, error) {
@@ -340,16 +390,19 @@ func isRefundTransitionAllowed(current, target string) bool {
 }
 
 func normalizePayoutStatus(status string) string {
-	if strings.EqualFold(status, "on_hold") {
+	switch {
+	case strings.EqualFold(status, "on hold"), strings.EqualFold(status, "on_hold"):
 		return domain.PayoutStatusOnHold
+	case strings.EqualFold(status, "complete"), strings.EqualFold(status, "completed"):
+		return domain.PayoutStatusComplete
+	default:
+		return strings.ToLower(status)
 	}
-	return status
 }
 
 func isValidPayoutStatus(status string) bool {
 	switch status {
-	case domain.PayoutStatusReady,
-		domain.PayoutStatusSchedule,
+	case domain.PayoutStatusSchedule,
 		domain.PayoutStatusComplete,
 		domain.PayoutStatusFailed,
 		domain.PayoutStatusOnHold:

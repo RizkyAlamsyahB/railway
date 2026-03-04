@@ -71,57 +71,57 @@ func main() {
 	log.Println("database connected successfully")
 	logDatabaseContext(db)
 
-users := []seedUser{
-	{
-		Email:    cfg.Admin.Email,
-		Password: cfg.Admin.Password,
-		FullName: cfg.Admin.Name,
-		Phone:    cfg.Admin.Phone,
-		RoleCode: "admin",
-	},
-	{
-		Email:    "umkm@dev.local",
-		Password: devPassword,
-		FullName: "Dev UMKM",
-		Phone:    "081200000001",
-		RoleCode: "umkm",
-	},
-	{
-		Email:    "customer@dev.local",
-		Password: devPassword,
-		FullName: "Dev Customer",
-		Phone:    "081200000002",
-		RoleCode: "customer",
-	},
-	{
-		Email:    "cs@dev.local",
-		Password: devPassword,
-		FullName: "Dev Customer Service 1",
-		Phone:    "081200000003",
-		RoleCode: "cs",
-	},
-	{
-		Email:    "cs2@dev.local",
-		Password: devPassword,
-		FullName: "Dev Customer Service 2",
-		Phone:    "081200000005",
-		RoleCode: "cs",
-	},
-	{
-		Email:    "cs3@dev.local",
-		Password: devPassword,
-		FullName: "Dev Customer Service 3",
-		Phone:    "081200000006",
-		RoleCode: "cs",
-	},
-	{
-		Email:    "finance@dev.local",
-		Password: devPassword,
-		FullName: "Dev Finance",
-		Phone:    "081200000004",
-		RoleCode: "finance",
-	},
-}
+	users := []seedUser{
+		{
+			Email:    cfg.Admin.Email,
+			Password: cfg.Admin.Password,
+			FullName: cfg.Admin.Name,
+			Phone:    cfg.Admin.Phone,
+			RoleCode: "admin",
+		},
+		{
+			Email:    "umkm@dev.local",
+			Password: devPassword,
+			FullName: "Dev UMKM",
+			Phone:    "081200000001",
+			RoleCode: "umkm",
+		},
+		{
+			Email:    "customer@dev.local",
+			Password: devPassword,
+			FullName: "Dev Customer",
+			Phone:    "081200000002",
+			RoleCode: "customer",
+		},
+		{
+			Email:    "cs@dev.local",
+			Password: devPassword,
+			FullName: "Dev Customer Service 1",
+			Phone:    "081200000003",
+			RoleCode: "cs",
+		},
+		{
+			Email:    "cs2@dev.local",
+			Password: devPassword,
+			FullName: "Dev Customer Service 2",
+			Phone:    "081200000005",
+			RoleCode: "cs",
+		},
+		{
+			Email:    "cs3@dev.local",
+			Password: devPassword,
+			FullName: "Dev Customer Service 3",
+			Phone:    "081200000006",
+			RoleCode: "cs",
+		},
+		{
+			Email:    "finance@dev.local",
+			Password: devPassword,
+			FullName: "Dev Finance",
+			Phone:    "081200000004",
+			RoleCode: "finance",
+		},
+	}
 	for _, u := range users {
 		if err := seedUserRecord(db, u); err != nil {
 			log.Fatalf("failed to seed user [%s]: %v", u.Email, err)
@@ -147,14 +147,14 @@ users := []seedUser{
 		log.Fatalf("failed to find customer user for ticket seeder: %v", err)
 	}
 
-	if err := SeedTickets(db, customerUser.ID, csUser.ID); err != nil {
-		log.Fatalf("failed to seed tickets: %v", err)
-	}
+	// if err := SeedTickets(db, customerUser.ID, csUser.ID); err != nil {
+	// 	log.Fatalf("failed to seed tickets: %v", err)
+	// }
 
-	// Seed FAQ / Pusat Bantuan
-	if err := SeedFAQs(db); err != nil {
-		log.Fatalf("failed to seed FAQs: %v", err)
-	}
+	// // Seed FAQ / Pusat Bantuan
+	// if err := SeedFAQs(db); err != nil {
+	// 	log.Fatalf("failed to seed FAQs: %v", err)
+	// }
 
 	// if err := SeedFinanceDummy(db); err != nil {
 	// 	log.Fatalf("failed to seed finance dummy data: %v", err)

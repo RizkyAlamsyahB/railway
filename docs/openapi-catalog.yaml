@@ -2,11 +2,13 @@ openapi: 3.0.3
 info:
   title: Haji Umroh Store BE - Catalog API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint katalog publik (kategori dan jasa pengiriman).
+  description: Dokumentasi OpenAPI 3 untuk endpoint katalog publik (produk, kategori, dan jasa pengiriman).
 servers:
   - url: http://localhost:8080
     description: Local development server
 tags:
+  - name: Products
+    description: Operasi untuk daftar produk marketplace.
   - name: Categories
     description: Operasi untuk daftar kategori produk.
   - name: Shipping Services
@@ -145,6 +147,99 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/products:
+    get:
+      tags:
+        - Products
+      summary: Daftar produk yang bisa dibeli customer
+      description: |
+        Mengembalikan daftar produk marketplace yang dapat dibeli customer.
+        Produk yang ditampilkan hanya yang:
+        - status `published`
+        - memiliki minimal 1 varian aktif (`is_active = true`)
+        - stok varian lebih dari 0 (`stock_on_hand > 0`)
+
+        Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
+
+        Field response produk saat ini:
+        - `id`
+        - `name`
+        - `price` (harga varian termurah yang memenuhi kriteria)
+      operationId: listProducts
+      security: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Nomor halaman.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Jumlah item per halaman.
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [newest, cheapest]
+            default: newest
+          description: Urutan data. `newest` untuk terbaru, `cheapest` untuk termurah.
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pencarian nama produk (case-insensitive).
+      responses:
+        '200':
+          description: Daftar produk berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessProductListEnvelope'
+              example:
+                success: true
+                message: products retrieved successfully
+                data:
+                  - id: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
+                    name: Sajadah Premium
+                    price: 150000
+                  - id: db04f006-7498-4a96-a242-8ab9cf834248
+                    name: Kurma Ajwa 500gr
+                    price: 90000
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 23
+                  total_pages: 3
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: failed to list products
+                data: null
+                errors: null
+                meta: null
 components:
   headers:
     RequestIDHeader:
@@ -217,6 +312,48 @@ components:
           format: date-time
           description: Waktu pembuatan record.
           example: "2026-01-01T00:00:00Z"
+    ProductListItem:
+      type: object
+      required:
+        - id
+        - name
+        - price
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID produk.
+          example: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
+        name:
+          type: string
+          description: Nama produk.
+          example: Sajadah Premium
+        price:
+          type: number
+          format: double
+          description: Harga varian termurah yang tersedia untuk dibeli.
+          example: 150000
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - limit
+        - total_items
+        - total_pages
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total_items:
+          type: integer
+          format: int64
+          example: 23
+        total_pages:
+          type: integer
+          example: 3
     SuccessCategoryListEnvelope:
       type: object
       required:
@@ -242,6 +379,30 @@ components:
         meta:
           nullable: true
           example: null
+    SuccessProductListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: products retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductListItem'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
     SuccessShippingServiceListEnvelope:
       type: object
       required:
