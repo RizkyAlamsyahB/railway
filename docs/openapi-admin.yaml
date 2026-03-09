@@ -48,6 +48,10 @@ paths:
                 message: login successful
                 data:
                   token: <JWT_TOKEN>
+                  id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                  image_url: https://cdn.example.com/admins/profile.jpg
+                  email: admin@example.com
+                  name: Admin Ops
                 errors: null
                 meta: null
         '400':
@@ -120,6 +124,110 @@ paths:
                 message: internal server error
                 data: null
                 errors: null
+                meta: null
+  /api/v1/admin/me:
+    get:
+      tags:
+        - Admin Users
+      summary: Mengambil profil admin yang sedang login
+      description: Mengembalikan profil admin berdasarkan JWT pada header Authorization.
+      operationId: getAdminMe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profil admin berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessAdminMeEnvelope'
+              example:
+                success: true
+                message: admin profile retrieved successfully
+                data:
+                  id: 0e50f347-d4a7-4a21-be25-8bfbd61320a6
+                  image_url: ""
+                  email: admin@example.com
+                  name: System Administrator
+                errors: null
+                meta: null
+        '400':
+          description: Data user ID dari token tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid user ID in token
+                data: null
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: User admin tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: user not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: "failed to fetch user: database timeout"
                 meta: null
   /api/v1/admin/users:
     post:
@@ -829,9 +937,9 @@ paths:
           schema:
             type: string
             enum:
-              - umrah_souvenir_store
-              - hajj_souvenir_store
-              - general_souvenir_store
+              - souvenir_store
+              - ppiu
+              - hajj_dormitory
         - name: search
           in: query
           description: Pencarian berdasarkan display_name atau legal_name (case-insensitive).
@@ -855,7 +963,7 @@ paths:
                   - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                     display_name: Toko Oleh-Oleh Haji Mabrur
                     legal_name: PT Mabrur Sejahtera
-                    vendor_type: hajj_souvenir_store
+                    vendor_type: souvenir_store
                     responsible_person_name: Ahmad Fauzi
                     status: submitted
                     status_reason: null
@@ -867,7 +975,7 @@ paths:
                   - id: b2c3d4e5-f6a7-8901-bcde-f12345678901
                     display_name: Umrah Store Jakarta
                     legal_name: null
-                    vendor_type: umrah_souvenir_store
+                    vendor_type: ppiu
                     responsible_person_name: Siti Aminah
                     status: rejected
                     status_reason: Dokumen KTP tidak jelas
@@ -961,7 +1069,7 @@ paths:
                 message: vendor retrieved successfully
                 data:
                   id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  vendor_type: hajj_souvenir_store
+                  vendor_type: souvenir_store
                   display_name: Toko Oleh-Oleh Haji Mabrur
                   legal_name: PT Mabrur Sejahtera
                   responsible_person_name: Ahmad Fauzi
@@ -1650,11 +1758,59 @@ components:
       type: object
       required:
         - token
+        - id
+        - image_url
+        - email
+        - name
       properties:
         token:
           type: string
           description: JWT token untuk akses endpoint admin yang terproteksi.
           example: <JWT_TOKEN>
+        id:
+          type: string
+          format: uuid
+          description: ID user admin.
+          example: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+        image_url:
+          type: string
+          description: URL foto profil admin. Bernilai string kosong jika belum diisi.
+          example: https://cdn.example.com/admins/profile.jpg
+        email:
+          type: string
+          format: email
+          description: Email akun admin.
+          example: admin@example.com
+        name:
+          type: string
+          description: Nama admin.
+          example: Admin Ops
+    AdminMeResponse:
+      type: object
+      required:
+        - id
+        - image_url
+        - email
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID user admin.
+          example: 0e50f347-d4a7-4a21-be25-8bfbd61320a6
+        image_url:
+          type: string
+          description: URL foto profil admin. Bernilai string kosong jika belum diisi.
+          example: https://cdn.example.com/admins/profile.jpg
+        email:
+          type: string
+          format: email
+          description: Email akun admin.
+          example: admin@example.com
+        name:
+          type: string
+          description: Nama admin.
+          example: System Administrator
     CreateUserRequest:
       type: object
       required:
@@ -1930,6 +2086,31 @@ components:
           nullable: true
           description: Selalu null.
           example: null
+    SuccessAdminMeEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: admin profile retrieved successfully
+        data:
+          $ref: '#/components/schemas/AdminMeResponse'
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+          example: null
+        meta:
+          nullable: true
+          description: Selalu null.
+          example: null
     ErrorEnvelope:
       type: object
       required:
@@ -1988,10 +2169,10 @@ components:
         vendor_type:
           type: string
           enum:
-            - umrah_souvenir_store
-            - hajj_souvenir_store
-            - general_souvenir_store
-          example: hajj_souvenir_store
+            - souvenir_store
+            - ppiu
+            - hajj_dormitory
+          example: souvenir_store
         responsible_person_name:
           type: string
           example: Ahmad Fauzi
@@ -2200,10 +2381,10 @@ components:
         vendor_type:
           type: string
           enum:
-            - umrah_souvenir_store
-            - hajj_souvenir_store
-            - general_souvenir_store
-          example: hajj_souvenir_store
+            - souvenir_store
+            - ppiu
+            - hajj_dormitory
+          example: souvenir_store
         display_name:
           type: string
           example: Toko Oleh-Oleh Haji Mabrur

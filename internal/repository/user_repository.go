@@ -18,6 +18,7 @@ type userModel struct {
 	ID              string     `gorm:"column:id;primaryKey"`
 	Email           string     `gorm:"column:email"`
 	FullName        string     `gorm:"column:full_name"`
+	ImageURL        *string    `gorm:"column:image_url"`
 	BirthDate       *time.Time `gorm:"column:birth_date"`
 	Phone           *string    `gorm:"column:phone"`
 	PasswordHash    string     `gorm:"column:password_hash"`
@@ -227,6 +228,7 @@ func toUserModel(u *domain.User) userModel {
 		ID:              u.ID.String(),
 		Email:           u.Email,
 		FullName:        u.FullName,
+		ImageURL:        u.ImageURL,
 		BirthDate:       u.BirthDate,
 		Phone:           u.Phone,
 		PasswordHash:    u.PasswordHash,
@@ -247,6 +249,7 @@ func toDomainUser(m *userModel) *domain.User {
 		ID:              id,
 		Email:           m.Email,
 		FullName:        m.FullName,
+		ImageURL:        m.ImageURL,
 		BirthDate:       m.BirthDate,
 		Phone:           m.Phone,
 		PasswordHash:    m.PasswordHash,

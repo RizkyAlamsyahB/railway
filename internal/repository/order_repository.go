@@ -121,6 +121,17 @@ func (r *orderRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.O
 	return toDomainOrder(&model), nil
 }
 
+func (r *orderRepository) FindByOrderNo(ctx context.Context, orderNo string) (*domain.Order, error) {
+	var model orderModel
+	if err := r.db.WithContext(ctx).Where("order_no = ?", orderNo).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainOrder(&model), nil
+}
+
 func (r *orderRepository) FindItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]domain.OrderItem, error) {
 	var models []orderItemModel
 	if err := r.db.WithContext(ctx).Where("order_id = ?", orderID.String()).Find(&models).Error; err != nil {
@@ -132,6 +143,62 @@ func (r *orderRepository) FindItemsByOrderID(ctx context.Context, orderID uuid.U
 		items[i] = *toDomainOrderItem(&m)
 	}
 	return items, nil
+}
+
+func (r *orderRepository) FindItemsByOrderIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]domain.OrderItem, error) {
+	result := make(map[uuid.UUID][]domain.OrderItem, len(orderIDs))
+	if len(orderIDs) == 0 {
+		return result, nil
+	}
+
+	ids := make([]string, 0, len(orderIDs))
+	for _, id := range orderIDs {
+		ids = append(ids, id.String())
+	}
+
+	var models []orderItemModel
+	if err := r.db.WithContext(ctx).
+		Where("order_id IN ?", ids).
+		Order("order_id ASC").
+		Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	for _, m := range models {
+		item := toDomainOrderItem(&m)
+		result[item.OrderID] = append(result[item.OrderID], *item)
+	}
+
+	return result, nil
+}
+
+func (r *orderRepository) ListByUser(ctx context.Context, userID uuid.UUID, params domain.CustomerOrderListParams) ([]domain.Order, int64, error) {
+	q := r.db.WithContext(ctx).Model(&orderModel{}).Where("user_id = ?", userID.String())
+	if params.Status != "" {
+		q = q.Where("order_status = ?", params.Status)
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (params.Page - 1) * params.Limit
+	var models []orderModel
+	if err := q.
+		Order("placed_at DESC").
+		Offset(offset).
+		Limit(params.Limit).
+		Find(&models).Error; err != nil {
+		return nil, 0, err
+	}
+
+	orders := make([]domain.Order, len(models))
+	for i, m := range models {
+		orders[i] = *toDomainOrder(&m)
+	}
+
+	return orders, total, nil
 }
 
 func (r *orderRepository) UpdateOrderStatus(ctx context.Context, orderID uuid.UUID, orderStatus, paymentStatus string, changedBy *uuid.UUID, notes *string) error {

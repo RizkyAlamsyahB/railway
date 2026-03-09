@@ -9,7 +9,45 @@ import (
 )
 
 // NewRouter sets up the Gin engine with middleware and route registration.
-func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.AdminUserHandler, adminVendorHandler *handler.AdminVendorHandler, adminLoginHandler *handler.AdminLoginHandler, vendorHandler *handler.VendorHandler, productHandler *handler.ProductHandler, catalogHandler *handler.CatalogHandler, userHandler *handler.UserHandler, cartHandler *handler.CartHandler, checkoutHandler *handler.CheckoutHandler, xenditWebhookHandler *handler.XenditWebhookHandler, financeHandler *handler.FinanceHandler, notificationHandler *handler.NotificationHandler, csLoginHandler *handler.CSLoginHandler, ticketHandler *handler.TicketHandler, chatHandler *handler.ChatHandler, replyTemplateHandler *handler.ReplyTemplateHandler, csDashboardHandler *handler.CSDashboardHandler, csUserHandler *handler.CSUserHandler, csReportHandler *handler.CSReportHandler, ticketSubjectHandler *handler.TicketSubjectHandler, faqHandler *handler.FAQHandler, wsHandler *ws.Handler, jwtSecret string) *gin.Engine {
+func NewRouter(
+	healthHandler *handler.HealthHandler,
+	adminUserHandler *handler.AdminUserHandler,
+	adminVendorHandler *handler.AdminVendorHandler,
+	adminLoginHandler *handler.AdminLoginHandler,
+	vendorHandler *handler.VendorHandler,
+	productHandler *handler.ProductHandler,
+	catalogHandler *handler.CatalogHandler,
+	userHandler *handler.UserHandler,
+	cartHandler *handler.CartHandler,
+	wishlistHandler *handler.WishlistHandler,
+	checkoutHandler *handler.CheckoutHandler,
+	orderActionHandler *handler.OrderActionHandler,
+	reviewHandler *handler.ReviewHandler,
+	xenditWebhookHandler *handler.XenditWebhookHandler,
+	financeHandler *handler.FinanceHandler,
+	notificationHandler *handler.NotificationHandler,
+	csLoginHandler *handler.CSLoginHandler,
+	ticketHandler *handler.TicketHandler,
+	chatHandler *handler.ChatHandler,
+	replyTemplateHandler *handler.ReplyTemplateHandler,
+	csDashboardHandler *handler.CSDashboardHandler,
+	csUserHandler *handler.CSUserHandler,
+	csReportHandler *handler.CSReportHandler,
+	ticketSubjectHandler *handler.TicketSubjectHandler,
+	faqHandler *handler.FAQHandler,
+	bannerHandler *handler.BannerHandler,
+	adminCategoryHandler *handler.AdminCategoryHandler,
+	returnReasonHandler *handler.ReturnReasonHandler,
+	adminContactHandler *handler.AdminContactHandler,
+	adminFAQHandler *handler.AdminFAQHandler,
+	vendorBannerHandler *handler.VendorBannerHandler,
+	addressHandler *handler.AddressHandler,
+	shippingHandler *handler.ShippingHandler,
+	vendorCourierHandler *handler.VendorCourierHandler,
+	wsHandler *ws.Handler,
+	jwtSecret string,
+) *gin.Engine {
+
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
@@ -29,8 +67,17 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 
 		// Public catalog routes
 		v1.GET("/products", catalogHandler.ListProducts)
+		v1.GET("/products/:id", catalogHandler.GetProductByID)
+		v1.GET("/products/:id/reviews", reviewHandler.ListByProduct)
+		v1.GET("/products/:id/review-summary", reviewHandler.GetSummary)
 		v1.GET("/categories", catalogHandler.ListCategories)
-		v1.GET("/shipping-services", catalogHandler.ListShippingServices)
+		v1.GET("/banners", bannerHandler.ListActiveBanners)
+		v1.GET("/return-reasons", returnReasonHandler.ListActiveReturnReasons)
+		v1.GET("/contacts", adminContactHandler.ListActiveAdminContacts)
+		v1.GET("/order-statuses", orderActionHandler.ListStatuses)
+
+		// Public vendor store banners
+		v1.GET("/vendors/:id/banners", vendorBannerHandler.ListVendorBannersPublic)
 
 	}
 
@@ -63,7 +110,41 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		userAuth.PATCH("/cart/items/:itemId", cartHandler.UpdateItem)
 		userAuth.DELETE("/cart/items/:itemId", cartHandler.RemoveItem)
 		userAuth.DELETE("/cart", cartHandler.ClearCart)
+		userAuth.GET("/wishlist", wishlistHandler.ListItems)
+		userAuth.POST("/wishlist/items", wishlistHandler.AddItem)
+		userAuth.DELETE("/wishlist/products/:productId", wishlistHandler.RemoveItem)
+		userAuth.GET("/wishlist/products/:productId/status", wishlistHandler.GetProductStatus)
+		userAuth.POST("/checkout/preview", checkoutHandler.Preview)
 		userAuth.POST("/checkout", checkoutHandler.Checkout)
+		userAuth.GET("/orders", orderActionHandler.ListOrders)
+		userAuth.POST("/orders/:orderId/complete", orderActionHandler.Complete)
+		userAuth.POST("/reviews/presign", reviewHandler.PresignImage)
+		userAuth.POST("/reviews", reviewHandler.Create)
+	}
+
+	// Shipping location lookup (RajaOngkir proxy) — accessible by customer + vendor
+	shippingGroup := v1.Group("/shipping")
+	shippingGroup.Use(middleware.Auth(jwtSecret))
+	shippingGroup.Use(middleware.RequireRoles("customer", "umkm"))
+	{
+		shippingGroup.GET("/provinces", shippingHandler.GetProvinces)
+		shippingGroup.GET("/cities", shippingHandler.GetCities)
+		shippingGroup.GET("/districts", shippingHandler.GetDistricts)
+		shippingGroup.GET("/subdistricts", shippingHandler.GetSubdistricts)
+		shippingGroup.GET("/couriers", vendorCourierHandler.ListCouriers)
+	}
+
+	// Address management — accessible by customer + vendor
+	addressGroup := v1.Group("/addresses")
+	addressGroup.Use(middleware.Auth(jwtSecret))
+	addressGroup.Use(middleware.RequireRoles("customer", "umkm"))
+	{
+		addressGroup.POST("", addressHandler.CreateAddress)
+		addressGroup.GET("", addressHandler.ListAddresses)
+		addressGroup.GET("/:id", addressHandler.GetAddress)
+		addressGroup.PATCH("/:id", addressHandler.UpdateAddress)
+		addressGroup.DELETE("/:id", addressHandler.DeleteAddress)
+		addressGroup.PATCH("/:id/default", addressHandler.SetDefaultAddress)
 	}
 
 	// Vendor routes (public registration + login)
@@ -78,6 +159,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	vendorAuth.Use(middleware.Auth(jwtSecret))
 	vendorAuth.Use(middleware.RequireRoles("umkm"))
 	{
+		vendorAuth.GET("/me", vendorHandler.GetMe)
 		vendorAuth.POST("/documents/confirm", vendorHandler.ConfirmDocuments)
 		vendorAuth.POST("/products", productHandler.CreateProduct)
 		vendorAuth.POST("/products/:id/images/confirm", productHandler.ConfirmImages)
@@ -89,6 +171,19 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		vendorAuth.GET("/chat", chatHandler.ListConversations)
 		vendorAuth.GET("/chat/:conversationId", chatHandler.GetConversation)
 		vendorAuth.PATCH("/chat/:conversationId/read", chatHandler.MarkRead)
+
+		// Vendor Banner management
+		vendorAuth.POST("/banners", vendorBannerHandler.CreateBanner)
+		vendorAuth.GET("/banners", vendorBannerHandler.ListBanners)
+		vendorAuth.GET("/banners/:id", vendorBannerHandler.GetBanner)
+		vendorAuth.POST("/banners/:id/confirm", vendorBannerHandler.ConfirmBanner)
+		vendorAuth.PATCH("/banners/:id", vendorBannerHandler.UpdateBanner)
+
+		// Vendor Courier management
+		vendorAuth.GET("/couriers", vendorCourierHandler.GetVendorCouriers)
+		vendorAuth.PUT("/couriers", vendorCourierHandler.SetVendorCouriers)
+		vendorAuth.DELETE("/couriers/:courierId", vendorCourierHandler.RemoveVendorCourier)
+		vendorAuth.DELETE("/banners/:id", vendorBannerHandler.DeleteBanner)
 	}
 
 	// Admin login route (public - no auth required)
@@ -102,6 +197,7 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 	admin.Use(middleware.Auth(jwtSecret))
 	admin.Use(middleware.RequireRoles("admin"))
 	{
+		admin.GET("/me", adminUserHandler.GetMe)
 		admin.POST("/users", adminUserHandler.Create)
 		admin.GET("/users", adminUserHandler.List)
 		admin.GET("/users/:id", adminUserHandler.GetByID)
@@ -119,6 +215,38 @@ func NewRouter(healthHandler *handler.HealthHandler, adminUserHandler *handler.A
 		admin.GET("/chat", chatHandler.ListConversations)
 		admin.GET("/chat/:conversationId", chatHandler.GetConversation)
 		admin.PATCH("/chat/:conversationId/read", chatHandler.MarkRead)
+
+		// Settings: Banner management
+		admin.POST("/settings/banners", bannerHandler.CreateBanner)
+		admin.GET("/settings/banners", bannerHandler.ListBanners)
+		admin.GET("/settings/banners/:id", bannerHandler.GetBanner)
+		admin.POST("/settings/banners/:id/confirm", bannerHandler.ConfirmBanner)
+		admin.PATCH("/settings/banners/:id", bannerHandler.UpdateBanner)
+		admin.DELETE("/settings/banners/:id", bannerHandler.DeleteBanner)
+
+		// Settings: Master Lookup - Categories
+		admin.POST("/settings/categories", adminCategoryHandler.CreateCategory)
+		admin.GET("/settings/categories", adminCategoryHandler.ListCategories)
+		admin.PATCH("/settings/categories/:id", adminCategoryHandler.UpdateCategory)
+		admin.DELETE("/settings/categories/:id", adminCategoryHandler.DeleteCategory)
+
+		// Settings: Master Lookup - Return Reasons
+		admin.POST("/settings/return-reasons", returnReasonHandler.CreateReturnReason)
+		admin.GET("/settings/return-reasons", returnReasonHandler.ListReturnReasons)
+		admin.PATCH("/settings/return-reasons/:id", returnReasonHandler.UpdateReturnReason)
+		admin.DELETE("/settings/return-reasons/:id", returnReasonHandler.DeleteReturnReason)
+
+		// Settings: Master Lookup - Admin Contacts
+		admin.POST("/settings/contacts", adminContactHandler.CreateAdminContact)
+		admin.GET("/settings/contacts", adminContactHandler.ListAdminContacts)
+		admin.PATCH("/settings/contacts/:id", adminContactHandler.UpdateAdminContact)
+		admin.DELETE("/settings/contacts/:id", adminContactHandler.DeleteAdminContact)
+
+		// Settings: Master Lookup - FAQ
+		admin.POST("/settings/faq", adminFAQHandler.CreateFAQ)
+		admin.GET("/settings/faq", adminFAQHandler.ListFAQs)
+		admin.PATCH("/settings/faq/:id", adminFAQHandler.UpdateFAQ)
+		admin.DELETE("/settings/faq/:id", adminFAQHandler.DeleteFAQ)
 	}
 
 	// Finance routes (requires auth + finance role)

@@ -108,6 +108,21 @@ func (uc *adminUserUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domain.
 	return toUserResponse(user), nil
 }
 
+func (uc *adminUserUseCase) GetMe(ctx context.Context, adminID uuid.UUID) (*domain.AdminMeResponse, error) {
+	user, err := uc.userRepo.FindByID(ctx, adminID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user: %w", err)
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+	if user.Role == nil || user.Role.Code != domain.RoleAdmin {
+		return nil, ErrNotAdmin
+	}
+
+	return toAdminMeResponse(user), nil
+}
+
 func (uc *adminUserUseCase) Update(ctx context.Context, id uuid.UUID, req domain.UpdateUserRequest) (*domain.UserResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, id)
 	if err != nil {

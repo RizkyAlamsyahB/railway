@@ -70,6 +70,17 @@ func (r *paymentRepository) FindInvoiceByExternalID(ctx context.Context, externa
 	return toDomainPaymentInvoice(&model), nil
 }
 
+func (r *paymentRepository) FindInvoiceByOrderID(ctx context.Context, orderID uuid.UUID) (*domain.PaymentInvoice, error) {
+	var model paymentInvoiceModel
+	if err := r.db.WithContext(ctx).Where("order_id = ?", orderID.String()).Order("created_at DESC").First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainPaymentInvoice(&model), nil
+}
+
 func (r *paymentRepository) UpdateInvoiceStatus(ctx context.Context, invoiceID uuid.UUID, status string, paidAt *time.Time, paymentMethod, paymentChannel *string, rawPayload map[string]interface{}) error {
 	updates := map[string]interface{}{
 		"status":     status,

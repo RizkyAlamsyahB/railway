@@ -30,13 +30,42 @@ func (h *CheckoutHandler) Checkout(c *gin.Context) {
 		return
 	}
 
-	result, err := h.useCase.Checkout(c.Request.Context(), userID)
+	var req domain.CheckoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body", err.Error())
+		return
+	}
+
+	result, err := h.useCase.Checkout(c.Request.Context(), userID, req)
 	if err != nil {
 		HandleUsecaseError(c, err)
 		return
 	}
 
 	response.Created(c, "checkout successful", result)
+}
+
+// Preview handles POST /api/v1/users/checkout/preview.
+func (h *CheckoutHandler) Preview(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	var req domain.CheckoutPreviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body", err.Error())
+		return
+	}
+
+	result, err := h.useCase.Preview(c.Request.Context(), userID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "checkout preview loaded", result)
 }
 
 // Webhook handles POST /api/v1/webhooks/xendit/invoice.

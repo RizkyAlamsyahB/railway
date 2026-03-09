@@ -32,7 +32,6 @@ type Ticket struct {
 	Source                string     `json:"source"`
 	AttachmentURL         *string    `json:"attachment_url"`
 	AttachmentContentType *string    `json:"attachment_content_type"`
-	ResolvedAt            *time.Time `json:"resolved_at"`
 	ClosedAt              *time.Time `json:"closed_at"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
@@ -40,6 +39,9 @@ type Ticket struct {
 	// Joined fields (not persisted directly on tickets table)
 	CustomerEmail  string  `json:"-" gorm:"-"`
 	AssignedCSName *string `json:"-" gorm:"-"`
+	OrderStatus    string  `json:"-" gorm:"-"`
+	PaymentMethod  *string `json:"-" gorm:"-"`
+	GrandTotal     float64 `json:"-" gorm:"-"`
 }
 
 type TicketMessage struct {
@@ -134,7 +136,7 @@ type CreateTicketRequest struct {
 }
 
 type UpdateTicketStatusRequest struct {
-	Status string  `json:"status" binding:"required,oneof=open on_progress resolved closed"`
+	Status string  `json:"status" binding:"required,oneof=open on_progress closed"`
 	Notes  *string `json:"notes"`
 }
 
@@ -159,6 +161,9 @@ type TicketResponse struct {
 	AssignedCSID          *uuid.UUID `json:"assigned_cs_id"`
 	AssignedCSName        *string    `json:"assigned_cs_name"`
 	OrderNumber           string     `json:"order_number"`
+	OrderStatus           string     `json:"order_status"`
+	PaymentMethod         *string    `json:"payment_method"`
+	GrandTotal            float64    `json:"grand_total"`
 	Phone                 string     `json:"phone"`
 	ReporterName          string     `json:"reporter_name"`
 	Subject               string     `json:"subject"`
@@ -167,7 +172,6 @@ type TicketResponse struct {
 	Source                string     `json:"source"`
 	AttachmentURL         *string    `json:"attachment_url"`
 	AttachmentContentType *string    `json:"attachment_content_type"`
-	ResolvedAt            *time.Time `json:"resolved_at"`
 	ClosedAt              *time.Time `json:"closed_at"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
@@ -343,7 +347,7 @@ type CSReportParams struct {
 type CSReportResponse struct {
 	Month             string         `json:"month"`
 	TotalTickets      int64          `json:"total_tickets"`
-	ResolvedTickets   int64          `json:"resolved_tickets"`
+	ClosedTickets     int64          `json:"closed_tickets"`
 	AvgResponseMinute float64        `json:"avg_response_minute"`
 	TopSubjects       []SubjectCount `json:"top_subjects"`
 	TicketsPerDay     []DayCount     `json:"tickets_per_day"`
@@ -367,7 +371,7 @@ type CSReportExportRow struct {
 	Source       string     `json:"source"`
 	ReporterName string     `json:"reporter_name"`
 	AssignedCS   *string    `json:"assigned_cs"`
-	ResolvedAt   *time.Time `json:"resolved_at"`
+	ClosedAt     *time.Time `json:"closed_at"`
 	CreatedAt    time.Time  `json:"created_at"`
 }
 
@@ -413,7 +417,7 @@ type TicketRepository interface {
 	ListRecentUnassigned(ctx context.Context, limit int) ([]Ticket, error)
 
 	// Report queries
-	CountByMonth(ctx context.Context, year, month int) (total int64, resolved int64, err error)
+	CountByMonth(ctx context.Context, year, month int) (total int64, closed int64, err error)
 	AvgFirstResponseMinute(ctx context.Context, year, month int) (float64, error)
 	TopSubjectsByMonth(ctx context.Context, year, month, limit int) ([]SubjectCount, error)
 	TicketsPerDayByMonth(ctx context.Context, year, month int) ([]DayCount, error)

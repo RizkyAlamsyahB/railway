@@ -796,10 +796,10 @@ components:
         vendor_type:
           type: string
           enum:
-            - umrah_souvenir_store
-            - hajj_souvenir_store
-            - general_souvenir_store
-          example: umrah_souvenir_store
+            - souvenir_store
+            - ppiu
+            - hajj_dormitory
+          example: souvenir_store
         order_completed:
           type: integer
           format: int32

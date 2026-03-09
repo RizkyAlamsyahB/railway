@@ -19,16 +19,20 @@ const (
 )
 
 type checkoutUseCase struct {
-	cartRepo      domain.CartRepository
-	productRepo   domain.ProductRepository
-	vendorRepo    domain.VendorRepository
-	orderRepo     domain.OrderRepository
-	paymentRepo   domain.PaymentRepository
-	ledgerRepo    domain.LedgerRepository
-	userRepo      domain.UserRepository
-	xenditInvoice domain.XenditInvoiceProvider
-	frontendURL   string
-	webhookURL    string
+	cartRepo          domain.CartRepository
+	productRepo       domain.ProductRepository
+	vendorRepo        domain.VendorRepository
+	orderRepo         domain.OrderRepository
+	paymentRepo       domain.PaymentRepository
+	ledgerRepo        domain.LedgerRepository
+	userRepo          domain.UserRepository
+	addressRepo       domain.AddressRepository
+	vendorCourierRepo domain.VendorCourierRepository
+	rajaOngkir        domain.RajaOngkirProvider
+	storage           domain.StorageProvider
+	xenditInvoice     domain.XenditInvoiceProvider
+	frontendURL       string
+	webhookURL        string
 }
 
 // NewCheckoutUseCase creates a new CheckoutUseCase.
@@ -40,21 +44,29 @@ func NewCheckoutUseCase(
 	paymentRepo domain.PaymentRepository,
 	ledgerRepo domain.LedgerRepository,
 	userRepo domain.UserRepository,
+	addressRepo domain.AddressRepository,
+	vendorCourierRepo domain.VendorCourierRepository,
+	rajaOngkir domain.RajaOngkirProvider,
+	storage domain.StorageProvider,
 	xenditInvoice domain.XenditInvoiceProvider,
 	frontendURL string,
 	webhookURL string,
 ) domain.CheckoutUseCase {
 	return &checkoutUseCase{
-		cartRepo:      cartRepo,
-		productRepo:   productRepo,
-		vendorRepo:    vendorRepo,
-		orderRepo:     orderRepo,
-		paymentRepo:   paymentRepo,
-		ledgerRepo:    ledgerRepo,
-		userRepo:      userRepo,
-		xenditInvoice: xenditInvoice,
-		frontendURL:   frontendURL,
-		webhookURL:    webhookURL,
+		cartRepo:          cartRepo,
+		productRepo:       productRepo,
+		vendorRepo:        vendorRepo,
+		orderRepo:         orderRepo,
+		paymentRepo:       paymentRepo,
+		ledgerRepo:        ledgerRepo,
+		userRepo:          userRepo,
+		addressRepo:       addressRepo,
+		vendorCourierRepo: vendorCourierRepo,
+		rajaOngkir:        rajaOngkir,
+		storage:           storage,
+		xenditInvoice:     xenditInvoice,
+		frontendURL:       frontendURL,
+		webhookURL:        webhookURL,
 	}
 }
 
@@ -72,8 +84,30 @@ type createdCheckoutUnit struct {
 	paymentInvoiceID    *uuid.UUID
 }
 
-func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*domain.CheckoutResponse, error) {
-	// 1. Get active cart.
+const defaultWeightGram = 500
+
+// Preview returns cart items grouped by vendor with shipping options from RajaOngkir.
+func (uc *checkoutUseCase) Preview(ctx context.Context, userID uuid.UUID, req domain.CheckoutPreviewRequest) (*domain.CheckoutPreviewResponse, error) {
+	// 1. Validate the selected delivery address.
+	addressID, err := uuid.Parse(req.AddressID)
+	if err != nil {
+		return nil, ErrAddressNotFound
+	}
+	address, err := uc.addressRepo.FindByID(ctx, addressID)
+	if err != nil {
+		return nil, fmt.Errorf("find address: %w", err)
+	}
+	if address == nil {
+		return nil, ErrAddressNotFound
+	}
+	if address.UserID != userID {
+		return nil, ErrAddressNotOwned
+	}
+	if address.DistrictID == nil || *address.DistrictID == "" {
+		return nil, ErrAddressNoDistrict
+	}
+
+	// 2. Get active cart and items.
 	cart, err := uc.cartRepo.FindByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("find cart: %w", err)
@@ -81,8 +115,6 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 	if cart == nil {
 		return nil, ErrCartEmpty
 	}
-
-	// 2. Get cart items.
 	cartItems, err := uc.cartRepo.FindItemsByCartID(ctx, cart.ID)
 	if err != nil {
 		return nil, fmt.Errorf("find cart items: %w", err)
@@ -91,7 +123,193 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 		return nil, ErrCartEmpty
 	}
 
-	// 3. Get user info for Xendit customer data.
+	// 3. Enrich cart items and group by vendor.
+	vendorGroups := make(map[uuid.UUID][]enrichedItem)
+	for _, ci := range cartItems {
+		variant, err := uc.productRepo.FindVariantByID(ctx, ci.ProductVariantID)
+		if err != nil {
+			return nil, fmt.Errorf("find variant: %w", err)
+		}
+		if variant == nil || !variant.IsActive {
+			return nil, ErrCartHasUnavailableItems
+		}
+		product, err := uc.productRepo.FindByID(ctx, variant.ProductID)
+		if err != nil {
+			return nil, fmt.Errorf("find product: %w", err)
+		}
+		if product == nil || product.Status != domain.ProductStatusPublished {
+			return nil, ErrCartHasUnavailableItems
+		}
+		vendorGroups[product.VendorID] = append(vendorGroups[product.VendorID], enrichedItem{
+			cartItem: ci,
+			variant:  *variant,
+			product:  *product,
+		})
+	}
+
+	// 4. Build preview vendor groups with shipping options.
+	var vendorPreviews []domain.CheckoutPreviewVendorGroup
+	for vendorID, items := range vendorGroups {
+		vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+		if err != nil {
+			return nil, fmt.Errorf("find vendor: %w", err)
+		}
+		if vendor == nil {
+			return nil, ErrVendorNotFound
+		}
+
+		// 4a. Resolve vendor warehouse origin (default address of vendor owner).
+		warehouseAddr, err := uc.addressRepo.FindDefaultByUserID(ctx, vendor.OwnerUserID)
+		if err != nil {
+			return nil, fmt.Errorf("find vendor warehouse address: %w", err)
+		}
+		if warehouseAddr == nil || warehouseAddr.DistrictID == nil || *warehouseAddr.DistrictID == "" {
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorWarehouseNotFound, vendor.DisplayName)
+		}
+
+		// 4b. Get vendor courier selections.
+		vendorCouriers, err := uc.vendorCourierRepo.FindByVendorID(ctx, vendorID)
+		if err != nil {
+			return nil, fmt.Errorf("find vendor couriers: %w", err)
+		}
+		if len(vendorCouriers) == 0 {
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendor.DisplayName)
+		}
+
+		// 4c. Build items and calculate subtotal + total weight.
+		var vendorSubtotal float64
+		var totalWeightGram int
+		previewItems := make([]domain.CheckoutPreviewVendorItem, 0, len(items))
+		for _, ei := range items {
+			lineTotal := ei.variant.Price * float64(ei.cartItem.Qty)
+			vendorSubtotal += lineTotal
+
+			weight := defaultWeightGram
+			if ei.variant.WeightGram != nil && *ei.variant.WeightGram > 0 {
+				weight = *ei.variant.WeightGram
+			}
+			totalWeightGram += weight * ei.cartItem.Qty
+
+			imageURL := uc.resolvePrimaryImageURL(ctx, ei.product.ID)
+
+			previewItems = append(previewItems, domain.CheckoutPreviewVendorItem{
+				ProductVariantID: ei.variant.ID,
+				ProductName:      ei.product.Name,
+				VariantName:      ei.variant.VariantName,
+				ImageURL:         imageURL,
+				Price:            ei.variant.Price,
+				Qty:              ei.cartItem.Qty,
+				Subtotal:         lineTotal,
+				WeightGram:       weight,
+			})
+		}
+
+		// 4d. Build colon-separated courier codes and call RajaOngkir.
+		courierCodes := make([]string, 0, len(vendorCouriers))
+		for _, vc := range vendorCouriers {
+			if vc.IsActive {
+				courierCodes = append(courierCodes, vc.CourierCode)
+			}
+		}
+		var shippingOptions []domain.ShippingCostOption
+		if len(courierCodes) > 0 && totalWeightGram > 0 {
+			opts, err := uc.rajaOngkir.CalculateDomesticCost(
+				ctx,
+				*warehouseAddr.DistrictID,
+				*address.DistrictID,
+				totalWeightGram,
+				strings.Join(courierCodes, ":"),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("%w: %v", ErrShippingCostFailed, err)
+			}
+			shippingOptions = opts
+		}
+
+		vendorPreviews = append(vendorPreviews, domain.CheckoutPreviewVendorGroup{
+			VendorID:        vendorID,
+			VendorName:      vendor.DisplayName,
+			Items:           previewItems,
+			Subtotal:        vendorSubtotal,
+			TotalWeightGram: totalWeightGram,
+			ShippingOptions: shippingOptions,
+		})
+	}
+
+	return &domain.CheckoutPreviewResponse{
+		Address:     *toAddressResponse(address),
+		Vendors:     vendorPreviews,
+		PlatformFee: platformFeeTotal,
+	}, nil
+}
+
+// resolvePrimaryImageURL finds the primary product image and returns a presigned download URL.
+func (uc *checkoutUseCase) resolvePrimaryImageURL(ctx context.Context, productID uuid.UUID) *string {
+	images, err := uc.productRepo.FindImagesByProductID(ctx, productID)
+	if err != nil || len(images) == 0 {
+		return nil
+	}
+	for _, img := range images {
+		if img.IsPrimary {
+			presigned, err := uc.storage.GeneratePresignedURL(ctx, img.ImageURL, PresignedDownloadExpiry)
+			if err != nil {
+				return nil
+			}
+			return &presigned
+		}
+	}
+	return nil
+}
+
+func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req domain.CheckoutRequest) (*domain.CheckoutResponse, error) {
+	// 1. Validate the selected delivery address.
+	addressID, err := uuid.Parse(req.AddressID)
+	if err != nil {
+		return nil, ErrAddressNotFound
+	}
+	address, err := uc.addressRepo.FindByID(ctx, addressID)
+	if err != nil {
+		return nil, fmt.Errorf("find address: %w", err)
+	}
+	if address == nil {
+		return nil, ErrAddressNotFound
+	}
+	if address.UserID != userID {
+		return nil, ErrAddressNotOwned
+	}
+	if address.DistrictID == nil || *address.DistrictID == "" {
+		return nil, ErrAddressNoDistrict
+	}
+
+	// Build shipping choices map keyed by vendor ID.
+	shippingMap := make(map[uuid.UUID]domain.CheckoutShippingChoice, len(req.ShippingChoices))
+	for _, sc := range req.ShippingChoices {
+		vid, err := uuid.Parse(sc.VendorID)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid vendor_id %s", ErrInvalidShippingChoice, sc.VendorID)
+		}
+		shippingMap[vid] = sc
+	}
+
+	// 2. Get active cart.
+	cart, err := uc.cartRepo.FindByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("find cart: %w", err)
+	}
+	if cart == nil {
+		return nil, ErrCartEmpty
+	}
+
+	// 3. Get cart items.
+	cartItems, err := uc.cartRepo.FindItemsByCartID(ctx, cart.ID)
+	if err != nil {
+		return nil, fmt.Errorf("find cart items: %w", err)
+	}
+	if len(cartItems) == 0 {
+		return nil, ErrCartEmpty
+	}
+
+	// 4. Get user info for Xendit customer data.
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("find user: %w", err)
@@ -100,7 +318,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 		return nil, fmt.Errorf("user not found: %s", userID)
 	}
 
-	// 4. Enrich and validate cart items, group by vendor.
+	// 5. Enrich and validate cart items, group by vendor.
 	vendorGroups := make(map[uuid.UUID][]enrichedItem)
 
 	for _, ci := range cartItems {
@@ -131,13 +349,22 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 		})
 	}
 
-	// 5. For each vendor group: create order -> call Xendit -> save invoice.
+	// 6. For each vendor group: create order -> call Xendit -> save invoice.
 	var results []domain.CheckoutOrderResult
 	var createdUnits []createdCheckoutUnit
 	now := time.Now()
 
+	// Build shipping address snapshot from the selected address.
+	shippingSnapshot := buildAddressSnapshot(address)
+
 	for vendorID, items := range vendorGroups {
-		// 5a. Verify vendor has Xendit account.
+		// 6a. Look up shipping choice for this vendor.
+		sc, ok := shippingMap[vendorID]
+		if !ok {
+			return nil, fmt.Errorf("%w: missing shipping choice for vendor %s", ErrInvalidShippingChoice, vendorID)
+		}
+
+		// 6b. Verify vendor has Xendit account.
 		vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
 		if err != nil {
 			return nil, fmt.Errorf("find vendor: %w", err)
@@ -146,7 +373,25 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoXenditAccount, vendorID)
 		}
 
-		// 5b. Build order.
+		// 6c. Resolve vendor warehouse origin (default address of vendor owner).
+		warehouseAddr, err := uc.addressRepo.FindDefaultByUserID(ctx, vendor.OwnerUserID)
+		if err != nil {
+			return nil, fmt.Errorf("find vendor warehouse address: %w", err)
+		}
+		if warehouseAddr == nil || warehouseAddr.DistrictID == nil || *warehouseAddr.DistrictID == "" {
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorWarehouseNotFound, vendor.DisplayName)
+		}
+
+		// 6d. Get vendor courier selections.
+		vendorCouriers, err := uc.vendorCourierRepo.FindByVendorID(ctx, vendorID)
+		if err != nil {
+			return nil, fmt.Errorf("find vendor couriers: %w", err)
+		}
+		if len(vendorCouriers) == 0 {
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendor.DisplayName)
+		}
+
+		// 6e. Build order items, calculate subtotal and total weight.
 		orderID := uuid.New()
 		orderNo := generateOrderNo(now)
 		createdUnit := createdCheckoutUnit{
@@ -155,12 +400,19 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 		}
 
 		var subtotal float64
+		var totalWeightGram int
 		orderItems := make([]domain.OrderItem, 0, len(items))
 		xenditItems := make([]domain.XenditInvoiceItem, 0, len(items))
 
 		for _, ei := range items {
 			lineTotal := ei.variant.Price * float64(ei.cartItem.Qty)
 			subtotal += lineTotal
+
+			weight := defaultWeightGram
+			if ei.variant.WeightGram != nil && *ei.variant.WeightGram > 0 {
+				weight = *ei.variant.WeightGram
+			}
+			totalWeightGram += weight * ei.cartItem.Qty
 
 			orderItems = append(orderItems, domain.OrderItem{
 				ID:                  uuid.New(),
@@ -180,12 +432,44 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 			})
 		}
 
-		grandTotal := subtotal + platformFeeTotal
-
-		shippingSnapshot := map[string]interface{}{
-			"name":    user.FullName,
-			"address": "Placeholder - shipping not yet implemented",
+		// 6f. Call RajaOngkir to recalculate shipping cost server-side.
+		courierCodes := make([]string, 0, len(vendorCouriers))
+		for _, vc := range vendorCouriers {
+			if vc.IsActive {
+				courierCodes = append(courierCodes, vc.CourierCode)
+			}
 		}
+		if len(courierCodes) == 0 {
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendor.DisplayName)
+		}
+
+		shippingOptions, err := uc.rajaOngkir.CalculateDomesticCost(
+			ctx,
+			*warehouseAddr.DistrictID,
+			*address.DistrictID,
+			totalWeightGram,
+			strings.Join(courierCodes, ":"),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrShippingCostFailed, err)
+		}
+
+		// 6g. Find the matching courier+service from RajaOngkir response.
+		var shippingFee float64
+		serviceFound := false
+		for _, opt := range shippingOptions {
+			if strings.EqualFold(opt.Code, sc.CourierCode) && strings.EqualFold(opt.Service, sc.Service) {
+				shippingFee = float64(opt.Cost)
+				serviceFound = true
+				break
+			}
+		}
+		if !serviceFound {
+			return nil, fmt.Errorf("%w: courier=%s service=%s for vendor %s",
+				ErrShippingServiceNotFound, sc.CourierCode, sc.Service, vendor.DisplayName)
+		}
+
+		grandTotal := subtotal + shippingFee + platformFeeTotal
 
 		order := &domain.Order{
 			ID:                      orderID,
@@ -196,7 +480,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 			OrderStatus:             domain.OrderStatusPendingPayment,
 			PaymentStatus:           domain.PaymentStatusUnpaid,
 			Subtotal:                subtotal,
-			ShippingFee:             0,
+			ShippingFee:             shippingFee,
 			PlatformFee:             platformFeeTotal,
 			GrandTotal:              grandTotal,
 			PlacedAt:                now,
@@ -204,7 +488,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 			UpdatedAt:               now,
 		}
 
-		// 5c. Create order + decrement stock in DB transaction.
+		// 6h. Create order + decrement stock in DB transaction.
 		if err := uc.orderRepo.CreateOrderWithItems(ctx, order, orderItems); err != nil {
 			checkoutErr := fmt.Errorf("create order: %w", err)
 			return nil, uc.failCheckoutWithCompensation(ctx, createdUnits, checkoutErr)
@@ -212,7 +496,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 		createdUnits = append(createdUnits, createdUnit)
 		unitIdx := len(createdUnits) - 1
 
-		// 5d. Call Xendit to create invoice.
+		// 6i. Call Xendit to create invoice.
 		externalInvoiceID := fmt.Sprintf("INV-%s-%s", orderNo, uuid.New().String()[:8])
 
 		xenditReq := domain.XenditInvoiceRequest{
@@ -243,10 +527,10 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 		}
 		createdUnits[unitIdx].xenditInvoiceID = &xenditResp.ID
 
-		// 5e. Parse expiry date.
+		// 6j. Parse expiry date.
 		expiresAt, _ := time.Parse(time.RFC3339, xenditResp.ExpiryDate)
 
-		// 5f. Save payment invoice record.
+		// 6k. Save payment invoice record.
 		paymentInvoice := &domain.PaymentInvoice{
 			ID:                uuid.New(),
 			OrderID:           orderID,
@@ -274,7 +558,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 			VendorID:    vendorID,
 			VendorName:  vendor.DisplayName,
 			Subtotal:    subtotal,
-			ShippingFee: 0,
+			ShippingFee: shippingFee,
 			PlatformFee: platformFeeTotal,
 			GrandTotal:  grandTotal,
 			InvoiceURL:  xenditResp.InvoiceURL,
@@ -282,7 +566,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID) (*dom
 		})
 	}
 
-	// 6. Mark cart as converted.
+	// 7. Mark cart as converted.
 	if err := uc.cartRepo.UpdateStatus(ctx, cart.ID, domain.CartStatusConverted); err != nil {
 		return nil, fmt.Errorf("update cart status: %w", err)
 	}
@@ -526,6 +810,40 @@ func (uc *checkoutUseCase) recordPaymentLedger(ctx context.Context, invoice *dom
 	}
 
 	return uc.ledgerRepo.CreateJournalWithLines(ctx, journal, lines)
+}
+
+// buildAddressSnapshot creates a JSON-compatible map from a domain.Address for order storage.
+func buildAddressSnapshot(a *domain.Address) map[string]interface{} {
+	snap := map[string]interface{}{
+		"address_id":   a.ID.String(),
+		"address_line": a.AddressLine,
+		"is_default":   a.IsDefault,
+	}
+	if a.Label != nil {
+		snap["label"] = *a.Label
+	}
+	if a.RecipientName != nil {
+		snap["recipient_name"] = *a.RecipientName
+	}
+	if a.Phone != nil {
+		snap["phone"] = *a.Phone
+	}
+	if a.ProvinceName != nil {
+		snap["province_name"] = *a.ProvinceName
+	}
+	if a.CityName != nil {
+		snap["city_name"] = *a.CityName
+	}
+	if a.DistrictName != nil {
+		snap["district_name"] = *a.DistrictName
+	}
+	if a.SubdistrictName != nil {
+		snap["subdistrict_name"] = *a.SubdistrictName
+	}
+	if a.PostalCode != nil {
+		snap["postal_code"] = *a.PostalCode
+	}
+	return snap
 }
 
 func generateOrderNo(t time.Time) string {

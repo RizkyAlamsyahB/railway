@@ -22,6 +22,10 @@ func setupCheckoutUseCase(t *testing.T) (
 	*mocks.MockPaymentRepository,
 	*mocks.MockLedgerRepository,
 	*mocks.MockUserRepository,
+	*mocks.MockAddressRepository,
+	*mocks.MockVendorCourierRepository,
+	*mocks.MockRajaOngkirProvider,
+	*mocks.MockStorageProvider,
 	*mocks.MockXenditInvoiceProvider,
 	domain.CheckoutUseCase,
 ) {
@@ -34,18 +38,23 @@ func setupCheckoutUseCase(t *testing.T) (
 	paymentRepo := mocks.NewMockPaymentRepository(ctrl)
 	ledgerRepo := mocks.NewMockLedgerRepository(ctrl)
 	userRepo := mocks.NewMockUserRepository(ctrl)
+	addressRepo := mocks.NewMockAddressRepository(ctrl)
+	vendorCourierRepo := mocks.NewMockVendorCourierRepository(ctrl)
+	rajaOngkir := mocks.NewMockRajaOngkirProvider(ctrl)
+	storage := mocks.NewMockStorageProvider(ctrl)
 	xenditInvoice := mocks.NewMockXenditInvoiceProvider(ctrl)
 
-	uc := NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoice, "https://example.com", "https://test.example.com/api/v1/webhooks/xendit/invoice")
-	return cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoice, uc
+	uc := NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice, "https://example.com", "https://test.example.com/api/v1/webhooks/xendit/invoice")
+	return cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice, uc
 }
 
-func fixtureCheckoutIDs() (userID, cartID, variantID, productID, vendorID uuid.UUID) {
+func fixtureCheckoutIDs() (userID, cartID, variantID, productID, vendorID, addressID uuid.UUID) {
 	userID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	cartID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	variantID = uuid.MustParse("00000000-0000-0000-0000-000000000003")
 	productID = uuid.MustParse("00000000-0000-0000-0000-000000000004")
 	vendorID = uuid.MustParse("00000000-0000-0000-0000-000000000005")
+	addressID = uuid.MustParse("00000000-0000-0000-0000-000000000006")
 	return
 }
 
@@ -101,6 +110,7 @@ func fixtureVendor(vendorID uuid.UUID) *domain.Vendor {
 	xenditAccID := "xa-vendor-123"
 	return &domain.Vendor{
 		ID:              vendorID,
+		OwnerUserID:     uuid.MustParse("00000000-0000-0000-0000-000000000010"),
 		DisplayName:     "Test Vendor",
 		XenditAccountID: &xenditAccID,
 	}
@@ -114,25 +124,89 @@ func fixtureXenditInvoiceResponse() *domain.XenditInvoiceResponse {
 	}
 }
 
+func fixtureAddress(addressID, userID uuid.UUID) *domain.Address {
+	districtID := "1376"
+	return &domain.Address{
+		ID:          addressID,
+		UserID:      userID,
+		DistrictID:  &districtID,
+		AddressLine: "Jl. Test No. 1",
+		IsDefault:   true,
+	}
+}
+
+func fixtureCheckoutRequest(addressID, vendorID uuid.UUID) domain.CheckoutRequest {
+	return domain.CheckoutRequest{
+		AddressID: addressID.String(),
+		ShippingChoices: []domain.CheckoutShippingChoice{
+			{
+				VendorID:    vendorID.String(),
+				CourierCode: "jne",
+				Service:     "REG",
+			},
+		},
+	}
+}
+
+func fixtureVendorWarehouseAddress(vendorOwnerUserID uuid.UUID) *domain.Address {
+	districtID := "5678"
+	return &domain.Address{
+		ID:          uuid.MustParse("00000000-0000-0000-0000-000000000077"),
+		UserID:      vendorOwnerUserID,
+		DistrictID:  &districtID,
+		AddressLine: "Jl. Vendor Warehouse No. 1",
+		IsDefault:   true,
+	}
+}
+
+func fixtureVendorCouriers() []domain.VendorCourierResponse {
+	return []domain.VendorCourierResponse{
+		{
+			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000088"),
+			CourierCode: "jne",
+			CourierName: "JNE",
+			IsActive:    true,
+		},
+	}
+}
+
+func fixtureShippingOptions() []domain.ShippingCostOption {
+	return []domain.ShippingCostOption{
+		{
+			Name:        "Jalur Nugraha Ekakurir (JNE)",
+			Code:        "jne",
+			Service:     "REG",
+			Description: "Layanan Reguler",
+			Cost:        11000,
+			ETD:         "2-3",
+		},
+	}
+}
+
 // --- Checkout tests ---
 
 func TestCheckout(t *testing.T) {
-	userID, cartID, variantID, productID, vendorID := fixtureCheckoutIDs()
+	userID, cartID, variantID, productID, vendorID, addressID := fixtureCheckoutIDs()
+	req := fixtureCheckoutRequest(addressID, vendorID)
 
 	tests := []struct {
 		name    string
-		setup   func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider)
+		setup   func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider)
 		wantErr error
 	}{
 		{
 			name: "success",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
 				vr.EXPECT().FindByID(gomock.Any(), vendorID).Return(fixtureVendor(vendorID), nil)
+				ar.EXPECT().FindDefaultByUserID(gomock.Any(), fixtureVendor(vendorID).OwnerUserID).Return(fixtureVendorWarehouseAddress(fixtureVendor(vendorID).OwnerUserID), nil)
+				vcr.EXPECT().FindByVendorID(gomock.Any(), vendorID).Return(fixtureVendorCouriers(), nil)
+				ro.EXPECT().CalculateDomesticCost(gomock.Any(), "5678", "1376", 1000, "jne").Return(fixtureShippingOptions(), nil)
 				or.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				xi.EXPECT().CreateInvoice(gomock.Any(), "xa-vendor-123", gomock.Any()).Return(fixtureXenditInvoiceResponse(), nil)
 				pmr.EXPECT().CreateInvoice(gomock.Any(), gomock.Any()).Return(nil)
@@ -141,15 +215,32 @@ func TestCheckout(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name: "address not found",
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(nil, nil)
+			},
+			wantErr: ErrAddressNotFound,
+		},
+		{
+			name: "address not owned",
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				otherUserID := uuid.MustParse("00000000-0000-0000-0000-000000000099")
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, otherUserID), nil)
+			},
+			wantErr: ErrAddressNotOwned,
+		},
+		{
 			name: "empty cart - no cart found",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, nil)
 			},
 			wantErr: ErrCartEmpty,
 		},
 		{
 			name: "empty cart - no items",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{}, nil)
 			},
@@ -157,7 +248,8 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name: "variant not active",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
@@ -170,7 +262,8 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name: "product not published",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
@@ -184,7 +277,8 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name: "insufficient stock",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
@@ -198,7 +292,8 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name: "vendor has no xendit account",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
@@ -213,13 +308,17 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name: "xendit API error",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
 				vr.EXPECT().FindByID(gomock.Any(), vendorID).Return(fixtureVendor(vendorID), nil)
+				ar.EXPECT().FindDefaultByUserID(gomock.Any(), fixtureVendor(vendorID).OwnerUserID).Return(fixtureVendorWarehouseAddress(fixtureVendor(vendorID).OwnerUserID), nil)
+				vcr.EXPECT().FindByVendorID(gomock.Any(), vendorID).Return(fixtureVendorCouriers(), nil)
+				ro.EXPECT().CalculateDomesticCost(gomock.Any(), "5678", "1376", 1000, "jne").Return(fixtureShippingOptions(), nil)
 				or.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				xi.EXPECT().CreateInvoice(gomock.Any(), "xa-vendor-123", gomock.Any()).Return(nil, errors.New("xendit 500"))
 				or.EXPECT().UpdateOrderStatus(gomock.Any(), gomock.Any(), domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, gomock.Any(), gomock.Any()).Return(nil)
@@ -229,13 +328,17 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name: "payment invoice save error triggers compensation",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
 				vr.EXPECT().FindByID(gomock.Any(), vendorID).Return(fixtureVendor(vendorID), nil)
+				ar.EXPECT().FindDefaultByUserID(gomock.Any(), fixtureVendor(vendorID).OwnerUserID).Return(fixtureVendorWarehouseAddress(fixtureVendor(vendorID).OwnerUserID), nil)
+				vcr.EXPECT().FindByVendorID(gomock.Any(), vendorID).Return(fixtureVendorCouriers(), nil)
+				ro.EXPECT().CalculateDomesticCost(gomock.Any(), "5678", "1376", 1000, "jne").Return(fixtureShippingOptions(), nil)
 				or.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				xi.EXPECT().CreateInvoice(gomock.Any(), "xa-vendor-123", gomock.Any()).Return(fixtureXenditInvoiceResponse(), nil)
 				pmr.EXPECT().CreateInvoice(gomock.Any(), gomock.Any()).Return(errDB)
@@ -247,13 +350,17 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name: "compensation failure returns checkout compensation failed",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
 				vr.EXPECT().FindByID(gomock.Any(), vendorID).Return(fixtureVendor(vendorID), nil)
+				ar.EXPECT().FindDefaultByUserID(gomock.Any(), fixtureVendor(vendorID).OwnerUserID).Return(fixtureVendorWarehouseAddress(fixtureVendor(vendorID).OwnerUserID), nil)
+				vcr.EXPECT().FindByVendorID(gomock.Any(), vendorID).Return(fixtureVendorCouriers(), nil)
+				ro.EXPECT().CalculateDomesticCost(gomock.Any(), "5678", "1376", 1000, "jne").Return(fixtureShippingOptions(), nil)
 				or.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 				xi.EXPECT().CreateInvoice(gomock.Any(), "xa-vendor-123", gomock.Any()).Return(nil, errors.New("xendit 500"))
 				or.EXPECT().UpdateOrderStatus(gomock.Any(), gomock.Any(), domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, gomock.Any(), gomock.Any()).Return(errDB)
@@ -263,7 +370,8 @@ func TestCheckout(t *testing.T) {
 		},
 		{
 			name: "find cart DB error",
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, errDB)
 			},
 			wantErr: errDB,
@@ -272,10 +380,10 @@ func TestCheckout(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoice, uc := setupCheckoutUseCase(t)
-			tc.setup(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoice)
+			cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice, uc := setupCheckoutUseCase(t)
+			tc.setup(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice)
 
-			resp, err := uc.Checkout(context.Background(), userID)
+			resp, err := uc.Checkout(context.Background(), userID, req)
 
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
@@ -297,9 +405,12 @@ func TestCheckout(t *testing.T) {
 			if order.Subtotal != 200000 {
 				t.Errorf("expected subtotal 200000, got %f", order.Subtotal)
 			}
-			// grand_total = subtotal + platformFeeTotal(6000)
-			if order.GrandTotal != 206000 {
-				t.Errorf("expected grand total 206000, got %f", order.GrandTotal)
+			// grand_total = subtotal + shippingFee(11000) + platformFeeTotal(6000) = 217000
+			if order.GrandTotal != 217000 {
+				t.Errorf("expected grand total 217000, got %f", order.GrandTotal)
+			}
+			if order.ShippingFee != 11000 {
+				t.Errorf("expected shipping fee 11000, got %f", order.ShippingFee)
 			}
 			if order.PlatformFee != 6000 {
 				t.Errorf("expected platform fee 6000, got %f", order.PlatformFee)
@@ -375,13 +486,13 @@ func TestHandleWebhook(t *testing.T) {
 	tests := []struct {
 		name    string
 		payload domain.XenditWebhookPayload
-		setup   func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider)
+		setup   func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider)
 		wantErr error
 	}{
 		{
 			name:    "PAID - success",
 			payload: paidPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PAID").Return(false, nil)
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), paidPayload.ExternalID).Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
@@ -411,7 +522,7 @@ func TestHandleWebhook(t *testing.T) {
 		{
 			name:    "PAID - invoice transition already applied",
 			payload: paidPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PAID").Return(false, nil)
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), paidPayload.ExternalID).Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
@@ -432,7 +543,7 @@ func TestHandleWebhook(t *testing.T) {
 		{
 			name:    "PAID - ignored for canceled order",
 			payload: paidPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PAID").Return(false, nil)
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), paidPayload.ExternalID).Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
@@ -443,7 +554,7 @@ func TestHandleWebhook(t *testing.T) {
 		{
 			name:    "EXPIRED - success",
 			payload: expiredPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:EXPIRED").Return(false, nil)
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), expiredPayload.ExternalID).Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
@@ -456,7 +567,7 @@ func TestHandleWebhook(t *testing.T) {
 		{
 			name:    "EXPIRED - ignored for paid order",
 			payload: expiredPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:EXPIRED").Return(false, nil)
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), expiredPayload.ExternalID).Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
@@ -467,7 +578,7 @@ func TestHandleWebhook(t *testing.T) {
 		{
 			name:    "EXPIRED - transition already applied",
 			payload: expiredPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:EXPIRED").Return(false, nil)
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), expiredPayload.ExternalID).Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
@@ -479,7 +590,7 @@ func TestHandleWebhook(t *testing.T) {
 		{
 			name:    "idempotent - already processed",
 			payload: paidPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PAID").Return(true, nil)
 			},
 			wantErr: nil,
@@ -487,7 +598,7 @@ func TestHandleWebhook(t *testing.T) {
 		{
 			name:    "invoice not found",
 			payload: paidPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PAID").Return(false, nil)
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), paidPayload.ExternalID).Return(nil, nil)
 			},
@@ -496,7 +607,7 @@ func TestHandleWebhook(t *testing.T) {
 		{
 			name:    "event existence check DB error",
 			payload: paidPayload,
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PAID").Return(false, errDB)
 			},
 			wantErr: errDB,
@@ -509,7 +620,7 @@ func TestHandleWebhook(t *testing.T) {
 				Status:     "PENDING",
 				Amount:     206000,
 			},
-			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, xi *mocks.MockXenditInvoiceProvider) {
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				pmr.EXPECT().EventExistsByExternalID(gomock.Any(), "xinv-001:PENDING").Return(false, nil)
 				pmr.EXPECT().FindInvoiceByExternalID(gomock.Any(), "INV-ORD-20250101-ABCD1234-abcd1234").Return(invoice, nil)
 				pmr.EXPECT().CreateEvent(gomock.Any(), gomock.Any()).Return(nil)
@@ -520,8 +631,8 @@ func TestHandleWebhook(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoice, uc := setupCheckoutUseCase(t)
-			tc.setup(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoice)
+			cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice, uc := setupCheckoutUseCase(t)
+			tc.setup(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice)
 
 			err := uc.HandleWebhook(context.Background(), tc.payload)
 

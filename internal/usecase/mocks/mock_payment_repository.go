@@ -101,6 +101,21 @@ func (mr *MockPaymentRepositoryMockRecorder) FindInvoiceByExternalID(ctx, extern
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindInvoiceByExternalID", reflect.TypeOf((*MockPaymentRepository)(nil).FindInvoiceByExternalID), ctx, externalID)
 }
 
+// FindInvoiceByOrderID mocks base method.
+func (m *MockPaymentRepository) FindInvoiceByOrderID(ctx context.Context, orderID uuid.UUID) (*domain.PaymentInvoice, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindInvoiceByOrderID", ctx, orderID)
+	ret0, _ := ret[0].(*domain.PaymentInvoice)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindInvoiceByOrderID indicates an expected call of FindInvoiceByOrderID.
+func (mr *MockPaymentRepositoryMockRecorder) FindInvoiceByOrderID(ctx, orderID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindInvoiceByOrderID", reflect.TypeOf((*MockPaymentRepository)(nil).FindInvoiceByOrderID), ctx, orderID)
+}
+
 // UpdateInvoiceStatus mocks base method.
 func (m *MockPaymentRepository) UpdateInvoiceStatus(ctx context.Context, invoiceID uuid.UUID, status string, paidAt *time.Time, paymentMethod, paymentChannel *string, rawPayload map[string]any) error {
 	m.ctrl.T.Helper()

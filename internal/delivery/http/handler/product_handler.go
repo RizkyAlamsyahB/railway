@@ -87,16 +87,6 @@ func (h *CatalogHandler) ListCategories(c *gin.Context) {
 	response.OK(c, "categories retrieved successfully", categories)
 }
 
-// ListShippingServices handles GET /api/v1/shipping-services
-func (h *CatalogHandler) ListShippingServices(c *gin.Context) {
-	services, err := h.useCase.ListShippingServices(c.Request.Context())
-	if err != nil {
-		response.InternalServerError(c, "failed to list shipping services", nil)
-		return
-	}
-	response.OK(c, "shipping services retrieved successfully", services)
-}
-
 // ListProducts handles GET /api/v1/products
 func (h *CatalogHandler) ListProducts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -116,4 +106,21 @@ func (h *CatalogHandler) ListProducts(c *gin.Context) {
 	}
 
 	response.SuccessWithMeta(c, http.StatusOK, "products retrieved successfully", items, meta)
+}
+
+// GetProductByID handles GET /api/v1/products/:id
+func (h *CatalogHandler) GetProductByID(c *gin.Context) {
+	productID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid product ID", "id must be a valid UUID")
+		return
+	}
+
+	detail, err := h.useCase.GetProductDetail(c.Request.Context(), productID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "product detail retrieved successfully", detail)
 }

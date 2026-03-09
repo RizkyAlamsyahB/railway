@@ -1,0 +1,546 @@
+{
+  "info": {
+    "name": "UmrahMart - Vendor Banners (Pengaturan Toko)",
+    "description": "API contract untuk fitur **Banner Toko** vendor.\n\nBase URL: `http://localhost:8080/api/v1`\n\n## Deskripsi\nBanner ini akan ditampilkan di halaman detail toko (storefront) vendor.\nVendor dapat mengelola banner toko mereka sendiri (CRUD).\n\n## Auth\n- **Vendor endpoints** membutuhkan `Authorization: Bearer <vendor_token>` (Role: umkm)\n- **Public endpoint** `GET /vendors/:id/banners` — tanpa auth, untuk halaman detail toko\n\n## Banner Upload Flow\n1. `POST /vendors/banners` → dapat `upload_url` + `object_key`\n2. Client upload file ke `upload_url` (PUT ke S3)\n3. `POST /vendors/banners/:id/confirm` → kirim `object_key` untuk konfirmasi\n\n## Content Type yang Valid\n`image/jpeg`, `image/png`, `image/webp`\n\n## Flow\n1. Login vendor → token disimpan otomatis\n2. Akses endpoint banner di bawah `/vendors/banners`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "vendor_token",
+      "value": ""
+    },
+    {
+      "key": "vendor_id",
+      "value": ""
+    },
+    {
+      "key": "banner_id",
+      "value": ""
+    },
+    {
+      "key": "banner_object_key",
+      "value": ""
+    },
+    {
+      "key": "banner_upload_url",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login Vendor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('vendor_token', json.data.token);",
+                  "    console.log('✅ vendor_token saved');",
+                  "} else {",
+                  "    console.log('❌ Login failed, token not saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"changeme\"\n}"
+            },
+            "description": "Login vendor (role: umkm) untuk mendapatkan token.\n\nToken disimpan otomatis ke `vendor_token`."
+          },
+          "response": [
+            {
+              "name": "200 - Login Berhasil",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"login successful\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Vendor Banner CRUD",
+      "item": [
+        {
+          "name": "Create Banner (Presign Upload)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "    pm.collectionVariables.set('banner_id', json.data.banner_id);",
+                  "    pm.collectionVariables.set('banner_upload_url', json.data.upload_url);",
+                  "    pm.collectionVariables.set('banner_object_key', json.data.object_key);",
+                  "    console.log('✅ banner_id=' + json.data.banner_id);",
+                  "    console.log('✅ banner_upload_url saved');",
+                  "    console.log('✅ banner_object_key=' + json.data.object_key);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendors/banners",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendors",
+                "banners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Promo Umroh Ramadhan 2026\",\n  \"content_type\": \"image/jpeg\"\n}"
+            },
+            "description": "Membuat banner toko baru dan mendapat presigned URL untuk upload gambar ke S3.\n\n**Flow:**\n1. Kirim title + content_type\n2. Response berisi `upload_url`, `object_key`, `banner_id`\n3. Upload file ke `upload_url` (PUT request langsung ke S3)\n4. Panggil Confirm Banner untuk konfirmasi\n\n**Content type yang valid:** `image/jpeg`, `image/png`, `image/webp`\n\n`banner_id`, `banner_upload_url`, `banner_object_key` disimpan otomatis."
+          },
+          "response": [
+            {
+              "name": "201 - Banner Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"vendor banner created, upload image using the presigned URL\",\n  \"data\": {\n    \"banner_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"upload_url\": \"https://s3.amazonaws.com/bucket/vendor-banners/vendor-id/a1b2c3d4.jpg?X-Amz-Signature=...\",\n    \"object_key\": \"vendor-banners/vendor-id/a1b2c3d4-e5f6-7890-abcd-ef1234567890/1709546400\",\n    \"expires_in\": 900\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Validation Error",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Key: 'CreateVendorBannerRequest.Title' Error:Field validation for 'Title' failed on the 'required' tag\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "422 - Invalid Content Type",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid vendor banner content type, allowed: image/jpeg, image/png, image/webp\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Upload Image ke S3 (PUT Presigned URL)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/jpeg"
+              }
+            ],
+            "url": {
+              "raw": "{{banner_upload_url}}",
+              "host": [
+                "{{banner_upload_url}}"
+              ]
+            },
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "description": "**Step 2:** Upload file gambar langsung ke S3 menggunakan presigned URL.\n\n**Cara pakai di Postman:**\n1. Jalankan \"Create Banner\" dulu → `banner_upload_url` terisi otomatis\n2. Di tab Body, pilih **binary** → klik \"Select File\" → pilih gambar\n3. Pastikan Content-Type header sesuai (image/jpeg, image/png, atau image/webp)\n4. Klik Send → response harus `200 OK` (dari S3, bukan dari API kita)\n\n**PENTING:** Request ini langsung ke S3, bukan ke API backend.\n\nSetelah upload berhasil, lanjut ke \"Confirm Banner Upload\"."
+          },
+          "response": [
+            {
+              "name": "200 - Upload Success (dari S3)",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/xml"
+                }
+              ],
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Confirm Banner Upload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendors/banners/{{banner_id}}/confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendors",
+                "banners",
+                "{{banner_id}}",
+                "confirm"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object_key\": \"{{banner_object_key}}\"\n}"
+            },
+            "description": "**Step 3:** Konfirmasi bahwa gambar banner sudah di-upload ke S3.\n\nKirim `object_key` yang didapat dari response Create Banner.\n\nSetelah dikonfirmasi, banner akan memiliki `image_url` yang valid."
+          },
+          "response": [
+            {
+              "name": "200 - Banner Confirmed",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"vendor banner image confirmed\",\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vendor_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n    \"title\": \"Promo Umroh Ramadhan 2026\",\n    \"image_url\": \"https://cdn.umrahmart.com/vendor-banners/vendor-id/a1b2c3d4.jpg\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:01:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Banner Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"vendor banner not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "422 - Image Not Uploaded",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"vendor banner image not yet uploaded to storage\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "List My Banners",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendors/banners",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendors",
+                "banners"
+              ]
+            },
+            "description": "Daftar semua banner milik vendor yang sedang login.\n\nDiurutkan berdasarkan `created_at` terbaru."
+          },
+          "response": [
+            {
+              "name": "200 - Banners Loaded",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"vendor banners loaded\",\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"vendor_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n      \"title\": \"Promo Umroh Ramadhan 2026\",\n      \"image_url\": \"https://cdn.umrahmart.com/vendor-banners/vendor-id/a1b2c3d4.jpg\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:01:00Z\"\n    },\n    {\n      \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"vendor_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n      \"title\": \"Paket Haji Ekslusif\",\n      \"image_url\": \"\",\n      \"created_at\": \"2026-03-04T11:00:00Z\",\n      \"updated_at\": \"2026-03-04T11:00:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Banner Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendors/banners/{{banner_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendors",
+                "banners",
+                "{{banner_id}}"
+              ]
+            },
+            "description": "Ambil detail satu banner berdasarkan ID.\n\nHanya bisa mengakses banner milik vendor sendiri."
+          },
+          "response": [
+            {
+              "name": "200 - Banner Loaded",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"vendor banner loaded\",\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vendor_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n    \"title\": \"Promo Umroh Ramadhan 2026\",\n    \"image_url\": \"https://cdn.umrahmart.com/vendor-banners/vendor-id/a1b2c3d4.jpg\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:01:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Banner Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"vendor banner not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Banner",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendors/banners/{{banner_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendors",
+                "banners",
+                "{{banner_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Banner Toko Updated\"\n}"
+            },
+            "description": "Update judul banner.\n\nHanya bisa mengupdate banner milik vendor sendiri.\n\n**Field yang bisa diupdate:**\n- `title` (opsional, max 255 karakter)"
+          },
+          "response": [
+            {
+              "name": "200 - Banner Updated",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"vendor banner updated\",\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"vendor_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n    \"title\": \"Banner Toko Updated\",\n    \"image_url\": \"https://cdn.umrahmart.com/vendor-banners/vendor-id/a1b2c3d4.jpg\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T12:00:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Banner Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"vendor banner not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Banner",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/vendors/banners/{{banner_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendors",
+                "banners",
+                "{{banner_id}}"
+              ]
+            },
+            "description": "Hapus banner berdasarkan ID.\n\nHanya bisa menghapus banner milik vendor sendiri.\nGambar di S3 juga akan dihapus (best-effort)."
+          },
+          "response": [
+            {
+              "name": "200 - Banner Deleted",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"vendor banner deleted\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Banner Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"vendor banner not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "List Vendor Banners (Public — Store Detail)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/vendors/{{vendor_id}}/banners",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "vendors",
+                "{{vendor_id}}",
+                "banners"
+              ]
+            },
+            "description": "Endpoint publik (tanpa auth) untuk menampilkan banner di halaman detail toko vendor.\n\nGanti `{{vendor_id}}` dengan UUID vendor yang ingin dilihat."
+          },
+          "response": [
+            {
+              "name": "200 - Vendor Banners Loaded",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"vendor banners loaded\",\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"vendor_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n      \"title\": \"Promo Umroh Ramadhan 2026\",\n      \"image_url\": \"https://cdn.umrahmart.com/vendor-banners/vendor-id/a1b2c3d4.jpg\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:01:00Z\"\n    },\n    {\n      \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"vendor_id\": \"f1e2d3c4-b5a6-7890-1234-567890abcdef\",\n      \"title\": \"Paket Haji Ekslusif\",\n      \"image_url\": \"https://cdn.umrahmart.com/vendor-banners/vendor-id/b2c3d4e5.jpg\",\n      \"created_at\": \"2026-03-04T11:00:00Z\",\n      \"updated_at\": \"2026-03-04T11:05:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Invalid Vendor ID",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid vendor id\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

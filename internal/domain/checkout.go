@@ -116,6 +116,59 @@ type LedgerLine struct {
 
 // --- Request/Response DTOs ---
 
+// --- Checkout Preview DTOs ---
+
+// CheckoutPreviewRequest is the input DTO for the checkout preview endpoint.
+type CheckoutPreviewRequest struct {
+	AddressID string `json:"address_id" binding:"required,uuid"`
+}
+
+// CheckoutPreviewVendorItem represents one cart item in a vendor group (for preview).
+type CheckoutPreviewVendorItem struct {
+	ProductVariantID uuid.UUID `json:"product_variant_id"`
+	ProductName      string    `json:"product_name"`
+	VariantName      string    `json:"variant_name"`
+	ImageURL         *string   `json:"image_url"`
+	Price            float64   `json:"price"`
+	Qty              int       `json:"qty"`
+	Subtotal         float64   `json:"subtotal"`
+	WeightGram       int       `json:"weight_gram"`
+}
+
+// CheckoutPreviewVendorGroup represents one vendor's products and shipping options.
+type CheckoutPreviewVendorGroup struct {
+	VendorID        uuid.UUID                   `json:"vendor_id"`
+	VendorName      string                      `json:"vendor_name"`
+	Items           []CheckoutPreviewVendorItem `json:"items"`
+	Subtotal        float64                     `json:"subtotal"`
+	TotalWeightGram int                         `json:"total_weight_gram"`
+	ShippingOptions []ShippingCostOption        `json:"shipping_options"`
+}
+
+// CheckoutPreviewResponse is the output DTO for the checkout preview endpoint.
+type CheckoutPreviewResponse struct {
+	Address     AddressResponse              `json:"address"`
+	Vendors     []CheckoutPreviewVendorGroup `json:"vendors"`
+	PlatformFee float64                      `json:"platform_fee"`
+}
+
+// --- Checkout (Place Order) DTOs ---
+
+// CheckoutRequest is the input DTO for placing an order after preview.
+type CheckoutRequest struct {
+	AddressID       string                   `json:"address_id" binding:"required,uuid"`
+	ShippingChoices []CheckoutShippingChoice `json:"shipping_choices" binding:"required,min=1,dive"`
+	Notes           *string                  `json:"notes,omitempty"`
+}
+
+// CheckoutShippingChoice represents the customer's courier selection for one vendor.
+// Cost is NOT accepted from the client; it is recalculated server-side via RajaOngkir.
+type CheckoutShippingChoice struct {
+	VendorID    string `json:"vendor_id" binding:"required,uuid"`
+	CourierCode string `json:"courier_code" binding:"required"`
+	Service     string `json:"service" binding:"required"`
+}
+
 // CheckoutOrderResult represents a single order created during checkout.
 type CheckoutOrderResult struct {
 	OrderID     uuid.UUID `json:"order_id"`
@@ -164,6 +217,9 @@ type OrderRepository interface {
 	// FindItemsByOrderID returns all items for an order.
 	FindItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]OrderItem, error)
 
+	// FindItemsByOrderIDs returns all items grouped by order IDs.
+	FindItemsByOrderIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]OrderItem, error)
+
 	// UpdateOrderStatus sets order_status and payment_status, appending a status history row.
 	UpdateOrderStatus(ctx context.Context, orderID uuid.UUID, orderStatus, paymentStatus string, changedBy *uuid.UUID, notes *string) error
 
@@ -174,6 +230,12 @@ type OrderRepository interface {
 	// It updates invoice status (pending -> expired), updates order status, writes status history,
 	// and restores stock in a single DB transaction. Returns false when no state change is applied.
 	ApplyExpiredWebhookUpdate(ctx context.Context, orderID, invoiceID uuid.UUID, notes *string) (bool, error)
+
+	// FindByOrderNo returns the order matching the given order number, or nil.
+	FindByOrderNo(ctx context.Context, orderNo string) (*Order, error)
+
+	// ListByUser returns customer orders with optional status filter and pagination.
+	ListByUser(ctx context.Context, userID uuid.UUID, params CustomerOrderListParams) ([]Order, int64, error)
 }
 
 // PaymentRepository defines the interface for payment invoice and event data access.
@@ -183,6 +245,9 @@ type PaymentRepository interface {
 
 	// FindInvoiceByExternalID returns the invoice matching the given external_invoice_id, or nil.
 	FindInvoiceByExternalID(ctx context.Context, externalID string) (*PaymentInvoice, error)
+
+	// FindInvoiceByOrderID returns the latest invoice for the given order ID, or nil.
+	FindInvoiceByOrderID(ctx context.Context, orderID uuid.UUID) (*PaymentInvoice, error)
 
 	// UpdateInvoiceStatus updates a payment invoice's status and related payment fields.
 	UpdateInvoiceStatus(ctx context.Context, invoiceID uuid.UUID, status string, paidAt *time.Time, paymentMethod, paymentChannel *string, rawPayload map[string]interface{}) error
@@ -218,9 +283,12 @@ type LedgerRepository interface {
 
 // CheckoutUseCase defines the interface for checkout business operations.
 type CheckoutUseCase interface {
+	// Preview returns cart items grouped by vendor with shipping options from RajaOngkir.
+	Preview(ctx context.Context, userID uuid.UUID, req CheckoutPreviewRequest) (*CheckoutPreviewResponse, error)
+
 	// Checkout validates the cart, creates orders per vendor, creates Xendit invoices,
-	// and returns invoice URLs.
-	Checkout(ctx context.Context, userID uuid.UUID) (*CheckoutResponse, error)
+	// and returns invoice URLs. Accepts shipping choices from the preview step.
+	Checkout(ctx context.Context, userID uuid.UUID, req CheckoutRequest) (*CheckoutResponse, error)
 
 	// HandleWebhook processes an incoming Xendit webhook callback.
 	HandleWebhook(ctx context.Context, payload XenditWebhookPayload) error

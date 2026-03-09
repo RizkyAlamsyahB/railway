@@ -353,9 +353,51 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
+	imageURL := ""
+	if user.ImageURL != nil {
+		imageURL = *user.ImageURL
+	}
+
 	return &domain.VendorLoginResponse{
 		Token:        token,
 		VendorID:     vendor.ID,
+		ImageURL:     imageURL,
+		Email:        user.Email,
+		Name:         user.FullName,
+		VendorType:   vendor.VendorType,
+		VendorStatus: vendor.Status,
+		DisplayName:  vendor.DisplayName,
+	}, nil
+}
+
+func (uc *vendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain.VendorProfileResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+
+	user, err := uc.userRepo.FindByID(ctx, vendor.OwnerUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return nil, ErrUserNotFound
+	}
+
+	imageURL := ""
+	if user.ImageURL != nil {
+		imageURL = *user.ImageURL
+	}
+
+	return &domain.VendorProfileResponse{
+		VendorID:     vendor.ID,
+		ImageURL:     imageURL,
+		Email:        user.Email,
+		Name:         user.FullName,
+		VendorType:   vendor.VendorType,
 		VendorStatus: vendor.Status,
 		DisplayName:  vendor.DisplayName,
 	}, nil

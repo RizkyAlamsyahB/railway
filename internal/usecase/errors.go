@@ -58,19 +58,17 @@ var (
 // --- Product errors ---
 
 var (
-	ErrVendorNotActive           = errors.New("vendor is not active")
-	ErrCategoryNotFound          = errors.New("category not found")
-	ErrShippingServiceNotFound   = errors.New("one or more shipping services not found")
-	ErrProductNotFound           = errors.New("product not found")
-	ErrProductNotOwned           = errors.New("product does not belong to this vendor")
-	ErrImageNotFound             = errors.New("image not found for this product")
-	ErrImageNotUploaded          = errors.New("image not found in storage")
-	ErrInvalidImageContentType   = errors.New("invalid image content type")
-	ErrImageSizeOverflow         = errors.New("image file size exceeds supported limit")
-	ErrDuplicatePrimaryImage     = errors.New("only one image can be marked as primary")
-	ErrNoPrimaryImage            = errors.New("at least one image must be marked as primary")
-	ErrPublishedRequiresShipping = errors.New("published product must have at least one shipping service")
-	ErrTooManyImages             = errors.New("maximum 10 images per product")
+	ErrVendorNotActive         = errors.New("vendor is not active")
+	ErrCategoryNotFound        = errors.New("category not found")
+	ErrProductNotFound         = errors.New("product not found")
+	ErrProductNotOwned         = errors.New("product does not belong to this vendor")
+	ErrImageNotFound           = errors.New("image not found for this product")
+	ErrImageNotUploaded        = errors.New("image not found in storage")
+	ErrInvalidImageContentType = errors.New("invalid image content type")
+	ErrImageSizeOverflow       = errors.New("image file size exceeds supported limit")
+	ErrDuplicatePrimaryImage   = errors.New("only one image can be marked as primary")
+	ErrNoPrimaryImage          = errors.New("at least one image must be marked as primary")
+	ErrTooManyImages           = errors.New("maximum 10 images per product")
 )
 
 // --- Xendit errors ---
@@ -109,14 +107,23 @@ var (
 // --- Checkout errors ---
 
 var (
-	ErrCartEmpty                  = errors.New("cart is empty")
-	ErrCartHasUnavailableItems    = errors.New("cart contains unavailable items")
-	ErrVendorNoXenditAccount      = errors.New("vendor does not have a Xendit account")
-	ErrCheckoutStockInsufficient  = errors.New("insufficient stock during checkout")
-	ErrInvoiceCreationFailed      = errors.New("failed to create payment invoice")
-	ErrCheckoutCompensationFailed = errors.New("checkout compensation failed")
-	ErrOrderNotFound              = errors.New("order not found")
-	ErrInvoiceNotFound            = errors.New("payment invoice not found")
+	ErrCartEmpty                        = errors.New("cart is empty")
+	ErrCartHasUnavailableItems          = errors.New("cart contains unavailable items")
+	ErrVendorNoXenditAccount            = errors.New("vendor does not have a Xendit account")
+	ErrCheckoutStockInsufficient        = errors.New("insufficient stock during checkout")
+	ErrInvoiceCreationFailed            = errors.New("failed to create payment invoice")
+	ErrCheckoutCompensationFailed       = errors.New("checkout compensation failed")
+	ErrOrderNotFound                    = errors.New("order not found")
+	ErrOrderNotOwned                    = errors.New("order does not belong to this user")
+	ErrInvalidOrderStatus               = errors.New("invalid order status")
+	ErrInvoiceNotFound                  = errors.New("payment invoice not found")
+	ErrInvalidOrderCompletionTransition = errors.New("order status cannot be completed from current status")
+	ErrAddressNoDistrict                = errors.New("selected address has no district; please update your address")
+	ErrVendorWarehouseNotFound          = errors.New("vendor warehouse address not found; vendor must set a default address")
+	ErrVendorNoCouriersConfigured       = errors.New("vendor has no couriers configured")
+	ErrShippingCostFailed               = errors.New("failed to calculate shipping cost")
+	ErrInvalidShippingChoice            = errors.New("invalid shipping choice")
+	ErrShippingServiceNotFound          = errors.New("selected shipping service not found in available options")
 )
 
 // --- Finance errors ---
@@ -135,6 +142,20 @@ var (
 
 var (
 	ErrNotificationNotFound = errors.New("notification not found")
+)
+
+// --- Review errors ---
+
+var (
+	ErrReviewNotAllowed              = errors.New("order is not eligible for review")
+	ErrReviewAlreadyExists           = errors.New("review for this purchased item already exists")
+	ErrOrderItemNotFound             = errors.New("order item not found")
+	ErrInvalidReviewRating           = errors.New("review rating must be between 1 and 5")
+	ErrReviewTextRequired            = errors.New("review text is required")
+	ErrTooManyReviewImages           = errors.New("maximum 5 images per review")
+	ErrReviewImageNotUploaded        = errors.New("review image not found in storage")
+	ErrInvalidReviewImageContentType = errors.New("invalid review image content type")
+	ErrReviewImageTooLarge           = errors.New("review image size exceeds maximum limit")
 )
 
 // --- CS errors ---
@@ -156,7 +177,7 @@ var (
 	// ticket ownership
 	ErrTicketAlreadyTaken     = errors.New("ticket is already assigned to another CS")
 	ErrTicketNotAssignedToYou = errors.New("only the assigned CS can perform this action")
-	ErrTicketClosed           = errors.New("ticket is already resolved or closed")
+	ErrTicketClosed           = errors.New("ticket is already closed")
 
 	// ticket subject
 	ErrTicketSubjectNotFound = errors.New("ticket subject not found")
@@ -169,4 +190,54 @@ var (
 	ErrInvalidChatAttachmentContentType = errors.New("invalid chat attachment content type; allowed: image/png, image/jpeg, video/mp4")
 	ErrChatAttachmentTooLarge           = errors.New("chat attachment exceeds maximum size of 10 MB")
 	ErrChatAttachmentNotUploaded        = errors.New("chat attachment not found in storage; upload it first")
+)
+
+// --- Banner errors ---
+
+var (
+	ErrBannerNotFound           = errors.New("banner not found")
+	ErrInvalidBannerContentType = errors.New("invalid banner image content type; allowed: image/jpeg, image/png, image/webp")
+	ErrBannerImageTooLarge      = errors.New("banner image exceeds maximum size of 5 MB")
+	ErrBannerImageNotUploaded   = errors.New("banner image not found in storage; upload it first")
+)
+
+// --- Master Lookup errors ---
+
+var (
+	ErrAdminCategoryNotFound = errors.New("category not found")
+	ErrCategorySlugExists    = errors.New("category with this name already exists")
+	ErrReturnReasonNotFound  = errors.New("return reason not found")
+	ErrAdminContactNotFound  = errors.New("admin contact not found")
+	ErrFAQNotFound           = errors.New("FAQ not found")
+	ErrInvalidFAQCategory    = errors.New("invalid FAQ category")
+)
+
+// --- Vendor Banner errors ---
+
+var (
+	ErrVendorBannerNotFound           = errors.New("vendor banner not found")
+	ErrInvalidVendorBannerContentType = errors.New("invalid vendor banner image content type; allowed: image/jpeg, image/png, image/webp")
+	ErrVendorBannerImageTooLarge      = errors.New("vendor banner image exceeds maximum size of 5 MB")
+	ErrVendorBannerImageNotUploaded   = errors.New("vendor banner image not found in storage; upload it first")
+)
+
+// --- Address errors ---
+
+var (
+	ErrAddressNotFound = errors.New("address not found")
+	ErrAddressNotOwned = errors.New("address does not belong to this user")
+)
+
+// --- Courier errors ---
+
+var (
+	ErrCourierNotFound       = errors.New("courier not found")
+	ErrCourierNotActive      = errors.New("courier is not active")
+	ErrVendorCourierNotFound = errors.New("vendor courier selection not found")
+)
+
+// --- Shipping / RajaOngkir errors ---
+
+var (
+	ErrRajaOngkirFailed = errors.New("failed to fetch data from shipping provider")
 )

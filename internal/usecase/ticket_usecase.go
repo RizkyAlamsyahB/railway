@@ -17,12 +17,14 @@ type ticketUseCase struct {
 	ticketRepo  domain.TicketRepository
 	subjectRepo domain.TicketSubjectRepository
 	userRepo    domain.UserRepository
+	orderRepo   domain.OrderRepository
+	paymentRepo domain.PaymentRepository
 	email       domain.EmailProvider
 	storage     domain.StorageProvider
 }
 
-func NewTicketUseCase(ticketRepo domain.TicketRepository, subjectRepo domain.TicketSubjectRepository, userRepo domain.UserRepository, email domain.EmailProvider, storage domain.StorageProvider) domain.TicketUseCase {
-	return &ticketUseCase{ticketRepo: ticketRepo, subjectRepo: subjectRepo, userRepo: userRepo, email: email, storage: storage}
+func NewTicketUseCase(ticketRepo domain.TicketRepository, subjectRepo domain.TicketSubjectRepository, userRepo domain.UserRepository, orderRepo domain.OrderRepository, paymentRepo domain.PaymentRepository, email domain.EmailProvider, storage domain.StorageProvider) domain.TicketUseCase {
+	return &ticketUseCase{ticketRepo: ticketRepo, subjectRepo: subjectRepo, userRepo: userRepo, orderRepo: orderRepo, paymentRepo: paymentRepo, email: email, storage: storage}
 }
 
 // generateTicketNumber creates a ticket number in format TKT-YYYYMMDD-NNNN.
@@ -147,8 +149,8 @@ func (uc *ticketUseCase) TakeTicket(ctx context.Context, csID, ticketID uuid.UUI
 		return nil, fmt.Errorf("failed to find ticket: %w", err)
 	}
 
-	// Already resolved or closed → read-only
-	if t.Status == domain.TicketStatusResolved || t.Status == domain.TicketStatusClosed {
+	// Already closed → read-only
+	if t.Status == domain.TicketStatusClosed {
 		return nil, ErrTicketClosed
 	}
 
@@ -196,8 +198,8 @@ func (uc *ticketUseCase) UpdateTicketStatus(ctx context.Context, csID, ticketID 
 		return nil, ErrTicketNotAssignedToYou
 	}
 
-	// Already resolved or closed → no further status changes
-	if t.Status == domain.TicketStatusResolved || t.Status == domain.TicketStatusClosed {
+	// Already closed → no further status changes
+	if t.Status == domain.TicketStatusClosed {
 		return nil, ErrTicketClosed
 	}
 
@@ -206,10 +208,7 @@ func (uc *ticketUseCase) UpdateTicketStatus(ctx context.Context, csID, ticketID 
 	t.Status = req.Status
 	t.UpdatedAt = now
 
-	switch req.Status {
-	case domain.TicketStatusResolved:
-		t.ResolvedAt = &now
-	case domain.TicketStatusClosed:
+	if req.Status == domain.TicketStatusClosed {
 		t.ClosedAt = &now
 	}
 
@@ -248,8 +247,8 @@ func (uc *ticketUseCase) AddTicketMessage(ctx context.Context, senderID uuid.UUI
 		}
 	}
 
-	// Resolved or closed tickets are read-only
-	if t.Status == domain.TicketStatusResolved || t.Status == domain.TicketStatusClosed {
+	// Closed tickets are read-only
+	if t.Status == domain.TicketStatusClosed {
 		return nil, ErrTicketClosed
 	}
 
@@ -310,6 +309,16 @@ func (uc *ticketUseCase) enrichTicket(ctx context.Context, t *domain.Ticket) {
 	if t.AssignedCSID != nil {
 		if cs, err := uc.userRepo.FindByID(ctx, *t.AssignedCSID); err == nil {
 			t.AssignedCSName = &cs.FullName
+		}
+	}
+	// Enrich order info (status, payment method, grand total)
+	if t.OrderNumber != "" {
+		if order, err := uc.orderRepo.FindByOrderNo(ctx, t.OrderNumber); err == nil && order != nil {
+			t.OrderStatus = order.OrderStatus
+			t.GrandTotal = order.GrandTotal
+			if invoice, err := uc.paymentRepo.FindInvoiceByOrderID(ctx, order.ID); err == nil && invoice != nil {
+				t.PaymentMethod = invoice.PaymentMethod
+			}
 		}
 	}
 }

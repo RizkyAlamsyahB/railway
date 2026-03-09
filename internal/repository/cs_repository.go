@@ -30,7 +30,6 @@ type ticketModel struct {
 	Source                string     `gorm:"column:source"`
 	AttachmentURL         *string    `gorm:"column:attachment_url"`
 	AttachmentContentType *string    `gorm:"column:attachment_content_type"`
-	ResolvedAt            *time.Time `gorm:"column:resolved_at"`
 	ClosedAt              *time.Time `gorm:"column:closed_at"`
 	CreatedAt             time.Time  `gorm:"column:created_at"`
 	UpdatedAt             time.Time  `gorm:"column:updated_at"`
@@ -211,7 +210,6 @@ func (r *ticketRepository) Update(ctx context.Context, t *domain.Ticket) error {
 		Source:                t.Source,
 		AttachmentURL:         t.AttachmentURL,
 		AttachmentContentType: t.AttachmentContentType,
-		ResolvedAt:            t.ResolvedAt,
 		ClosedAt:              t.ClosedAt,
 		CreatedAt:             t.CreatedAt,
 		UpdatedAt:             t.UpdatedAt,
@@ -278,7 +276,7 @@ func (r *ticketRepository) CountDoneTickets(ctx context.Context, year, month int
 	var count int64
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT COUNT(*) FROM tickets
-		WHERE status IN ('resolved', 'closed')
+		WHERE status = 'closed'
 		  AND created_at >= ? AND created_at < ?
 	`, start, end).Scan(&count).Error
 	return count, err
@@ -702,7 +700,6 @@ func toTicketDomain(m ticketModel) *domain.Ticket {
 		Source:                m.Source,
 		AttachmentURL:         m.AttachmentURL,
 		AttachmentContentType: m.AttachmentContentType,
-		ResolvedAt:            m.ResolvedAt,
 		ClosedAt:              m.ClosedAt,
 		CreatedAt:             m.CreatedAt,
 		UpdatedAt:             m.UpdatedAt,
@@ -787,14 +784,14 @@ func (r *ticketRepository) CountByMonth(ctx context.Context, year, month int) (i
 		return 0, 0, err
 	}
 
-	var resolved int64
+	var closed int64
 	if err := r.db.WithContext(ctx).Model(&ticketModel{}).
 		Where("created_at >= ? AND created_at < ?", start, end).
-		Where("status IN ?", []string{"resolved", "closed"}).
-		Count(&resolved).Error; err != nil {
+		Where("status = ?", "closed").
+		Count(&closed).Error; err != nil {
 		return 0, 0, err
 	}
-	return total, resolved, nil
+	return total, closed, nil
 }
 
 func (r *ticketRepository) AvgFirstResponseMinute(ctx context.Context, year, month int) (float64, error) {
@@ -901,13 +898,13 @@ func (r *ticketRepository) ExportByMonth(ctx context.Context, year, month int) (
 		Source       string     `gorm:"column:source"`
 		ReporterName string     `gorm:"column:reporter_name"`
 		AssignedCS   *string    `gorm:"column:assigned_cs"`
-		ResolvedAt   *time.Time `gorm:"column:resolved_at"`
+		ClosedAt     *time.Time `gorm:"column:closed_at"`
 		CreatedAt    time.Time  `gorm:"column:created_at"`
 	}
 	var rows []row
 	err := r.db.WithContext(ctx).Raw(`
 		SELECT t.ticket_number, ts.label as subject, t.status, t.source,
-		       t.reporter_name, u.full_name as assigned_cs, t.resolved_at, t.created_at
+		       t.reporter_name, u.full_name as assigned_cs, t.closed_at, t.created_at
 		FROM tickets t
 		JOIN ticket_subjects ts ON ts.id = t.subject_id
 		LEFT JOIN users u ON u.id = t.assigned_cs_id
@@ -926,7 +923,7 @@ func (r *ticketRepository) ExportByMonth(ctx context.Context, year, month int) (
 			Source:       r.Source,
 			ReporterName: r.ReporterName,
 			AssignedCS:   r.AssignedCS,
-			ResolvedAt:   r.ResolvedAt,
+			ClosedAt:     r.ClosedAt,
 			CreatedAt:    r.CreatedAt,
 		}
 	}

@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Haji Umroh Store BE - Users API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint user/customer, termasuk pendaftaran, verifikasi email, login, profil user, dan checkout cart.
+  description: Dokumentasi OpenAPI 3 untuk endpoint user/customer, termasuk pendaftaran, verifikasi email, login, profil user, checkout cart, complete order, dan review produk.
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -15,7 +15,60 @@ tags:
     description: Operasi profil user yang memerlukan autentikasi.
   - name: Checkout
     description: Operasi checkout cart customer dan pembuatan invoice pembayaran Xendit.
+  - name: Orders
+    description: Operasi lifecycle order oleh customer.
+  - name: Reviews
+    description: Operasi review produk oleh customer (presign gambar dan submit review).
 paths:
+  /api/v1/order-statuses:
+    get:
+      tags:
+        - Orders
+      summary: Ambil daftar status order yang didukung sistem
+      description: |
+        Mengembalikan daftar status order yang valid untuk kebutuhan filter di client.
+        Endpoint ini bersifat public (tanpa autentikasi).
+      operationId: listOrderStatuses
+      security: []
+      responses:
+        '200':
+          description: Daftar status order berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessOrderStatusesEnvelope'
+              example:
+                success: true
+                message: "order statuses loaded"
+                data:
+                  - pending_payment
+                  - paid
+                  - packed
+                  - shipped
+                  - completed
+                  - canceled
+                  - refunded
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
   /api/v1/users/register:
     post:
       tags:
@@ -597,6 +650,131 @@ paths:
                 errors: null
                 meta: null
 
+  /api/v1/users/orders:
+    get:
+      tags:
+        - Orders
+      summary: Ambil daftar order milik customer
+      description: |
+        Mengembalikan daftar pesanan milik customer yang sedang login.
+        Mendukung filter berdasarkan status order dan pagination.
+      operationId: listCustomerOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter status order (single value).
+          schema:
+            type: string
+            enum: [pending_payment, paid, packed, shipped, completed, canceled, refunded]
+        - name: page
+          in: query
+          required: false
+          description: Nomor halaman (default 1).
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Jumlah data per halaman (default 10, maks 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Daftar order berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCustomerOrderListEnvelope'
+              example:
+                success: true
+                message: "orders retrieved successfully"
+                data:
+                  - order_id: "11111111-2222-3333-4444-555555555555"
+                    items:
+                      - product_name: "Kurma Ajwa"
+                        selected_variant: "500gr"
+                        qty: 2
+                    total_payment: 206000
+                    order_date: "2026-03-01T08:30:00Z"
+                    status: "paid"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 1
+                  total_pages: 1
+        '400':
+          description: Request tidak valid (misalnya filter status tidak valid).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "invalid order status"
+                data: null
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "invalid or expired token"
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
   /api/v1/users/checkout:
     post:
       tags:
@@ -785,6 +963,497 @@ paths:
                 errors: null
                 meta: null
 
+  /api/v1/users/orders/{orderId}/complete:
+    post:
+      tags:
+        - Orders
+      summary: Tandai order selesai oleh customer
+      description: |
+        Menandai order customer menjadi `completed`.
+
+        **Validasi:**
+        - Order harus milik customer yang login.
+        - Status order harus salah satu dari: `paid`, `packed`, atau `shipped`.
+      operationId: completeOrderByCustomer
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: ID order yang akan ditandai selesai.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order berhasil ditandai selesai.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCompleteOrderEnvelope'
+              example:
+                success: true
+                message: "order marked as completed"
+                data:
+                  order_id: "11111111-2222-3333-4444-555555555555"
+                  order_status: completed
+                  payment_status: paid
+                  completed_at: "2026-03-04T10:20:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                invalidOrderID:
+                  summary: orderId bukan UUID valid
+                  value:
+                    success: false
+                    message: "invalid order ID"
+                    data: null
+                    errors: "orderId must be a valid UUID"
+                    meta: null
+                invalidTransition:
+                  summary: Status order tidak bisa di-complete
+                  value:
+                    success: false
+                    message: "order cannot be completed from current status"
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "invalid or expired token"
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Tidak diizinkan (bukan role customer atau order bukan milik user).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                insufficientPermissions:
+                  summary: Role tidak diizinkan
+                  value:
+                    success: false
+                    message: "insufficient permissions"
+                    data: null
+                    errors: null
+                    meta: null
+                orderNotOwned:
+                  summary: Order bukan milik customer
+                  value:
+                    success: false
+                    message: "order does not belong to this user"
+                    data: null
+                    errors: null
+                    meta: null
+        '404':
+          description: Order tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "order not found"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/reviews/presign:
+    post:
+      tags:
+        - Reviews
+      summary: Generate presigned upload URL gambar review
+      description: |
+        Menghasilkan presigned upload URL untuk gambar review produk.
+        Endpoint menggunakan storage provider internal (`GeneratePresignedUploadURL`).
+
+        **Validasi:**
+        - Content-Type hanya menerima: `image/jpeg`, `image/png`, `image/webp`.
+      operationId: presignReviewImage
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignReviewImageRequest'
+            example:
+              content_type: image/jpeg
+      responses:
+        '200':
+          description: Presigned upload URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessPresignReviewImageEnvelope'
+              example:
+                success: true
+                message: "review image upload URL generated"
+                data:
+                  upload_url: "https://s3.example.com/bucket/reviews/2026/03/04/abc?signature=..."
+                  object_key: "reviews/2026/03/04/abc"
+                  content_type: "image/jpeg"
+                  expires_in: 1800
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Body tidak valid
+                  value:
+                    success: false
+                    message: "validation failed"
+                    data: null
+                    errors: "Key: 'PresignReviewImageRequest.ContentType' Error:Field validation for 'ContentType' failed on the 'required' tag"
+                    meta: null
+                invalidContentType:
+                  summary: Content type tidak didukung
+                  value:
+                    success: false
+                    message: "invalid review image content type"
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "invalid or expired token"
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/reviews:
+    post:
+      tags:
+        - Reviews
+      summary: Buat review produk dari item pembelian
+      description: |
+        Membuat review produk berdasarkan item order yang sudah dibeli customer.
+
+        **Validasi utama:**
+        - `rating` harus 1..5.
+        - `review_text` wajib diisi.
+        - Maksimal 5 gambar review.
+        - Order harus milik customer dan status `completed`.
+        - Satu `order_item_id` hanya boleh direview sekali oleh customer yang sama.
+      operationId: createProductReview
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductReviewRequest'
+            example:
+              order_id: "11111111-2222-3333-4444-555555555555"
+              order_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+              rating: 5
+              review_text: "Produk bagus, kualitas sesuai deskripsi."
+              images:
+                - object_key: "reviews/2026/03/04/abc"
+      responses:
+        '201':
+          description: Review berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessCreateProductReviewEnvelope'
+              example:
+                success: true
+                message: "review created successfully"
+                data:
+                  review_id: "8ea58d2f-c1a6-4fd3-9b37-67a743f57272"
+                  product_id: "0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2"
+                  order_id: "11111111-2222-3333-4444-555555555555"
+                  order_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                  rating: 5
+                  review_text: "Produk bagus, kualitas sesuai deskripsi."
+                  image_urls:
+                    - "https://cdn.example.com/reviews/2026/03/04/abc"
+                  created_at: "2026-03-04T10:30:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: Request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validationFailed:
+                  summary: Body tidak valid
+                  value:
+                    success: false
+                    message: "validation failed"
+                    data: null
+                    errors: "Key: 'CreateProductReviewRequest.Rating' Error:Field validation for 'Rating' failed on the 'required' tag"
+                    meta: null
+                invalidRating:
+                  summary: Rating di luar rentang 1..5
+                  value:
+                    success: false
+                    message: "review rating must be between 1 and 5"
+                    data: null
+                    errors: null
+                    meta: null
+                emptyReviewText:
+                  summary: Teks review kosong
+                  value:
+                    success: false
+                    message: "review text is required"
+                    data: null
+                    errors: null
+                    meta: null
+                tooManyImages:
+                  summary: Jumlah gambar melebihi batas
+                  value:
+                    success: false
+                    message: "maximum 5 images per review"
+                    data: null
+                    errors: null
+                    meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "invalid or expired token"
+                data: null
+                errors: null
+                meta: null
+        '403':
+          description: Tidak diizinkan (bukan role customer atau order bukan milik user).
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                insufficientPermissions:
+                  summary: Role tidak diizinkan
+                  value:
+                    success: false
+                    message: "insufficient permissions"
+                    data: null
+                    errors: null
+                    meta: null
+                orderNotOwned:
+                  summary: Order bukan milik customer
+                  value:
+                    success: false
+                    message: "order does not belong to this user"
+                    data: null
+                    errors: null
+                    meta: null
+        '404':
+          description: Resource terkait tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                orderNotFound:
+                  summary: Order tidak ditemukan
+                  value:
+                    success: false
+                    message: "order not found"
+                    data: null
+                    errors: null
+                    meta: null
+                orderItemNotFound:
+                  summary: Order item tidak ditemukan
+                  value:
+                    success: false
+                    message: "order item not found"
+                    data: null
+                    errors: null
+                    meta: null
+        '409':
+          description: Review untuk item ini sudah pernah dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "review for this purchased item already exists"
+                data: null
+                errors: null
+                meta: null
+        '422':
+          description: Request tidak dapat diproses karena syarat bisnis/upload belum terpenuhi.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                notEligible:
+                  summary: Order belum eligible untuk review
+                  value:
+                    success: false
+                    message: "order is not eligible for review"
+                    data: null
+                    errors: null
+                    meta: null
+                imageNotUploaded:
+                  summary: Object image belum tersedia di storage
+                  value:
+                    success: false
+                    message: "review image not found in storage"
+                    data: null
+                    errors: null
+                    meta: null
+                imageInvalidContentType:
+                  summary: Content type image tidak didukung
+                  value:
+                    success: false
+                    message: "invalid review image content type"
+                    data: null
+                    errors: null
+                    meta: null
+                imageTooLarge:
+                  summary: Ukuran image terlalu besar
+                  value:
+                    success: false
+                    message: "review image size exceeds maximum limit"
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
 components:
   securitySchemes:
     BearerAuth:
@@ -863,6 +1532,63 @@ components:
           format: password
           description: Password akun.
           example: SecurePass123!
+
+    PresignReviewImageRequest:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+          description: Content-Type file gambar yang akan diupload.
+          enum: [image/jpeg, image/png, image/webp]
+          example: image/jpeg
+
+    ReviewImageInput:
+      type: object
+      required:
+        - object_key
+      properties:
+        object_key:
+          type: string
+          description: Object key hasil endpoint presign review image.
+          example: reviews/2026/03/04/abc
+
+    CreateProductReviewRequest:
+      type: object
+      required:
+        - order_id
+        - order_item_id
+        - rating
+        - review_text
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          description: ID order yang berisi item produk.
+          example: 11111111-2222-3333-4444-555555555555
+        order_item_id:
+          type: string
+          format: uuid
+          description: ID order item yang akan direview.
+          example: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Nilai rating produk.
+          example: 5
+        review_text:
+          type: string
+          maxLength: 2000
+          description: Teks ulasan/review customer.
+          example: Produk bagus, kualitas sesuai deskripsi.
+        images:
+          type: array
+          maxItems: 5
+          description: Daftar object key gambar review (opsional).
+          items:
+            $ref: '#/components/schemas/ReviewImageInput'
 
     # ──────────── Response Data Schemas ────────────
 
@@ -1068,6 +1794,162 @@ components:
           items:
             $ref: '#/components/schemas/CheckoutOrderResult'
 
+    CompleteOrderResponseData:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          description: ID order yang ditandai selesai.
+          example: 11111111-2222-3333-4444-555555555555
+        order_status:
+          type: string
+          description: Status order setelah proses complete.
+          example: completed
+        payment_status:
+          type: string
+          description: Status pembayaran order.
+          example: paid
+        completed_at:
+          type: string
+          format: date-time
+          description: Timestamp saat order ditandai selesai.
+          example: "2026-03-04T10:20:00Z"
+
+    CustomerOrderProductItem:
+      type: object
+      properties:
+        product_name:
+          type: string
+          description: Nama produk pada saat order dibuat.
+          example: Kurma Ajwa
+        selected_variant:
+          type: string
+          description: Varian/sku yang dipilih customer.
+          example: 500gr
+        qty:
+          type: integer
+          description: Kuantitas item yang dibeli.
+          example: 2
+
+    CustomerOrderListItem:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          description: ID order.
+          example: 11111111-2222-3333-4444-555555555555
+        items:
+          type: array
+          description: Daftar item produk dalam order.
+          items:
+            $ref: '#/components/schemas/CustomerOrderProductItem'
+        total_payment:
+          type: number
+          format: double
+          description: Total pembayaran order.
+          example: 206000
+        order_date:
+          type: string
+          format: date-time
+          description: Tanggal/waktu order dibuat.
+          example: "2026-03-01T08:30:00Z"
+        status:
+          type: string
+          description: Status order saat ini.
+          example: paid
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total_items:
+          type: integer
+          example: 1
+        total_pages:
+          type: integer
+          example: 1
+
+    OrderStatusesResponseData:
+      type: array
+      items:
+        type: string
+      example: [pending_payment, paid, packed, shipped, completed, canceled, refunded]
+
+    PresignReviewImageResponseData:
+      type: object
+      properties:
+        upload_url:
+          type: string
+          format: uri
+          description: Presigned URL untuk upload image langsung ke storage.
+          example: https://s3.example.com/bucket/reviews/2026/03/04/abc?signature=...
+        object_key:
+          type: string
+          description: Key object yang harus dikirim kembali saat create review.
+          example: reviews/2026/03/04/abc
+        content_type:
+          type: string
+          description: Content type yang disetujui.
+          example: image/jpeg
+        expires_in:
+          type: integer
+          description: Masa berlaku upload URL dalam detik.
+          example: 1800
+
+    CreateProductReviewResponseData:
+      type: object
+      properties:
+        review_id:
+          type: string
+          format: uuid
+          description: ID review yang berhasil dibuat.
+          example: 8ea58d2f-c1a6-4fd3-9b37-67a743f57272
+        product_id:
+          type: string
+          format: uuid
+          description: ID produk yang direview.
+          example: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
+        order_id:
+          type: string
+          format: uuid
+          description: ID order.
+          example: 11111111-2222-3333-4444-555555555555
+        order_item_id:
+          type: string
+          format: uuid
+          description: ID order item.
+          example: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Nilai rating review.
+          example: 5
+        review_text:
+          type: string
+          description: Teks ulasan.
+          example: Produk bagus, kualitas sesuai deskripsi.
+        image_urls:
+          type: array
+          description: URL gambar review yang terhubung.
+          items:
+            type: string
+            format: uri
+          example:
+            - https://cdn.example.com/reviews/2026/03/04/abc
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp pembuatan review.
+          example: "2026-03-04T10:30:00Z"
+
     SuccessLoginEnvelope:
       type: object
       properties:
@@ -1115,6 +1997,97 @@ components:
           example: "checkout successful"
         data:
           $ref: '#/components/schemas/CheckoutResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCompleteOrderEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "order marked as completed"
+        data:
+          $ref: '#/components/schemas/CompleteOrderResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCustomerOrderListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "orders retrieved successfully"
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerOrderListItem'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    SuccessOrderStatusesEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "order statuses loaded"
+        data:
+          $ref: '#/components/schemas/OrderStatusesResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessPresignReviewImageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "review image upload URL generated"
+        data:
+          $ref: '#/components/schemas/PresignReviewImageResponseData'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCreateProductReviewEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "review created successfully"
+        data:
+          $ref: '#/components/schemas/CreateProductReviewResponseData'
         errors:
           nullable: true
           example: null

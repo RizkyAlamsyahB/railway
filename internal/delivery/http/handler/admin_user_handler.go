@@ -77,6 +77,23 @@ func (h *AdminUserHandler) GetByID(c *gin.Context) {
 	response.OK(c, "user retrieved successfully", result)
 }
 
+// GetMe handles GET /api/v1/admin/me
+func (h *AdminUserHandler) GetMe(c *gin.Context) {
+	adminID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	result, err := h.useCase.GetMe(c.Request.Context(), adminID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "admin profile retrieved successfully", result)
+}
+
 // Update handles PUT /api/v1/admin/users/:id
 func (h *AdminUserHandler) Update(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))

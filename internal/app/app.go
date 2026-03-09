@@ -13,6 +13,7 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/database"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/email"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/payment"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/shipping"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/storage"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/repository"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
@@ -118,13 +119,12 @@ func Initialize() (*App, error) {
 
 	// Product & catalog feature
 	categoryRepo := repository.NewCategoryRepository(db)
-	shippingServiceRepo := repository.NewShippingServiceRepository(db)
 	productRepo := repository.NewProductRepository(db)
 
-	productUseCase := usecase.NewProductUseCase(productRepo, vendorRepo, categoryRepo, shippingServiceRepo, storageProvider)
+	productUseCase := usecase.NewProductUseCase(productRepo, vendorRepo, categoryRepo, storageProvider)
 	productHandler := handler.NewProductHandler(productUseCase)
 
-	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, shippingServiceRepo, productRepo)
+	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, productRepo, storageProvider)
 	catalogHandler := handler.NewCatalogHandler(catalogUseCase)
 
 	// User registration & email verification
@@ -136,6 +136,11 @@ func Initialize() (*App, error) {
 	cartRepo := repository.NewCartRepository(db)
 	cartUseCase := usecase.NewCartUseCase(cartRepo, productRepo, storageProvider)
 	cartHandler := handler.NewCartHandler(cartUseCase)
+
+	// Wishlist feature
+	wishlistRepo := repository.NewWishlistRepository(db)
+	wishlistUseCase := usecase.NewWishlistUseCase(wishlistRepo, productRepo, storageProvider)
+	wishlistHandler := handler.NewWishlistHandler(wishlistUseCase)
 
 	// Finance feature
 	financeRepo := repository.NewFinanceRepository(db)
@@ -162,7 +167,59 @@ func Initialize() (*App, error) {
 	faqUseCase := usecase.NewFAQUseCase(faqRepo)
 	faqHandler := handler.NewFAQHandler(faqUseCase)
 
-	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, subjectRepo, userRepo, emailProvider, storageProvider)
+	// Banner management
+	bannerRepo := repository.NewBannerRepository(db)
+	bannerUseCase := usecase.NewBannerUseCase(bannerRepo, storageProvider)
+	bannerHandler := handler.NewBannerHandler(bannerUseCase)
+
+	// Vendor Banner management
+	vendorBannerRepo := repository.NewVendorBannerRepository(db)
+	vendorBannerUseCase := usecase.NewVendorBannerUseCase(vendorBannerRepo, storageProvider)
+	vendorBannerHandler := handler.NewVendorBannerHandler(vendorBannerUseCase)
+
+	// Address management (shared by customer + vendor)
+	addressRepo := repository.NewAddressRepository(db)
+	addressUseCase := usecase.NewAddressUseCase(addressRepo)
+	addressHandler := handler.NewAddressHandler(addressUseCase)
+
+	// Shipping location lookup (RajaOngkir)
+	rajaOngkirProvider, err := newRajaOngkirProvider(cfg.RajaOngkir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize rajaongkir provider: %w", err)
+	}
+	log.Println("rajaongkir provider initialized")
+
+	shippingUseCase := usecase.NewShippingUseCase(rajaOngkirProvider)
+	shippingHandler := handler.NewShippingHandler(shippingUseCase)
+
+	// Courier management (vendor selects supported couriers)
+	courierRepo := repository.NewCourierRepository(db)
+	vendorCourierRepo := repository.NewVendorCourierRepository(db)
+	vendorCourierUseCase := usecase.NewVendorCourierUseCase(courierRepo, vendorCourierRepo)
+	vendorCourierHandler := handler.NewVendorCourierHandler(vendorCourierUseCase)
+
+	// Master Lookup: Admin Category CRUD
+	adminCategoryRepo := repository.NewAdminCategoryRepository(db)
+	adminCategoryUseCase := usecase.NewAdminCategoryUseCase(adminCategoryRepo)
+	adminCategoryHandler := handler.NewAdminCategoryHandler(adminCategoryUseCase)
+
+	// Master Lookup: Return Reasons
+	returnReasonRepo := repository.NewReturnReasonRepository(db)
+	returnReasonUseCase := usecase.NewReturnReasonUseCase(returnReasonRepo)
+	returnReasonHandler := handler.NewReturnReasonHandler(returnReasonUseCase)
+
+	// Master Lookup: Admin Contacts
+	adminContactRepo := repository.NewAdminContactRepository(db)
+	adminContactUseCase := usecase.NewAdminContactUseCase(adminContactRepo)
+	adminContactHandler := handler.NewAdminContactHandler(adminContactUseCase)
+
+	// Master Lookup: Admin FAQ CRUD
+	adminFAQUseCase := usecase.NewAdminFAQUseCase(faqRepo)
+	adminFAQHandler := handler.NewAdminFAQHandler(adminFAQUseCase)
+
+	orderRepo := repository.NewOrderRepository(db)
+	paymentRepo := repository.NewPaymentRepository(db)
+	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, subjectRepo, userRepo, orderRepo, paymentRepo, emailProvider, storageProvider)
 	csReportUseCase := usecase.NewCSReportUseCase(ticketRepo)
 	ticketSubjectUseCase := usecase.NewTicketSubjectUseCase(subjectRepo)
 	chatUseCase := usecase.NewChatUseCase(chatRepo, userRepo, storageProvider)
@@ -183,16 +240,57 @@ func Initialize() (*App, error) {
 	ticketSubjectHandler := handler.NewTicketSubjectHandler(ticketSubjectUseCase)
 
 	// Checkout & payment feature
-	orderRepo := repository.NewOrderRepository(db)
-	paymentRepo := repository.NewPaymentRepository(db)
 	ledgerRepo := repository.NewLedgerRepository(db)
-	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
+	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkirProvider, storageProvider, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
 	checkoutHandler := handler.NewCheckoutHandler(checkoutUseCase, cfg.Xendit.WebhookVerificationToken)
+	orderActionUseCase := usecase.NewOrderActionUseCase(orderRepo)
+	orderActionHandler := handler.NewOrderActionHandler(orderActionUseCase)
+
+	reviewRepo := repository.NewReviewRepository(db)
+	reviewUseCase := usecase.NewReviewUseCase(reviewRepo, orderRepo, productRepo, storageProvider)
+	reviewHandler := handler.NewReviewHandler(reviewUseCase)
 	xenditWebhookHandler := handler.NewXenditWebhookHandler(vendorUseCase, cfg.Xendit.WebhookVerificationToken)
 
 	// Setup router
 	// r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, cfg.JWT.Secret)
-	r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, xenditWebhookHandler, financeHandler, notificationHandler, csLoginHandler, ticketHandler, chatHandler, replyTemplateHandler, csDashboardHandler, csUserHandler, csReportHandler, ticketSubjectHandler, faqHandler, wsHandler, cfg.JWT.Secret)
+	r := router.NewRouter(
+		healthHandler,
+		adminUserHandler,
+		adminVendorHandler,
+		adminLoginHandler,
+		vendorHandler,
+		productHandler,
+		catalogHandler,
+		userHandler,
+		cartHandler,
+		wishlistHandler,
+		checkoutHandler,
+		orderActionHandler,
+		reviewHandler,
+		xenditWebhookHandler,
+		financeHandler,
+		notificationHandler,
+		csLoginHandler,
+		ticketHandler,
+		chatHandler,
+		replyTemplateHandler,
+		csDashboardHandler,
+		csUserHandler,
+		csReportHandler,
+		ticketSubjectHandler,
+		faqHandler,
+		bannerHandler,
+		adminCategoryHandler,
+		returnReasonHandler,
+		adminContactHandler,
+		adminFAQHandler,
+		vendorBannerHandler,
+		addressHandler,
+		shippingHandler,
+		vendorCourierHandler,
+		wsHandler,
+		cfg.JWT.Secret,
+	)
 
 	return &App{
 		Config:      cfg,
@@ -225,13 +323,22 @@ func newXenPlatformProvider(cfg config.XenditConfig) (domain.XenPlatformProvider
 }
 
 // newXenditInvoiceProvider creates the Xendit-backed XenditInvoiceProvider from config.
+// When cfg.Bypass is true, a no-op provider is returned for local development.
 func newXenditInvoiceProvider(cfg config.XenditConfig) (domain.XenditInvoiceProvider, error) {
+	if cfg.Bypass {
+		return payment.NewNoopXenditInvoiceClient(), nil
+	}
 	return payment.NewXenditInvoiceClient(cfg)
 }
 
 // newXenditPayoutProvider creates the Xendit-backed XenditPayoutProvider from config.
 func newXenditPayoutProvider(cfg config.XenditConfig) (domain.XenditPayoutProvider, error) {
 	return payment.NewXenditPayoutClient(cfg)
+}
+
+// newRajaOngkirProvider creates the RajaOngkir API client from config.
+func newRajaOngkirProvider(cfg config.RajaOngkirConfig) (domain.RajaOngkirProvider, error) {
+	return shipping.NewRajaOngkirClient(cfg)
 }
 
 // Close cleans up application resources.

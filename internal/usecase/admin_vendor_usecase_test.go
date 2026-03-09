@@ -37,7 +37,7 @@ func dummyVendor(id uuid.UUID, status string) *domain.Vendor {
 	return &domain.Vendor{
 		ID:                    id,
 		OwnerUserID:           ownerID,
-		VendorType:            "umrah_souvenir_store",
+		VendorType:            domain.VendorTypeSouvenirStore,
 		DisplayName:           "Toko Oleh-Oleh Haji",
 		LegalName:             ptrString("PT Toko Haji"),
 		ResponsiblePersonName: "Ahmad",

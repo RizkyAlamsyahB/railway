@@ -48,15 +48,6 @@ type ProductImage struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
-// ShippingService represents the shipping_services table.
-type ShippingService struct {
-	ID        uuid.UUID `json:"id"`
-	Code      string    `json:"code"`
-	Name      string    `json:"name"`
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 // Category represents the categories table.
 type Category struct {
 	ID       uuid.UUID  `json:"id"`
@@ -86,16 +77,15 @@ type CreateProductVariantInput struct {
 
 // CreateProductRequest is the input DTO for creating a product.
 type CreateProductRequest struct {
-	Name               string                      `json:"name" binding:"required,max=180"`
-	CategoryID         string                      `json:"category_id" binding:"required,uuid"`
-	Description        string                      `json:"description" binding:"required"`
-	Price              float64                     `json:"price" binding:"required,gt=0"`
-	Stock              int                         `json:"stock" binding:"min=0"`
-	WeightGram         *int                        `json:"weight_gram,omitempty" binding:"omitempty,min=0"`
-	IsActive           bool                        `json:"is_active"`
-	ShippingServiceIDs []string                    `json:"shipping_service_ids" binding:"required,min=1,dive,uuid"`
-	Variants           []CreateProductVariantInput `json:"variants,omitempty" binding:"omitempty,max=20,dive"`
-	Images             []CreateProductImageInput   `json:"images,omitempty" binding:"omitempty,min=1,max=10,dive"`
+	Name        string                      `json:"name" binding:"required,max=180"`
+	CategoryID  string                      `json:"category_id" binding:"required,uuid"`
+	Description string                      `json:"description" binding:"required"`
+	Price       float64                     `json:"price" binding:"required,gt=0"`
+	Stock       int                         `json:"stock" binding:"min=0"`
+	WeightGram  *int                        `json:"weight_gram,omitempty" binding:"omitempty,min=0"`
+	IsActive    bool                        `json:"is_active"`
+	Variants    []CreateProductVariantInput `json:"variants,omitempty" binding:"omitempty,max=20,dive"`
+	Images      []CreateProductImageInput   `json:"images,omitempty" binding:"omitempty,min=1,max=10,dive"`
 }
 
 // ConfirmProductImageItem represents a single image in the confirm-images request.
@@ -164,19 +154,59 @@ type ProductListParams struct {
 
 // ProductListItem is the output DTO for customer product listing.
 type ProductListItem struct {
-	ID    uuid.UUID `json:"id"`
-	Name  string    `json:"name"`
-	Price float64   `json:"price"`
+	ID            uuid.UUID `json:"id"`
+	Name          string    `json:"name"`
+	Price         float64   `json:"price"`
+	RatingAverage float64   `json:"rating_average"`
+	RatingCount   int64     `json:"rating_count"`
+}
+
+// ProductDetailCategory is category info in customer product detail.
+type ProductDetailCategory struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+	Slug string    `json:"slug"`
+}
+
+// ProductDetailVendor is vendor info in customer product detail.
+type ProductDetailVendor struct {
+	ID          uuid.UUID `json:"id"`
+	DisplayName string    `json:"display_name"`
+}
+
+// ProductDetailImageItem is image info in customer product detail.
+type ProductDetailImageItem struct {
+	ID        uuid.UUID `json:"id"`
+	URL       string    `json:"url"`
+	IsPrimary bool      `json:"is_primary"`
+	SortOrder int       `json:"sort_order"`
+}
+
+// ProductDetailResponse is the output DTO for customer product detail.
+type ProductDetailResponse struct {
+	ID            uuid.UUID                `json:"id"`
+	Name          string                   `json:"name"`
+	Slug          string                   `json:"slug"`
+	Description   string                   `json:"description"`
+	Status        string                   `json:"status"`
+	HalalAIStatus string                   `json:"halal_ai_status"`
+	Category      ProductDetailCategory    `json:"category"`
+	Vendor        ProductDetailVendor      `json:"vendor"`
+	RatingAverage float64                  `json:"rating_average"`
+	RatingCount   int64                    `json:"rating_count"`
+	Images        []ProductDetailImageItem `json:"images"`
+	Variants      []ProductVariantResponse `json:"variants"`
+	CreatedAt     time.Time                `json:"created_at"`
+	UpdatedAt     time.Time                `json:"updated_at"`
 }
 
 // --- Repository Interfaces ---
 
 // ProductRepository defines the interface for product data access.
 type ProductRepository interface {
-	// Create inserts a product, its variants, image placeholders, and
-	// shipping service associations in a single transaction.
+	// Create inserts a product, its variants, and image placeholders in a single transaction.
 	Create(ctx context.Context, product *Product, variants []ProductVariant,
-		images []ProductImage, shippingServiceIDs []uuid.UUID) error
+		images []ProductImage) error
 
 	// FindByID returns the product with the given ID, or nil if not found.
 	FindByID(ctx context.Context, id uuid.UUID) (*Product, error)
@@ -205,6 +235,9 @@ type ProductRepository interface {
 	// ListPublishedForCustomer returns published products that have at least one
 	// active variant with available stock.
 	ListPublishedForCustomer(ctx context.Context, params ProductListParams) ([]ProductListItem, int64, error)
+
+	// GetPublishedDetailForCustomer returns a single published product detail for customers.
+	GetPublishedDetailForCustomer(ctx context.Context, id uuid.UUID) (*ProductDetailResponse, error)
 }
 
 // CategoryRepository defines the interface for category data access.
@@ -216,20 +249,11 @@ type CategoryRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*Category, error)
 }
 
-// ShippingServiceRepository defines the interface for shipping service data access.
-type ShippingServiceRepository interface {
-	// ListActive returns all active shipping services.
-	ListActive(ctx context.Context) ([]ShippingService, error)
-
-	// FindByIDs returns active shipping services matching the given IDs.
-	FindByIDs(ctx context.Context, ids []uuid.UUID) ([]ShippingService, error)
-}
-
 // --- Usecase Interfaces ---
 
 // ProductUseCase defines the interface for product business operations.
 type ProductUseCase interface {
-	// Create creates a new product with variants, image placeholders, and shipping service associations.
+	// Create creates a new product with variants and image placeholders.
 	Create(ctx context.Context, vendorID uuid.UUID, req CreateProductRequest) (*CreateProductResponse, error)
 
 	// ConfirmImages verifies product images were uploaded to S3 and updates metadata.
@@ -242,9 +266,9 @@ type CatalogUseCase interface {
 	// ListCategories returns all active categories.
 	ListCategories(ctx context.Context) ([]Category, error)
 
-	// ListShippingServices returns all active shipping services.
-	ListShippingServices(ctx context.Context) ([]ShippingService, error)
-
 	// ListProducts returns products available for customers.
 	ListProducts(ctx context.Context, params ProductListParams) ([]ProductListItem, *PaginationMeta, error)
+
+	// GetProductDetail returns customer-facing product detail by ID.
+	GetProductDetail(ctx context.Context, id uuid.UUID) (*ProductDetailResponse, error)
 }

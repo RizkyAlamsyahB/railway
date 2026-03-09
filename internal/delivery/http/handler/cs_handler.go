@@ -587,16 +587,16 @@ func (h *CSReportHandler) ExportReport(c *gin.Context) {
 		return
 	}
 
-	header := []string{"Ticket Number", "Subject", "Status", "Source", "Reporter", "Assigned CS", "Resolved At", "Created At"}
+	header := []string{"Ticket Number", "Subject", "Status", "Source", "Reporter", "Assigned CS", "Closed At", "Created At"}
 	records := make([][]string, len(rows))
 	for i, r := range rows {
 		cs := ""
 		if r.AssignedCS != nil {
 			cs = *r.AssignedCS
 		}
-		resolvedAt := ""
-		if r.ResolvedAt != nil {
-			resolvedAt = r.ResolvedAt.UTC().Format("2006-01-02 15:04:05")
+		closedAt := ""
+		if r.ClosedAt != nil {
+			closedAt = r.ClosedAt.UTC().Format("2006-01-02 15:04:05")
 		}
 		records[i] = []string{
 			r.TicketNumber,
@@ -605,7 +605,7 @@ func (h *CSReportHandler) ExportReport(c *gin.Context) {
 			r.Source,
 			r.ReporterName,
 			cs,
-			resolvedAt,
+			closedAt,
 			r.CreatedAt.UTC().Format("2006-01-02 15:04:05"),
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
@@ -31,7 +32,7 @@ func setupVendorUseCase(t *testing.T) (
 func validRegisterRequest() domain.VendorRegisterRequest {
 	return domain.VendorRegisterRequest{
 		StoreName:             "Toko Oleh-Oleh Haji",
-		StoreType:             "umrah_souvenir_store",
+		StoreType:             domain.VendorTypeSouvenirStore,
 		OwnerName:             "Ahmad",
 		LegalName:             ptrString("PT Toko Haji"),
 		ResponsiblePersonName: "Ahmad",
@@ -626,6 +627,7 @@ func TestLogin_TableDriven(t *testing.T) {
 			) {
 				userID := uuid.New()
 				vendorID := uuid.New()
+				imageURL := "https://cdn.example.com/vendors/profile.jpg"
 				hash, err := hashPasswordForTest("password123")
 				if err != nil {
 					t.Fatalf("failed to hash password for test: %v", err)
@@ -633,12 +635,15 @@ func TestLogin_TableDriven(t *testing.T) {
 				userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(&domain.User{
 					ID:           userID,
 					Email:        "vendor@example.com",
+					FullName:     "Abu Bakar Shidiq Basalamah",
+					ImageURL:     &imageURL,
 					PasswordHash: hash,
 					Role:         &domain.Role{Code: domain.RoleUMKM, Name: "UMKM"},
 				}, nil)
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(&domain.Vendor{
 					ID:          vendorID,
 					OwnerUserID: userID,
+					VendorType:  "souvenir_store",
 					DisplayName: "Toko Haji",
 					Status:      domain.VendorStatusActive,
 				}, nil)
@@ -654,11 +659,74 @@ func TestLogin_TableDriven(t *testing.T) {
 				if resp.VendorID == uuid.Nil {
 					t.Error("expected non-empty vendor ID")
 				}
+				if resp.ImageURL != "https://cdn.example.com/vendors/profile.jpg" {
+					t.Errorf("expected image URL %q, got %q", "https://cdn.example.com/vendors/profile.jpg", resp.ImageURL)
+				}
+				if resp.Email != "vendor@example.com" {
+					t.Errorf("expected email %q, got %q", "vendor@example.com", resp.Email)
+				}
+				if resp.Name != "Abu Bakar Shidiq Basalamah" {
+					t.Errorf("expected name %q, got %q", "Abu Bakar Shidiq Basalamah", resp.Name)
+				}
+				if resp.VendorType != "souvenir_store" {
+					t.Errorf("expected vendor type %q, got %q", "souvenir_store", resp.VendorType)
+				}
 				if resp.VendorStatus != domain.VendorStatusActive {
 					t.Errorf("expected status %q, got %q", domain.VendorStatusActive, resp.VendorStatus)
 				}
 				if resp.DisplayName != "Toko Haji" {
 					t.Errorf("expected display name %q, got %q", "Toko Haji", resp.DisplayName)
+				}
+			},
+		},
+		{
+			name: "success without vendor image",
+			req:  domain.VendorLoginRequest{Email: "vendor@example.com", Password: "password123"},
+			setupMocks: func(
+				ctx context.Context,
+				userRepo *mocks.MockUserRepository,
+				vendorRepo *mocks.MockVendorRepository,
+			) {
+				userID := uuid.New()
+				vendorID := uuid.New()
+				hash, err := hashPasswordForTest("password123")
+				if err != nil {
+					t.Fatalf("failed to hash password for test: %v", err)
+				}
+				userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(&domain.User{
+					ID:           userID,
+					Email:        "vendor@example.com",
+					FullName:     "Abu Bakar Shidiq Basalamah",
+					PasswordHash: hash,
+					Role:         &domain.Role{Code: domain.RoleUMKM, Name: "UMKM"},
+				}, nil)
+				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(&domain.Vendor{
+					ID:          vendorID,
+					OwnerUserID: userID,
+					VendorType:  "ppiu",
+					DisplayName: "Toko Haji",
+					Status:      domain.VendorStatusSubmitted,
+				}, nil)
+			},
+			assertResp: func(t *testing.T, resp *domain.VendorLoginResponse) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected response, got nil")
+				}
+				if resp.ImageURL != "" {
+					t.Errorf("expected empty image URL, got %q", resp.ImageURL)
+				}
+				if resp.Name != "Abu Bakar Shidiq Basalamah" {
+					t.Errorf("expected name %q, got %q", "Abu Bakar Shidiq Basalamah", resp.Name)
+				}
+				if resp.VendorType != "ppiu" {
+					t.Errorf("expected vendor type %q, got %q", "ppiu", resp.VendorType)
+				}
+				if resp.DisplayName != "Toko Haji" {
+					t.Errorf("expected display name %q, got %q", "Toko Haji", resp.DisplayName)
+				}
+				if resp.VendorStatus != domain.VendorStatusSubmitted {
+					t.Errorf("expected status %q, got %q", domain.VendorStatusSubmitted, resp.VendorStatus)
 				}
 			},
 		},
@@ -851,6 +919,174 @@ func TestLogin_TableDriven(t *testing.T) {
 			}
 			if tc.assertResp != nil {
 				tc.assertResp(t, resp)
+			}
+		})
+	}
+}
+
+func TestGetMe_TableDriven(t *testing.T) {
+	ctx := context.Background()
+
+	testCases := []struct {
+		name       string
+		vendorID   uuid.UUID
+		setupMocks func(context.Context, *mocks.MockUserRepository, *mocks.MockVendorRepository, uuid.UUID)
+		wantErr    error
+		wantAnyErr bool
+		assertResp func(*testing.T, *domain.VendorProfileResponse, uuid.UUID)
+	}{
+		{
+			name:     "success",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				imageURL := "https://cdn.example.com/vendors/profile.jpg"
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:          vendorID,
+					OwnerUserID: ownerID,
+					VendorType:  domain.VendorTypeSouvenirStore,
+					Status:      domain.VendorStatusActive,
+					DisplayName: "Toko Mabrur",
+				}, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(&domain.User{
+					ID:        ownerID,
+					Email:     "toko.mabrur@example.com",
+					FullName:  "Abu Bakar Shidiq Basalamah",
+					ImageURL:  &imageURL,
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				}, nil)
+			},
+			assertResp: func(t *testing.T, resp *domain.VendorProfileResponse, vendorID uuid.UUID) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected non-nil response")
+				}
+				if resp.VendorID != vendorID {
+					t.Errorf("expected vendor ID %s, got %s", vendorID, resp.VendorID)
+				}
+				if resp.ImageURL != "https://cdn.example.com/vendors/profile.jpg" {
+					t.Errorf("expected image URL to match, got %q", resp.ImageURL)
+				}
+				if resp.Email != "toko.mabrur@example.com" {
+					t.Errorf("expected email toko.mabrur@example.com, got %s", resp.Email)
+				}
+				if resp.Name != "Abu Bakar Shidiq Basalamah" {
+					t.Errorf("expected owner full name, got %s", resp.Name)
+				}
+				if resp.VendorType != domain.VendorTypeSouvenirStore {
+					t.Errorf("expected vendor type %s, got %s", domain.VendorTypeSouvenirStore, resp.VendorType)
+				}
+				if resp.VendorStatus != domain.VendorStatusActive {
+					t.Errorf("expected vendor status %s, got %s", domain.VendorStatusActive, resp.VendorStatus)
+				}
+				if resp.DisplayName != "Toko Mabrur" {
+					t.Errorf("expected display name Toko Mabrur, got %s", resp.DisplayName)
+				}
+			},
+		},
+		{
+			name:     "success without image",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:          vendorID,
+					OwnerUserID: ownerID,
+					VendorType:  domain.VendorTypePPIU,
+					Status:      domain.VendorStatusSubmitted,
+					DisplayName: "Toko Tanpa Foto",
+				}, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(&domain.User{
+					ID:       ownerID,
+					Email:    "vendor@example.com",
+					FullName: "Owner Vendor",
+				}, nil)
+			},
+			assertResp: func(t *testing.T, resp *domain.VendorProfileResponse, _ uuid.UUID) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected non-nil response")
+				}
+				if resp.ImageURL != "" {
+					t.Errorf("expected empty image URL, got %q", resp.ImageURL)
+				}
+				if resp.Name != "Owner Vendor" {
+					t.Errorf("expected owner name, got %s", resp.Name)
+				}
+			},
+		},
+		{
+			name:     "vendor not found",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, _ *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, nil)
+			},
+			wantErr: ErrVendorNotFound,
+		},
+		{
+			name:     "owner user not found",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:          vendorID,
+					OwnerUserID: ownerID,
+					DisplayName: "Toko Mabrur",
+				}, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, nil)
+			},
+			wantErr: ErrUserNotFound,
+		},
+		{
+			name:     "vendor repo error",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, _ *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(nil, errors.New("db error"))
+			},
+			wantAnyErr: true,
+		},
+		{
+			name:     "user repo error",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:          vendorID,
+					OwnerUserID: ownerID,
+				}, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, errors.New("db error"))
+			},
+			wantAnyErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			userRepo, vendorRepo, _, uc := setupVendorUseCase(t)
+			if tc.setupMocks != nil {
+				tc.setupMocks(ctx, userRepo, vendorRepo, tc.vendorID)
+			}
+
+			resp, err := uc.GetMe(ctx, tc.vendorID)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if tc.wantAnyErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.assertResp != nil {
+				tc.assertResp(t, resp, tc.vendorID)
 			}
 		})
 	}

@@ -53,7 +53,7 @@ paths:
               $ref: '#/components/schemas/VendorRegisterRequest'
             example:
               store_name: Toko Oleh-Oleh Haji Mabrur
-              store_type: hajj_souvenir_store
+              store_type: souvenir_store
               owner_name: Ahmad Subarkah
               legal_name: PT Mabrur Jaya
               responsible_person_name: Budi Santoso
@@ -219,6 +219,10 @@ paths:
                 data:
                   token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                   vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  image_url: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
+                  email: toko.mabrur@example.com
+                  name: Abu Bakar Shidiq Basalamah
+                  vendor_type: souvenir_store
                   vendor_status: active
                   display_name: Toko Oleh-Oleh Haji Mabrur
                 errors: null
@@ -284,6 +288,142 @@ paths:
                   value:
                     success: false
                     message: vendor account is blocked
+                    data: null
+                    errors: null
+                    meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/vendors/me:
+    get:
+      tags:
+        - Vendor Auth
+      summary: Ambil profil vendor yang sedang login
+      description: |
+        Mengembalikan profil vendor berdasarkan `vendor_id` yang sudah diekstrak middleware
+        dari Bearer token.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Token harus valid dan memiliki role `umkm`.
+        - `vendor_id` dibaca dari claims token oleh middleware auth.
+      operationId: getVendorMe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profil vendor berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorProfileEnvelope'
+              example:
+                success: true
+                message: vendor profile retrieved successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  image_url: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
+                  email: toko.mabrur@example.com
+                  name: Abu Bakar Shidiq Basalamah
+                  vendor_type: souvenir_store
+                  vendor_status: active
+                  display_name: Toko Oleh-Oleh Haji Mabrur
+                errors: null
+                meta: null
+        '400':
+          description: "`vendor_id` pada context auth tidak tersedia atau tidak valid."
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid vendor ID in token
+                data: null
+                errors: null
+                meta: null
+        '401':
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: missing authorization header
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: invalid or expired token
+                    data: null
+                    errors: null
+                    meta: null
+        '403':
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        '404':
+          description: Vendor atau owner user tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                vendorNotFound:
+                  summary: Vendor tidak ditemukan
+                  value:
+                    success: false
+                    message: vendor not found
+                    data: null
+                    errors: null
+                    meta: null
+                userNotFound:
+                  summary: Owner user tidak ditemukan
+                  value:
+                    success: false
+                    message: user not found
                     data: null
                     errors: null
                     meta: null
@@ -1401,10 +1541,10 @@ components:
           type: string
           description: Jenis toko.
           enum:
-            - umrah_souvenir_store
-            - hajj_souvenir_store
-            - general_souvenir_store
-          example: hajj_souvenir_store
+            - souvenir_store
+            - ppiu
+            - hajj_dormitory
+          example: souvenir_store
         owner_name:
           type: string
           maxLength: 120
@@ -1472,6 +1612,10 @@ components:
       required:
         - token
         - vendor_id
+        - image_url
+        - email
+        - name
+        - vendor_type
         - vendor_status
         - display_name
       properties:
@@ -1486,6 +1630,27 @@ components:
           format: uuid
           description: ID vendor.
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        image_url:
+          type: string
+          description: URL foto profil vendor yang diambil dari `users.image_url` milik owner vendor. Bernilai string kosong jika belum ada foto profil.
+          example: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
+        email:
+          type: string
+          format: email
+          description: Email akun vendor.
+          example: toko.mabrur@example.com
+        name:
+          type: string
+          description: Nama lengkap user pemilik akun vendor.
+          example: Abu Bakar Shidiq Basalamah
+        vendor_type:
+          type: string
+          description: Jenis vendor.
+          enum:
+            - souvenir_store
+            - ppiu
+            - hajj_dormitory
+          example: souvenir_store
         vendor_status:
           type: string
           description: Status vendor saat ini.
@@ -1494,6 +1659,57 @@ components:
             - submitted
             - active
             - rejected
+          example: active
+        display_name:
+          type: string
+          description: Nama toko yang ditampilkan.
+          example: Toko Oleh-Oleh Haji Mabrur
+    VendorProfileResponse:
+      type: object
+      required:
+        - vendor_id
+        - image_url
+        - email
+        - name
+        - vendor_type
+        - vendor_status
+        - display_name
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        image_url:
+          type: string
+          description: URL foto profil vendor yang diambil dari `users.image_url` milik owner vendor. Bernilai string kosong jika belum ada foto profil.
+          example: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
+        email:
+          type: string
+          format: email
+          description: Email akun owner vendor.
+          example: toko.mabrur@example.com
+        name:
+          type: string
+          description: Nama lengkap owner user vendor.
+          example: Abu Bakar Shidiq Basalamah
+        vendor_type:
+          type: string
+          description: Jenis vendor.
+          enum:
+            - souvenir_store
+            - ppiu
+            - hajj_dormitory
+          example: souvenir_store
+        vendor_status:
+          type: string
+          description: Status vendor saat ini.
+          enum:
+            - draft
+            - submitted
+            - active
+            - rejected
+            - blocked
           example: active
         display_name:
           type: string
@@ -1597,6 +1813,29 @@ components:
           example: login successful
         data:
           $ref: '#/components/schemas/VendorLoginResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorProfileEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor profile retrieved successfully
+        data:
+          $ref: '#/components/schemas/VendorProfileResponse'
         errors:
           nullable: true
           example: null

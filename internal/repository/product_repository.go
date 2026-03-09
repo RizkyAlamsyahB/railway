@@ -57,14 +57,6 @@ type productImageModel struct {
 
 func (productImageModel) TableName() string { return "product_images" }
 
-type productShippingServiceModel struct {
-	ProductID         string    `gorm:"column:product_id;primaryKey"`
-	ShippingServiceID string    `gorm:"column:shipping_service_id;primaryKey"`
-	CreatedAt         time.Time `gorm:"column:created_at"`
-}
-
-func (productShippingServiceModel) TableName() string { return "product_shipping_services" }
-
 type productRepository struct {
 	db *gorm.DB
 }
@@ -74,7 +66,7 @@ func NewProductRepository(db *gorm.DB) domain.ProductRepository {
 	return &productRepository{db: db}
 }
 
-func (r *productRepository) Create(ctx context.Context, product *domain.Product, variants []domain.ProductVariant, images []domain.ProductImage, shippingServiceIDs []uuid.UUID) error {
+func (r *productRepository) Create(ctx context.Context, product *domain.Product, variants []domain.ProductVariant, images []domain.ProductImage) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 1. Insert product.
 		pm := toProductModel(product)
@@ -82,20 +74,7 @@ func (r *productRepository) Create(ctx context.Context, product *domain.Product,
 			return err
 		}
 
-		// 2. Insert shipping service associations (before commit for deferred trigger).
-		now := time.Now()
-		for _, ssID := range shippingServiceIDs {
-			pss := productShippingServiceModel{
-				ProductID:         product.ID.String(),
-				ShippingServiceID: ssID.String(),
-				CreatedAt:         now,
-			}
-			if err := tx.Create(&pss).Error; err != nil {
-				return err
-			}
-		}
-
-		// 3. Insert variants.
+		// 2. Insert variants.
 		for i := range variants {
 			vm := toProductVariantModel(&variants[i])
 			if err := tx.Create(&vm).Error; err != nil {
@@ -103,7 +82,7 @@ func (r *productRepository) Create(ctx context.Context, product *domain.Product,
 			}
 		}
 
-		// 4. Insert image placeholders.
+		// 3. Insert image placeholders.
 		for i := range images {
 			im := toProductImageModel(&images[i])
 			if err := tx.Create(&im).Error; err != nil {
@@ -204,9 +183,135 @@ func (r *productRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (
 	return toDomainProductVariant(&model), nil
 }
 
+func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, id uuid.UUID) (*domain.ProductDetailResponse, error) {
+	type productDetailRow struct {
+		ID                string    `gorm:"column:id"`
+		Name              string    `gorm:"column:name"`
+		Slug              string    `gorm:"column:slug"`
+		Description       string    `gorm:"column:description"`
+		Status            string    `gorm:"column:status"`
+		HalalAIStatus     string    `gorm:"column:halal_ai_status"`
+		CategoryID        string    `gorm:"column:category_id"`
+		CategoryName      string    `gorm:"column:category_name"`
+		CategorySlug      string    `gorm:"column:category_slug"`
+		VendorID          string    `gorm:"column:vendor_id"`
+		VendorDisplayName string    `gorm:"column:vendor_display_name"`
+		RatingAverage     float64   `gorm:"column:rating_average"`
+		RatingCount       int64     `gorm:"column:rating_count"`
+		CreatedAt         time.Time `gorm:"column:created_at"`
+		UpdatedAt         time.Time `gorm:"column:updated_at"`
+	}
+
+	var row productDetailRow
+	if err := r.db.WithContext(ctx).
+		Table("products p").
+		Select(`
+			p.id,
+			p.name,
+			p.slug,
+			p.description,
+			p.status,
+			p.halal_ai_status,
+			p.category_id,
+			c.name AS category_name,
+			c.slug AS category_slug,
+			p.vendor_id,
+			v.display_name AS vendor_display_name,
+			COALESCE(prs.average_rating, 0) AS rating_average,
+			COALESCE(prs.total_reviews, 0) AS rating_count,
+			p.created_at,
+			p.updated_at
+		`).
+		Joins("JOIN categories c ON c.id = p.category_id").
+		Joins("JOIN vendors v ON v.id = p.vendor_id").
+		Joins("LEFT JOIN product_review_stats prs ON prs.product_id = p.id").
+		Where("p.id = ?", id.String()).
+		Where("p.status = ?", domain.ProductStatusPublished).
+		Take(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var variantModels []productVariantModel
+	if err := r.db.WithContext(ctx).
+		Where("product_id = ?", id.String()).
+		Where("is_active = ?", true).
+		Order("is_default DESC").
+		Order("price ASC").
+		Find(&variantModels).Error; err != nil {
+		return nil, err
+	}
+
+	variantItems := make([]domain.ProductVariantResponse, len(variantModels))
+	for i := range variantModels {
+		v := toDomainProductVariant(&variantModels[i])
+		variantItems[i] = domain.ProductVariantResponse{
+			ID:          v.ID,
+			SKU:         v.SKU,
+			VariantName: v.VariantName,
+			Price:       v.Price,
+			Currency:    v.Currency,
+			StockOnHand: v.StockOnHand,
+			WeightGram:  v.WeightGram,
+			IsDefault:   v.IsDefault,
+			IsActive:    v.IsActive,
+		}
+	}
+
+	var imageModels []productImageModel
+	if err := r.db.WithContext(ctx).
+		Where("product_id = ?", id.String()).
+		Order("sort_order ASC").
+		Find(&imageModels).Error; err != nil {
+		return nil, err
+	}
+
+	imageItems := make([]domain.ProductDetailImageItem, len(imageModels))
+	for i := range imageModels {
+		imageID, _ := uuid.Parse(imageModels[i].ID)
+		imageItems[i] = domain.ProductDetailImageItem{
+			ID:        imageID,
+			URL:       imageModels[i].ImageURL,
+			IsPrimary: imageModels[i].IsPrimary,
+			SortOrder: imageModels[i].SortOrder,
+		}
+	}
+
+	productID, _ := uuid.Parse(row.ID)
+	categoryID, _ := uuid.Parse(row.CategoryID)
+	vendorID, _ := uuid.Parse(row.VendorID)
+
+	return &domain.ProductDetailResponse{
+		ID:            productID,
+		Name:          row.Name,
+		Slug:          row.Slug,
+		Description:   row.Description,
+		Status:        row.Status,
+		HalalAIStatus: row.HalalAIStatus,
+		Category: domain.ProductDetailCategory{
+			ID:   categoryID,
+			Name: row.CategoryName,
+			Slug: row.CategorySlug,
+		},
+		Vendor: domain.ProductDetailVendor{
+			ID:          vendorID,
+			DisplayName: row.VendorDisplayName,
+		},
+		RatingAverage: row.RatingAverage,
+		RatingCount:   row.RatingCount,
+		Images:        imageItems,
+		Variants:      variantItems,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
+	}, nil
+}
+
 func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params domain.ProductListParams) ([]domain.ProductListItem, int64, error) {
 	query := r.db.WithContext(ctx).Model(&productModel{}).
 		Joins("JOIN product_variants pv ON pv.product_id = products.id").
+		Joins("LEFT JOIN product_review_stats prs ON prs.product_id = products.id").
 		Where("products.status = ?", domain.ProductStatusPublished).
 		Where("pv.is_active = ?", true).
 		Where("pv.stock_on_hand > 0")
@@ -222,14 +327,16 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 	}
 
 	type productListRow struct {
-		ID    string  `gorm:"column:id"`
-		Name  string  `gorm:"column:name"`
-		Price float64 `gorm:"column:price"`
+		ID            string  `gorm:"column:id"`
+		Name          string  `gorm:"column:name"`
+		Price         float64 `gorm:"column:price"`
+		RatingAverage float64 `gorm:"column:rating_average"`
+		RatingCount   int64   `gorm:"column:rating_count"`
 	}
 
 	offset := (params.Page - 1) * params.Limit
-	listQuery := query.Select("products.id, products.name, MIN(pv.price) AS price, products.created_at").
-		Group("products.id, products.name, products.created_at")
+	listQuery := query.Select("products.id, products.name, MIN(pv.price) AS price, products.created_at, COALESCE(prs.average_rating, 0) AS rating_average, COALESCE(prs.total_reviews, 0) AS rating_count").
+		Group("products.id, products.name, products.created_at, prs.average_rating, prs.total_reviews")
 
 	if params.Sort == "cheapest" {
 		listQuery = listQuery.Order("MIN(pv.price) ASC").Order("products.created_at DESC")
@@ -246,9 +353,11 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 	for i, row := range rows {
 		id, _ := uuid.Parse(row.ID)
 		items[i] = domain.ProductListItem{
-			ID:    id,
-			Name:  row.Name,
-			Price: row.Price,
+			ID:            id,
+			Name:          row.Name,
+			Price:         row.Price,
+			RatingAverage: row.RatingAverage,
+			RatingCount:   row.RatingCount,
 		}
 	}
 

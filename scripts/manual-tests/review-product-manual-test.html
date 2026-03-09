@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manual Test - Customer Product Review</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #d1d5db;
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --danger: #b91c1c;
+      --warning: #b45309;
+      --ok: #166534;
+      --info: #1d4ed8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, #edf7ff 0%, #f6fff6 100%);
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 20px auto;
+      padding: 0 16px 28px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+    }
+
+    input, select, textarea {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      width: 100%;
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover { background: var(--primary-dark); }
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    button.secondary { background: var(--info); }
+    button.secondary:hover { background: #1e40af; }
+    button.danger { background: var(--danger); }
+    button.danger:hover { background: #991b1b; }
+    button.ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+    button.ghost:hover { background: #f3f4f6; }
+
+    .row-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 6px 0 0;
+    }
+
+    .status {
+      margin: 4px 0 0;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .s-ok { color: var(--ok); }
+    .s-warn { color: var(--warning); }
+    .s-err { color: var(--danger); }
+    .s-info { color: var(--info); }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    pre {
+      margin: 0;
+      background: #0b1020;
+      color: #dbe3ff;
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      max-height: 280px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .log-area {
+      max-height: 420px;
+    }
+
+    .tag {
+      display: inline-block;
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      color: #3730a3;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .inline-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background: #f3f4f6;
+      border-radius: 6px;
+      padding: 1px 6px;
+    }
+
+    @media (max-width: 900px) {
+      .grid,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .container {
+        margin-top: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Customer Product Review Manual Test</h1>
+    <p class="subtitle">
+      Alur: login customer -> complete order -> presign + upload image -> create review.
+    </p>
+
+    <div class="panel">
+      <h2>Config</h2>
+      <div class="grid">
+        <div class="field full">
+          <label for="baseUrl">Base URL API</label>
+          <input id="baseUrl" type="text" value="https://rizkyalamsyah.my.id" />
+        </div>
+      </div>
+      <p class="hint" id="endpointInfo"></p>
+    </div>
+
+    <div class="panel">
+      <h2>1) Login Customer</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="loginEmail">email</label>
+          <input id="loginEmail" type="email" placeholder="customer@example.com" />
+        </div>
+        <div class="field">
+          <label for="loginPassword">password</label>
+          <input id="loginPassword" type="text" placeholder="Password123!" />
+        </div>
+        <div class="field full">
+          <label for="token">JWT token (auto dari login, bisa override manual)</label>
+          <textarea id="token"></textarea>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnLogin">Login Customer</button>
+      </div>
+      <p class="status s-info" id="loginStatus">Belum login.</p>
+      <div class="two-col">
+        <div class="field">
+          <label>Response Login</label>
+          <pre id="loginResponse">{}</pre>
+        </div>
+        <div class="field">
+          <label>Customer Info</label>
+          <pre id="customerInfo">{}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>2) Complete Order</h2>
+      <div class="grid">
+        <div class="field full">
+          <label for="completeOrderId">order_id (UUID)</label>
+          <input id="completeOrderId" type="text" placeholder="11111111-2222-3333-4444-555555555555" />
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnCompleteOrder" class="secondary">Complete Order</button>
+      </div>
+      <p class="status s-info" id="completeStatus">Belum ada request complete order.</p>
+      <div class="field">
+        <label>Response Complete Order</label>
+        <pre id="completeResponse">{}</pre>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>3) Presign dan Upload Gambar Review</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="contentType">content_type</label>
+          <select id="contentType">
+            <option value="image/jpeg">image/jpeg</option>
+            <option value="image/png">image/png</option>
+            <option value="image/webp">image/webp</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reviewFile">File gambar (bisa pilih beberapa)</label>
+          <input id="reviewFile" type="file" multiple accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+        </div>
+        <div class="field full">
+          <label for="lastUploadUrl">last upload_url</label>
+          <input id="lastUploadUrl" type="text" readonly />
+        </div>
+        <div class="field">
+          <label for="lastObjectKey">last object_key</label>
+          <input id="lastObjectKey" type="text" readonly />
+        </div>
+        <div class="field">
+          <label for="lastExpiresIn">last expires_in (detik)</label>
+          <input id="lastExpiresIn" type="text" readonly />
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnPresignUpload">Presign &amp; Upload Semua</button>
+        <button id="btnCopyUploadUrl" class="ghost" type="button">Copy upload_url</button>
+        <button id="btnClearImages" class="danger" type="button">Clear Uploaded Keys</button>
+      </div>
+      <p class="status s-info" id="uploadStatus">Belum presign/upload.</p>
+      <p class="hint">
+        Maksimal 5 gambar dipakai saat create review. Daftar key yang tersimpan lokal:
+      </p>
+      <div class="chip-row" id="uploadedKeys"></div>
+      <div class="two-col">
+        <div class="field">
+          <label>Response Presign</label>
+          <pre id="presignResponse">{}</pre>
+        </div>
+        <div class="field">
+          <label>Response Upload</label>
+          <pre id="uploadResponse">{}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>4) Create Product Review</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="reviewOrderId">order_id (UUID)</label>
+          <input id="reviewOrderId" type="text" placeholder="11111111-2222-3333-4444-555555555555" />
+        </div>
+        <div class="field">
+          <label for="reviewOrderItemId">order_item_id (UUID)</label>
+          <input id="reviewOrderItemId" type="text" placeholder="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" />
+        </div>
+        <div class="field">
+          <label for="rating">rating</label>
+          <select id="rating">
+            <option value="5">5</option>
+            <option value="4">4</option>
+            <option value="3">3</option>
+            <option value="2">2</option>
+            <option value="1">1</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="includeImages">images</label>
+          <select id="includeImages">
+            <option value="yes">sertakan uploaded object keys</option>
+            <option value="no">tanpa images</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="reviewText">review_text</label>
+          <textarea id="reviewText" maxlength="2000" placeholder="Produk bagus, kualitas sesuai deskripsi."></textarea>
+        </div>
+        <div class="field full">
+          <label for="imagesPreview">images payload preview (readonly)</label>
+          <textarea id="imagesPreview" readonly></textarea>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnSubmitReview" class="secondary">Submit Review</button>
+      </div>
+      <p class="status s-info" id="reviewStatus">Belum submit review.</p>
+      <div class="field">
+        <label>Response Create Review</label>
+        <pre id="reviewResponse">{}</pre>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Debug Logs</h2>
+      <div class="row-actions">
+        <button id="btnClearLogs" class="danger" type="button">Clear Logs</button>
+      </div>
+      <pre id="logArea" class="log-area"></pre>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      token: "",
+      uploadedObjectKeys: [],
+      lastPresign: null,
+      lastResponses: {
+        login: null,
+        completeOrder: null,
+        presign: null,
+        upload: null,
+        createReview: null,
+      },
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    function nowLabel() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function setStatus(id, cls, msg) {
+      const el = $(id);
+      el.className = `status ${cls}`;
+      el.textContent = msg;
+    }
+
+    function safeJSON(v) {
+      try {
+        return JSON.stringify(v, null, 2);
+      } catch (_) {
+        return String(v);
+      }
+    }
+
+    function setPre(id, v) {
+      $(id).textContent = safeJSON(v);
+    }
+
+    function normalizeBaseURL() {
+      return $("baseUrl").value.trim().replace(/\/+$/, "");
+    }
+
+    function getToken() {
+      const manual = $("token").value.trim();
+      state.token = manual;
+      return manual;
+    }
+
+    function sanitizeHeadersForLog(headers) {
+      const out = { ...headers };
+      if (out.Authorization) {
+        const raw = String(out.Authorization);
+        if (raw.startsWith("Bearer ")) {
+          const token = raw.slice("Bearer ".length);
+          out.Authorization = `Bearer ${token.slice(0, 10)}...${token.slice(-6)}`;
+        } else {
+          out.Authorization = "***";
+        }
+      }
+      return out;
+    }
+
+    function appendLog(title, payload) {
+      const logArea = $("logArea");
+      const chunk = `[${nowLabel()}] ${title}\n${typeof payload === "string" ? payload : safeJSON(payload)}\n\n`;
+      logArea.textContent += chunk;
+      logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    function updateEndpointInfo() {
+      const base = normalizeBaseURL();
+      $("endpointInfo").textContent =
+        `Endpoints: ${base}/api/v1/users/login | ${base}/api/v1/users/orders/{orderId}/complete | ${base}/api/v1/users/reviews/presign | ${base}/api/v1/users/reviews`;
+    }
+
+    function readResponseHeaders(headers) {
+      const obj = {};
+      headers.forEach((value, key) => {
+        obj[key] = value;
+      });
+      return obj;
+    }
+
+    async function apiFetch({ method, path, body, auth = true, extraHeaders = {} }) {
+      const base = normalizeBaseURL();
+      const url = path.startsWith("http://") || path.startsWith("https://") ? path : `${base}${path}`;
+
+      const headers = { ...extraHeaders };
+      if (body !== undefined && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+      }
+      if (auth) {
+        const token = getToken();
+        if (!token) {
+          throw new Error("Token wajib diisi untuk endpoint ini.");
+        }
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      appendLog(`REQUEST ${method} ${url}`, {
+        method,
+        url,
+        headers: sanitizeHeadersForLog(headers),
+        body: body === undefined ? null : body,
+      });
+
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+
+      const responseHeaders = readResponseHeaders(response.headers);
+      const text = await response.text();
+      let json = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch (_) {
+        json = null;
+      }
+
+      appendLog(`RESPONSE ${method} ${url}`, {
+        status: response.status,
+        ok: response.ok,
+        headers: responseHeaders,
+        body: json !== null ? json : text,
+      });
+
+      return {
+        ok: response.ok,
+        status: response.status,
+        headers: responseHeaders,
+        json,
+        text,
+      };
+    }
+
+    function setButtonBusy(button, busy) {
+      button.disabled = busy;
+      if (!button.dataset.originalLabel) {
+        button.dataset.originalLabel = button.textContent;
+      }
+      button.textContent = busy ? "Processing..." : button.dataset.originalLabel;
+    }
+
+    function syncReviewOrderIdWithCompleteOrderId() {
+      const completeOrderId = $("completeOrderId").value.trim();
+      if (completeOrderId && !$("reviewOrderId").value.trim()) {
+        $("reviewOrderId").value = completeOrderId;
+      }
+    }
+
+    function renderUploadedKeys() {
+      const wrap = $("uploadedKeys");
+      wrap.innerHTML = "";
+      if (state.uploadedObjectKeys.length === 0) {
+        wrap.textContent = "(kosong)";
+        updateImagesPreview();
+        return;
+      }
+
+      state.uploadedObjectKeys.forEach((key) => {
+        const span = document.createElement("span");
+        span.className = "tag";
+        span.textContent = key;
+        wrap.appendChild(span);
+      });
+      updateImagesPreview();
+    }
+
+    function updateImagesPreview() {
+      const include = $("includeImages").value === "yes";
+      if (!include) {
+        $("imagesPreview").value = "images tidak dikirim";
+        return;
+      }
+      const keys = state.uploadedObjectKeys.slice(0, 5).map((key) => ({ object_key: key }));
+      $("imagesPreview").value = safeJSON(keys);
+    }
+
+    async function handleLogin() {
+      const btn = $("btnLogin");
+      setButtonBusy(btn, true);
+      try {
+        const email = $("loginEmail").value.trim();
+        const password = $("loginPassword").value;
+        if (!email || !password) {
+          throw new Error("Email dan password wajib diisi.");
+        }
+
+        const result = await apiFetch({
+          method: "POST",
+          path: "/api/v1/users/login",
+          auth: false,
+          body: { email, password },
+        });
+
+        state.lastResponses.login = result.json || result.text;
+        setPre("loginResponse", state.lastResponses.login);
+
+        if (result.ok && result.json && result.json.data && result.json.data.token) {
+          const token = result.json.data.token;
+          state.token = token;
+          $("token").value = token;
+          setStatus("loginStatus", "s-ok", "Login berhasil. Token terisi otomatis.");
+        } else {
+          setStatus("loginStatus", "s-err", `Login gagal dengan status ${result.status}.`);
+        }
+
+        const user = result.json && result.json.data ? result.json.data.user : null;
+        setPre("customerInfo", user || { note: "User info tidak tersedia pada response." });
+      } catch (err) {
+        setStatus("loginStatus", "s-err", err.message || "Login gagal.");
+        appendLog("ERROR handleLogin", err.message || String(err));
+      } finally {
+        setButtonBusy(btn, false);
+      }
+    }
+
+    async function handleCompleteOrder() {
+      const btn = $("btnCompleteOrder");
+      setButtonBusy(btn, true);
+      try {
+        const orderId = $("completeOrderId").value.trim();
+        if (!uuidRegex.test(orderId)) {
+          throw new Error("order_id pada Complete Order harus UUID valid.");
+        }
+
+        syncReviewOrderIdWithCompleteOrderId();
+
+        const result = await apiFetch({
+          method: "POST",
+          path: `/api/v1/users/orders/${encodeURIComponent(orderId)}/complete`,
+        });
+
+        state.lastResponses.completeOrder = result.json || result.text;
+        setPre("completeResponse", state.lastResponses.completeOrder);
+
+        if (result.ok) {
+          setStatus("completeStatus", "s-ok", "Complete order berhasil.");
+        } else {
+          setStatus("completeStatus", "s-warn", `Complete order gagal (status ${result.status}). Lihat response.`);
+        }
+      } catch (err) {
+        setStatus("completeStatus", "s-err", err.message || "Complete order gagal.");
+        appendLog("ERROR handleCompleteOrder", err.message || String(err));
+      } finally {
+        setButtonBusy(btn, false);
+      }
+    }
+
+    async function presignAndUploadFile(uploadURL, contentType, file) {
+      const headers = { "Content-Type": contentType };
+      appendLog(`REQUEST PUT ${uploadURL}`, {
+        method: "PUT",
+        url: uploadURL,
+        headers,
+        body: {
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type || "(empty)",
+        },
+      });
+
+      const response = await fetch(uploadURL, {
+        method: "PUT",
+        headers,
+        body: file,
+      });
+
+      const responseHeaders = readResponseHeaders(response.headers);
+      const text = await response.text();
+
+      appendLog(`RESPONSE PUT ${uploadURL}`, {
+        status: response.status,
+        ok: response.ok,
+        headers: responseHeaders,
+        body: text || "(empty)",
+      });
+
+      return {
+        ok: response.ok,
+        status: response.status,
+        headers: responseHeaders,
+        text,
+      };
+    }
+
+    async function handlePresignUpload() {
+      const btn = $("btnPresignUpload");
+      setButtonBusy(btn, true);
+      try {
+        const selectedContentType = $("contentType").value;
+        const files = Array.from(($("reviewFile").files || []));
+        if (files.length === 0) {
+          throw new Error("Pilih minimal 1 file gambar terlebih dahulu.");
+        }
+
+        const mismatch = files
+          .filter((file) => file.type && file.type !== selectedContentType)
+          .map((file) => `${file.name} (${file.type})`);
+        if (mismatch.length > 0) {
+          const proceed = window.confirm(
+            `Beberapa file punya MIME berbeda dari content_type request (${selectedContentType}).\n\n${mismatch.join("\n")}\n\nLanjutkan upload?`
+          );
+          if (!proceed) {
+            setStatus("uploadStatus", "s-warn", "Upload dibatalkan karena mismatch content type.");
+            return;
+          }
+        }
+
+        const presignResults = [];
+        const uploadResults = [];
+        let successCount = 0;
+
+        for (let i = 0; i < files.length; i += 1) {
+          const file = files[i];
+          const fileInfo = {
+            index: i + 1,
+            file_name: file.name,
+            file_size: file.size,
+            file_type: file.type || "(empty)",
+          };
+
+          const presign = await apiFetch({
+            method: "POST",
+            path: "/api/v1/users/reviews/presign",
+            body: { content_type: selectedContentType },
+          });
+
+          const presignBody = presign.json || presign.text;
+          presignResults.push({
+            ...fileInfo,
+            status: presign.status,
+            ok: presign.ok,
+            response: presignBody,
+          });
+
+          if (!presign.ok || !presign.json || !presign.json.data) {
+            uploadResults.push({
+              ...fileInfo,
+              ok: false,
+              skipped: true,
+              reason: "presign failed",
+            });
+            continue;
+          }
+
+          const data = presign.json.data;
+          state.lastPresign = {
+            uploadURL: data.upload_url,
+            objectKey: data.object_key,
+            contentType: data.content_type,
+            expiresIn: data.expires_in,
+          };
+          $("lastUploadUrl").value = data.upload_url || "";
+          $("lastObjectKey").value = data.object_key || "";
+          $("lastExpiresIn").value = String(data.expires_in || "");
+
+          const upload = await presignAndUploadFile(data.upload_url, data.content_type, file);
+          uploadResults.push({
+            ...fileInfo,
+            object_key: data.object_key,
+            status: upload.status,
+            ok: upload.ok,
+            response: upload.text || "(empty)",
+          });
+
+          if (upload.ok) {
+            successCount += 1;
+            if (data.object_key && !state.uploadedObjectKeys.includes(data.object_key)) {
+              state.uploadedObjectKeys.push(data.object_key);
+              if (state.uploadedObjectKeys.length > 5) {
+                state.uploadedObjectKeys = state.uploadedObjectKeys.slice(-5);
+              }
+            }
+          }
+        }
+
+        state.lastResponses.presign = presignResults;
+        state.lastResponses.upload = uploadResults;
+        setPre("presignResponse", presignResults);
+        setPre("uploadResponse", uploadResults);
+        renderUploadedKeys();
+
+        const failedCount = files.length - successCount;
+        if (successCount === files.length) {
+          setStatus("uploadStatus", "s-ok", `Semua upload berhasil (${successCount}/${files.length}).`);
+        } else if (successCount > 0) {
+          setStatus("uploadStatus", "s-warn", `Sebagian upload berhasil (${successCount} sukses, ${failedCount} gagal).`);
+        } else {
+          setStatus("uploadStatus", "s-err", `Semua upload gagal (${failedCount}/${files.length}).`);
+        }
+      } catch (err) {
+        setStatus("uploadStatus", "s-err", err.message || "Presign/upload gagal.");
+        appendLog("ERROR handlePresignUpload", err.message || String(err));
+      } finally {
+        setButtonBusy(btn, false);
+      }
+    }
+
+    async function handleCreateReview() {
+      const btn = $("btnSubmitReview");
+      setButtonBusy(btn, true);
+      try {
+        const orderId = $("reviewOrderId").value.trim();
+        const orderItemId = $("reviewOrderItemId").value.trim();
+        const rating = Number($("rating").value);
+        const reviewText = $("reviewText").value.trim();
+        const includeImages = $("includeImages").value === "yes";
+
+        if (!uuidRegex.test(orderId)) {
+          throw new Error("order_id pada Create Review harus UUID valid.");
+        }
+        if (!uuidRegex.test(orderItemId)) {
+          throw new Error("order_item_id harus UUID valid.");
+        }
+        if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+          throw new Error("rating harus angka 1..5.");
+        }
+        if (!reviewText) {
+          throw new Error("review_text wajib diisi.");
+        }
+
+        const body = {
+          order_id: orderId,
+          order_item_id: orderItemId,
+          rating,
+          review_text: reviewText,
+        };
+
+        if (includeImages) {
+          if (state.uploadedObjectKeys.length === 0) {
+            throw new Error("Belum ada uploaded object key. Jalankan Presign & Upload dulu atau pilih tanpa images.");
+          }
+          body.images = state.uploadedObjectKeys.slice(0, 5).map((key) => ({ object_key: key }));
+        }
+
+        updateImagesPreview();
+
+        const result = await apiFetch({
+          method: "POST",
+          path: "/api/v1/users/reviews",
+          body,
+        });
+
+        state.lastResponses.createReview = result.json || result.text;
+        setPre("reviewResponse", state.lastResponses.createReview);
+
+        if (result.ok) {
+          setStatus("reviewStatus", "s-ok", "Create review berhasil.");
+        } else {
+          setStatus("reviewStatus", "s-warn", `Create review gagal (status ${result.status}).`);
+        }
+      } catch (err) {
+        setStatus("reviewStatus", "s-err", err.message || "Create review gagal.");
+        appendLog("ERROR handleCreateReview", err.message || String(err));
+      } finally {
+        setButtonBusy(btn, false);
+      }
+    }
+
+    function bindEvents() {
+      $("baseUrl").addEventListener("input", updateEndpointInfo);
+      $("token").addEventListener("input", () => { state.token = $("token").value.trim(); });
+      $("completeOrderId").addEventListener("input", syncReviewOrderIdWithCompleteOrderId);
+      $("includeImages").addEventListener("change", updateImagesPreview);
+
+      $("btnLogin").addEventListener("click", handleLogin);
+      $("btnCompleteOrder").addEventListener("click", handleCompleteOrder);
+      $("btnPresignUpload").addEventListener("click", handlePresignUpload);
+      $("btnSubmitReview").addEventListener("click", handleCreateReview);
+
+      $("btnCopyUploadUrl").addEventListener("click", async () => {
+        const uploadUrl = $("lastUploadUrl").value.trim();
+        if (!uploadUrl) {
+          setStatus("uploadStatus", "s-warn", "Belum ada upload_url untuk disalin.");
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(uploadUrl);
+          setStatus("uploadStatus", "s-ok", "upload_url tersalin ke clipboard.");
+        } catch (_) {
+          setStatus("uploadStatus", "s-warn", "Gagal copy otomatis. Silakan copy manual.");
+        }
+      });
+
+      $("btnClearImages").addEventListener("click", () => {
+        state.uploadedObjectKeys = [];
+        renderUploadedKeys();
+        setStatus("uploadStatus", "s-info", "Daftar uploaded object key dibersihkan.");
+      });
+
+      $("btnClearLogs").addEventListener("click", () => {
+        $("logArea").textContent = "";
+      });
+    }
+
+    function initDefaults() {
+      $("reviewText").value = "Produk bagus, kualitas sesuai deskripsi.";
+      $("logArea").textContent = "";
+      updateEndpointInfo();
+      renderUploadedKeys();
+      updateImagesPreview();
+      appendLog("INFO", "Manual test page siap digunakan.");
+    }
+
+    bindEvents();
+    initDefaults();
+  </script>
+</body>
+</html>

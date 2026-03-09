@@ -15,7 +15,6 @@ type productUseCase struct {
 	productRepo  domain.ProductRepository
 	vendorRepo   domain.VendorRepository
 	categoryRepo domain.CategoryRepository
-	shippingRepo domain.ShippingServiceRepository
 	storage      domain.StorageProvider
 }
 
@@ -24,14 +23,12 @@ func NewProductUseCase(
 	productRepo domain.ProductRepository,
 	vendorRepo domain.VendorRepository,
 	categoryRepo domain.CategoryRepository,
-	shippingRepo domain.ShippingServiceRepository,
 	storage domain.StorageProvider,
 ) domain.ProductUseCase {
 	return &productUseCase{
 		productRepo:  productRepo,
 		vendorRepo:   vendorRepo,
 		categoryRepo: categoryRepo,
-		shippingRepo: shippingRepo,
 		storage:      storage,
 	}
 }
@@ -62,34 +59,13 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		return nil, ErrCategoryNotFound
 	}
 
-	// 3. Parse and validate shipping service IDs.
-	shippingIDs := make([]uuid.UUID, len(req.ShippingServiceIDs))
-	for i, s := range req.ShippingServiceIDs {
-		shippingIDs[i], err = uuid.Parse(s)
-		if err != nil {
-			return nil, fmt.Errorf("invalid shipping_service_id: %w", err)
-		}
-	}
-
-	foundServices, err := uc.shippingRepo.FindByIDs(ctx, shippingIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find shipping services: %w", err)
-	}
-	if len(foundServices) != len(shippingIDs) {
-		return nil, ErrShippingServiceNotFound
-	}
-
-	// 4. Determine product status.
+	// 3. Determine product status.
 	status := domain.ProductStatusDraft
 	if req.IsActive {
 		status = domain.ProductStatusPublished
 	}
 
-	if status == domain.ProductStatusPublished && len(shippingIDs) == 0 {
-		return nil, ErrPublishedRequiresShipping
-	}
-
-	// 5. Validate images.
+	// 4. Validate images.
 	if len(req.Images) > 10 {
 		return nil, ErrTooManyImages
 	}
@@ -108,13 +84,13 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		}
 	}
 
-	// 6. Generate slug.
+	// 5. Generate slug.
 	slug, err := uc.generateSlug(ctx, req.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate slug: %w", err)
 	}
 
-	// 7. Get product count for SKU generation.
+	// 6. Get product count for SKU generation.
 	productCount, err := uc.productRepo.CountByVendorID(ctx, vendorID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count vendor products: %w", err)
@@ -123,7 +99,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 	now := time.Now()
 	productID := uuid.New()
 
-	// 8. Build default variant.
+	// 7. Build default variant.
 	defaultSKU := generateSKU(vendor.DisplayName, req.Name, int(productCount), 0)
 	defaultVariant := domain.ProductVariant{
 		ID:          uuid.New(),
@@ -140,7 +116,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 
 	allVariants := []domain.ProductVariant{defaultVariant}
 
-	// 9. Build additional variants.
+	// 8. Build additional variants.
 	for i, v := range req.Variants {
 		sku := generateSKU(vendor.DisplayName, req.Name, int(productCount), i+1)
 		variant := domain.ProductVariant{
@@ -158,7 +134,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		allVariants = append(allVariants, variant)
 	}
 
-	// 10. Generate presigned upload URLs for images.
+	// 9. Generate presigned upload URLs for images.
 	uploadInfos := make([]domain.ProductImageUploadInfo, 0, len(req.Images))
 	imageEntities := make([]domain.ProductImage, 0, len(req.Images))
 
@@ -192,7 +168,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		})
 	}
 
-	// 11. Build product entity.
+	// 10. Build product entity.
 	product := &domain.Product{
 		ID:            productID,
 		VendorID:      vendorID,
@@ -206,12 +182,12 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		UpdatedAt:     now,
 	}
 
-	// 12. Persist everything in one transaction.
-	if err := uc.productRepo.Create(ctx, product, allVariants, imageEntities, shippingIDs); err != nil {
+	// 11. Persist everything in one transaction.
+	if err := uc.productRepo.Create(ctx, product, allVariants, imageEntities); err != nil {
 		return nil, fmt.Errorf("failed to create product: %w", err)
 	}
 
-	// 13. Build response.
+	// 12. Build response.
 	variantResponses := make([]domain.ProductVariantResponse, len(allVariants))
 	for i, v := range allVariants {
 		variantResponses[i] = domain.ProductVariantResponse{

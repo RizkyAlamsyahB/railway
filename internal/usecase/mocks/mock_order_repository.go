@@ -86,6 +86,21 @@ func (mr *MockOrderRepositoryMockRecorder) FindByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockOrderRepository)(nil).FindByID), ctx, id)
 }
 
+// FindByOrderNo mocks base method.
+func (m *MockOrderRepository) FindByOrderNo(ctx context.Context, orderNo string) (*domain.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByOrderNo", ctx, orderNo)
+	ret0, _ := ret[0].(*domain.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByOrderNo indicates an expected call of FindByOrderNo.
+func (mr *MockOrderRepositoryMockRecorder) FindByOrderNo(ctx, orderNo any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByOrderNo", reflect.TypeOf((*MockOrderRepository)(nil).FindByOrderNo), ctx, orderNo)
+}
+
 // FindItemsByOrderID mocks base method.
 func (m *MockOrderRepository) FindItemsByOrderID(ctx context.Context, orderID uuid.UUID) ([]domain.OrderItem, error) {
 	m.ctrl.T.Helper()
@@ -99,6 +114,37 @@ func (m *MockOrderRepository) FindItemsByOrderID(ctx context.Context, orderID uu
 func (mr *MockOrderRepositoryMockRecorder) FindItemsByOrderID(ctx, orderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindItemsByOrderID", reflect.TypeOf((*MockOrderRepository)(nil).FindItemsByOrderID), ctx, orderID)
+}
+
+// FindItemsByOrderIDs mocks base method.
+func (m *MockOrderRepository) FindItemsByOrderIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]domain.OrderItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindItemsByOrderIDs", ctx, orderIDs)
+	ret0, _ := ret[0].(map[uuid.UUID][]domain.OrderItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindItemsByOrderIDs indicates an expected call of FindItemsByOrderIDs.
+func (mr *MockOrderRepositoryMockRecorder) FindItemsByOrderIDs(ctx, orderIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindItemsByOrderIDs", reflect.TypeOf((*MockOrderRepository)(nil).FindItemsByOrderIDs), ctx, orderIDs)
+}
+
+// ListByUser mocks base method.
+func (m *MockOrderRepository) ListByUser(ctx context.Context, userID uuid.UUID, params domain.CustomerOrderListParams) ([]domain.Order, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByUser", ctx, userID, params)
+	ret0, _ := ret[0].([]domain.Order)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListByUser indicates an expected call of ListByUser.
+func (mr *MockOrderRepositoryMockRecorder) ListByUser(ctx, userID, params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByUser", reflect.TypeOf((*MockOrderRepository)(nil).ListByUser), ctx, userID, params)
 }
 
 // RestoreStock mocks base method.

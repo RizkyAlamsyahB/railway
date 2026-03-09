@@ -61,7 +61,7 @@ type VendorBankAccount struct {
 // VendorRegisterRequest is the input DTO for vendor registration.
 type VendorRegisterRequest struct {
 	StoreName             string  `json:"store_name" binding:"required,max=120"`
-	StoreType             string  `json:"store_type" binding:"required,oneof=umrah_souvenir_store hajj_souvenir_store general_souvenir_store"`
+	StoreType             string  `json:"store_type" binding:"required,oneof=souvenir_store ppiu hajj_dormitory"`
 	OwnerName             string  `json:"owner_name" binding:"required,max=120"`
 	LegalName             *string `json:"legal_name,omitempty" binding:"omitempty,max=160"`
 	ResponsiblePersonName string  `json:"responsible_person_name" binding:"required,max=120"`
@@ -116,6 +116,21 @@ type VendorLoginRequest struct {
 type VendorLoginResponse struct {
 	Token        string    `json:"token"`
 	VendorID     uuid.UUID `json:"vendor_id"`
+	ImageURL     string    `json:"image_url"`
+	Email        string    `json:"email"`
+	Name         string    `json:"name"`
+	VendorType   string    `json:"vendor_type"`
+	VendorStatus string    `json:"vendor_status"`
+	DisplayName  string    `json:"display_name"`
+}
+
+// VendorProfileResponse is the output DTO for the authenticated vendor profile endpoint.
+type VendorProfileResponse struct {
+	VendorID     uuid.UUID `json:"vendor_id"`
+	ImageURL     string    `json:"image_url"`
+	Email        string    `json:"email"`
+	Name         string    `json:"name"`
+	VendorType   string    `json:"vendor_type"`
 	VendorStatus string    `json:"vendor_status"`
 	DisplayName  string    `json:"display_name"`
 }
@@ -342,6 +357,12 @@ type VendorWithdrawal struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
+const (
+	VendorTypeSouvenirStore = "souvenir_store"
+	VendorTypePPIU          = "ppiu"
+	VendorTypeHajjDormitory = "hajj_dormitory"
+)
+
 // VendorWithdrawRequest is the input DTO for vendor self-service withdrawal.
 type VendorWithdrawRequest struct {
 	Amount      float64 `json:"amount" binding:"required,gte=10000"`
@@ -393,6 +414,9 @@ type VendorUseCase interface {
 
 	// Login authenticates a vendor user and returns a JWT token with vendor claims.
 	Login(ctx context.Context, req VendorLoginRequest) (*VendorLoginResponse, error)
+
+	// GetMe returns the authenticated vendor profile by vendor ID from auth claims.
+	GetMe(ctx context.Context, vendorID uuid.UUID) (*VendorProfileResponse, error)
 
 	// GetBalance returns the vendor's current balance.
 	GetBalance(ctx context.Context, vendorID uuid.UUID) (*VendorBalanceResponse, error)

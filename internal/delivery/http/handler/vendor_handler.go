@@ -8,6 +8,25 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
 
+func extractVendorID(c *gin.Context) (uuid.UUID, bool) {
+	val, exists := c.Get(middleware.ContextKeyVendorID)
+	if !exists {
+		return uuid.UUID{}, false
+	}
+	switch v := val.(type) {
+	case uuid.UUID:
+		return v, true
+	case string:
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return uuid.UUID{}, false
+		}
+		return id, true
+	default:
+		return uuid.UUID{}, false
+	}
+}
+
 // VendorHandler handles vendor-related endpoints.
 type VendorHandler struct {
 	useCase domain.VendorUseCase
@@ -50,6 +69,23 @@ func (h *VendorHandler) Login(c *gin.Context) {
 	}
 
 	response.OK(c, "login successful", result)
+}
+
+// GetMe handles GET /api/v1/vendors/me
+func (h *VendorHandler) GetMe(c *gin.Context) {
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	result, err := h.useCase.GetMe(c.Request.Context(), vendorID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "vendor profile retrieved successfully", result)
 }
 
 // ConfirmDocuments handles POST /api/v1/vendors/documents/confirm

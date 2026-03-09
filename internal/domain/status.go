@@ -39,6 +39,17 @@ const (
 	OrderStatusRefunded       = "refunded"
 )
 
+// OrderStatuses lists all allowed order statuses.
+var OrderStatuses = []string{
+	OrderStatusPendingPayment,
+	OrderStatusPaid,
+	OrderStatusPacked,
+	OrderStatusShipped,
+	OrderStatusCompleted,
+	OrderStatusCanceled,
+	OrderStatusRefunded,
+}
+
 // Payment statuses (on orders).
 const (
 	PaymentStatusUnpaid = "unpaid"
@@ -76,7 +87,6 @@ const (
 const (
 	TicketStatusOpen       = "open"
 	TicketStatusOnProgress = "on_progress"
-	TicketStatusResolved   = "resolved"
 	TicketStatusClosed     = "closed"
 )
 
@@ -84,4 +94,10 @@ const (
 const (
 	TicketSourceApp = "app"
 	TicketSourceWeb = "web"
+)
+
+// Review statuses.
+const (
+	ReviewStatusPublished = "published"
+	ReviewStatusHidden    = "hidden"
 )

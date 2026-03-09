@@ -73,17 +73,17 @@ func (mr *MockProductRepositoryMockRecorder) CountByVendorID(ctx, vendorID any) 
 }
 
 // Create mocks base method.
-func (m *MockProductRepository) Create(ctx context.Context, product *domain.Product, variants []domain.ProductVariant, images []domain.ProductImage, shippingServiceIDs []uuid.UUID) error {
+func (m *MockProductRepository) Create(ctx context.Context, product *domain.Product, variants []domain.ProductVariant, images []domain.ProductImage) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, product, variants, images, shippingServiceIDs)
+	ret := m.ctrl.Call(m, "Create", ctx, product, variants, images)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockProductRepositoryMockRecorder) Create(ctx, product, variants, images, shippingServiceIDs any) *gomock.Call {
+func (mr *MockProductRepositoryMockRecorder) Create(ctx, product, variants, images any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockProductRepository)(nil).Create), ctx, product, variants, images, shippingServiceIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockProductRepository)(nil).Create), ctx, product, variants, images)
 }
 
 // FindByID mocks base method.
@@ -159,6 +159,21 @@ func (m *MockProductRepository) FindVariantsByProductID(ctx context.Context, pro
 func (mr *MockProductRepositoryMockRecorder) FindVariantsByProductID(ctx, productID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindVariantsByProductID", reflect.TypeOf((*MockProductRepository)(nil).FindVariantsByProductID), ctx, productID)
+}
+
+// GetPublishedDetailForCustomer mocks base method.
+func (m *MockProductRepository) GetPublishedDetailForCustomer(ctx context.Context, id uuid.UUID) (*domain.ProductDetailResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPublishedDetailForCustomer", ctx, id)
+	ret0, _ := ret[0].(*domain.ProductDetailResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPublishedDetailForCustomer indicates an expected call of GetPublishedDetailForCustomer.
+func (mr *MockProductRepositoryMockRecorder) GetPublishedDetailForCustomer(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublishedDetailForCustomer", reflect.TypeOf((*MockProductRepository)(nil).GetPublishedDetailForCustomer), ctx, id)
 }
 
 // ListPublishedForCustomer mocks base method.

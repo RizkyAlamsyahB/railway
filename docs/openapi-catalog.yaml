@@ -9,6 +9,8 @@ servers:
 tags:
   - name: Products
     description: Operasi untuk daftar produk marketplace.
+  - name: Product Reviews
+    description: Operasi untuk membaca ulasan produk dan ringkasan rating.
   - name: Categories
     description: Operasi untuk daftar kategori produk.
   - name: Shipping Services
@@ -165,6 +167,8 @@ paths:
         - `id`
         - `name`
         - `price` (harga varian termurah yang memenuhi kriteria)
+        - `rating_average` (rata-rata rating produk)
+        - `rating_count` (jumlah review)
       operationId: listProducts
       security: []
       parameters:
@@ -216,9 +220,13 @@ paths:
                   - id: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
                     name: Sajadah Premium
                     price: 150000
+                    rating_average: 4.7
+                    rating_count: 120
                   - id: db04f006-7498-4a96-a242-8ab9cf834248
                     name: Kurma Ajwa 500gr
                     price: 90000
+                    rating_average: 0
+                    rating_count: 0
                 errors: null
                 meta:
                   page: 1
@@ -237,6 +245,307 @@ paths:
               example:
                 success: false
                 message: failed to list products
+                data: null
+                errors: null
+                meta: null
+  /api/v1/products/{id}:
+    get:
+      tags:
+        - Products
+      summary: Detail produk berdasarkan ID
+      description: |
+        Mengembalikan detail produk untuk halaman detail customer berdasarkan ID produk.
+        Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
+
+        Aturan visibilitas:
+        - hanya produk dengan status `published` yang dapat diakses
+        - varian yang dikembalikan hanya varian aktif (`is_active = true`)
+        - URL gambar pada response sudah berupa URL penuh
+      operationId: getProductDetail
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID produk.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detail produk berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessProductDetailEnvelope'
+              example:
+                success: true
+                message: product detail retrieved successfully
+                data:
+                  id: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
+                  name: Sajadah Premium
+                  slug: sajadah-premium
+                  description: Sajadah premium bahan lembut untuk ibadah harian.
+                  status: published
+                  halal_ai_status: pending
+                  category:
+                    id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                    name: Perlengkapan Ibadah
+                    slug: perlengkapan-ibadah
+                  vendor:
+                    id: b1c2d3e4-f5a6-7890-bcde-1234567890aa
+                    display_name: Toko Oleh-Oleh Mabrur
+                  rating_average: 4.7
+                  rating_count: 120
+                  images:
+                    - id: 8ea58d2f-c1a6-4fd3-9b37-67a743f57272
+                      url: https://cdn.example.com/products/0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2/image-1.jpg
+                      is_primary: true
+                      sort_order: 0
+                  variants:
+                    - id: 2e9f4fd6-f55f-4f38-8d3b-7acef44ef111
+                      sku: MBR-SJD-001
+                      variant_name: Default
+                      price: 150000
+                      currency: IDR
+                      stock_on_hand: 20
+                      weight_gram: 500
+                      is_default: true
+                      is_active: true
+                  created_at: "2026-03-01T10:00:00Z"
+                  updated_at: "2026-03-04T10:00:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: Parameter path tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid product ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
+        '404':
+          description: Produk tidak ditemukan atau tidak tersedia untuk customer.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: product not found
+                data: null
+                errors: null
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/products/{id}/reviews:
+    get:
+      tags:
+        - Product Reviews
+      summary: Daftar ulasan produk
+      description: |
+        Mengembalikan daftar ulasan (`published`) untuk sebuah produk.
+        Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
+
+        Data diurutkan berdasarkan review terbaru.
+      operationId: listProductReviews
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID produk.
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Nomor halaman.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Jumlah item per halaman.
+      responses:
+        '200':
+          description: Daftar ulasan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessProductReviewListEnvelope'
+              example:
+                success: true
+                message: product reviews retrieved successfully
+                data:
+                  - review_id: 8ea58d2f-c1a6-4fd3-9b37-67a743f57272
+                    user_id: c17f4e2f-4bb4-44b4-9a5d-ff074d9fd7c9
+                    reviewer_name: Ahmad Fauzi
+                    rating: 5
+                    review_text: Produk bagus, kualitas sesuai deskripsi.
+                    image_urls:
+                      - https://cdn.example.com/reviews/2026/03/04/obj-1
+                    created_at: "2026-03-04T10:00:00Z"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 23
+                  total_pages: 3
+        '400':
+          description: Parameter path/query tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid product ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/products/{id}/review-summary:
+    get:
+      tags:
+        - Product Reviews
+      summary: Ringkasan rating produk
+      description: |
+        Mengembalikan ringkasan rating produk:
+        - `average_rating`
+        - `total_reviews`
+        - distribusi bintang `0..5`
+
+        Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
+      operationId: getProductReviewSummary
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID produk.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Ringkasan rating berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessProductReviewSummaryEnvelope'
+              example:
+                success: true
+                message: product review summary retrieved successfully
+                data:
+                  product_id: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
+                  average_rating: 4.67
+                  total_reviews: 120
+                  distribution:
+                    - star: 0
+                      count: 0
+                      percentage: 0
+                    - star: 1
+                      count: 4
+                      percentage: 3.33
+                    - star: 2
+                      count: 6
+                      percentage: 5
+                    - star: 3
+                      count: 10
+                      percentage: 8.33
+                    - star: 4
+                      count: 30
+                      percentage: 25
+                    - star: 5
+                      count: 70
+                      percentage: 58.33
+                errors: null
+                meta: null
+        '400':
+          description: Parameter path tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: invalid product ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: internal server error
                 data: null
                 errors: null
                 meta: null
@@ -318,6 +627,8 @@ components:
         - id
         - name
         - price
+        - rating_average
+        - rating_count
       properties:
         id:
           type: string
@@ -333,6 +644,304 @@ components:
           format: double
           description: Harga varian termurah yang tersedia untuk dibeli.
           example: 150000
+        rating_average:
+          type: number
+          format: double
+          description: Rata-rata rating produk (0 jika belum ada review).
+          example: 4.7
+        rating_count:
+          type: integer
+          format: int64
+          description: Jumlah total review produk.
+          example: 120
+    ProductDetailCategory:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID kategori produk.
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        name:
+          type: string
+          description: Nama kategori produk.
+          example: Perlengkapan Ibadah
+        slug:
+          type: string
+          description: Slug kategori produk.
+          example: perlengkapan-ibadah
+    ProductDetailVendor:
+      type: object
+      required:
+        - id
+        - display_name
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID vendor pemilik produk.
+          example: b1c2d3e4-f5a6-7890-bcde-1234567890aa
+        display_name:
+          type: string
+          description: Nama toko yang ditampilkan ke customer.
+          example: Toko Oleh-Oleh Mabrur
+    ProductDetailImageItem:
+      type: object
+      required:
+        - id
+        - url
+        - is_primary
+        - sort_order
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID gambar produk.
+          example: 8ea58d2f-c1a6-4fd3-9b37-67a743f57272
+        url:
+          type: string
+          format: uri
+          description: URL penuh gambar produk.
+          example: https://cdn.example.com/products/0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2/image-1.jpg
+        is_primary:
+          type: boolean
+          description: Menandakan gambar utama produk.
+          example: true
+        sort_order:
+          type: integer
+          description: Urutan tampilan gambar.
+          example: 0
+    ProductDetailVariantItem:
+      type: object
+      required:
+        - id
+        - sku
+        - variant_name
+        - price
+        - currency
+        - stock_on_hand
+        - is_default
+        - is_active
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID varian.
+          example: 2e9f4fd6-f55f-4f38-8d3b-7acef44ef111
+        sku:
+          type: string
+          description: SKU varian.
+          example: MBR-SJD-001
+        variant_name:
+          type: string
+          description: Nama varian.
+          example: Default
+        price:
+          type: number
+          format: double
+          description: Harga varian.
+          example: 150000
+        currency:
+          type: string
+          description: Mata uang harga.
+          example: IDR
+        stock_on_hand:
+          type: integer
+          description: Jumlah stok varian.
+          example: 20
+        weight_gram:
+          type: integer
+          nullable: true
+          description: Berat varian dalam gram.
+          example: 500
+        is_default:
+          type: boolean
+          description: Menandakan varian default.
+          example: true
+        is_active:
+          type: boolean
+          description: Menandakan varian aktif.
+          example: true
+    ProductDetailResponse:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - description
+        - status
+        - halal_ai_status
+        - category
+        - vendor
+        - rating_average
+        - rating_count
+        - images
+        - variants
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID produk.
+          example: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
+        name:
+          type: string
+          description: Nama produk.
+          example: Sajadah Premium
+        slug:
+          type: string
+          description: Slug produk.
+          example: sajadah-premium
+        description:
+          type: string
+          description: Deskripsi produk.
+          example: Sajadah premium bahan lembut untuk ibadah harian.
+        status:
+          type: string
+          description: Status produk.
+          example: published
+        halal_ai_status:
+          type: string
+          description: Status review Halal AI.
+          example: pending
+        category:
+          $ref: '#/components/schemas/ProductDetailCategory'
+        vendor:
+          $ref: '#/components/schemas/ProductDetailVendor'
+        rating_average:
+          type: number
+          format: double
+          description: Rata-rata rating produk.
+          example: 4.7
+        rating_count:
+          type: integer
+          format: int64
+          description: Jumlah total review produk.
+          example: 120
+        images:
+          type: array
+          description: Daftar gambar produk.
+          items:
+            $ref: '#/components/schemas/ProductDetailImageItem'
+        variants:
+          type: array
+          description: Daftar varian aktif produk.
+          items:
+            $ref: '#/components/schemas/ProductDetailVariantItem'
+        created_at:
+          type: string
+          format: date-time
+          description: Waktu pembuatan produk.
+          example: "2026-03-01T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Waktu terakhir update produk.
+          example: "2026-03-04T10:00:00Z"
+    ProductReviewListItem:
+      type: object
+      required:
+        - review_id
+        - user_id
+        - reviewer_name
+        - rating
+        - review_text
+        - image_urls
+        - created_at
+      properties:
+        review_id:
+          type: string
+          format: uuid
+          description: ID review.
+          example: 8ea58d2f-c1a6-4fd3-9b37-67a743f57272
+        user_id:
+          type: string
+          format: uuid
+          description: ID customer yang memberi review.
+          example: c17f4e2f-4bb4-44b4-9a5d-ff074d9fd7c9
+        reviewer_name:
+          type: string
+          description: Nama customer yang memberi review.
+          example: Ahmad Fauzi
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Nilai rating customer.
+          example: 5
+        review_text:
+          type: string
+          description: Teks ulasan customer.
+          example: Produk bagus, kualitas sesuai deskripsi.
+        image_urls:
+          type: array
+          description: Daftar URL gambar review.
+          items:
+            type: string
+            format: uri
+          example:
+            - https://cdn.example.com/reviews/2026/03/04/obj-1
+        created_at:
+          type: string
+          format: date-time
+          description: Waktu review dibuat.
+          example: "2026-03-04T10:00:00Z"
+    RatingDistributionItem:
+      type: object
+      required:
+        - star
+        - count
+        - percentage
+      properties:
+        star:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: Bucket nilai bintang.
+          example: 5
+        count:
+          type: integer
+          format: int64
+          description: Jumlah review pada bucket ini.
+          example: 70
+        percentage:
+          type: number
+          format: double
+          description: Persentase bucket terhadap total review.
+          example: 58.33
+    ProductReviewSummary:
+      type: object
+      required:
+        - product_id
+        - average_rating
+        - total_reviews
+        - distribution
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          description: ID produk.
+          example: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
+        average_rating:
+          type: number
+          format: double
+          description: Rata-rata rating produk.
+          example: 4.67
+        total_reviews:
+          type: integer
+          format: int64
+          description: Jumlah total review produk.
+          example: 120
+        distribution:
+          type: array
+          description: Distribusi jumlah review berdasarkan bintang (0..5).
+          items:
+            $ref: '#/components/schemas/RatingDistributionItem'
     PaginationMeta:
       type: object
       required:
@@ -403,6 +1012,76 @@ components:
           example: null
         meta:
           $ref: '#/components/schemas/PaginationMeta'
+    SuccessProductDetailEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: product detail retrieved successfully
+        data:
+          $ref: '#/components/schemas/ProductDetailResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessProductReviewListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: product reviews retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductReviewListItem'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    SuccessProductReviewSummaryEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: product review summary retrieved successfully
+        data:
+          $ref: '#/components/schemas/ProductReviewSummary'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
     SuccessShippingServiceListEnvelope:
       type: object
       required:

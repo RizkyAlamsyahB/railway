@@ -72,3 +72,5 @@ func isAllowedChatAttachmentContentType(contentType string) bool {
 	_, ok := allowedChatAttachmentContentTypes[contentType]
 	return ok
 }
+
+const ReviewImageMaxBytes int64 = 5 * 1024 * 1024 // 5 MB

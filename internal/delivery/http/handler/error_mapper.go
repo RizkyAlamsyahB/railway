@@ -71,7 +71,6 @@ var errorRules = []errorRule{
 	// Product
 	{usecase.ErrVendorNotActive, http.StatusForbidden, "vendor is not active"},
 	{usecase.ErrCategoryNotFound, http.StatusBadRequest, "category not found"},
-	{usecase.ErrShippingServiceNotFound, http.StatusBadRequest, "one or more shipping services not found"},
 	{usecase.ErrProductNotFound, http.StatusNotFound, "product not found"},
 	{usecase.ErrProductNotOwned, http.StatusForbidden, "product does not belong to this vendor"},
 	{usecase.ErrImageNotFound, http.StatusBadRequest, ""},
@@ -80,7 +79,6 @@ var errorRules = []errorRule{
 	{usecase.ErrImageSizeOverflow, http.StatusBadRequest, ""},
 	{usecase.ErrDuplicatePrimaryImage, http.StatusBadRequest, "only one image can be marked as primary"},
 	{usecase.ErrNoPrimaryImage, http.StatusBadRequest, "at least one image must be marked as primary"},
-	{usecase.ErrPublishedRequiresShipping, http.StatusBadRequest, "published product must have at least one shipping service"},
 	{usecase.ErrTooManyImages, http.StatusBadRequest, "maximum 10 images per product"},
 
 	// Cart
@@ -99,7 +97,16 @@ var errorRules = []errorRule{
 	{usecase.ErrInvoiceCreationFailed, http.StatusBadGateway, ""},
 	{usecase.ErrCheckoutCompensationFailed, http.StatusBadGateway, ""},
 	{usecase.ErrOrderNotFound, http.StatusNotFound, "order not found"},
+	{usecase.ErrOrderNotOwned, http.StatusForbidden, "order does not belong to this user"},
+	{usecase.ErrInvalidOrderStatus, http.StatusBadRequest, "invalid order status"},
 	{usecase.ErrInvoiceNotFound, http.StatusNotFound, "payment invoice not found"},
+	{usecase.ErrInvalidOrderCompletionTransition, http.StatusBadRequest, "order cannot be completed from current status"},
+	{usecase.ErrAddressNoDistrict, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrVendorWarehouseNotFound, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrVendorNoCouriersConfigured, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrShippingCostFailed, http.StatusBadGateway, ""},
+	{usecase.ErrInvalidShippingChoice, http.StatusBadRequest, ""},
+	{usecase.ErrShippingServiceNotFound, http.StatusBadRequest, ""},
 
 	// Finance
 	{usecase.ErrInvalidMonth, http.StatusBadRequest, "invalid month format, expected YYYY-MM"},
@@ -112,6 +119,17 @@ var errorRules = []errorRule{
 
 	// Notifications
 	{usecase.ErrNotificationNotFound, http.StatusNotFound, "notification not found"},
+
+	// Review
+	{usecase.ErrReviewNotAllowed, http.StatusUnprocessableEntity, "order is not eligible for review"},
+	{usecase.ErrReviewAlreadyExists, http.StatusConflict, "review for this purchased item already exists"},
+	{usecase.ErrOrderItemNotFound, http.StatusNotFound, "order item not found"},
+	{usecase.ErrInvalidReviewRating, http.StatusBadRequest, "review rating must be between 1 and 5"},
+	{usecase.ErrReviewTextRequired, http.StatusBadRequest, "review text is required"},
+	{usecase.ErrTooManyReviewImages, http.StatusBadRequest, "maximum 5 images per review"},
+	{usecase.ErrReviewImageNotUploaded, http.StatusUnprocessableEntity, "review image not found in storage"},
+	{usecase.ErrInvalidReviewImageContentType, http.StatusUnprocessableEntity, "invalid review image content type"},
+	{usecase.ErrReviewImageTooLarge, http.StatusUnprocessableEntity, "review image size exceeds maximum limit"},
 
 	// CS
 	{usecase.ErrTicketNotFound, http.StatusNotFound, "ticket not found"},
@@ -130,7 +148,7 @@ var errorRules = []errorRule{
 	// ticket ownership
 	{usecase.ErrTicketAlreadyTaken, http.StatusConflict, "ticket is already assigned to another CS"},
 	{usecase.ErrTicketNotAssignedToYou, http.StatusForbidden, "only the assigned CS can perform this action"},
-	{usecase.ErrTicketClosed, http.StatusUnprocessableEntity, "ticket is already resolved or closed"},
+	{usecase.ErrTicketClosed, http.StatusUnprocessableEntity, "ticket is already closed"},
 
 	// ticket subject
 	{usecase.ErrTicketSubjectNotFound, http.StatusBadRequest, "ticket subject not found"},
@@ -143,6 +161,38 @@ var errorRules = []errorRule{
 	{usecase.ErrInvalidChatAttachmentContentType, http.StatusUnprocessableEntity, ""},
 	{usecase.ErrChatAttachmentTooLarge, http.StatusUnprocessableEntity, ""},
 	{usecase.ErrChatAttachmentNotUploaded, http.StatusUnprocessableEntity, ""},
+
+	// Banner
+	{usecase.ErrBannerNotFound, http.StatusNotFound, "banner not found"},
+	{usecase.ErrInvalidBannerContentType, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrBannerImageTooLarge, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrBannerImageNotUploaded, http.StatusUnprocessableEntity, ""},
+
+	// Master Lookup
+	{usecase.ErrAdminCategoryNotFound, http.StatusNotFound, "category not found"},
+	{usecase.ErrCategorySlugExists, http.StatusConflict, ""},
+	{usecase.ErrReturnReasonNotFound, http.StatusNotFound, "return reason not found"},
+	{usecase.ErrAdminContactNotFound, http.StatusNotFound, "admin contact not found"},
+	{usecase.ErrFAQNotFound, http.StatusNotFound, "FAQ not found"},
+	{usecase.ErrInvalidFAQCategory, http.StatusUnprocessableEntity, ""},
+
+	// Vendor Banner
+	{usecase.ErrVendorBannerNotFound, http.StatusNotFound, "vendor banner not found"},
+	{usecase.ErrInvalidVendorBannerContentType, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrVendorBannerImageTooLarge, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrVendorBannerImageNotUploaded, http.StatusUnprocessableEntity, ""},
+
+	// Address
+	{usecase.ErrAddressNotFound, http.StatusNotFound, "address not found"},
+	{usecase.ErrAddressNotOwned, http.StatusForbidden, "address does not belong to this user"},
+
+	// Courier
+	{usecase.ErrCourierNotFound, http.StatusNotFound, "courier not found"},
+	{usecase.ErrCourierNotActive, http.StatusBadRequest, "courier is not active"},
+	{usecase.ErrVendorCourierNotFound, http.StatusNotFound, "vendor courier selection not found"},
+
+	// Shipping / RajaOngkir
+	{usecase.ErrRajaOngkirFailed, http.StatusBadGateway, ""},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.

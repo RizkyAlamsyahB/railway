@@ -44,7 +44,7 @@ func (uc *csReportUseCase) GetReport(ctx context.Context, params domain.CSReport
 		return nil, ErrInvalidMonth
 	}
 
-	total, resolved, err := uc.ticketRepo.CountByMonth(ctx, y, m)
+	total, closed, err := uc.ticketRepo.CountByMonth(ctx, y, m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count tickets: %w", err)
 	}
@@ -69,7 +69,7 @@ func (uc *csReportUseCase) GetReport(ctx context.Context, params domain.CSReport
 	return &domain.CSReportResponse{
 		Month:             params.Month,
 		TotalTickets:      total,
-		ResolvedTickets:   resolved,
+		ClosedTickets:     closed,
 		AvgResponseMinute: avgMin,
 		TopSubjects:       topSubjects,
 		TicketsPerDay:     perDay,

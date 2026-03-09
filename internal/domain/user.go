@@ -12,6 +12,7 @@ type User struct {
 	ID              uuid.UUID  `json:"id"`
 	Email           string     `json:"email"`
 	FullName        string     `json:"full_name"`
+	ImageURL        *string    `json:"image_url,omitempty"`
 	BirthDate       *time.Time `json:"birth_date,omitempty"`
 	Phone           *string    `json:"phone,omitempty"`
 	PasswordHash    string     `json:"-"`
@@ -72,6 +73,14 @@ type UserResponse struct {
 	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
+// AdminMeResponse is the output DTO for the authenticated admin profile endpoint.
+type AdminMeResponse struct {
+	ID       uuid.UUID `json:"id"`
+	ImageURL string    `json:"image_url"`
+	Email    string    `json:"email"`
+	Name     string    `json:"name"`
+}
+
 // PaginationMeta holds pagination metadata for list responses.
 type PaginationMeta struct {
 	Page       int   `json:"page"`
@@ -85,6 +94,7 @@ type AdminUserUseCase interface {
 	Create(ctx context.Context, req CreateUserRequest) (*UserResponse, error)
 	List(ctx context.Context, params UserListParams) ([]UserResponse, *PaginationMeta, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*UserResponse, error)
+	GetMe(ctx context.Context, adminID uuid.UUID) (*AdminMeResponse, error)
 	Update(ctx context.Context, id uuid.UUID, req UpdateUserRequest) (*UserResponse, error)
 	Delete(ctx context.Context, id uuid.UUID, actorID uuid.UUID) error
 }
@@ -144,7 +154,7 @@ type LoginRequest struct {
 
 // LoginResponse is the output DTO for a successful user authentication.
 type LoginResponse struct {
-	Token string `json:"token"`
+	Token string       `json:"token"`
 	User  UserResponse `json:"user"`
 }
 

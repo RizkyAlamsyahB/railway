@@ -23,6 +23,20 @@ func toUserResponse(u *domain.User) *domain.UserResponse {
 	}
 }
 
+func toAdminMeResponse(u *domain.User) *domain.AdminMeResponse {
+	imageURL := ""
+	if u.ImageURL != nil {
+		imageURL = *u.ImageURL
+	}
+
+	return &domain.AdminMeResponse{
+		ID:       u.ID,
+		ImageURL: imageURL,
+		Email:    u.Email,
+		Name:     u.FullName,
+	}
+}
+
 // ============================================================
 // CS mappers
 // ============================================================
@@ -36,6 +50,9 @@ func toTicketResponse(t domain.Ticket) *domain.TicketResponse {
 		AssignedCSID:          t.AssignedCSID,
 		AssignedCSName:        t.AssignedCSName,
 		OrderNumber:           t.OrderNumber,
+		OrderStatus:           t.OrderStatus,
+		PaymentMethod:         t.PaymentMethod,
+		GrandTotal:            t.GrandTotal,
 		Phone:                 t.Phone,
 		ReporterName:          t.ReporterName,
 		Subject:               t.Subject,
@@ -44,7 +61,6 @@ func toTicketResponse(t domain.Ticket) *domain.TicketResponse {
 		Source:                t.Source,
 		AttachmentURL:         t.AttachmentURL,
 		AttachmentContentType: t.AttachmentContentType,
-		ResolvedAt:            t.ResolvedAt,
 		ClosedAt:              t.ClosedAt,
 		CreatedAt:             t.CreatedAt,
 		UpdatedAt:             t.UpdatedAt,

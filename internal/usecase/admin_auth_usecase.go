@@ -51,5 +51,16 @@ func (uc *adminAuthUseCase) Login(ctx context.Context, req domain.AdminLoginRequ
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	return &domain.AdminLoginResponse{Token: token}, nil
+	imageURL := ""
+	if user.ImageURL != nil {
+		imageURL = *user.ImageURL
+	}
+
+	return &domain.AdminLoginResponse{
+		Token:    token,
+		ID:       user.ID,
+		ImageURL: imageURL,
+		Email:    user.Email,
+		Name:     user.FullName,
+	}, nil
 }

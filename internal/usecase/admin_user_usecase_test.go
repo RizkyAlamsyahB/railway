@@ -390,6 +390,110 @@ func TestGetByID(t *testing.T) {
 }
 
 // ============================================================
+// GetMe
+// ============================================================
+
+func TestGetMe(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupMock func(repo *mocks.MockUserRepository, ctx context.Context, id uuid.UUID)
+		wantErr   error
+		wantAny   bool
+		checkResp func(t *testing.T, resp *domain.AdminMeResponse, id uuid.UUID)
+	}{
+		{
+			name: "success with image url",
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, id uuid.UUID) {
+				user := dummyUser(id)
+				imageURL := "https://cdn.example.com/admins/profile.jpg"
+				user.ImageURL = &imageURL
+				repo.EXPECT().FindByID(ctx, id).Return(user, nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminMeResponse, id uuid.UUID) {
+				t.Helper()
+				if resp.ID != id {
+					t.Errorf("expected id %s, got %s", id, resp.ID)
+				}
+				if resp.ImageURL != "https://cdn.example.com/admins/profile.jpg" {
+					t.Errorf("expected image URL to be mapped, got %q", resp.ImageURL)
+				}
+				if resp.Name != "John Doe" {
+					t.Errorf("expected name John Doe, got %s", resp.Name)
+				}
+			},
+		},
+		{
+			name: "success with nil image url becomes empty string",
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, id uuid.UUID) {
+				user := dummyUser(id)
+				user.ImageURL = nil
+				repo.EXPECT().FindByID(ctx, id).Return(user, nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.AdminMeResponse, _ uuid.UUID) {
+				t.Helper()
+				if resp.ImageURL != "" {
+					t.Errorf("expected empty image URL, got %q", resp.ImageURL)
+				}
+			},
+		},
+		{
+			name: "not found",
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, id uuid.UUID) {
+				repo.EXPECT().FindByID(ctx, id).Return(nil, nil)
+			},
+			wantErr: ErrUserNotFound,
+		},
+		{
+			name: "not admin",
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, id uuid.UUID) {
+				user := dummyUser(id)
+				user.Role = &domain.Role{ID: 2, Code: domain.RoleCustomer, Name: "Customer"}
+				repo.EXPECT().FindByID(ctx, id).Return(user, nil)
+			},
+			wantErr: ErrNotAdmin,
+		},
+		{
+			name: "repo error",
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, id uuid.UUID) {
+				repo.EXPECT().FindByID(ctx, id).Return(nil, errors.New("db error"))
+			},
+			wantAny: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, uc := setupUseCase(t)
+			ctx := context.Background()
+			id := uuid.New()
+
+			tc.setupMock(repo, ctx, id)
+
+			resp, err := uc.GetMe(ctx, id)
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Errorf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if tc.wantAny {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, resp, id)
+			}
+		})
+	}
+}
+
+// ============================================================
 // Update
 // ============================================================
 

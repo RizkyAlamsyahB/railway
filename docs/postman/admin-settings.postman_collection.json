@@ -1,0 +1,1324 @@
+{
+  "info": {
+    "name": "UmrahMart - Admin Settings (Pengaturan)",
+    "description": "API contract untuk halaman **Pengaturan** admin.\n\nBase URL: `http://localhost:8080/api/v1`\n\n## Tabs\n1. **Banner** — CRUD banner homepage (upload via S3 presigned URL)\n2. **Master Lookup** — Kategori, Alasan Return, Kontak Admin, FAQ\n\n## Flow\n1. Login admin → token disimpan otomatis\n2. Akses endpoint settings di bawah `/admin/settings/*`\n\n## Auth\nSemua endpoint admin membutuhkan `Authorization: Bearer <admin_token>` (Role: admin).\n\nEndpoint public (tanpa auth):\n- `GET /banners` — banner aktif\n- `GET /return-reasons` — alasan return aktif\n- `GET /contacts` — kontak admin aktif\n\n## Banner Upload Flow\n1. `POST /admin/settings/banners` → dapat `upload_url` + `object_key`\n2. Client upload file ke `upload_url` (PUT ke S3)\n3. `POST /admin/settings/banners/:id/confirm` → kirim `object_key` untuk konfirmasi\n\n## Kontak Admin\nInput teks bebas — admin isi apa saja (nomor WA, email, alamat, dll).\n\n## Kategori FAQ Valid\nAkun, Produk, Pemesanan, Pembayaran, Pengiriman, Pengembalian & Refund, Promo & Voucher, Chat & Customer Service, Keamanan & Privasi, Vendor/UMKM, Teknis/Aplikasi, Lainnya",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "admin_token",
+      "value": ""
+    },
+    {
+      "key": "banner_id",
+      "value": ""
+    },
+    {
+      "key": "banner_object_key",
+      "value": ""
+    },
+    {
+      "key": "banner_upload_url",
+      "value": ""
+    },
+    {
+      "key": "category_id",
+      "value": ""
+    },
+    {
+      "key": "return_reason_id",
+      "value": ""
+    },
+    {
+      "key": "contact_id",
+      "value": ""
+    },
+    {
+      "key": "faq_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('admin_token', json.data.token);",
+                  "    console.log('✅ admin_token saved');",
+                  "} else {",
+                  "    console.log('❌ Login failed, token not saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"changeme\"\n}"
+            },
+            "description": "Login admin untuk mendapatkan token.\n\nToken disimpan otomatis ke `admin_token`."
+          },
+          "response": [
+            {
+              "name": "200 - Login Berhasil",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"login successful\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tab 1 — Banner",
+      "item": [
+        {
+          "name": "Create Banner (Presign Upload)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "    pm.collectionVariables.set('banner_id', json.data.banner_id);",
+                  "    pm.collectionVariables.set('banner_upload_url', json.data.upload_url);",
+                  "    pm.collectionVariables.set('banner_object_key', json.data.object_key);",
+                  "    console.log('✅ banner_id=' + json.data.banner_id);",
+                  "    console.log('✅ banner_upload_url saved');",
+                  "    console.log('✅ banner_object_key=' + json.data.object_key);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/settings/banners",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "settings",
+                "banners"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Promo Haji 2026\",\n  \"content_type\": \"image/jpeg\"\n}"
+            },
+            "description": "Membuat banner baru dan mendapat presigned URL untuk upload gambar ke S3.\n\n**Flow:**\n1. Kirim title + content_type\n2. Response berisi `upload_url`, `object_key`, `banner_id`\n3. Upload file ke `upload_url` (PUT request langsung ke S3)\n4. Panggil Confirm Banner untuk konfirmasi\n\n**Content type yang valid:** `image/jpeg`, `image/png`, `image/webp`\n\n`banner_id`, `banner_upload_url`, `banner_object_key` disimpan otomatis."
+          },
+          "response": [
+            {
+              "name": "201 - Banner Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"banner created, upload image using the presigned URL\",\n  \"data\": {\n    \"banner_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"upload_url\": \"https://s3.amazonaws.com/bucket/banners/a1b2c3d4.jpg?X-Amz-Signature=...\",\n    \"object_key\": \"banners/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg\",\n    \"expires_in\": 900\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Upload Image ke S3 (PUT Presigned URL)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/jpeg"
+              }
+            ],
+            "url": {
+              "raw": "{{banner_upload_url}}",
+              "host": [
+                "{{banner_upload_url}}"
+              ]
+            },
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "description": "**Step 2:** Upload file gambar langsung ke S3 menggunakan presigned URL.\n\n**Cara pakai di Postman:**\n1. Jalankan \"Create Banner\" dulu → `banner_upload_url` terisi otomatis\n2. Di tab Body, pilih **binary** → klik \"Select File\" → pilih gambar\n3. Pastikan Content-Type header sesuai (image/jpeg, image/png, atau image/webp)\n4. Klik Send → response harus `200 OK` (dari S3, bukan dari API kita)\n\n**PENTING:** Request ini langsung ke S3, bukan ke API backend.\n\nSetelah upload berhasil, lanjut ke \"Confirm Banner Upload\"."
+          },
+          "response": [
+            {
+              "name": "200 - Upload Success (dari S3)",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/xml"
+                }
+              ],
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Confirm Banner Upload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/settings/banners/{{banner_id}}/confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "settings",
+                "banners",
+                "{{banner_id}}",
+                "confirm"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"object_key\": \"{{banner_object_key}}\"\n}"
+            },
+            "description": "**Step 3:** Konfirmasi bahwa gambar banner sudah di-upload ke S3.\n\nKirim `object_key` yang didapat dari response Create Banner.\n\nSetelah dikonfirmasi, banner akan memiliki `image_url` yang valid."
+          },
+          "response": [
+            {
+              "name": "200 - Banner Confirmed",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"banner image confirmed\",\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"title\": \"Promo Haji 2026\",\n    \"image_url\": \"https://cdn.umrahmart.com/banners/a1b2c3d4.jpg\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:01:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Banners (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/settings/banners",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "settings",
+                "banners"
+              ]
+            },
+            "description": "Daftar semua banner (aktif & nonaktif) untuk halaman admin.\n\nAdmin dapat melihat semua banner termasuk yang nonaktif."
+          },
+          "response": [
+            {
+              "name": "200 - Banners Loaded",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"banners loaded\",\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"title\": \"Promo Haji 2026\",\n      \"image_url\": \"https://cdn.umrahmart.com/banners/a1b2c3d4.jpg\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:05:00Z\"\n    },\n    {\n      \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"title\": \"Umroh Ramadhan 2026\",\n      \"image_url\": \"\",\n      \"created_at\": \"2026-03-04T11:00:00Z\",\n      \"updated_at\": \"2026-03-04T11:00:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Banner Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/settings/banners/{{banner_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "settings",
+                "banners",
+                "{{banner_id}}"
+              ]
+            },
+            "description": "Detail satu banner berdasarkan ID.\n\nDigunakan untuk melihat detail lengkap sebelum edit."
+          },
+          "response": [
+            {
+              "name": "200 - Banner Detail",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"banner loaded\",\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"title\": \"Promo Haji 2026\",\n    \"image_url\": \"https://cdn.umrahmart.com/banners/a1b2c3d4.jpg\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:05:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Banner Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"banner not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Banner",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/settings/banners/{{banner_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "settings",
+                "banners",
+                "{{banner_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Promo Haji 2026 — Updated\"\n}"
+            },
+            "description": "Update banner (title).\n\nSemua field bersifat opsional (partial update). Kirim hanya field yang ingin diubah.\n\n**Catatan:**** Gambar tidak bisa diubah via endpoint ini. Untuk ganti gambar, buat banner baru."
+          },
+          "response": [
+            {
+              "name": "200 - Banner Updated",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"banner updated\",\n  \"data\": {\n    \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"title\": \"Promo Haji 2026 — Updated\",\n    \"image_url\": \"https://cdn.umrahmart.com/banners/a1b2c3d4.jpg\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:10:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Banner",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/settings/banners/{{banner_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "settings",
+                "banners",
+                "{{banner_id}}"
+              ]
+            },
+            "description": "Hapus banner secara permanen.\n\n**Peringatan:** Data tidak bisa dikembalikan setelah dihapus."
+          },
+          "response": [
+            {
+              "name": "200 - Banner Deleted",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"banner deleted\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Active Banners (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/banners",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "banners"
+              ]
+            },
+            "description": "Daftar banner aktif untuk tampilan publik/customer.\n\n**Auth:** Tidak diperlukan (public endpoint).\n\nMenampilkan semua banner."
+          },
+          "response": [
+            {
+              "name": "200 - Active Banners",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"banners loaded\",\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"title\": \"Promo Haji 2026\",\n      \"image_url\": \"https://cdn.umrahmart.com/banners/a1b2c3d4.jpg\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:05:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tab 2 — Master Lookup",
+      "item": [
+        {
+          "name": "Kategori",
+          "item": [
+            {
+              "name": "Create Category",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var json = pm.response.json();",
+                      "if (json.success && json.data && json.data.id) {",
+                      "    pm.collectionVariables.set('category_id', json.data.id);",
+                      "    console.log('✅ category_id=' + json.data.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/categories",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "categories"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Perlengkapan Haji\"\n}"
+                },
+                "description": "Membuat kategori produk baru.\n\nSlug otomatis di-generate dari nama (contoh: `perlengkapan-haji`).\n\n`category_id` disimpan otomatis."
+              },
+              "response": [
+                {
+                  "name": "201 - Category Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"category created\",\n  \"data\": {\n    \"id\": \"c1d2e3f4-a5b6-7890-cdef-123456789012\",\n    \"name\": \"Perlengkapan Haji\",\n    \"slug\": \"perlengkapan-haji\",\n    \"is_active\": true\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+                },
+                {
+                  "name": "409 - Slug Already Exists",
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": false,\n  \"message\": \"category slug already exists\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Categories",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/categories",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "categories"
+                  ]
+                },
+                "description": "Daftar semua kategori produk (aktif & nonaktif).\n\nDigunakan untuk manajemen kategori di halaman pengaturan admin."
+              },
+              "response": [
+                {
+                  "name": "200 - Categories Loaded",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"categories loaded\",\n  \"data\": [\n    {\n      \"id\": \"c1d2e3f4-a5b6-7890-cdef-123456789012\",\n      \"name\": \"Perlengkapan Haji\",\n      \"slug\": \"perlengkapan-haji\",\n      \"is_active\": true\n    },\n    {\n      \"id\": \"d2e3f4a5-b6c7-8901-defa-234567890123\",\n      \"name\": \"Oleh-oleh Umroh\",\n      \"slug\": \"oleh-oleh-umroh\",\n      \"is_active\": true\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Category",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/categories/{{category_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "categories",
+                    "{{category_id}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Perlengkapan Haji & Umroh\",\n  \"is_active\": true\n}"
+                },
+                "description": "Update kategori (nama dan/atau status aktif).\n\nSemua field opsional (partial update). Jika nama berubah, slug otomatis di-generate ulang."
+              },
+              "response": [
+                {
+                  "name": "200 - Category Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"category updated\",\n  \"data\": {\n    \"id\": \"c1d2e3f4-a5b6-7890-cdef-123456789012\",\n    \"name\": \"Perlengkapan Haji & Umroh\",\n    \"slug\": \"perlengkapan-haji-umroh\",\n    \"is_active\": true\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Category",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/categories/{{category_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "categories",
+                    "{{category_id}}"
+                  ]
+                },
+                "description": "Hapus kategori secara permanen.\n\n**Peringatan:** Pastikan tidak ada produk yang menggunakan kategori ini sebelum menghapus."
+              },
+              "response": [
+                {
+                  "name": "200 - Category Deleted",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"category deleted\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Alasan Return",
+          "item": [
+            {
+              "name": "Create Return Reason",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var json = pm.response.json();",
+                      "if (json.success && json.data && json.data.id) {",
+                      "    pm.collectionVariables.set('return_reason_id', json.data.id);",
+                      "    console.log('✅ return_reason_id=' + json.data.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/return-reasons",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "return-reasons"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Barang tidak sesuai deskripsi\"\n}"
+                },
+                "description": "Membuat alasan return baru.\n\n`return_reason_id` disimpan otomatis."
+              },
+              "response": [
+                {
+                  "name": "201 - Return Reason Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"return reason created\",\n  \"data\": {\n    \"id\": 1,\n    \"reason\": \"Barang tidak sesuai deskripsi\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:00:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Return Reasons (Admin)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/return-reasons",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "return-reasons"
+                  ]
+                },
+                "description": "Daftar semua alasan return (aktif & nonaktif) untuk admin."
+              },
+              "response": [
+                {
+                  "name": "200 - Return Reasons Loaded",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"return reasons loaded\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"reason\": \"Barang tidak sesuai deskripsi\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:00:00Z\"\n    },\n    {\n      \"id\": 2,\n      \"reason\": \"Barang rusak/cacat\",\n      \"created_at\": \"2026-03-04T10:01:00Z\",\n      \"updated_at\": \"2026-03-04T10:01:00Z\"\n    },\n    {\n      \"id\": 3,\n      \"reason\": \"Salah kirim barang\",\n      \"created_at\": \"2026-03-04T10:02:00Z\",\n      \"updated_at\": \"2026-03-04T10:02:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Return Reason",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/return-reasons/{{return_reason_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "return-reasons",
+                    "{{return_reason_id}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Barang tidak sesuai dengan deskripsi produk\"\n}"
+                },
+                "description": "Update alasan return.\n\nSemua field opsional (partial update). Kirim hanya field yang ingin diubah."
+              },
+              "response": [
+                {
+                  "name": "200 - Return Reason Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"return reason updated\",\n  \"data\": {\n    \"id\": 1,\n    \"reason\": \"Barang tidak sesuai dengan deskripsi produk\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:15:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Return Reason",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/return-reasons/{{return_reason_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "return-reasons",
+                    "{{return_reason_id}}"
+                  ]
+                },
+                "description": "Hapus alasan return secara permanen."
+              },
+              "response": [
+                {
+                  "name": "200 - Return Reason Deleted",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"return reason deleted\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Active Return Reasons (Public)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/return-reasons",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "return-reasons"
+                  ]
+                },
+                "description": "Daftar alasan return yang aktif untuk customer.\n\n**Auth:** Tidak diperlukan (public endpoint).\n\nDigunakan pada form pengajuan return oleh customer."
+              },
+              "response": [
+                {
+                  "name": "200 - Active Return Reasons",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"return reasons loaded\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"reason\": \"Barang tidak sesuai deskripsi\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:00:00Z\"\n    },\n    {\n      \"id\": 2,\n      \"reason\": \"Barang rusak/cacat\",\n      \"created_at\": \"2026-03-04T10:01:00Z\",\n      \"updated_at\": \"2026-03-04T10:01:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Kontak Admin",
+          "item": [
+            {
+              "name": "Create Admin Contact",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var json = pm.response.json();",
+                      "if (json.success && json.data && json.data.id) {",
+                      "    pm.collectionVariables.set('contact_id', json.data.id);",
+                      "    console.log('✅ contact_id=' + json.data.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/contacts",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "contacts"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"WhatsApp CS: +6281234567890\"\n}"
+                },
+                "description": "Membuat kontak admin baru.\n\nField `content` berisi teks bebas (contoh: nomor telepon, email, alamat, dsb).\n\n`contact_id` disimpan otomatis."
+              },
+              "response": [
+                {
+                  "name": "201 - Contact Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"admin contact created\",\n  \"data\": {\n    \"id\": 1,\n    \"content\": \"WhatsApp CS: +6281234567890\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:00:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Admin Contacts",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/contacts",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "contacts"
+                  ]
+                },
+                "description": "Daftar semua kontak admin (aktif & nonaktif)."
+              },
+              "response": [
+                {
+                  "name": "200 - Contacts Loaded",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"admin contacts loaded\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"content\": \"WhatsApp CS: +6281234567890\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:00:00Z\"\n    },\n    {\n      \"id\": 2,\n      \"content\": \"Email: cs@umrahmart.com\",\n      \"created_at\": \"2026-03-04T10:01:00Z\",\n      \"updated_at\": \"2026-03-04T10:01:00Z\"\n    },\n    {\n      \"id\": 3,\n      \"content\": \"Kantor: Jl. Raya Haji No. 123, Jakarta Selatan\",\n      \"created_at\": \"2026-03-04T10:02:00Z\",\n      \"updated_at\": \"2026-03-04T10:02:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update Admin Contact",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/contacts/{{contact_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "contacts",
+                    "{{contact_id}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"WhatsApp CS UmrahMart: +6289876543210\"\n}"
+                },
+                "description": "Update kontak admin.\n\nSemua field opsional (partial update). Kirim hanya field yang ingin diubah.\n\nField yang bisa diupdate: `content`."
+              },
+              "response": [
+                {
+                  "name": "200 - Contact Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"admin contact updated\",\n  \"data\": {\n    \"id\": 1,\n    \"content\": \"WhatsApp CS UmrahMart: +6289876543210\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:20:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete Admin Contact",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/contacts/{{contact_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "contacts",
+                    "{{contact_id}}"
+                  ]
+                },
+                "description": "Hapus kontak admin secara permanen."
+              },
+              "response": [
+                {
+                  "name": "200 - Contact Deleted",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"admin contact deleted\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "List Active Contacts (Public)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/contacts",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "contacts"
+                  ]
+                },
+                "description": "Daftar kontak admin yang aktif untuk customer/publik.\n\n**Auth:** Tidak diperlukan (public endpoint).\n\nDigunakan pada halaman Bantuan/Contact di aplikasi customer."
+              },
+              "response": [
+                {
+                  "name": "200 - Active Contacts",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"admin contacts loaded\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"content\": \"WhatsApp CS: +6281234567890\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:00:00Z\"\n    },\n    {\n      \"id\": 2,\n      \"content\": \"Email: cs@umrahmart.com\",\n      \"created_at\": \"2026-03-04T10:01:00Z\",\n      \"updated_at\": \"2026-03-04T10:01:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "FAQ",
+          "item": [
+            {
+              "name": "Create FAQ",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "var json = pm.response.json();",
+                      "if (json.success && json.data && json.data.id) {",
+                      "    pm.collectionVariables.set('faq_id', json.data.id);",
+                      "    console.log('✅ faq_id=' + json.data.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/faq",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "faq"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"Pemesanan\",\n  \"question\": \"Bagaimana cara memesan produk di UmrahMart?\",\n  \"answer\": \"Pilih produk yang diinginkan, tambahkan ke keranjang, lalu lanjutkan ke pembayaran. Anda bisa memilih metode pembayaran yang tersedia.\"\n}"
+                },
+                "description": "Membuat FAQ baru.\n\n**Kategori yang valid:**\nAkun, Produk, Pemesanan, Pembayaran, Pengiriman, Pengembalian & Refund, Promo & Voucher, Chat & Customer Service, Keamanan & Privasi, Vendor/UMKM, Teknis/Aplikasi, Lainnya\n\n`faq_id` disimpan otomatis."
+              },
+              "response": [
+                {
+                  "name": "201 - FAQ Created",
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"FAQ created\",\n  \"data\": {\n    \"id\": 1,\n    \"category\": \"Pemesanan\",\n    \"question\": \"Bagaimana cara memesan produk di UmrahMart?\",\n    \"answer\": \"Pilih produk yang diinginkan, tambahkan ke keranjang, lalu lanjutkan ke pembayaran. Anda bisa memilih metode pembayaran yang tersedia.\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:00:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+                },
+                {
+                  "name": "400 - Invalid Category",
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": false,\n  \"message\": \"invalid FAQ category\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "List FAQs (Admin)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/faq",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "faq"
+                  ]
+                },
+                "description": "Daftar semua FAQ untuk admin.\n\nResponse berisi semua field termasuk `created_at`, `updated_at`.\n\nBerbeda dengan endpoint public yang mengelompokkan per kategori, endpoint admin menampilkan flat list."
+              },
+              "response": [
+                {
+                  "name": "200 - FAQs Loaded",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"FAQs loaded\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"category\": \"Pemesanan\",\n      \"question\": \"Bagaimana cara memesan produk di UmrahMart?\",\n      \"answer\": \"Pilih produk yang diinginkan, tambahkan ke keranjang, lalu lanjutkan ke pembayaran.\",\n      \"created_at\": \"2026-03-04T10:00:00Z\",\n      \"updated_at\": \"2026-03-04T10:00:00Z\"\n    },\n    {\n      \"id\": 2,\n      \"category\": \"Pembayaran\",\n      \"question\": \"Metode pembayaran apa saja yang tersedia?\",\n      \"answer\": \"Kami menerima transfer bank, e-wallet, dan kartu kredit melalui Xendit.\",\n      \"created_at\": \"2026-03-04T10:01:00Z\",\n      \"updated_at\": \"2026-03-04T10:01:00Z\"\n    },\n    {\n      \"id\": 3,\n      \"category\": \"Akun\",\n      \"question\": \"Bagaimana cara reset password?\",\n      \"answer\": \"Klik 'Lupa Password' di halaman login, masukkan email terdaftar, dan ikuti instruksi di email.\",\n      \"created_at\": \"2026-03-04T10:02:00Z\",\n      \"updated_at\": \"2026-03-04T10:02:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update FAQ",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/faq/{{faq_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "faq",
+                    "{{faq_id}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"question\": \"Bagaimana cara memesan produk haji & umroh di UmrahMart?\",\n  \"answer\": \"Cari produk melalui katalog atau pencarian, tambahkan ke keranjang, pilih metode pengiriman, lalu selesaikan pembayaran.\"\n}"
+                },
+                "description": "Update FAQ item.\n\nSemua field opsional (partial update). Kirim hanya field yang ingin diubah.\n\nJika `category` diubah, harus menggunakan kategori yang valid."
+              },
+              "response": [
+                {
+                  "name": "200 - FAQ Updated",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"FAQ updated\",\n  \"data\": {\n    \"id\": 1,\n    \"category\": \"Pemesanan\",\n    \"question\": \"Bagaimana cara memesan produk haji & umroh di UmrahMart?\",\n    \"answer\": \"Cari produk melalui katalog atau pencarian, tambahkan ke keranjang, pilih metode pengiriman, lalu selesaikan pembayaran.\",\n    \"created_at\": \"2026-03-04T10:00:00Z\",\n    \"updated_at\": \"2026-03-04T10:25:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            },
+            {
+              "name": "Delete FAQ",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/admin/settings/faq/{{faq_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "settings",
+                    "faq",
+                    "{{faq_id}}"
+                  ]
+                },
+                "description": "Hapus FAQ item secara permanen."
+              },
+              "response": [
+                {
+                  "name": "200 - FAQ Deleted",
+                  "status": "OK",
+                  "code": 200,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"success\": true,\n  \"message\": \"FAQ deleted\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

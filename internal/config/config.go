@@ -104,6 +104,13 @@ type XenditConfig struct {
 	BaseURL                  string `mapstructure:"XENDIT_BASE_URL"`
 	WebhookVerificationToken string `mapstructure:"XENDIT_WEBHOOK_VERIFICATION_TOKEN"`
 	WebhookURL               string `mapstructure:"XENDIT_WEBHOOK_URL"`
+	Bypass                   bool   `mapstructure:"XENDIT_BYPASS"`
+}
+
+// RajaOngkirConfig holds RajaOngkir shipping API configuration.
+type RajaOngkirConfig struct {
+	APIKey  string `mapstructure:"RAJAONGKIR_API_KEY"`
+	BaseURL string `mapstructure:"RAJAONGKIR_BASE_URL"`
 }
 
 // WithdrawalConfig holds vendor withdrawal fee policy configuration.
@@ -122,6 +129,7 @@ type Config struct {
 	SMTP       SMTPConfig       `mapstructure:",squash"`
 	Xendit     XenditConfig     `mapstructure:",squash"`
 	Withdrawal WithdrawalConfig `mapstructure:",squash"`
+	RajaOngkir RajaOngkirConfig `mapstructure:",squash"`
 }
 
 // Load reads configuration from the .env file and environment variables.
@@ -173,8 +181,11 @@ func Load() (*Config, error) {
 	viper.SetDefault("XENDIT_BASE_URL", "https://api.xendit.co")
 	viper.SetDefault("XENDIT_WEBHOOK_VERIFICATION_TOKEN", "")
 	viper.SetDefault("XENDIT_WEBHOOK_URL", "")
+	viper.SetDefault("XENDIT_BYPASS", false)
 	viper.SetDefault("WITHDRAWAL_FEE_ESTIMATE_FIXED", 0)
 	viper.SetDefault("WITHDRAWAL_MIN_NET_AMOUNT", 10000)
+	viper.SetDefault("RAJAONGKIR_API_KEY", "")
+	viper.SetDefault("RAJAONGKIR_BASE_URL", "https://rajaongkir.komerce.id/api/v1")
 
 	// Read .env file (ignore error if file doesn't exist)
 	_ = viper.ReadInConfig()
