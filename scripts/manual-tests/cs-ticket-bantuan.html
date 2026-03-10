@@ -251,7 +251,9 @@
         </div>
         <div class="field full">
           <label>Subject</label>
-          <input id="ticketSubject" value="Pesanan belum sampai" />
+          <select id="ticketSubjectId">
+            <option value="">-- Memuat subjek... --</option>
+          </select>
         </div>
         <div class="field full">
           <label>Detail</label>
@@ -691,11 +693,29 @@ document.getElementById('btnCustLogin').addEventListener('click', async () => {
     if (r.ok && r.data.data && r.data.data.token) {
       S.customerToken = r.data.data.token;
       setHint('custLoginStatus', '✅ Login OK — ' + (r.data.data.user?.full_name || r.data.data.full_name || ''), true);
+      loadTicketSubjects();
     } else {
       setHint('custLoginStatus', '❌ ' + (r.data.message || 'Login gagal'), false);
     }
   } catch (e) { setHint('custLoginStatus', '❌ ' + e, false); }
 });
+
+// Load ticket subjects into dropdown
+async function loadTicketSubjects() {
+  try {
+    const r = await api('GET', '/tickets/subjects', null, S.customerToken);
+    const sel = document.getElementById('ticketSubjectId');
+    if (r.ok && r.data.data) {
+      const subjects = r.data.data;
+      sel.innerHTML = '<option value="">-- Pilih Subject --</option>' +
+        subjects.map(s => `<option value="${s.id}">${s.label || s.name}</option>`).join('');
+    } else {
+      sel.innerHTML = '<option value="">-- Gagal memuat --</option>';
+    }
+  } catch (e) {
+    document.getElementById('ticketSubjectId').innerHTML = '<option value="">-- Error --</option>';
+  }
+}
 
 // ============================================================
 // Customer: Presign + Upload
@@ -738,11 +758,13 @@ document.getElementById('btnPresign').addEventListener('click', async () => {
 // ============================================================
 document.getElementById('btnCreateTicket').addEventListener('click', async () => {
   try {
+    const subjectId = parseInt(document.getElementById('ticketSubjectId').value);
+    if (!subjectId) { setHint('createTicketStatus', '❌ Pilih subject terlebih dahulu', false); return; }
     const body = {
       order_number: document.getElementById('ticketOrderNumber').value,
       phone: document.getElementById('ticketPhone').value,
       reporter_name: document.getElementById('ticketReporter').value,
-      subject: document.getElementById('ticketSubject').value,
+      subject_id: subjectId,
       detail: document.getElementById('ticketDetail').value,
       source: document.getElementById('ticketSource').value,
       attachment_key: S.attachmentKey,

@@ -149,6 +149,7 @@ type TicketListParams struct {
 	Page         int
 	Limit        int
 	Status       string
+	Search       string
 	AssignedCSID *uuid.UUID
 	CustomerID   *uuid.UUID
 }

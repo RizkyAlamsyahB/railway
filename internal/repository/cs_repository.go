@@ -166,6 +166,10 @@ func (r *ticketRepository) List(ctx context.Context, p domain.TicketListParams) 
 	if p.Status != "" {
 		q = q.Where("status = ?", p.Status)
 	}
+	if p.Search != "" {
+		like := "%" + p.Search + "%"
+		q = q.Where("ticket_number ILIKE ? OR reporter_name ILIKE ? OR subject ILIKE ? OR phone ILIKE ?", like, like, like, like)
+	}
 	if p.AssignedCSID != nil {
 		q = q.Where("assigned_cs_id = ?", p.AssignedCSID.String())
 	}

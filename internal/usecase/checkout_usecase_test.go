@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -307,6 +308,24 @@ func TestCheckout(t *testing.T) {
 			wantErr: ErrVendorNoXenditAccount,
 		},
 		{
+			name: "final stock conflict maps to checkout insufficient stock",
+			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
+				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
+				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
+				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
+				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
+				vr.EXPECT().FindByID(gomock.Any(), vendorID).Return(fixtureVendor(vendorID), nil)
+				ar.EXPECT().FindDefaultByUserID(gomock.Any(), fixtureVendor(vendorID).OwnerUserID).Return(fixtureVendorWarehouseAddress(fixtureVendor(vendorID).OwnerUserID), nil)
+				vcr.EXPECT().FindByVendorID(gomock.Any(), vendorID).Return(fixtureVendorCouriers(), nil)
+				ro.EXPECT().CalculateDomesticCost(gomock.Any(), "5678", "1376", 1000, "jne").Return(fixtureShippingOptions(), nil)
+				or.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(fmt.Errorf("%w: variant %s", domain.ErrStockUnavailable, variantID))
+			},
+			wantErr: ErrCheckoutStockInsufficient,
+		},
+		{
 			name: "xendit API error",
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
@@ -420,6 +439,95 @@ func TestCheckout(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckoutCompensatesPreviousVendorWhenLaterVendorRunsOutOfStock(t *testing.T) {
+	userID := uuid.MustParse("00000000-0000-0000-0000-000000000101")
+	cartID := uuid.MustParse("00000000-0000-0000-0000-000000000102")
+	addressID := uuid.MustParse("00000000-0000-0000-0000-000000000103")
+	variantID1 := uuid.MustParse("00000000-0000-0000-0000-000000000104")
+	productID1 := uuid.MustParse("00000000-0000-0000-0000-000000000105")
+	vendorID1 := uuid.MustParse("00000000-0000-0000-0000-000000000106")
+	variantID2 := uuid.MustParse("00000000-0000-0000-0000-000000000107")
+	productID2 := uuid.MustParse("00000000-0000-0000-0000-000000000108")
+	vendorID2 := uuid.MustParse("00000000-0000-0000-0000-000000000109")
+
+	cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice, uc := setupCheckoutUseCase(t)
+
+	cartItems := []domain.CartItem{
+		{
+			ID:               uuid.New(),
+			CartID:           cartID,
+			ProductVariantID: variantID1,
+			Qty:              1,
+		},
+		{
+			ID:               uuid.New(),
+			CartID:           cartID,
+			ProductVariantID: variantID2,
+			Qty:              1,
+		},
+	}
+
+	vendor1 := fixtureVendor(vendorID1)
+	vendor1Account := "xa-vendor-1"
+	vendor1.XenditAccountID = &vendor1Account
+	vendor1.DisplayName = "Vendor 1"
+
+	vendor2 := fixtureVendor(vendorID2)
+	vendor2Account := "xa-vendor-2"
+	vendor2.XenditAccountID = &vendor2Account
+	vendor2.DisplayName = "Vendor 2"
+
+	req := domain.CheckoutRequest{
+		AddressID: addressID.String(),
+		ShippingChoices: []domain.CheckoutShippingChoice{
+			{VendorID: vendorID1.String(), CourierCode: "jne", Service: "REG"},
+			{VendorID: vendorID2.String(), CourierCode: "jne", Service: "REG"},
+		},
+	}
+
+	addressRepo.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
+	cartRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
+	cartRepo.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(cartItems, nil)
+	userRepo.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
+
+	productRepo.EXPECT().FindVariantByID(gomock.Any(), variantID1).Return(fixtureVariant(variantID1, productID1), nil)
+	productRepo.EXPECT().FindByID(gomock.Any(), productID1).Return(fixtureProduct(productID1, vendorID1), nil)
+	productRepo.EXPECT().FindVariantByID(gomock.Any(), variantID2).Return(fixtureVariant(variantID2, productID2), nil)
+	productRepo.EXPECT().FindByID(gomock.Any(), productID2).Return(fixtureProduct(productID2, vendorID2), nil)
+
+	vendorRepo.EXPECT().FindByID(gomock.Any(), vendorID1).Return(vendor1, nil)
+	addressRepo.EXPECT().FindDefaultByUserID(gomock.Any(), vendor1.OwnerUserID).Return(fixtureVendorWarehouseAddress(vendor1.OwnerUserID), nil)
+	vendorCourierRepo.EXPECT().FindByVendorID(gomock.Any(), vendorID1).Return(fixtureVendorCouriers(), nil)
+	rajaOngkir.EXPECT().CalculateDomesticCost(gomock.Any(), "5678", "1376", 500, "jne").Return(fixtureShippingOptions(), nil)
+	orderRepo.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	xenditInvoice.EXPECT().CreateInvoice(gomock.Any(), vendor1Account, gomock.Any()).Return(fixtureXenditInvoiceResponse(), nil)
+	paymentRepo.EXPECT().CreateInvoice(gomock.Any(), gomock.Any()).Return(nil)
+
+	vendorRepo.EXPECT().FindByID(gomock.Any(), vendorID2).Return(vendor2, nil)
+	addressRepo.EXPECT().FindDefaultByUserID(gomock.Any(), vendor2.OwnerUserID).Return(fixtureVendorWarehouseAddress(vendor2.OwnerUserID), nil)
+	vendorCourierRepo.EXPECT().FindByVendorID(gomock.Any(), vendorID2).Return(fixtureVendorCouriers(), nil)
+	rajaOngkir.EXPECT().CalculateDomesticCost(gomock.Any(), "5678", "1376", 500, "jne").Return(fixtureShippingOptions(), nil)
+	orderRepo.EXPECT().CreateOrderWithItems(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(fmt.Errorf("%w: variant %s", domain.ErrStockUnavailable, variantID2))
+
+	xenditInvoice.EXPECT().ExpireInvoice(gomock.Any(), vendor1Account, "xinv-001").Return(nil)
+	paymentRepo.EXPECT().UpdateInvoiceStatus(gomock.Any(), gomock.Any(), domain.InvoiceStatusFailed, nil, nil, nil, gomock.Any()).Return(nil)
+	orderRepo.EXPECT().UpdateOrderStatus(gomock.Any(), gomock.Any(), domain.OrderStatusCanceled, domain.PaymentStatusUnpaid, nil, gomock.Any()).Return(nil)
+	orderRepo.EXPECT().RestoreStock(gomock.Any(), gomock.Any()).Return(nil)
+
+	resp, err := uc.Checkout(context.Background(), userID, req)
+
+	if resp != nil {
+		t.Fatalf("expected nil response, got %+v", resp)
+	}
+	if !errors.Is(err, ErrCheckoutStockInsufficient) {
+		t.Fatalf("expected error %v, got %v", ErrCheckoutStockInsufficient, err)
+	}
+
+	_ = storage
+	_ = ledgerRepo
 }
 
 // --- HandleWebhook tests ---

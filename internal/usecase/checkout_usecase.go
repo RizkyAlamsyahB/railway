@@ -490,6 +490,9 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 
 		// 6h. Create order + decrement stock in DB transaction.
 		if err := uc.orderRepo.CreateOrderWithItems(ctx, order, orderItems); err != nil {
+			if errors.Is(err, domain.ErrStockUnavailable) {
+				return nil, uc.failCheckoutWithCompensation(ctx, createdUnits, ErrCheckoutStockInsufficient)
+			}
 			checkoutErr := fmt.Errorf("create order: %w", err)
 			return nil, uc.failCheckoutWithCompensation(ctx, createdUnits, checkoutErr)
 		}

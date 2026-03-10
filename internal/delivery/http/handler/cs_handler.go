@@ -36,6 +36,7 @@ func (h *TicketHandler) ListTickets(c *gin.Context) {
 		Page:   queryInt(c, "page", 1),
 		Limit:  queryInt(c, "limit", 10),
 		Status: c.Query("status"),
+		Search: c.Query("search"),
 	}
 	if csIDStr := c.Query("assigned_cs_id"); csIDStr != "" {
 		if id, err := uuid.Parse(csIDStr); err == nil {

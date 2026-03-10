@@ -576,6 +576,18 @@
                   "description": "Item per halaman (default: 10, maks: 100)"
                 },
                 {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter berdasarkan status tiket. Nilai: open | on_progress | closed. Kosongkan untuk semua.",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Cari berdasarkan nomor tiket, nama pelapor, subjek, atau nomor telepon (ILIKE). Kosongkan untuk semua.",
+                  "disabled": true
+                },
+                {
                   "key": "assigned_cs_id",
                   "value": "",
                   "description": "Filter tiket milik CS tertentu (UUID). Kosongkan untuk semua.",

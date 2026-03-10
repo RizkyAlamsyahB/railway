@@ -82,7 +82,7 @@ func (r *orderRepository) CreateOrderWithItems(ctx context.Context, order *domai
 				return fmt.Errorf("insert order item: %w", err)
 			}
 
-			// Decrement stock_on_hand with optimistic locking.
+			// Atomically decrement stock only when enough inventory remains.
 			result := tx.Model(&productVariantModel{}).
 				Where("id = ? AND stock_on_hand >= ?", item.ProductVariantID.String(), item.Qty).
 				Update("stock_on_hand", gorm.Expr("stock_on_hand - ?", item.Qty))
@@ -90,7 +90,7 @@ func (r *orderRepository) CreateOrderWithItems(ctx context.Context, order *domai
 				return fmt.Errorf("decrement stock: %w", result.Error)
 			}
 			if result.RowsAffected == 0 {
-				return fmt.Errorf("insufficient stock for variant %s", item.ProductVariantID)
+				return fmt.Errorf("%w: variant %s", domain.ErrStockUnavailable, item.ProductVariantID)
 			}
 		}
 
