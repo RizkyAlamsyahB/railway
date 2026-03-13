@@ -88,7 +88,7 @@ func dummyDocuments(vendorID uuid.UUID) []domain.VendorDocument {
 		{
 			ID:                 uuid.New(),
 			VendorID:           vendorID,
-			DocType:            "owner_ktp",
+			DocType:            "owner_document_id",
 			FileURL:            "vendors/doc1.jpg",
 			MimeType:           ptrString("image/jpeg"),
 			UploadedBy:         &uploaderID,
@@ -384,7 +384,7 @@ func TestAdminVendorGetByID(t *testing.T) {
 					{
 						ID:                 uuid.New(),
 						VendorID:           vendorID,
-						DocType:            "owner_ktp",
+						DocType:            "owner_document_id",
 						FileURL:            "vendors/doc1.jpg",
 						UploadedBy:         &uploaderID,
 						VerificationStatus: "pending",

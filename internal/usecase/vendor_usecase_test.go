@@ -14,10 +14,82 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+type stubOTPUseCase struct {
+	requestOTP  func(context.Context, domain.RequestOTPInput) (*domain.RequestOTPResult, error)
+	verifyOTP   func(context.Context, domain.VerifyOTPInput) (*domain.VerifyOTPResult, error)
+	verifyProof func(context.Context, string, string) (*domain.OTPProofClaims, error)
+}
+
+func (s *stubOTPUseCase) RequestOTP(ctx context.Context, input domain.RequestOTPInput) (*domain.RequestOTPResult, error) {
+	if s.requestOTP == nil {
+		return nil, nil
+	}
+	return s.requestOTP(ctx, input)
+}
+
+func (s *stubOTPUseCase) VerifyOTP(ctx context.Context, input domain.VerifyOTPInput) (*domain.VerifyOTPResult, error) {
+	if s.verifyOTP == nil {
+		return nil, nil
+	}
+	return s.verifyOTP(ctx, input)
+}
+
+func (s *stubOTPUseCase) VerifyProofToken(ctx context.Context, token string, expectedPurpose string) (*domain.OTPProofClaims, error) {
+	if s.verifyProof == nil {
+		return nil, nil
+	}
+	return s.verifyProof(ctx, token, expectedPurpose)
+}
+
+type stubVendorOnboardingRepo struct {
+	findByID      func(context.Context, uuid.UUID) (*domain.VendorOnboarding, error)
+	findByEmail   func(context.Context, string) (*domain.VendorOnboarding, error)
+	upsert        func(context.Context, *domain.VendorOnboarding) error
+	update        func(context.Context, *domain.VendorOnboarding, ...string) error
+	markCompleted func(context.Context, uuid.UUID, time.Time) error
+}
+
+func (s *stubVendorOnboardingRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+	if s.findByID == nil {
+		return nil, nil
+	}
+	return s.findByID(ctx, id)
+}
+
+func (s *stubVendorOnboardingRepo) FindByEmail(ctx context.Context, email string) (*domain.VendorOnboarding, error) {
+	if s.findByEmail == nil {
+		return nil, nil
+	}
+	return s.findByEmail(ctx, email)
+}
+
+func (s *stubVendorOnboardingRepo) Upsert(ctx context.Context, onboarding *domain.VendorOnboarding) error {
+	if s.upsert == nil {
+		return nil
+	}
+	return s.upsert(ctx, onboarding)
+}
+
+func (s *stubVendorOnboardingRepo) Update(ctx context.Context, onboarding *domain.VendorOnboarding, fields ...string) error {
+	if s.update == nil {
+		return nil
+	}
+	return s.update(ctx, onboarding, fields...)
+}
+
+func (s *stubVendorOnboardingRepo) MarkCompleted(ctx context.Context, id uuid.UUID, completedAt time.Time) error {
+	if s.markCompleted == nil {
+		return nil
+	}
+	return s.markCompleted(ctx, id, completedAt)
+}
+
 func setupVendorUseCase(t *testing.T) (
 	*mocks.MockUserRepository,
 	*mocks.MockVendorRepository,
 	*mocks.MockStorageProvider,
+	*stubOTPUseCase,
+	*stubVendorOnboardingRepo,
 	domain.VendorUseCase,
 ) {
 	t.Helper()
@@ -25,222 +97,186 @@ func setupVendorUseCase(t *testing.T) (
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	vendorRepo := mocks.NewMockVendorRepository(ctrl)
 	storage := mocks.NewMockStorageProvider(ctrl)
-	uc := NewVendorUseCase(userRepo, vendorRepo, storage, nil, "test-secret", 3600, "test-issuer")
-	return userRepo, vendorRepo, storage, uc
+	otpUC := &stubOTPUseCase{}
+	onboardingRepo := &stubVendorOnboardingRepo{}
+	uc := NewVendorUseCase(otpUC, userRepo, vendorRepo, onboardingRepo, storage, nil, "test-secret", 3600, "test-issuer")
+	return userRepo, vendorRepo, storage, otpUC, onboardingRepo, uc
 }
 
-func validRegisterRequest() domain.VendorRegisterRequest {
-	return domain.VendorRegisterRequest{
-		StoreName:             "Toko Oleh-Oleh Haji",
-		StoreType:             domain.VendorTypeSouvenirStore,
-		OwnerName:             "Ahmad",
-		LegalName:             ptrString("PT Toko Haji"),
-		ResponsiblePersonName: "Ahmad",
-		Phone:                 "08123456789",
-		Email:                 "vendor@example.com",
-		Password:              "password123",
-		BankName:              "BCA",
-		BankAccountNumber:     "1234567890",
-		BankAccountHolderName: "Ahmad",
+func TestRequestRegistrationOTP(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		userRepo, _, _, otpUC, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+
+		userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(nil, nil)
+		otpUC.requestOTP = func(_ context.Context, input domain.RequestOTPInput) (*domain.RequestOTPResult, error) {
+			if input.Email != "vendor@example.com" {
+				t.Fatalf("unexpected email: %s", input.Email)
+			}
+			if input.Purpose != domain.OTPPurposeEmailVerification {
+				t.Fatalf("unexpected purpose: %s", input.Purpose)
+			}
+			return &domain.RequestOTPResult{
+				ExpiresAt:     time.Now().Add(5 * time.Minute),
+				CooldownUntil: time.Now().Add(1 * time.Minute),
+			}, nil
+		}
+
+		resp, err := uc.RequestRegistrationOTP(ctx, domain.VendorRegisterOTPRequest{Email: "Vendor@Example.com"})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.ExpiresAt.IsZero() || resp.CooldownUntil.IsZero() {
+			t.Fatal("expected otp response with timestamps")
+		}
+	})
+
+	t.Run("vendor already exists", func(t *testing.T) {
+		userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		existingUser := &domain.User{ID: uuid.New(), Email: "vendor@example.com"}
+
+		userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(existingUser, nil)
+		vendorRepo.EXPECT().FindByOwnerUserID(ctx, existingUser.ID).Return(&domain.Vendor{ID: uuid.New(), OwnerUserID: existingUser.ID}, nil)
+
+		_, err := uc.RequestRegistrationOTP(ctx, domain.VendorRegisterOTPRequest{Email: "vendor@example.com"})
+		if !errors.Is(err, ErrVendorAlreadyExists) {
+			t.Fatalf("expected ErrVendorAlreadyExists, got %v", err)
+		}
+	})
+}
+
+func TestVerifyRegistrationOTP(t *testing.T) {
+	userRepo, _, _, otpUC, onboardingRepo, uc := setupVendorUseCase(t)
+	ctx := context.Background()
+
+	userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(nil, nil)
+	otpUC.verifyOTP = func(_ context.Context, input domain.VerifyOTPInput) (*domain.VerifyOTPResult, error) {
+		if input.Email != "vendor@example.com" {
+			t.Fatalf("unexpected email: %s", input.Email)
+		}
+		return &domain.VerifyOTPResult{}, nil
+	}
+	onboardingRepo.findByEmail = func(_ context.Context, email string) (*domain.VendorOnboarding, error) {
+		if email != "vendor@example.com" {
+			t.Fatalf("unexpected email lookup: %s", email)
+		}
+		return nil, nil
+	}
+	onboardingRepo.upsert = func(_ context.Context, onboarding *domain.VendorOnboarding) error {
+		if onboarding.Status != domain.VendorOnboardingStatusOTPVerified {
+			t.Fatalf("unexpected onboarding status: %s", onboarding.Status)
+		}
+		if onboarding.ID == uuid.Nil {
+			t.Fatal("expected onboarding ID")
+		}
+		return nil
+	}
+
+	resp, err := uc.VerifyRegistrationOTP(ctx, domain.VendorVerifyRegistrationOTPRequest{
+		Email: "vendor@example.com",
+		Code:  "123456",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if resp == nil || resp.OnboardingToken == "" {
+		t.Fatal("expected onboarding token")
+	}
+	if resp.Status != domain.VendorOnboardingStatusOTPVerified {
+		t.Fatalf("unexpected status: %s", resp.Status)
 	}
 }
 
-func TestRegister_TableDriven(t *testing.T) {
-	type testCase struct {
-		name       string
-		setupMocks func(
-			ctx context.Context,
-			req domain.VendorRegisterRequest,
-			userRepo *mocks.MockUserRepository,
-			vendorRepo *mocks.MockVendorRepository,
-			storage *mocks.MockStorageProvider,
-		)
-		wantErr    error
-		wantAnyErr bool
-		assertResp func(t *testing.T, resp *domain.VendorRegisterResponse)
+func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
+	_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
+	ctx := context.Background()
+	onboardingID := uuid.New()
+	onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+		if id != onboardingID {
+			t.Fatalf("unexpected onboarding id: %s", id)
+		}
+		return &domain.VendorOnboarding{
+			ID:     onboardingID,
+			Email:  "vendor@example.com",
+			Status: domain.VendorOnboardingStatusStoreInfoComplete,
+		}, nil
 	}
 
-	tests := []testCase{
-		{
-			name: "success",
-			setupMocks: func(
-				ctx context.Context,
-				req domain.VendorRegisterRequest,
-				userRepo *mocks.MockUserRepository,
-				vendorRepo *mocks.MockVendorRepository,
-				storage *mocks.MockStorageProvider,
-			) {
-				userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
-				storage.EXPECT().
-					GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
-					Return("https://s3.example.com/upload", nil).
-					Times(len(allDocTypes))
-				userRepo.EXPECT().Create(ctx, gomock.Any(), domain.RoleUMKM).Return(nil)
-				vendorRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-				vendorRepo.EXPECT().InitBalance(ctx, gomock.Any()).Return(nil)
-			},
-			assertResp: func(t *testing.T, resp *domain.VendorRegisterResponse) {
-				t.Helper()
-				if resp == nil {
-					t.Fatal("expected response, got nil")
-				}
-				if resp.Token == "" {
-					t.Error("expected non-empty token")
-				}
-				if len(resp.UploadURLs) != len(allDocTypes) {
-					t.Errorf("expected %d upload URLs, got %d", len(allDocTypes), len(resp.UploadURLs))
-				}
-				if resp.VendorID == uuid.Nil {
-					t.Error("expected non-nil vendor ID")
-				}
-				if resp.UserID == uuid.Nil {
-					t.Error("expected non-nil user ID")
-				}
-			},
-		},
-		{
-			name: "email already registered without vendor",
-			setupMocks: func(
-				ctx context.Context,
-				req domain.VendorRegisterRequest,
-				userRepo *mocks.MockUserRepository,
-				vendorRepo *mocks.MockVendorRepository,
-				_ *mocks.MockStorageProvider,
-			) {
-				existingUser := &domain.User{ID: uuid.New(), Email: req.Email}
-				userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(existingUser, nil)
-				vendorRepo.EXPECT().FindByOwnerUserID(ctx, existingUser.ID).Return(nil, nil)
-			},
-			wantErr: ErrEmailAlreadyRegistered,
-		},
-		{
-			name: "vendor already exists",
-			setupMocks: func(
-				ctx context.Context,
-				req domain.VendorRegisterRequest,
-				userRepo *mocks.MockUserRepository,
-				vendorRepo *mocks.MockVendorRepository,
-				_ *mocks.MockStorageProvider,
-			) {
-				existingUser := &domain.User{ID: uuid.New(), Email: req.Email}
-				existingVendor := &domain.Vendor{ID: uuid.New(), OwnerUserID: existingUser.ID}
-				userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(existingUser, nil)
-				vendorRepo.EXPECT().FindByOwnerUserID(ctx, existingUser.ID).Return(existingVendor, nil)
-			},
-			wantErr: ErrVendorAlreadyExists,
-		},
-		{
-			name: "find by email error",
-			setupMocks: func(
-				ctx context.Context,
-				req domain.VendorRegisterRequest,
-				userRepo *mocks.MockUserRepository,
-				_ *mocks.MockVendorRepository,
-				_ *mocks.MockStorageProvider,
-			) {
-				userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, errors.New("db error"))
-			},
-			wantAnyErr: true,
-		},
-		{
-			name: "find vendor by owner error",
-			setupMocks: func(
-				ctx context.Context,
-				req domain.VendorRegisterRequest,
-				userRepo *mocks.MockUserRepository,
-				vendorRepo *mocks.MockVendorRepository,
-				_ *mocks.MockStorageProvider,
-			) {
-				existingUser := &domain.User{ID: uuid.New(), Email: req.Email}
-				userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(existingUser, nil)
-				vendorRepo.EXPECT().FindByOwnerUserID(ctx, existingUser.ID).Return(nil, errors.New("db error"))
-			},
-			wantAnyErr: true,
-		},
-		{
-			name: "presigned URL error",
-			setupMocks: func(
-				ctx context.Context,
-				req domain.VendorRegisterRequest,
-				userRepo *mocks.MockUserRepository,
-				_ *mocks.MockVendorRepository,
-				storage *mocks.MockStorageProvider,
-			) {
-				userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
-				storage.EXPECT().
-					GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
-					Return("", errors.New("s3 error"))
-			},
-			wantAnyErr: true,
-		},
-		{
-			name: "create user error",
-			setupMocks: func(
-				ctx context.Context,
-				req domain.VendorRegisterRequest,
-				userRepo *mocks.MockUserRepository,
-				_ *mocks.MockVendorRepository,
-				storage *mocks.MockStorageProvider,
-			) {
-				userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
-				storage.EXPECT().
-					GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
-					Return("https://s3.example.com/upload", nil).
-					Times(len(allDocTypes))
-				userRepo.EXPECT().Create(ctx, gomock.Any(), domain.RoleUMKM).Return(errors.New("db error"))
-			},
-			wantAnyErr: true,
-		},
-		{
-			name: "create vendor error",
-			setupMocks: func(
-				ctx context.Context,
-				req domain.VendorRegisterRequest,
-				userRepo *mocks.MockUserRepository,
-				vendorRepo *mocks.MockVendorRepository,
-				storage *mocks.MockStorageProvider,
-			) {
-				userRepo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
-				storage.EXPECT().
-					GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
-					Return("https://s3.example.com/upload", nil).
-					Times(len(allDocTypes))
-				userRepo.EXPECT().Create(ctx, gomock.Any(), domain.RoleUMKM).Return(nil)
-				vendorRepo.EXPECT().Create(ctx, gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("db error"))
-			},
-			wantAnyErr: true,
-		},
+	_, err := uc.SetRegistrationPassword(ctx, onboardingID, domain.VendorRegistrationPasswordRequest{Password: "password123"})
+	if !errors.Is(err, ErrVendorOnboardingStep) {
+		t.Fatalf("expected ErrVendorOnboardingStep, got %v", err)
+	}
+}
+
+func TestSubmitRegistrationLegal_Success(t *testing.T) {
+	userRepo, vendorRepo, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
+	ctx := context.Background()
+	onboardingID := uuid.New()
+	passwordHash, err := auth.HashPassword("password123")
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			userRepo, vendorRepo, storage, uc := setupVendorUseCase(t)
-			ctx := context.Background()
-			req := validRegisterRequest()
+	onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+		if id != onboardingID {
+			t.Fatalf("unexpected onboarding id: %s", id)
+		}
+		storeName := "Toko Haji"
+		vendorType := domain.VendorTypeSouvenirStore
+		return &domain.VendorOnboarding{
+			ID:            onboardingID,
+			Email:         "vendor@example.com",
+			Status:        domain.VendorOnboardingStatusStoreInfoComplete,
+			PasswordHash:  &passwordHash,
+			StoreName:     &storeName,
+			VendorType:    &vendorType,
+			OTPVerifiedAt: time.Now(),
+		}, nil
+	}
+	onboardingRepo.update = func(_ context.Context, onboarding *domain.VendorOnboarding, fields ...string) error {
+		if onboarding.OwnerName == nil || *onboarding.OwnerName != "Ahmad" {
+			t.Fatalf("unexpected owner name: %+v", onboarding.OwnerName)
+		}
+		if len(fields) == 0 {
+			t.Fatal("expected updated fields")
+		}
+		return nil
+	}
+	onboardingRepo.markCompleted = func(_ context.Context, id uuid.UUID, _ time.Time) error {
+		if id != onboardingID {
+			t.Fatalf("unexpected completed onboarding id: %s", id)
+		}
+		return nil
+	}
 
-			tc.setupMocks(ctx, req, userRepo, vendorRepo, storage)
+	objectKey := buildVendorOnboardingDocumentObjectKey(onboardingID)
+	storage.EXPECT().HeadObject(ctx, objectKey).Return(&domain.ObjectInfo{
+		Key:           objectKey,
+		ContentType:   "image/jpeg",
+		ContentLength: 1024,
+	}, nil)
+	userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(nil, nil)
+	userRepo.EXPECT().Create(ctx, gomock.Any(), domain.RoleUMKM).Return(nil)
+	vendorRepo.EXPECT().CreateMinimal(ctx, gomock.Any(), gomock.Any()).Return(nil)
+	vendorRepo.EXPECT().InitBalance(ctx, gomock.Any()).Return(nil)
 
-			resp, err := uc.Register(ctx, req)
-
-			if tc.wantErr != nil {
-				if !errors.Is(err, tc.wantErr) {
-					t.Fatalf("expected error %v, got %v", tc.wantErr, err)
-				}
-				return
-			}
-			if tc.wantAnyErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("expected no error, got %v", err)
-			}
-			if tc.assertResp != nil {
-				tc.assertResp(t, resp)
-			}
-		})
+	resp, err := uc.SubmitRegistrationLegal(ctx, onboardingID, domain.VendorRegistrationLegalRequest{
+		BusinessLegalType:   domain.VendorBusinessLegalTypeIndividual,
+		DocumentIDType:      domain.VendorDocumentIDTypeKTP,
+		NIK:                 "3173000000000001",
+		OwnerName:           "Ahmad",
+		BirthDate:           "1990-01-02",
+		DocumentIDObjectKey: objectKey,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if resp == nil || resp.Token == "" {
+		t.Fatal("expected auth token in response")
+	}
+	if resp.VendorStatus != domain.VendorStatusDraft {
+		t.Fatalf("unexpected vendor status: %s", resp.VendorStatus)
 	}
 }
 
@@ -316,10 +352,10 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 		{
 			name: "success partial upload",
 			reqBuilder: func(vendorID uuid.UUID) domain.ConfirmDocumentsRequest {
-				objectKey := "vendors/" + vendorID.String() + "/documents/owner_ktp/file"
+				objectKey := "vendors/" + vendorID.String() + "/documents/owner_document_id/file"
 				return domain.ConfirmDocumentsRequest{
 					Documents: []domain.ConfirmDocumentItem{
-						{DocType: "owner_ktp", ObjectKey: objectKey},
+						{DocType: "owner_document_id", ObjectKey: objectKey},
 					},
 				}
 			},
@@ -349,7 +385,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "vendor not found",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_ktp", ObjectKey: "key"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "key"}},
 				}
 			},
 			setupMocks: func(
@@ -369,7 +405,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "find vendor error",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_ktp", ObjectKey: "key"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "key"}},
 				}
 			},
 			setupMocks: func(
@@ -389,7 +425,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "find documents error",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_ktp", ObjectKey: "key"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "key"}},
 				}
 			},
 			setupMocks: func(
@@ -431,7 +467,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "object not uploaded",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_ktp", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -445,7 +481,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_ktp", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
+					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
 				}, nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(nil, nil)
 			},
@@ -455,7 +491,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "head object error",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_ktp", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -469,7 +505,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_ktp", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
+					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
 				}, nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(nil, errors.New("s3 error"))
 			},
@@ -479,7 +515,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "invalid content type",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_ktp", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -493,7 +529,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_ktp", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
+					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
 				}, nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(&domain.ObjectInfo{
 					ContentType:   "text/html",
@@ -506,7 +542,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "document size overflow",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_ktp", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -520,7 +556,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_ktp", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
+					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
 				}, nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(&domain.ObjectInfo{
 					ContentType:   "image/jpeg",
@@ -533,7 +569,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "confirm repo error",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_ktp", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -547,7 +583,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_ktp", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
+					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
 				}, nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(&domain.ObjectInfo{
 					ContentType:   "image/jpeg",
@@ -563,7 +599,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, vendorRepo, storage, uc := setupVendorUseCase(t)
+			_, vendorRepo, storage, _, _, uc := setupVendorUseCase(t)
 			ctx := context.Background()
 			userID := uuid.New()
 			vendorID := uuid.New()
@@ -895,7 +931,7 @@ func TestLogin_TableDriven(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			userRepo, vendorRepo, _, uc := setupVendorUseCase(t)
+			userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
 			ctx := context.Background()
 
 			tc.setupMocks(ctx, userRepo, vendorRepo)
@@ -1064,7 +1100,7 @@ func TestGetMe_TableDriven(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			userRepo, vendorRepo, _, uc := setupVendorUseCase(t)
+			userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
 			if tc.setupMocks != nil {
 				tc.setupMocks(ctx, userRepo, vendorRepo, tc.vendorID)
 			}
@@ -1111,7 +1147,7 @@ func setupVendorWithdrawalUseCase(t *testing.T) (
 	vendorRepo := mocks.NewMockVendorRepository(ctrl)
 	storage := mocks.NewMockStorageProvider(ctrl)
 	xenditPayout := mocks.NewMockXenditPayoutProvider(ctrl)
-	uc := NewVendorUseCase(userRepo, vendorRepo, storage, xenditPayout, "test-secret", 3600, "test-issuer")
+	uc := NewVendorUseCase(&stubOTPUseCase{}, userRepo, vendorRepo, &stubVendorOnboardingRepo{}, storage, xenditPayout, "test-secret", 3600, "test-issuer")
 	return userRepo, vendorRepo, storage, xenditPayout, uc
 }
 
@@ -1132,6 +1168,7 @@ func TestGetBalance_TableDriven(t *testing.T) {
 					VendorID:         vendorID,
 					AvailableBalance: 500000,
 					PendingBalance:   100000,
+					EscrowBalance:    250000,
 					TotalEarned:      1500000,
 					TotalWithdrawn:   900000,
 				}, nil)
@@ -1146,6 +1183,9 @@ func TestGetBalance_TableDriven(t *testing.T) {
 				}
 				if resp.PendingBalance != 100000 {
 					t.Errorf("expected pending_balance 100000, got %f", resp.PendingBalance)
+				}
+				if resp.EscrowBalance != 250000 {
+					t.Errorf("expected escrow_balance 250000, got %f", resp.EscrowBalance)
 				}
 			},
 		},
@@ -1597,8 +1637,10 @@ func TestRequestWithdrawal_NetAmountBelowMin(t *testing.T) {
 	xenditPayout := mocks.NewMockXenditPayoutProvider(ctrl)
 
 	uc := NewVendorUseCase(
+		&stubOTPUseCase{},
 		userRepo,
 		vendorRepo,
+		&stubVendorOnboardingRepo{},
 		storage,
 		xenditPayout,
 		"test-secret",

@@ -40,7 +40,7 @@ func (h *OrderActionHandler) Complete(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "order marked as completed", res)
+	response.OK(c, "order marked as received", res)
 }
 
 // ListOrders handles GET /api/v1/users/orders.

@@ -41,11 +41,13 @@ func setupCheckoutUseCase(t *testing.T) (
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	addressRepo := mocks.NewMockAddressRepository(ctrl)
 	vendorCourierRepo := mocks.NewMockVendorCourierRepository(ctrl)
+	shipmentRepo := mocks.NewMockShipmentRepository(ctrl)
 	rajaOngkir := mocks.NewMockRajaOngkirProvider(ctrl)
 	storage := mocks.NewMockStorageProvider(ctrl)
 	xenditInvoice := mocks.NewMockXenditInvoiceProvider(ctrl)
 
-	uc := NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice, "https://example.com", "https://test.example.com/api/v1/webhooks/xendit/invoice")
+	uc := NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, shipmentRepo, rajaOngkir, storage, xenditInvoice, "https://example.com", "https://test.example.com/api/v1/webhooks/xendit/invoice")
+	_ = shipmentRepo // shipmentRepo is used internally by checkout; no direct mock expectations needed in most tests
 	return cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage, xenditInvoice, uc
 }
 
@@ -623,7 +625,6 @@ func TestHandleWebhook(t *testing.T) {
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "4100").Return(acctPlatformFee, nil)
 				lr.EXPECT().FindAccountByCode(gomock.Any(), "4200").Return(acctAdminFee, nil)
 				lr.EXPECT().CreateJournalWithLines(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
-				vr.EXPECT().CreditBalance(gomock.Any(), vendorID, 200000.0).Return(nil)
 			},
 			wantErr: nil,
 		},

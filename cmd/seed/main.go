@@ -131,15 +131,25 @@ func main() {
 	log.Println("all users seeded successfully")
 	log.Printf("dev credentials (non-admin): password = %s", devPassword)
 
+	// if err := SeedNotifications(db, []string{
+	// 	cfg.Admin.Email,
+	// 	"finance@dev.local",
+	// 	"cs@dev.local",
+	// 	"cs2@dev.local",
+	// 	"cs3@dev.local",
+	// }); err != nil {
+	// 	log.Fatalf("failed to seed notifications: %v", err)
+	// }
+
 	//// Find the CS user to use as creator for reply templates
 	//var csUser User
 	//if err := db.Where("lower(email) = lower(?)", "cs@dev.local").First(&csUser).Error; err != nil {
 	//	log.Fatalf("failed to find CS user for reply template seeder: %v", err)
 	//}
 	//
-	//if err := SeedReplyTemplates(db, csUser.ID); err != nil {
-	//	log.Fatalf("failed to seed reply templates: %v", err)
-	//}
+	// if err := SeedReplyTemplates(db, csUser.ID); err != nil {
+	// 	log.Fatalf("failed to seed reply templates: %v", err)
+	// }
 	//
 	//// Seed random tickets (spread across last 6 months)
 	//var customerUser User

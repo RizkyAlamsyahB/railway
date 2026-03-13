@@ -115,3 +115,18 @@ func (mr *MockRajaOngkirProviderMockRecorder) GetSubdistrictsByDistrict(ctx, dis
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubdistrictsByDistrict", reflect.TypeOf((*MockRajaOngkirProvider)(nil).GetSubdistrictsByDistrict), ctx, districtID)
 }
+
+// TrackWaybill mocks base method.
+func (m *MockRajaOngkirProvider) TrackWaybill(ctx context.Context, awbNumber, courierCode string) (*domain.TrackWaybillResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TrackWaybill", ctx, awbNumber, courierCode)
+	ret0, _ := ret[0].(*domain.TrackWaybillResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// TrackWaybill indicates an expected call of TrackWaybill.
+func (mr *MockRajaOngkirProviderMockRecorder) TrackWaybill(ctx, awbNumber, courierCode any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrackWaybill", reflect.TypeOf((*MockRajaOngkirProvider)(nil).TrackWaybill), ctx, awbNumber, courierCode)
+}

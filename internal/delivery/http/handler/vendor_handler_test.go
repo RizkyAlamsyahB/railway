@@ -18,7 +18,27 @@ type stubVendorUseCase struct {
 	getMe func(ctx context.Context, vendorID uuid.UUID) (*domain.VendorProfileResponse, error)
 }
 
-func (s stubVendorUseCase) Register(context.Context, domain.VendorRegisterRequest) (*domain.VendorRegisterResponse, error) {
+func (s stubVendorUseCase) RequestRegistrationOTP(context.Context, domain.VendorRegisterOTPRequest) (*domain.VendorRegisterOTPResponse, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) VerifyRegistrationOTP(context.Context, domain.VendorVerifyRegistrationOTPRequest) (*domain.VendorVerifyRegistrationOTPResponse, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) SetRegistrationPassword(context.Context, uuid.UUID, domain.VendorRegistrationPasswordRequest) (*domain.VendorOnboardingProgressResponse, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) SaveRegistrationStore(context.Context, uuid.UUID, domain.VendorRegistrationStoreRequest) (*domain.VendorOnboardingProgressResponse, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) PresignRegistrationLegalDocument(context.Context, uuid.UUID, domain.VendorRegistrationPresignDocumentRequest) (*domain.VendorRegistrationPresignDocumentResponse, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) SubmitRegistrationLegal(context.Context, uuid.UUID, domain.VendorRegistrationLegalRequest) (*domain.VendorLoginResponse, error) {
 	return nil, nil
 }
 

@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	uuid "github.com/google/uuid"
 	domain "github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
@@ -131,6 +132,21 @@ func (mr *MockOrderRepositoryMockRecorder) FindItemsByOrderIDs(ctx, orderIDs any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindItemsByOrderIDs", reflect.TypeOf((*MockOrderRepository)(nil).FindItemsByOrderIDs), ctx, orderIDs)
 }
 
+// ListAutoReceiveCandidates mocks base method.
+func (m *MockOrderRepository) ListAutoReceiveCandidates(ctx context.Context, deliveredBefore time.Time, limit int) ([]domain.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAutoReceiveCandidates", ctx, deliveredBefore, limit)
+	ret0, _ := ret[0].([]domain.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAutoReceiveCandidates indicates an expected call of ListAutoReceiveCandidates.
+func (mr *MockOrderRepositoryMockRecorder) ListAutoReceiveCandidates(ctx, deliveredBefore, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAutoReceiveCandidates", reflect.TypeOf((*MockOrderRepository)(nil).ListAutoReceiveCandidates), ctx, deliveredBefore, limit)
+}
+
 // ListByUser mocks base method.
 func (m *MockOrderRepository) ListByUser(ctx context.Context, userID uuid.UUID, params domain.CustomerOrderListParams) ([]domain.Order, int64, error) {
 	m.ctrl.T.Helper()
@@ -145,6 +161,51 @@ func (m *MockOrderRepository) ListByUser(ctx context.Context, userID uuid.UUID, 
 func (mr *MockOrderRepositoryMockRecorder) ListByUser(ctx, userID, params any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByUser", reflect.TypeOf((*MockOrderRepository)(nil).ListByUser), ctx, userID, params)
+}
+
+// ListSettlementCandidates mocks base method.
+func (m *MockOrderRepository) ListSettlementCandidates(ctx context.Context, receivedBefore time.Time, limit int) ([]domain.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSettlementCandidates", ctx, receivedBefore, limit)
+	ret0, _ := ret[0].([]domain.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSettlementCandidates indicates an expected call of ListSettlementCandidates.
+func (mr *MockOrderRepositoryMockRecorder) ListSettlementCandidates(ctx, receivedBefore, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSettlementCandidates", reflect.TypeOf((*MockOrderRepository)(nil).ListSettlementCandidates), ctx, receivedBefore, limit)
+}
+
+// MarkOrderCompleted mocks base method.
+func (m *MockOrderRepository) MarkOrderCompleted(ctx context.Context, orderID uuid.UUID, changedBy *uuid.UUID, notes *string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkOrderCompleted", ctx, orderID, changedBy, notes)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkOrderCompleted indicates an expected call of MarkOrderCompleted.
+func (mr *MockOrderRepositoryMockRecorder) MarkOrderCompleted(ctx, orderID, changedBy, notes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkOrderCompleted", reflect.TypeOf((*MockOrderRepository)(nil).MarkOrderCompleted), ctx, orderID, changedBy, notes)
+}
+
+// MarkOrderReceived mocks base method.
+func (m *MockOrderRepository) MarkOrderReceived(ctx context.Context, orderID uuid.UUID, changedBy *uuid.UUID, notes *string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkOrderReceived", ctx, orderID, changedBy, notes)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkOrderReceived indicates an expected call of MarkOrderReceived.
+func (mr *MockOrderRepositoryMockRecorder) MarkOrderReceived(ctx, orderID, changedBy, notes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkOrderReceived", reflect.TypeOf((*MockOrderRepository)(nil).MarkOrderReceived), ctx, orderID, changedBy, notes)
 }
 
 // RestoreStock mocks base method.

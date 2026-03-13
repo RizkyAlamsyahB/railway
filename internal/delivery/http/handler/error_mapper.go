@@ -42,12 +42,28 @@ var errorRules = []errorRule{
 	{usecase.ErrUserAccountNotActive, http.StatusUnauthorized, "account is not active"},
 	{usecase.ErrUserEmailNotVerified, http.StatusUnauthorized, "email is not verified"},
 
+	// OTP
+	{usecase.ErrOTPInvalid, http.StatusBadRequest, ""},
+	{usecase.ErrOTPExpired, http.StatusBadRequest, ""},
+	{usecase.ErrOTPTooManyAttempts, http.StatusTooManyRequests, ""},
+	{usecase.ErrOTPResendTooSoon, http.StatusTooManyRequests, ""},
+	{usecase.ErrOTPPurposeInvalid, http.StatusBadRequest, ""},
+	{usecase.ErrOTPProofInvalid, http.StatusUnauthorized, ""},
+	{usecase.ErrOTPProofExpired, http.StatusUnauthorized, ""},
+	{usecase.ErrOTPSecretNotConfigured, http.StatusInternalServerError, ""},
+
 	// Vendor
 	{usecase.ErrVendorAlreadyExists, http.StatusConflict, "user already has a vendor"},
 	{usecase.ErrVendorNotFound, http.StatusNotFound, "vendor not found"},
+	{usecase.ErrVendorOnboardingNotFound, http.StatusNotFound, "vendor onboarding not found"},
+	{usecase.ErrVendorOnboardingInvalid, http.StatusUnauthorized, ""},
+	{usecase.ErrVendorOnboardingExpired, http.StatusUnauthorized, ""},
+	{usecase.ErrVendorOnboardingStep, http.StatusBadRequest, ""},
+	{usecase.ErrVendorOnboardingDone, http.StatusConflict, ""},
 	{usecase.ErrDocumentNotFound, http.StatusBadRequest, ""},
 	{usecase.ErrObjectNotUploaded, http.StatusBadRequest, ""},
 	{usecase.ErrInvalidDocumentContent, http.StatusBadRequest, ""},
+	{usecase.ErrInvalidDocumentObjectKey, http.StatusBadRequest, ""},
 	{usecase.ErrDocumentSizeOverflow, http.StatusBadRequest, ""},
 	{usecase.ErrVendorInvalidCredentials, http.StatusUnauthorized, "invalid email or password"},
 	{usecase.ErrVendorAccountBlocked, http.StatusForbidden, "vendor account is blocked"},
@@ -193,6 +209,15 @@ var errorRules = []errorRule{
 
 	// Shipping / RajaOngkir
 	{usecase.ErrRajaOngkirFailed, http.StatusBadGateway, ""},
+
+	// Vendor Order Management
+	{usecase.ErrOrderNotBelongToVendor, http.StatusForbidden, "order does not belong to this vendor"},
+	{usecase.ErrInvalidOrderAcceptTransition, http.StatusBadRequest, ""},
+	{usecase.ErrInvalidOrderRejectTransition, http.StatusBadRequest, ""},
+	{usecase.ErrInvalidOrderShipTransition, http.StatusBadRequest, ""},
+	{usecase.ErrTrackingNumberRequired, http.StatusBadRequest, ""},
+	{usecase.ErrShipmentNotFound, http.StatusNotFound, "shipment not found for this order"},
+	{usecase.ErrTrackingFailed, http.StatusBadGateway, ""},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.

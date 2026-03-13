@@ -223,6 +223,20 @@ type OrderRepository interface {
 	// UpdateOrderStatus sets order_status and payment_status, appending a status history row.
 	UpdateOrderStatus(ctx context.Context, orderID uuid.UUID, orderStatus, paymentStatus string, changedBy *uuid.UUID, notes *string) error
 
+	// MarkOrderReceived transitions a shipped order to received and credits vendor escrow balance.
+	// Returns true when the transition is applied, false when no state change is made.
+	MarkOrderReceived(ctx context.Context, orderID uuid.UUID, changedBy *uuid.UUID, notes *string) (bool, error)
+
+	// MarkOrderCompleted transitions a received order to completed and releases escrow to available balance.
+	// Returns true when the transition is applied, false when no state change is made.
+	MarkOrderCompleted(ctx context.Context, orderID uuid.UUID, changedBy *uuid.UUID, notes *string) (bool, error)
+
+	// ListAutoReceiveCandidates returns shipped orders with delivered shipments older than the cutoff.
+	ListAutoReceiveCandidates(ctx context.Context, deliveredBefore time.Time, limit int) ([]Order, error)
+
+	// ListSettlementCandidates returns received orders older than the cutoff for settlement.
+	ListSettlementCandidates(ctx context.Context, receivedBefore time.Time, limit int) ([]Order, error)
+
 	// RestoreStock increments stock_on_hand for each order item's variant.
 	RestoreStock(ctx context.Context, orderID uuid.UUID) error
 

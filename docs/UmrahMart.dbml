@@ -96,7 +96,7 @@ Table "vendors" {
 Table "vendor_documents" {
   "id" UUID [pk, not null]
   "vendor_id" UUID [not null]
-  "doc_type" VARCHAR(40) [not null, note: 'owner_ktp, owner_passport, business_npwp, store_photo, bank_account_proof, business_logo, business_banner']
+  "doc_type" VARCHAR(40) [not null, note: 'owner_document_id, business_npwp, store_photo, bank_account_proof, business_logo, business_banner']
   "file_url" TEXT [not null]
   "mime_type" VARCHAR(100)
   "file_size_bytes" INT
@@ -110,7 +110,7 @@ Table "vendor_documents" {
   "updated_at" TIMESTAMPTZ [not null, default: `now()`]
 
   Checks {
-    `doc_type IN ('owner_ktp', 'owner_passport', 'business_npwp', 'store_photo', 'bank_account_proof', 'business_logo', 'business_banner')` [name: 'ck_vendor_documents_doc_type']
+    `doc_type IN ('owner_document_id', 'business_npwp', 'store_photo', 'bank_account_proof', 'business_logo', 'business_banner')` [name: 'ck_vendor_documents_doc_type']
     `verification_status IN ('pending', 'verified', 'rejected')` [name: 'ck_vendor_documents_verification_status']
     `(verification_status = 'verified' AND verified_by IS NOT NULL AND verified_at IS NOT NULL) OR (verification_status IN ('pending', 'rejected') AND verified_by IS NULL AND verified_at IS NULL)` [name: 'ck_vendor_documents_verified_consistency']
   }

@@ -32,8 +32,10 @@ const (
 const (
 	OrderStatusPendingPayment = "pending_payment"
 	OrderStatusPaid           = "paid"
+	OrderStatusProcessing     = "processing"
 	OrderStatusPacked         = "packed"
 	OrderStatusShipped        = "shipped"
+	OrderStatusReceived       = "received"
 	OrderStatusCompleted      = "completed"
 	OrderStatusCanceled       = "canceled"
 	OrderStatusRefunded       = "refunded"
@@ -43,8 +45,10 @@ const (
 var OrderStatuses = []string{
 	OrderStatusPendingPayment,
 	OrderStatusPaid,
+	OrderStatusProcessing,
 	OrderStatusPacked,
 	OrderStatusShipped,
+	OrderStatusReceived,
 	OrderStatusCompleted,
 	OrderStatusCanceled,
 	OrderStatusRefunded,

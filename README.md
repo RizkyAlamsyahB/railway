@@ -100,6 +100,18 @@ The API server will be available at `http://localhost:8080`.
 | `JWT_EXPIRY_HOURS` | `24` | Token expiry duration in hours |
 | `JWT_ISSUER` | `haji-umroh-store-be` | JWT issuer |
 
+### OTP
+
+| Variable | Default | Description |
+|---|---|---|
+| `OTP_CODE_LENGTH` | `6` | OTP code length |
+| `OTP_EXPIRY_MINUTES` | `5` | OTP expiry in minutes |
+| `OTP_RESEND_COOLDOWN_SECONDS` | `60` | Minimum resend interval |
+| `OTP_MAX_ATTEMPTS` | `5` | Maximum invalid attempts per OTP |
+| `OTP_PROOF_EXPIRY_MINUTES` | `10` | OTP proof token expiry in minutes |
+| `OTP_SECRET` | — | Secret for signing OTP proof tokens |
+| `OTP_ISSUER` | `haji-umroh-store-be-otp` | OTP proof token issuer |
+
 ### Object Storage (S3)
 
 | Variable | Default | Description |

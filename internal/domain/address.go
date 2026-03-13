@@ -159,6 +159,9 @@ type RajaOngkirProvider interface {
 	// CalculateDomesticCost calls RajaOngkir domestic cost API.
 	// origin/destination are district IDs, weight in grams, couriers colon-separated codes.
 	CalculateDomesticCost(ctx context.Context, originDistrictID, destDistrictID string, weightGram int, courierCodes string) ([]ShippingCostOption, error)
+
+	// TrackWaybill tracks a shipment by AWB number and courier code via RajaOngkir.
+	TrackWaybill(ctx context.Context, awbNumber, courierCode string) (*TrackWaybillResponse, error)
 }
 
 // AddressRepository defines the interface for address data access.

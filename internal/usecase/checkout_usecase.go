@@ -28,6 +28,7 @@ type checkoutUseCase struct {
 	userRepo          domain.UserRepository
 	addressRepo       domain.AddressRepository
 	vendorCourierRepo domain.VendorCourierRepository
+	shipmentRepo      domain.ShipmentRepository
 	rajaOngkir        domain.RajaOngkirProvider
 	storage           domain.StorageProvider
 	xenditInvoice     domain.XenditInvoiceProvider
@@ -46,6 +47,7 @@ func NewCheckoutUseCase(
 	userRepo domain.UserRepository,
 	addressRepo domain.AddressRepository,
 	vendorCourierRepo domain.VendorCourierRepository,
+	shipmentRepo domain.ShipmentRepository,
 	rajaOngkir domain.RajaOngkirProvider,
 	storage domain.StorageProvider,
 	xenditInvoice domain.XenditInvoiceProvider,
@@ -62,6 +64,7 @@ func NewCheckoutUseCase(
 		userRepo:          userRepo,
 		addressRepo:       addressRepo,
 		vendorCourierRepo: vendorCourierRepo,
+		shipmentRepo:      shipmentRepo,
 		rajaOngkir:        rajaOngkir,
 		storage:           storage,
 		xenditInvoice:     xenditInvoice,
@@ -456,10 +459,12 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 
 		// 6g. Find the matching courier+service from RajaOngkir response.
 		var shippingFee float64
+		var matchedETD string
 		serviceFound := false
 		for _, opt := range shippingOptions {
 			if strings.EqualFold(opt.Code, sc.CourierCode) && strings.EqualFold(opt.Service, sc.Service) {
 				shippingFee = float64(opt.Cost)
+				matchedETD = opt.ETD
 				serviceFound = true
 				break
 			}
@@ -496,6 +501,21 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 			checkoutErr := fmt.Errorf("create order: %w", err)
 			return nil, uc.failCheckoutWithCompensation(ctx, createdUnits, checkoutErr)
 		}
+
+		// 6h-2. Create shipment record with courier info and ETD from RajaOngkir.
+		shipment := &domain.Shipment{
+			ID:             uuid.New(),
+			OrderID:        orderID,
+			CourierCode:    sc.CourierCode,
+			ServiceType:    sc.Service,
+			ETD:            matchedETD,
+			ShipmentStatus: "waiting_pickup",
+		}
+		if err := uc.shipmentRepo.Create(ctx, shipment); err != nil {
+			checkoutErr := fmt.Errorf("create shipment: %w", err)
+			return nil, uc.failCheckoutWithCompensation(ctx, createdUnits, checkoutErr)
+		}
+
 		createdUnits = append(createdUnits, createdUnit)
 		unitIdx := len(createdUnits) - 1
 
@@ -730,13 +750,6 @@ func (uc *checkoutUseCase) handlePaid(ctx context.Context, invoice *domain.Payme
 	// 3. Record ledger journal (double-entry bookkeeping).
 	if err := uc.recordPaymentLedger(ctx, invoice, order, payload.PaidAmount); err != nil {
 		return fmt.Errorf("record ledger: %w", err)
-	}
-
-	// 4. Credit vendor balance (net = subtotal, i.e. grand_total - platform_fee).
-	//    This makes the revenue immediately available for vendor self-service withdrawal.
-	netAmount := order.Subtotal // vendor revenue = subtotal (platform fee is not theirs)
-	if err := uc.vendorRepo.CreditBalance(ctx, order.VendorID, netAmount); err != nil {
-		return fmt.Errorf("credit vendor balance: %w", err)
 	}
 
 	return nil

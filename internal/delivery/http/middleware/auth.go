@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/auth"
 )
@@ -16,6 +18,9 @@ const (
 	ContextKeyEmail    = "auth_email"
 	ContextKeyRole     = "auth_role"
 	ContextKeyVendorID = "auth_vendor_id"
+
+	ContextKeyVendorOnboardingClaims = "vendor_onboarding_claims"
+	ContextKeyVendorOnboardingID     = "vendor_onboarding_id"
 )
 
 // Auth returns a middleware that validates the JWT Bearer token from the
@@ -48,6 +53,39 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 		if claims.VendorID != nil {
 			c.Set(ContextKeyVendorID, *claims.VendorID)
 		}
+
+		c.Next()
+	}
+}
+
+// AuthVendorOnboarding validates a vendor onboarding JWT and stores onboarding claims in context.
+func AuthVendorOnboarding(jwtSecret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			response.Abort(c, http.StatusUnauthorized, "missing authorization header", nil)
+			return
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			response.Abort(c, http.StatusUnauthorized, "invalid authorization format", nil)
+			return
+		}
+
+		claims, err := auth.ValidateVendorOnboardingToken(parts[1], jwtSecret)
+		if err != nil {
+			message := "invalid vendor onboarding token"
+			if errors.Is(err, jwt.ErrTokenExpired) {
+				message = "vendor onboarding token has expired"
+			}
+			response.Abort(c, http.StatusUnauthorized, message, nil)
+			return
+		}
+
+		c.Set(ContextKeyVendorOnboardingClaims, claims)
+		c.Set(ContextKeyVendorOnboardingID, claims.OnboardingID)
+		c.Set(ContextKeyEmail, claims.Email)
 
 		c.Next()
 	}

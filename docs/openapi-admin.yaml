@@ -234,11 +234,28 @@ paths:
       tags:
         - Admin Users
       summary: Membuat user baru
+      description: |
+        Endpoint untuk membuat user baru oleh admin.
+
+        URL: `POST /api/v1/admin/users`
+        Header: `Authorization: Bearer <admin_jwt>`
+        Content-Type: `application/json`
+
+        Field wajib:
+        - `email`
+        - `full_name`
+        - `password`
+        - `role`
+
+        Field opsional:
+        - `phone`
+        - `birth_date` dengan format `YYYY-MM-DD`
       operationId: createAdminUser
       security:
         - BearerAuth: []
       requestBody:
         required: true
+        description: Payload JSON untuk membuat user baru.
         content:
           application/json:
             schema:
@@ -1098,9 +1115,9 @@ paths:
                     updated_at: "2026-02-10T08:00:00Z"
                   documents:
                     - id: e5f6a7b8-c9d0-1234-efab-345678901234
-                      doc_type: owner_ktp
-                      file_url: vendors/a1b2c3d4/documents/owner_ktp/uuid1
-                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_ktp/uuid1?X-Amz-Signature=..."
+                      doc_type: owner_document_id
+                      file_url: vendors/a1b2c3d4/documents/owner_document_id/uuid1
+                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_document_id/uuid1?X-Amz-Signature=..."
                       mime_type: image/jpeg
                       file_size_bytes: 245760
                       verification_status: pending
@@ -2309,22 +2326,21 @@ components:
           type: string
           description: Tipe dokumen vendor.
           enum:
-            - owner_ktp
-            - owner_passport
+            - owner_document_id
             - business_npwp
             - store_photo
             - bank_account_proof
             - business_logo
             - business_banner
-          example: owner_ktp
+          example: owner_document_id
         file_url:
           type: string
           description: Object key di S3.
-          example: vendors/a1b2c3d4/documents/owner_ktp/uuid1
+          example: vendors/a1b2c3d4/documents/owner_document_id/uuid1
         download_url:
           type: string
           description: Presigned download URL (berlaku 30 menit). Kosong jika dokumen belum diupload.
-          example: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_ktp/uuid1?X-Amz-Signature=..."
+          example: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_document_id/uuid1?X-Amz-Signature=..."
         mime_type:
           type: string
           nullable: true

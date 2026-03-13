@@ -66,6 +66,17 @@ type JWTConfig struct {
 	Issuer      string `mapstructure:"JWT_ISSUER"`
 }
 
+// OTPConfig holds OTP issuance and proof-token configuration.
+type OTPConfig struct {
+	CodeLength            int    `mapstructure:"OTP_CODE_LENGTH"`
+	ExpiryMinutes         int    `mapstructure:"OTP_EXPIRY_MINUTES"`
+	ResendCooldownSeconds int    `mapstructure:"OTP_RESEND_COOLDOWN_SECONDS"`
+	MaxAttempts           int    `mapstructure:"OTP_MAX_ATTEMPTS"`
+	ProofExpiryMinutes    int    `mapstructure:"OTP_PROOF_EXPIRY_MINUTES"`
+	Secret                string `mapstructure:"OTP_SECRET"`
+	Issuer                string `mapstructure:"OTP_ISSUER"`
+}
+
 // AdminConfig holds seed admin user configuration.
 type AdminConfig struct {
 	Email    string `mapstructure:"ADMIN_EMAIL"`
@@ -97,6 +108,16 @@ type SMTPConfig struct {
 	FromName  string `mapstructure:"SMTP_FROM_NAME"`
 }
 
+// IMAPConfig holds IMAP inbox reading configuration.
+type IMAPConfig struct {
+	Host            string `mapstructure:"IMAP_HOST"`
+	Port            int    `mapstructure:"IMAP_PORT"`
+	Username        string `mapstructure:"IMAP_USERNAME"`
+	Password        string `mapstructure:"IMAP_PASSWORD"`
+	Enabled         bool   `mapstructure:"IMAP_ENABLED"`
+	PollIntervalSec int    `mapstructure:"IMAP_POLL_INTERVAL_SEC"`
+}
+
 // XenditConfig holds Xendit payment platform configuration.
 type XenditConfig struct {
 	APISecretKey             string `mapstructure:"XENDIT_API_SECRET_KEY"`
@@ -124,9 +145,11 @@ type Config struct {
 	App        AppConfig        `mapstructure:",squash"`
 	Database   DatabaseConfig   `mapstructure:",squash"`
 	JWT        JWTConfig        `mapstructure:",squash"`
+	OTP        OTPConfig        `mapstructure:",squash"`
 	Admin      AdminConfig      `mapstructure:",squash"`
 	Storage    StorageConfig    `mapstructure:",squash"`
 	SMTP       SMTPConfig       `mapstructure:",squash"`
+	IMAP       IMAPConfig       `mapstructure:",squash"`
 	Xendit     XenditConfig     `mapstructure:",squash"`
 	Withdrawal WithdrawalConfig `mapstructure:",squash"`
 	RajaOngkir RajaOngkirConfig `mapstructure:",squash"`
@@ -157,6 +180,13 @@ func Load() (*Config, error) {
 	viper.SetDefault("JWT_SECRET", "")
 	viper.SetDefault("JWT_EXPIRY_HOURS", 24)
 	viper.SetDefault("JWT_ISSUER", "haji-umroh-store-be")
+	viper.SetDefault("OTP_CODE_LENGTH", 6)
+	viper.SetDefault("OTP_EXPIRY_MINUTES", 5)
+	viper.SetDefault("OTP_RESEND_COOLDOWN_SECONDS", 60)
+	viper.SetDefault("OTP_MAX_ATTEMPTS", 5)
+	viper.SetDefault("OTP_PROOF_EXPIRY_MINUTES", 10)
+	viper.SetDefault("OTP_SECRET", "")
+	viper.SetDefault("OTP_ISSUER", "haji-umroh-store-be-otp")
 	viper.SetDefault("ADMIN_EMAIL", "")
 	viper.SetDefault("ADMIN_PASSWORD", "")
 	viper.SetDefault("ADMIN_NAME", "")
@@ -176,6 +206,12 @@ func Load() (*Config, error) {
 	viper.SetDefault("SMTP_PASSWORD", "")
 	viper.SetDefault("SMTP_FROM_EMAIL", "")
 	viper.SetDefault("SMTP_FROM_NAME", "")
+	viper.SetDefault("IMAP_HOST", "imap.gmail.com")
+	viper.SetDefault("IMAP_PORT", 993)
+	viper.SetDefault("IMAP_USERNAME", "")
+	viper.SetDefault("IMAP_PASSWORD", "")
+	viper.SetDefault("IMAP_ENABLED", false)
+	viper.SetDefault("IMAP_POLL_INTERVAL_SEC", 300)
 	viper.SetDefault("XENDIT_API_SECRET_KEY", "")
 	viper.SetDefault("XENDIT_API_PUBLIC_KEY", "")
 	viper.SetDefault("XENDIT_BASE_URL", "https://api.xendit.co")

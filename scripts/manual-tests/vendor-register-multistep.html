@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vendor Register Multi Step Manual Test</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --text: #152033;
+      --muted: #667085;
+      --line: #d7deea;
+      --primary: #0f766e;
+      --primary-soft: #d9f3ef;
+      --accent: #b45309;
+      --danger: #b42318;
+      --ok: #166534;
+      --shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top right, rgba(15, 118, 110, 0.10), transparent 28%),
+        radial-gradient(circle at bottom left, rgba(180, 83, 9, 0.08), transparent 32%),
+        var(--bg);
+    }
+
+    .wrap {
+      max-width: 1280px;
+      margin: 24px auto 48px;
+      padding: 0 16px;
+    }
+
+    .hero {
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+      line-height: 1.1;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 900px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #ffffff, #fbfcff);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      color: #fff;
+      background: var(--primary);
+      transition: transform 0.14s ease, opacity 0.14s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .button-secondary {
+      background: #334155;
+    }
+
+    .button-accent {
+      background: var(--accent);
+    }
+
+    .button-danger {
+      background: var(--danger);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .hint {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .state-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fbfcfe;
+    }
+
+    .state-card strong {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .state-card code {
+      display: block;
+      word-break: break-word;
+      font-size: 12px;
+    }
+
+    .log {
+      margin: 0;
+      padding: 14px;
+      border-radius: 12px;
+      background: #081120;
+      color: #d8e5ff;
+      overflow: auto;
+      max-height: 520px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .mono {
+      font-family: Consolas, Monaco, monospace;
+    }
+
+    .status-line {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px dashed var(--line);
+      font-size: 13px;
+    }
+
+    .status-line.ok {
+      border-color: #86efac;
+      background: #f0fdf4;
+      color: var(--ok);
+    }
+
+    .status-line.error {
+      border-color: #fda4af;
+      background: #fff1f2;
+      color: var(--danger);
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .grid, .state-grid {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 26px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Vendor Register Multi Step Manual Test</h1>
+      <p>
+        Manual tester untuk flow vendor onboarding terbaru:
+        request OTP, verify OTP, set password, save store, presign legal document,
+        upload file via presigned URL, lalu submit legal info untuk mendapat auth token vendor.
+      </p>
+    </div>
+
+    <div class="layout">
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Config</h2>
+            <span class="badge">Persistent in localStorage</span>
+          </div>
+          <div class="panel-body">
+            <div class="grid">
+              <div class="field full">
+                <label for="baseUrl">Base URL API</label>
+                <input id="baseUrl" type="text" value="http://localhost:8080" />
+              </div>
+              <div class="field">
+                <label for="email">Vendor Email</label>
+                <input id="email" type="email" />
+              </div>
+              <div class="field">
+                <label for="otpCode">OTP Code</label>
+                <input id="otpCode" type="text" maxlength="6" placeholder="Masukkan kode OTP dari email" />
+              </div>
+            </div>
+            <div class="button-row">
+              <button id="btnGenerateEmail" class="button-secondary">Generate Test Email</button>
+              <button id="btnResetAll" class="button-danger">Reset State</button>
+            </div>
+            <p class="hint" style="margin-top: 12px;">
+              Jika backend memakai domain lokal tertentu untuk SMTP sandbox, ubah email di sini sesuai kebutuhan.
+            </p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Step 1 - Request OTP</h2>
+          </div>
+          <div class="panel-body">
+            <p class="hint">Memanggil <span class="mono">POST /api/v1/vendors/register/request-otp</span>.</p>
+            <div class="button-row">
+              <button id="btnRequestOtp">Request OTP</button>
+            </div>
+            <div id="requestOtpStatus" class="status-line">Belum dijalankan.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Step 2 - Verify OTP</h2>
+          </div>
+          <div class="panel-body">
+            <p class="hint">Memanggil <span class="mono">POST /api/v1/vendors/register/verify-otp</span> dan menyimpan onboarding JWT.</p>
+            <div class="button-row">
+              <button id="btnVerifyOtp">Verify OTP</button>
+            </div>
+            <div id="verifyOtpStatus" class="status-line">Belum dijalankan.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Step 3 - Set Password</h2>
+          </div>
+          <div class="panel-body">
+            <div class="grid">
+              <div class="field full">
+                <label for="password">Password</label>
+                <input id="password" type="text" value="Password123!" />
+              </div>
+            </div>
+            <div class="button-row">
+              <button id="btnSetPassword">Save Password</button>
+            </div>
+            <div id="passwordStatus" class="status-line">Belum dijalankan.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Step 4 - Save Store Info</h2>
+          </div>
+          <div class="panel-body">
+            <div class="grid">
+              <div class="field">
+                <label for="storeName">Store Name</label>
+                <input id="storeName" type="text" value="Toko Oleh Oleh Haji Test" />
+              </div>
+              <div class="field">
+                <label for="vendorType">Vendor Type</label>
+                <select id="vendorType">
+                  <option value="souvenir_store" selected>souvenir_store</option>
+                  <option value="ppiu">ppiu</option>
+                  <option value="hajj_dormitory">hajj_dormitory</option>
+                </select>
+              </div>
+            </div>
+            <div class="button-row">
+              <button id="btnSaveStore">Save Store Info</button>
+            </div>
+            <div id="storeStatus" class="status-line">Belum dijalankan.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Step 5 - Legal Document</h2>
+            <span class="badge">Presign + Upload + Submit</span>
+          </div>
+          <div class="panel-body">
+            <div class="grid">
+              <div class="field">
+                <label for="businessLegalType">Business Legal Type</label>
+                <select id="businessLegalType">
+                  <option value="perorangan" selected>perorangan</option>
+                  <option value="korporasi">korporasi</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="documentIdType">Document ID Type</label>
+                <select id="documentIdType">
+                  <option value="ktp" selected>ktp</option>
+                  <option value="passport">passport</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="nik">NIK</label>
+                <input id="nik" type="text" value="3173000000000001" />
+              </div>
+              <div class="field">
+                <label for="ownerName">Owner Name</label>
+                <input id="ownerName" type="text" value="Ahmad Subarkah" />
+              </div>
+              <div class="field">
+                <label for="birthDate">Birth Date</label>
+                <input id="birthDate" type="date" value="1990-01-02" />
+              </div>
+              <div class="field">
+                <label for="documentFile">Document File</label>
+                <input id="documentFile" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+              </div>
+              <div class="field full">
+                <label for="documentObjectKey">Presigned Object Key</label>
+                <input id="documentObjectKey" type="text" readonly />
+              </div>
+              <div class="field full">
+                <label for="presignedUploadUrl">Presigned Upload URL</label>
+                <textarea id="presignedUploadUrl" readonly></textarea>
+              </div>
+            </div>
+            <div class="button-row">
+              <button id="btnPresignDoc">Presign Legal Document</button>
+              <button id="btnUploadDoc" class="button-accent">Upload Selected File</button>
+              <button id="btnSubmitLegal">Submit Legal Info</button>
+            </div>
+            <div id="legalStatus" class="status-line">Belum dijalankan.</div>
+          </div>
+        </section>
+      </div>
+
+      <aside class="stack">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Live State</h2>
+          </div>
+          <div class="panel-body">
+            <div class="state-grid">
+              <div class="state-card">
+                <strong>Onboarding Status</strong>
+                <code id="stateStatus">-</code>
+              </div>
+              <div class="state-card">
+                <strong>OTP Expires At</strong>
+                <code id="stateOtpExpires">-</code>
+              </div>
+              <div class="state-card">
+                <strong>Cooldown Until</strong>
+                <code id="stateCooldown">-</code>
+              </div>
+              <div class="state-card">
+                <strong>Onboarding Token</strong>
+                <code id="stateOnboardingToken">-</code>
+              </div>
+              <div class="state-card">
+                <strong>Onboarding Expires</strong>
+                <code id="stateOnboardingExpires">-</code>
+              </div>
+              <div class="state-card">
+                <strong>Document Uploaded</strong>
+                <code id="stateDocumentUploaded">false</code>
+              </div>
+              <div class="state-card">
+                <strong>Vendor Auth Token</strong>
+                <code id="stateAuthToken">-</code>
+              </div>
+              <div class="state-card">
+                <strong>Vendor ID</strong>
+                <code id="stateVendorId">-</code>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Tokens</h2>
+          </div>
+          <div class="panel-body">
+            <div class="field">
+              <label for="onboardingToken">Onboarding JWT</label>
+              <textarea id="onboardingToken"></textarea>
+            </div>
+            <div class="field" style="margin-top: 12px;">
+              <label for="authToken">Vendor Auth JWT</label>
+              <textarea id="authToken"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Last Response</h2>
+          </div>
+          <div class="panel-body">
+            <pre id="responseLog" class="log">Belum ada request.</pre>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "vendor_register_multistep_manual_test";
+
+    const state = {
+      baseUrl: "http://localhost:8080",
+      email: "",
+      otpCode: "",
+      otpExpiresAt: "",
+      cooldownUntil: "",
+      onboardingToken: "",
+      onboardingExpiresAt: "",
+      onboardingStatus: "",
+      documentObjectKey: "",
+      presignedUploadUrl: "",
+      documentUploaded: false,
+      authToken: "",
+      vendorId: "",
+      vendorStatus: "",
+      lastResponse: "Belum ada request."
+    };
+
+    const els = {
+      baseUrl: document.getElementById("baseUrl"),
+      email: document.getElementById("email"),
+      otpCode: document.getElementById("otpCode"),
+      password: document.getElementById("password"),
+      storeName: document.getElementById("storeName"),
+      vendorType: document.getElementById("vendorType"),
+      businessLegalType: document.getElementById("businessLegalType"),
+      documentIdType: document.getElementById("documentIdType"),
+      nik: document.getElementById("nik"),
+      ownerName: document.getElementById("ownerName"),
+      birthDate: document.getElementById("birthDate"),
+      documentFile: document.getElementById("documentFile"),
+      documentObjectKey: document.getElementById("documentObjectKey"),
+      presignedUploadUrl: document.getElementById("presignedUploadUrl"),
+      onboardingToken: document.getElementById("onboardingToken"),
+      authToken: document.getElementById("authToken"),
+      responseLog: document.getElementById("responseLog"),
+      stateStatus: document.getElementById("stateStatus"),
+      stateOtpExpires: document.getElementById("stateOtpExpires"),
+      stateCooldown: document.getElementById("stateCooldown"),
+      stateOnboardingToken: document.getElementById("stateOnboardingToken"),
+      stateOnboardingExpires: document.getElementById("stateOnboardingExpires"),
+      stateDocumentUploaded: document.getElementById("stateDocumentUploaded"),
+      stateAuthToken: document.getElementById("stateAuthToken"),
+      stateVendorId: document.getElementById("stateVendorId"),
+      requestOtpStatus: document.getElementById("requestOtpStatus"),
+      verifyOtpStatus: document.getElementById("verifyOtpStatus"),
+      passwordStatus: document.getElementById("passwordStatus"),
+      storeStatus: document.getElementById("storeStatus"),
+      legalStatus: document.getElementById("legalStatus")
+    };
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        Object.assign(state, saved || {});
+      } catch (err) {
+        console.warn("Failed to load local state:", err);
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function syncInputsFromState() {
+      els.baseUrl.value = state.baseUrl || "";
+      els.email.value = state.email || "";
+      els.otpCode.value = state.otpCode || "";
+      els.onboardingToken.value = state.onboardingToken || "";
+      els.authToken.value = state.authToken || "";
+      els.documentObjectKey.value = state.documentObjectKey || "";
+      els.presignedUploadUrl.value = state.presignedUploadUrl || "";
+      els.responseLog.textContent = state.lastResponse || "Belum ada request.";
+    }
+
+    function truncate(value, length = 42) {
+      if (!value) return "-";
+      return value.length > length ? value.slice(0, length) + "..." : value;
+    }
+
+    function renderState() {
+      syncInputsFromState();
+      els.stateStatus.textContent = state.onboardingStatus || "-";
+      els.stateOtpExpires.textContent = state.otpExpiresAt || "-";
+      els.stateCooldown.textContent = state.cooldownUntil || "-";
+      els.stateOnboardingToken.textContent = truncate(state.onboardingToken);
+      els.stateOnboardingExpires.textContent = state.onboardingExpiresAt || "-";
+      els.stateDocumentUploaded.textContent = String(Boolean(state.documentUploaded));
+      els.stateAuthToken.textContent = truncate(state.authToken);
+      els.stateVendorId.textContent = state.vendorId || "-";
+    }
+
+    function setStatus(el, message, mode) {
+      el.textContent = message;
+      el.className = "status-line" + (mode ? " " + mode : "");
+    }
+
+    function updateLiveFieldsFromInputs() {
+      state.baseUrl = els.baseUrl.value.trim();
+      state.email = els.email.value.trim();
+      state.otpCode = els.otpCode.value.trim();
+      state.onboardingToken = els.onboardingToken.value.trim();
+      state.authToken = els.authToken.value.trim();
+      state.documentObjectKey = els.documentObjectKey.value.trim();
+      state.presignedUploadUrl = els.presignedUploadUrl.value.trim();
+      saveState();
+      renderState();
+    }
+
+    function logResponse(label, payload) {
+      const value = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+      state.lastResponse = "[" + new Date().toISOString() + "] " + label + "\n\n" + value;
+      saveState();
+      renderState();
+    }
+
+    function safeJsonParse(text) {
+      try {
+        return JSON.parse(text);
+      } catch (err) {
+        return text;
+      }
+    }
+
+    async function apiRequest(path, options = {}) {
+      updateLiveFieldsFromInputs();
+      const baseUrl = (state.baseUrl || "").replace(/\/+$/, "");
+      const url = baseUrl + path;
+      const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
+      const res = await fetch(url, {
+        method: options.method || "POST",
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+
+      const text = await res.text();
+      const data = safeJsonParse(text);
+      logResponse((options.method || "POST") + " " + path + " [" + res.status + "]", data);
+
+      if (!res.ok) {
+        const message = data && typeof data === "object" && data.message ? data.message : "Request failed";
+        throw new Error(message + " (HTTP " + res.status + ")");
+      }
+      return data;
+    }
+
+    async function uploadFileToPresignedUrl() {
+      const uploadUrl = state.presignedUploadUrl;
+      const objectKey = state.documentObjectKey;
+      const file = els.documentFile.files[0];
+
+      if (!state.onboardingToken) {
+        throw new Error("Onboarding token belum ada. Verify OTP dulu.");
+      }
+      if (!uploadUrl || !objectKey) {
+        throw new Error("Presigned URL belum dibuat.");
+      }
+      if (!file) {
+        throw new Error("Pilih file dokumen dulu.");
+      }
+
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type || "application/octet-stream"
+        },
+        body: file
+      });
+
+      const text = await res.text();
+      logResponse("PUT presigned-upload [" + res.status + "]", text || "(empty body)");
+
+      if (!res.ok) {
+        throw new Error("Upload ke presigned URL gagal (HTTP " + res.status + ")");
+      }
+
+      state.documentUploaded = true;
+      saveState();
+      renderState();
+    }
+
+    function onboardingAuthHeaders() {
+      updateLiveFieldsFromInputs();
+      if (!state.onboardingToken) {
+        throw new Error("Onboarding token kosong. Verify OTP dulu.");
+      }
+      return {
+        Authorization: "Bearer " + state.onboardingToken
+      };
+    }
+
+    function generateEmail() {
+      const stamp = Date.now();
+      const value = "vendor.multistep." + stamp + "@example.com";
+      state.email = value;
+      saveState();
+      renderState();
+    }
+
+    function resetAll() {
+      Object.assign(state, {
+        baseUrl: els.baseUrl.value.trim() || "http://localhost:8080",
+        email: "",
+        otpCode: "",
+        otpExpiresAt: "",
+        cooldownUntil: "",
+        onboardingToken: "",
+        onboardingExpiresAt: "",
+        onboardingStatus: "",
+        documentObjectKey: "",
+        presignedUploadUrl: "",
+        documentUploaded: false,
+        authToken: "",
+        vendorId: "",
+        vendorStatus: "",
+        lastResponse: "State di-reset."
+      });
+      localStorage.removeItem(STORAGE_KEY);
+      saveState();
+      renderState();
+      setStatus(els.requestOtpStatus, "Belum dijalankan.", "");
+      setStatus(els.verifyOtpStatus, "Belum dijalankan.", "");
+      setStatus(els.passwordStatus, "Belum dijalankan.", "");
+      setStatus(els.storeStatus, "Belum dijalankan.", "");
+      setStatus(els.legalStatus, "Belum dijalankan.", "");
+      els.documentFile.value = "";
+    }
+
+    document.getElementById("btnGenerateEmail").addEventListener("click", generateEmail);
+    document.getElementById("btnResetAll").addEventListener("click", resetAll);
+
+    document.getElementById("btnRequestOtp").addEventListener("click", async () => {
+      try {
+        const res = await apiRequest("/api/v1/vendors/register/request-otp", {
+          body: { email: els.email.value.trim() }
+        });
+        state.email = els.email.value.trim();
+        state.otpExpiresAt = res.data?.expires_at || "";
+        state.cooldownUntil = res.data?.cooldown_until || "";
+        saveState();
+        renderState();
+        setStatus(els.requestOtpStatus, "OTP requested successfully.", "ok");
+      } catch (err) {
+        setStatus(els.requestOtpStatus, err.message, "error");
+      }
+    });
+
+    document.getElementById("btnVerifyOtp").addEventListener("click", async () => {
+      try {
+        const res = await apiRequest("/api/v1/vendors/register/verify-otp", {
+          body: {
+            email: els.email.value.trim(),
+            code: els.otpCode.value.trim()
+          }
+        });
+        state.email = els.email.value.trim();
+        state.otpCode = els.otpCode.value.trim();
+        state.onboardingToken = res.data?.onboarding_token || "";
+        state.onboardingExpiresAt = res.data?.onboarding_expires_at || "";
+        state.onboardingStatus = res.data?.status || "";
+        saveState();
+        renderState();
+        setStatus(els.verifyOtpStatus, "OTP verified. Onboarding JWT saved.", "ok");
+      } catch (err) {
+        setStatus(els.verifyOtpStatus, err.message, "error");
+      }
+    });
+
+    document.getElementById("btnSetPassword").addEventListener("click", async () => {
+      try {
+        const res = await apiRequest("/api/v1/vendors/register/password", {
+          headers: onboardingAuthHeaders(),
+          body: {
+            password: els.password.value
+          }
+        });
+        state.onboardingStatus = res.data?.status || state.onboardingStatus;
+        saveState();
+        renderState();
+        setStatus(els.passwordStatus, "Password saved.", "ok");
+      } catch (err) {
+        setStatus(els.passwordStatus, err.message, "error");
+      }
+    });
+
+    document.getElementById("btnSaveStore").addEventListener("click", async () => {
+      try {
+        const res = await apiRequest("/api/v1/vendors/register/store", {
+          headers: onboardingAuthHeaders(),
+          body: {
+            store_name: els.storeName.value.trim(),
+            vendor_type: els.vendorType.value
+          }
+        });
+        state.onboardingStatus = res.data?.status || state.onboardingStatus;
+        saveState();
+        renderState();
+        setStatus(els.storeStatus, "Store info saved.", "ok");
+      } catch (err) {
+        setStatus(els.storeStatus, err.message, "error");
+      }
+    });
+
+    document.getElementById("btnPresignDoc").addEventListener("click", async () => {
+      try {
+        const res = await apiRequest("/api/v1/vendors/register/legal-document/presign", {
+          headers: onboardingAuthHeaders(),
+          body: {
+            document_id_type: els.documentIdType.value
+          }
+        });
+        state.documentObjectKey = res.data?.object_key || "";
+        state.presignedUploadUrl = res.data?.upload_url || "";
+        state.documentUploaded = false;
+        saveState();
+        renderState();
+        setStatus(els.legalStatus, "Presigned URL generated. Upload file next.", "ok");
+      } catch (err) {
+        setStatus(els.legalStatus, err.message, "error");
+      }
+    });
+
+    document.getElementById("btnUploadDoc").addEventListener("click", async () => {
+      try {
+        await uploadFileToPresignedUrl();
+        setStatus(els.legalStatus, "Document uploaded to storage.", "ok");
+      } catch (err) {
+        setStatus(els.legalStatus, err.message, "error");
+      }
+    });
+
+    document.getElementById("btnSubmitLegal").addEventListener("click", async () => {
+      try {
+        const res = await apiRequest("/api/v1/vendors/register/legal-document/submit", {
+          headers: onboardingAuthHeaders(),
+          body: {
+            business_legal_type: els.businessLegalType.value,
+            document_id_type: els.documentIdType.value,
+            nik: els.nik.value.trim(),
+            owner_name: els.ownerName.value.trim(),
+            birth_date: els.birthDate.value,
+            document_id_object_key: state.documentObjectKey || els.documentObjectKey.value.trim()
+          }
+        });
+        state.authToken = res.data?.token || "";
+        state.vendorId = res.data?.vendor_id || "";
+        state.vendorStatus = res.data?.vendor_status || "";
+        saveState();
+        renderState();
+        setStatus(els.legalStatus, "Vendor registration completed. Auth JWT received.", "ok");
+      } catch (err) {
+        setStatus(els.legalStatus, err.message, "error");
+      }
+    });
+
+    [
+      els.baseUrl,
+      els.email,
+      els.otpCode,
+      els.onboardingToken,
+      els.authToken,
+      els.documentObjectKey,
+      els.presignedUploadUrl
+    ].forEach((el) => {
+      el.addEventListener("input", updateLiveFieldsFromInputs);
+      el.addEventListener("change", updateLiveFieldsFromInputs);
+    });
+
+    loadState();
+    if (!state.email) {
+      state.email = "vendor.multistep." + Date.now() + "@example.com";
+    }
+    saveState();
+    renderState();
+  </script>
+</body>
+</html>

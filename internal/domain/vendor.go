@@ -58,34 +58,11 @@ type VendorBankAccount struct {
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
-// VendorRegisterRequest is the input DTO for vendor registration.
-type VendorRegisterRequest struct {
-	StoreName             string  `json:"store_name" binding:"required,max=120"`
-	StoreType             string  `json:"store_type" binding:"required,oneof=souvenir_store ppiu hajj_dormitory"`
-	OwnerName             string  `json:"owner_name" binding:"required,max=120"`
-	LegalName             *string `json:"legal_name,omitempty" binding:"omitempty,max=160"`
-	ResponsiblePersonName string  `json:"responsible_person_name" binding:"required,max=120"`
-	Phone                 string  `json:"phone" binding:"required,max=20"`
-	Email                 string  `json:"email" binding:"required,email,max=255"`
-	Password              string  `json:"password" binding:"required,min=8"`
-	BankName              string  `json:"bank_name" binding:"required,max=120"`
-	BankAccountNumber     string  `json:"bank_account_number" binding:"required,max=60"`
-	BankAccountHolderName string  `json:"bank_account_holder_name" binding:"required,max=160"`
-}
-
 // PresignedUploadInfo holds a presigned upload URL for a specific document type.
 type PresignedUploadInfo struct {
 	DocType   string `json:"doc_type"`
 	UploadURL string `json:"upload_url"`
 	ObjectKey string `json:"object_key"`
-}
-
-// VendorRegisterResponse is the output DTO for a successful vendor registration.
-type VendorRegisterResponse struct {
-	VendorID   uuid.UUID             `json:"vendor_id"`
-	UserID     uuid.UUID             `json:"user_id"`
-	Token      string                `json:"token"`
-	UploadURLs []PresignedUploadInfo `json:"upload_urls"`
 }
 
 // ConfirmDocumentItem represents a single document in the confirm-upload request.
@@ -221,6 +198,9 @@ type VendorRepository interface {
 	// Create inserts a new vendor, its bank account, and document placeholders in a single transaction.
 	Create(ctx context.Context, vendor *Vendor, bankAccount *VendorBankAccount, documents []VendorDocument) error
 
+	// CreateMinimal inserts a new vendor and initial documents without creating a bank account.
+	CreateMinimal(ctx context.Context, vendor *Vendor, documents []VendorDocument) error
+
 	// FindByID returns the vendor with the given ID, or nil if not found.
 	FindByID(ctx context.Context, id uuid.UUID) (*Vendor, error)
 
@@ -331,6 +311,7 @@ type VendorBalance struct {
 	VendorID         uuid.UUID `json:"vendor_id"`
 	AvailableBalance float64   `json:"available_balance"`
 	PendingBalance   float64   `json:"pending_balance"`
+	EscrowBalance    float64   `json:"escrow_balance"`
 	TotalEarned      float64   `json:"total_earned"`
 	TotalWithdrawn   float64   `json:"total_withdrawn"`
 	UpdatedAt        time.Time `json:"updated_at"`
@@ -386,6 +367,7 @@ type VendorWithdrawResponse struct {
 type VendorBalanceResponse struct {
 	AvailableBalance float64 `json:"available_balance"`
 	PendingBalance   float64 `json:"pending_balance"`
+	EscrowBalance    float64 `json:"escrow_balance"`
 	TotalEarned      float64 `json:"total_earned"`
 	TotalWithdrawn   float64 `json:"total_withdrawn"`
 }
@@ -405,9 +387,12 @@ type VendorPayoutChannelsResponse struct {
 
 // VendorUseCase defines the interface for vendor business operations.
 type VendorUseCase interface {
-	// Register creates a new user (with role umkm), vendor, bank account, and document placeholders,
-	// then returns presigned upload URLs for required documents.
-	Register(ctx context.Context, req VendorRegisterRequest) (*VendorRegisterResponse, error)
+	RequestRegistrationOTP(ctx context.Context, req VendorRegisterOTPRequest) (*VendorRegisterOTPResponse, error)
+	VerifyRegistrationOTP(ctx context.Context, req VendorVerifyRegistrationOTPRequest) (*VendorVerifyRegistrationOTPResponse, error)
+	SetRegistrationPassword(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationPasswordRequest) (*VendorOnboardingProgressResponse, error)
+	SaveRegistrationStore(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationStoreRequest) (*VendorOnboardingProgressResponse, error)
+	PresignRegistrationLegalDocument(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationPresignDocumentRequest) (*VendorRegistrationPresignDocumentResponse, error)
+	SubmitRegistrationLegal(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationLegalRequest) (*VendorLoginResponse, error)
 
 	// ConfirmDocuments verifies that documents were uploaded to S3 and marks them as confirmed.
 	ConfirmDocuments(ctx context.Context, userID uuid.UUID, req ConfirmDocumentsRequest) (*ConfirmDocumentsResponse, error)

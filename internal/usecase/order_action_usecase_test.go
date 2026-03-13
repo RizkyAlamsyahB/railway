@@ -33,14 +33,14 @@ func TestOrderActionUseCase_CompleteByCustomer(t *testing.T) {
 		OrderStatus:   domain.OrderStatusShipped,
 		PaymentStatus: domain.PaymentStatusPaid,
 	}, nil)
-	orderRepo.EXPECT().UpdateOrderStatus(ctx, orderID, domain.OrderStatusCompleted, domain.PaymentStatusPaid, &userID, gomock.Any()).Return(nil)
+	orderRepo.EXPECT().MarkOrderReceived(ctx, orderID, &userID, gomock.Any()).Return(true, nil)
 
 	res, err := uc.CompleteByCustomer(ctx, userID, orderID)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if res.OrderStatus != domain.OrderStatusCompleted {
-		t.Fatalf("expected completed status, got %s", res.OrderStatus)
+	if res.OrderStatus != domain.OrderStatusReceived {
+		t.Fatalf("expected received status, got %s", res.OrderStatus)
 	}
 }
 

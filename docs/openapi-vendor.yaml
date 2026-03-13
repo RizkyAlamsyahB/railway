@@ -20,92 +20,34 @@ tags:
   - name: Xendit Webhook
     description: Endpoint callback webhook dari Xendit.
 paths:
-  /api/v1/vendors/register:
+  /api/v1/vendors/register/request-otp:
     post:
       tags:
         - Vendor Registration
-      summary: Mendaftarkan vendor UMKM baru
-      description: |
-        Membuat akun user baru (role `umkm`), vendor, dan rekening bank dalam satu request.
-        Response berisi JWT token untuk autentikasi dan presigned upload URLs untuk mengunggah
-        dokumen-dokumen yang diperlukan langsung ke S3 storage.
-
-        **Dokumen yang tersedia untuk upload:**
-        - `owner_ktp` — KTP pemilik
-        - `owner_passport` — Passport pemilik
-        - `business_npwp` — NPWP usaha (opsional)
-        - `store_photo` — Foto toko
-        - `bank_account_proof` — Bukti rekening bank
-        - `business_logo` — Logo usaha
-        - `business_banner` — Banner usaha
-
-        Presigned URL berlaku selama **30 menit** setelah registrasi.
-        Client dapat melakukan `PUT` request langsung ke setiap `upload_url` dengan file content
-        dan header `Content-Type` sesuai tipe file asli.
-        MIME yang diizinkan: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`.
-      operationId: registerVendor
+      summary: Kirim OTP email untuk registrasi vendor
+      description: Memulai flow onboarding vendor dengan mengirim OTP ke email vendor.
+      operationId: requestVendorRegistrationOTP
       security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorRegisterRequest'
+              $ref: '#/components/schemas/VendorRegisterOTPRequest'
             example:
-              store_name: Toko Oleh-Oleh Haji Mabrur
-              store_type: souvenir_store
-              owner_name: Ahmad Subarkah
-              legal_name: PT Mabrur Jaya
-              responsible_person_name: Budi Santoso
-              phone: "081234567890"
               email: toko.mabrur@example.com
-              password: SecurePass123!
-              bank_name: Bank Syariah Indonesia
-              bank_account_number: "1234567890"
-              bank_account_holder_name: Ahmad Subarkah
       responses:
         '201':
-          description: Vendor berhasil didaftarkan. Response berisi ID vendor, ID user, JWT token, dan presigned upload URLs untuk dokumen.
+          description: OTP berhasil dibuat dan dikirim.
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestIDHeader'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorRegisterEnvelope'
-              example:
-                success: true
-                message: vendor registration successful
-                data:
-                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  user_id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
-                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-                  upload_urls:
-                    - doc_type: owner_ktp
-                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/owner_ktp/uuid?X-Amz-...
-                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
-                    - doc_type: owner_passport
-                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/owner_passport/uuid?X-Amz-...
-                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_passport/a2b3c4d5-e6f7-8901-bcde-f12345678901
-                    - doc_type: business_npwp
-                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_npwp/uuid?X-Amz-...
-                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_npwp/b3c4d5e6-f7a8-9012-cdef-234567890123
-                    - doc_type: store_photo
-                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/store_photo/uuid?X-Amz-...
-                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/c4d5e6f7-a8b9-0123-def0-345678901234
-                    - doc_type: bank_account_proof
-                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/bank_account_proof/uuid?X-Amz-...
-                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/bank_account_proof/d5e6f7a8-b9c0-1234-ef01-456789012345
-                    - doc_type: business_logo
-                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_logo/uuid?X-Amz-...
-                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_logo/e6f7a8b9-c0d1-2345-f012-567890123456
-                    - doc_type: business_banner
-                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/a1b2c3d4.../documents/business_banner/uuid?X-Amz-...
-                      object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_banner/f7a8b9c0-d1e2-3456-0123-678901234567
-                errors: null
-                meta: null
+                $ref: '#/components/schemas/SuccessVendorRegisterOTPEnvelope'
         '400':
-          description: Request tidak valid (validasi gagal).
+          description: Request tidak valid.
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestIDHeader'
@@ -113,33 +55,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                validationFailed:
-                  summary: Validasi payload gagal
-                  value:
-                    success: false
-                    message: validation failed
-                    data: null
-                    errors: "Key: 'VendorRegisterRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
-                    meta: null
-                invalidStoreType:
-                  summary: Jenis toko tidak valid
-                  value:
-                    success: false
-                    message: validation failed
-                    data: null
-                    errors: "Key: 'VendorRegisterRequest.StoreType' Error:Field validation for 'StoreType' failed on the 'oneof' tag"
-                    meta: null
-                passwordTooShort:
-                  summary: Password kurang dari 8 karakter
-                  value:
-                    success: false
-                    message: validation failed
-                    data: null
-                    errors: "Key: 'VendorRegisterRequest.Password' Error:Field validation for 'Password' failed on the 'min' tag"
-                    meta: null
         '409':
-          description: Konflik — email sudah terdaftar atau user sudah memiliki vendor.
+          description: Email sudah terpakai atau sudah punya profil vendor.
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestIDHeader'
@@ -147,23 +64,267 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                emailAlreadyRegistered:
-                  summary: Email sudah terdaftar
-                  value:
-                    success: false
-                    message: email already registered
-                    data: null
-                    errors: null
-                    meta: null
-                vendorAlreadyExists:
-                  summary: User sudah memiliki vendor
-                  value:
-                    success: false
-                    message: user already has a vendor
-                    data: null
-                    errors: null
-                    meta: null
+        '429':
+          description: OTP diminta terlalu cepat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/register/verify-otp:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Verifikasi OTP email registrasi vendor
+      description: Memverifikasi OTP dan mengembalikan onboarding JWT untuk step register berikutnya.
+      operationId: verifyVendorRegistrationOTP
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorVerifyRegistrationOTPRequest'
+            example:
+              email: toko.mabrur@example.com
+              code: "123456"
+      responses:
+        '200':
+          description: OTP valid dan onboarding JWT diterbitkan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorVerifyRegistrationOTPEnvelope'
+        '400':
+          description: OTP salah atau payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Email sudah terpakai akun vendor.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: OTP terlalu banyak salah atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/register/password:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Simpan password onboarding vendor
+      operationId: saveVendorRegistrationPassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegistrationPasswordRequest'
+      responses:
+        '200':
+          description: Password berhasil disimpan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorOnboardingProgressEnvelope'
+        '400':
+          description: Step onboarding tidak valid atau payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Onboarding JWT tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/register/store:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Simpan data toko onboarding vendor
+      operationId: saveVendorRegistrationStore
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegistrationStoreRequest'
+            example:
+              store_name: Toko Oleh-Oleh Haji Mabrur
+              vendor_type: souvenir_store
+      responses:
+        '200':
+          description: Data toko berhasil disimpan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorOnboardingProgressEnvelope'
+        '400':
+          description: Step onboarding tidak valid atau payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Onboarding JWT tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/register/legal-document/presign:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Buat presigned upload URL dokumen identitas vendor
+      operationId: presignVendorRegistrationLegalDocument
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegistrationPresignDocumentRequest'
+            example:
+              document_id_type: ktp
+      responses:
+        '200':
+          description: Presigned URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorRegistrationPresignDocumentEnvelope'
+        '400':
+          description: Step onboarding tidak valid atau payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Onboarding JWT tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/register/legal-document/submit:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Finalisasi registrasi vendor dan login otomatis
+      operationId: submitVendorRegistrationLegal
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegistrationLegalRequest'
+            example:
+              business_legal_type: perorangan
+              document_id_type: ktp
+              nik: "3173000000000001"
+              owner_name: Ahmad Subarkah
+              birth_date: "1990-01-02"
+              document_id_object_key: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
+      responses:
+        '200':
+          description: Registrasi selesai dan auth token vendor diterbitkan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorLoginEnvelope'
+        '400':
+          description: Payload tidak valid, step tidak sesuai, atau file dokumen tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Onboarding JWT tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Email sudah dipakai akun lain.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
         '500':
           description: Internal server error.
           headers:
@@ -173,12 +334,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-              example:
-                success: false
-                message: internal server error
-                data: null
-                errors: null
-                meta: null
   /api/v1/vendors/login:
     post:
       tags:
@@ -456,7 +611,7 @@ paths:
         - Memerlukan autentikasi dengan JWT token (role `umkm`).
         - Setiap dokumen divalidasi: file harus ada di S3, MIME type harus `image/jpeg`, `image/png`, `image/webp`, atau `application/pdf`.
         - Ukuran file maksimum 5 MB per dokumen.
-        - Jika semua dokumen wajib (owner_ktp, store_photo, bank_account_proof) telah dikonfirmasi,
+        - Jika semua dokumen wajib (`owner_document_id`, `store_photo`, `bank_account_proof`, `business_logo`, `business_banner`) telah dikonfirmasi,
           status vendor akan otomatis berubah dari `draft` menjadi `submitted`.
 
         **Catatan:** `object_key` didapat dari response saat registrasi (`upload_urls[].object_key`).
@@ -471,12 +626,16 @@ paths:
               $ref: '#/components/schemas/ConfirmDocumentsRequest'
             example:
               documents:
-                - doc_type: owner_ktp
-                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                - doc_type: owner_document_id
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/f1e2d3c4-b5a6-7890-abcd-ef1234567890
                 - doc_type: store_photo
                   object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/c4d5e6f7-a8b9-0123-def0-345678901234
                 - doc_type: bank_account_proof
                   object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/bank_account_proof/d5e6f7a8-b9c0-1234-ef01-456789012345
+                - doc_type: business_logo
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_logo/e6f7a8b9-c0d1-2345-f012-567890123456
+                - doc_type: business_banner
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_banner/f7a8b9c0-d1e2-3456-0123-678901234567
       responses:
         '200':
           description: Dokumen berhasil dikonfirmasi.
@@ -493,7 +652,7 @@ paths:
                 data:
                   vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                   vendor_status: submitted
-                  documents_confirmed: 3
+                  documents_confirmed: 5
                 errors: null
                 meta: null
         '400':
@@ -518,7 +677,7 @@ paths:
                   summary: Dokumen tidak ditemukan untuk vendor ini
                   value:
                     success: false
-                    message: "document not found for this vendor: owner_ktp"
+                    message: "document not found for this vendor: owner_document_id"
                     data: null
                     errors: null
                     meta: null
@@ -526,7 +685,7 @@ paths:
                   summary: File belum diupload ke S3
                   value:
                     success: false
-                    message: "object not found in storage: vendors/a1b2c3d4/documents/owner_ktp/uuid"
+                    message: "object not found in storage: vendors/a1b2c3d4/documents/owner_document_id/uuid"
                     data: null
                     errors: null
                     meta: null
@@ -1518,80 +1677,178 @@ components:
         type: string
         example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
   schemas:
-    VendorRegisterRequest:
+    VendorRegisterOTPRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: toko.mabrur@example.com
+    VendorRegisterOTPResponse:
+      type: object
+      required:
+        - expires_at
+        - cooldown_until
+      properties:
+        expires_at:
+          type: string
+          format: date-time
+        cooldown_until:
+          type: string
+          format: date-time
+    VendorVerifyRegistrationOTPRequest:
+      type: object
+      required:
+        - email
+        - code
+      properties:
+        email:
+          type: string
+          format: email
+          example: toko.mabrur@example.com
+        code:
+          type: string
+          example: "123456"
+    VendorVerifyRegistrationOTPResponse:
+      type: object
+      required:
+        - onboarding_token
+        - onboarding_expires_at
+        - status
+      properties:
+        onboarding_token:
+          type: string
+          description: JWT onboarding khusus untuk step register vendor berikutnya.
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        onboarding_expires_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - otp_verified
+            - password_set
+            - store_info_completed
+            - completed
+          example: otp_verified
+    VendorRegistrationPasswordRequest:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          minLength: 8
+          example: SecurePass123!
+    VendorRegistrationStoreRequest:
       type: object
       required:
         - store_name
-        - store_type
-        - owner_name
-        - responsible_person_name
-        - phone
-        - email
-        - password
-        - bank_name
-        - bank_account_number
-        - bank_account_holder_name
+        - vendor_type
       properties:
         store_name:
           type: string
           maxLength: 120
-          description: Nama toko yang akan ditampilkan (display_name).
           example: Toko Oleh-Oleh Haji Mabrur
-        store_type:
+        vendor_type:
           type: string
-          description: Jenis toko.
           enum:
             - souvenir_store
             - ppiu
             - hajj_dormitory
           example: souvenir_store
+    VendorRegistrationPresignDocumentRequest:
+      type: object
+      required:
+        - document_id_type
+      properties:
+        document_id_type:
+          type: string
+          enum:
+            - ktp
+            - passport
+          example: ktp
+    VendorRegistrationPresignDocumentResponse:
+      type: object
+      required:
+        - upload_url
+        - object_key
+        - expires_at
+        - document_id_type
+        - doc_type
+      properties:
+        upload_url:
+          type: string
+          format: uri
+        object_key:
+          type: string
+          example: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
+        expires_at:
+          type: string
+          format: date-time
+        document_id_type:
+          type: string
+          enum:
+            - ktp
+            - passport
+        doc_type:
+          type: string
+          enum:
+            - owner_document_id
+          example: owner_document_id
+    VendorRegistrationLegalRequest:
+      type: object
+      required:
+        - business_legal_type
+        - document_id_type
+        - nik
+        - owner_name
+        - birth_date
+        - document_id_object_key
+      properties:
+        business_legal_type:
+          type: string
+          enum:
+            - perorangan
+            - korporasi
+          example: perorangan
+        document_id_type:
+          type: string
+          enum:
+            - ktp
+            - passport
+          example: ktp
+        nik:
+          type: string
+          maxLength: 32
+          example: "3173000000000001"
         owner_name:
           type: string
           maxLength: 120
-          description: Nama pemilik/pengelola toko. Akan disimpan sebagai nama lengkap user.
           example: Ahmad Subarkah
-        legal_name:
+        birth_date:
           type: string
-          maxLength: 160
-          nullable: true
-          description: Nama legal/badan usaha (opsional).
-          example: PT Mabrur Jaya
-        responsible_person_name:
+          description: Format `YYYY-MM-DD`.
+          example: "1990-01-02"
+        document_id_object_key:
           type: string
-          maxLength: 120
-          description: Nama penanggung jawab toko.
-          example: Budi Santoso
-        phone:
+          example: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
+    VendorOnboardingProgressResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
           type: string
-          maxLength: 20
-          description: Nomor telepon yang bisa dihubungi.
-          example: "081234567890"
-        email:
-          type: string
-          format: email
-          maxLength: 255
-          description: Email untuk login dan komunikasi. Harus unik.
-          example: toko.mabrur@example.com
-        password:
-          type: string
-          minLength: 8
-          description: Kata sandi minimal 8 karakter.
-          example: SecurePass123!
-        bank_name:
-          type: string
-          maxLength: 120
-          description: Nama bank untuk rekening penerima.
-          example: Bank Syariah Indonesia
-        bank_account_number:
-          type: string
-          maxLength: 60
-          description: Nomor rekening bank.
-          example: "1234567890"
-        bank_account_holder_name:
-          type: string
-          maxLength: 160
-          description: Nama pemilik rekening sesuai buku tabungan.
-          example: Ahmad Subarkah
+          enum:
+            - otp_verified
+            - password_set
+            - store_info_completed
+            - completed
+          example: password_set
     VendorLoginRequest:
       type: object
       required:
@@ -1726,14 +1983,13 @@ components:
           type: string
           description: Jenis dokumen.
           enum:
-            - owner_ktp
-            - owner_passport
+            - owner_document_id
             - business_npwp
             - store_photo
             - bank_account_proof
             - business_logo
             - business_banner
-          example: owner_ktp
+          example: owner_document_id
         upload_url:
           type: string
           format: uri
@@ -1741,39 +1997,12 @@ components:
             Presigned URL untuk upload file langsung ke S3 via HTTP PUT.
             Berlaku selama 30 menit. Gunakan `Content-Type` sesuai MIME file yang diunggah.
             MIME yang diizinkan: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`.
-          example: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/.../documents/owner_ktp/uuid?X-Amz-...
+          example: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/.../documents/owner_document_id/uuid?X-Amz-...
         object_key:
           type: string
           description: Object key di S3 storage. Simpan key ini untuk referensi saat mengkonfirmasi upload dokumen.
-          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
-    VendorRegisterResponse:
-      type: object
-      required:
-        - vendor_id
-        - user_id
-        - token
-        - upload_urls
-      properties:
-        vendor_id:
-          type: string
-          format: uuid
-          description: ID vendor yang baru dibuat.
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        user_id:
-          type: string
-          format: uuid
-          description: ID user yang baru dibuat.
-          example: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
-        token:
-          type: string
-          description: JWT token untuk autentikasi. Token berisi role `umkm`.
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        upload_urls:
-          type: array
-          description: Daftar presigned upload URL untuk setiap jenis dokumen.
-          items:
-            $ref: '#/components/schemas/PresignedUploadInfo'
-    SuccessVendorRegisterEnvelope:
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+    SuccessVendorRegisterOTPEnvelope:
       type: object
       required:
         - success
@@ -1787,9 +2016,78 @@ components:
           example: true
         message:
           type: string
-          example: vendor registration successful
+          example: vendor registration otp sent
         data:
-          $ref: '#/components/schemas/VendorRegisterResponse'
+          $ref: '#/components/schemas/VendorRegisterOTPResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorVerifyRegistrationOTPEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor registration otp verified
+        data:
+          $ref: '#/components/schemas/VendorVerifyRegistrationOTPResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorOnboardingProgressEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor registration progress saved
+        data:
+          $ref: '#/components/schemas/VendorOnboardingProgressResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorRegistrationPresignDocumentEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor registration legal document presigned
+        data:
+          $ref: '#/components/schemas/VendorRegistrationPresignDocumentResponse'
         errors:
           nullable: true
           example: null
@@ -1876,18 +2174,17 @@ components:
           type: string
           description: Tipe dokumen yang dikonfirmasi.
           enum:
-            - owner_ktp
-            - owner_passport
+            - owner_document_id
             - business_npwp
             - store_photo
             - bank_account_proof
             - business_logo
             - business_banner
-          example: owner_ktp
+          example: owner_document_id
         object_key:
           type: string
           description: Object key di S3 yang didapat dari response registrasi (`upload_urls[].object_key`).
-          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_ktp/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/f1e2d3c4-b5a6-7890-abcd-ef1234567890
     ConfirmDocumentsRequest:
       type: object
       required:

@@ -141,6 +141,11 @@ func (s *smtpSender) buildMessage(msg domain.EmailMessage) string {
 	// To header
 	b.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(msg.To, ", ")))
 
+	// Reply-To header (directs replies to a different address than From)
+	if len(msg.ReplyTo) > 0 {
+		b.WriteString(fmt.Sprintf("Reply-To: %s\r\n", strings.Join(msg.ReplyTo, ", ")))
+	}
+
 	// CC header (BCC is intentionally omitted from headers)
 	if len(msg.CC) > 0 {
 		b.WriteString(fmt.Sprintf("Cc: %s\r\n", strings.Join(msg.CC, ", ")))

@@ -14,17 +14,18 @@ import (
 )
 
 type ticketUseCase struct {
-	ticketRepo  domain.TicketRepository
-	subjectRepo domain.TicketSubjectRepository
-	userRepo    domain.UserRepository
-	orderRepo   domain.OrderRepository
-	paymentRepo domain.PaymentRepository
-	email       domain.EmailProvider
-	storage     domain.StorageProvider
+	ticketRepo    domain.TicketRepository
+	subjectRepo   domain.TicketSubjectRepository
+	userRepo      domain.UserRepository
+	orderRepo     domain.OrderRepository
+	paymentRepo   domain.PaymentRepository
+	email         domain.EmailProvider
+	storage       domain.StorageProvider
+	smtpFromEmail string
 }
 
-func NewTicketUseCase(ticketRepo domain.TicketRepository, subjectRepo domain.TicketSubjectRepository, userRepo domain.UserRepository, orderRepo domain.OrderRepository, paymentRepo domain.PaymentRepository, email domain.EmailProvider, storage domain.StorageProvider) domain.TicketUseCase {
-	return &ticketUseCase{ticketRepo: ticketRepo, subjectRepo: subjectRepo, userRepo: userRepo, orderRepo: orderRepo, paymentRepo: paymentRepo, email: email, storage: storage}
+func NewTicketUseCase(ticketRepo domain.TicketRepository, subjectRepo domain.TicketSubjectRepository, userRepo domain.UserRepository, orderRepo domain.OrderRepository, paymentRepo domain.PaymentRepository, email domain.EmailProvider, storage domain.StorageProvider, smtpFromEmail string) domain.TicketUseCase {
+	return &ticketUseCase{ticketRepo: ticketRepo, subjectRepo: subjectRepo, userRepo: userRepo, orderRepo: orderRepo, paymentRepo: paymentRepo, email: email, storage: storage, smtpFromEmail: smtpFromEmail}
 }
 
 // generateTicketNumber creates a ticket number in format TKT-YYYYMMDD-NNNN.
@@ -333,6 +334,20 @@ func (uc *ticketUseCase) sendTicketReplyEmail(t *domain.Ticket, message string) 
 		return
 	}
 
+	// Look up assigned CS email so customer replies go to the right agent.
+	// We include both the CS agent email and the system SMTP email in Reply-To
+	// so that IMAP inbox monitoring can pick up customer replies automatically.
+	var replyTo []string
+	if t.AssignedCSID != nil {
+		csUser, err := uc.userRepo.FindByID(context.Background(), *t.AssignedCSID)
+		if err != nil {
+			log.Printf("[ticket-email] failed to find CS agent %s: %v", *t.AssignedCSID, err)
+			// Not fatal — we still send the email, just without Reply-To
+		} else {
+			replyTo = []string{csUser.Email, uc.smtpFromEmail}
+		}
+	}
+
 	// Replace template placeholders with actual ticket/customer data
 	message = resolveTemplatePlaceholders(message, t, customer)
 
@@ -349,6 +364,7 @@ func (uc *ticketUseCase) sendTicketReplyEmail(t *domain.Ticket, message string) 
 
 	emailMsg := domain.EmailMessage{
 		To:      []string{customer.Email},
+		ReplyTo: replyTo,
 		Subject: subject,
 		Body:    body,
 		IsHTML:  true,

@@ -20,7 +20,7 @@ func NewOrderActionUseCase(orderRepo domain.OrderRepository) domain.OrderActionU
 	return &orderActionUseCase{orderRepo: orderRepo}
 }
 
-func (uc *orderActionUseCase) CompleteByCustomer(ctx context.Context, userID, orderID uuid.UUID) (*domain.CompleteOrderResponse, error) {
+func (uc *orderActionUseCase) CompleteByCustomer(ctx context.Context, userID, orderID uuid.UUID) (*domain.ReceiveOrderResponse, error) {
 	order, err := uc.orderRepo.FindByID(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find order: %w", err)
@@ -32,23 +32,24 @@ func (uc *orderActionUseCase) CompleteByCustomer(ctx context.Context, userID, or
 		return nil, ErrOrderNotOwned
 	}
 
-	switch order.OrderStatus {
-	case domain.OrderStatusPaid, domain.OrderStatusPacked, domain.OrderStatusShipped:
-		// allowed transitions
-	default:
+	if order.OrderStatus != domain.OrderStatusShipped {
 		return nil, ErrInvalidOrderCompletionTransition
 	}
 
-	notes := "Order marked as completed by customer"
-	if err := uc.orderRepo.UpdateOrderStatus(ctx, orderID, domain.OrderStatusCompleted, order.PaymentStatus, &userID, &notes); err != nil {
-		return nil, fmt.Errorf("failed to complete order: %w", err)
+	notes := "Order marked as received by customer"
+	applied, err := uc.orderRepo.MarkOrderReceived(ctx, orderID, &userID, &notes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mark order received: %w", err)
+	}
+	if !applied {
+		return nil, ErrInvalidOrderCompletionTransition
 	}
 
-	return &domain.CompleteOrderResponse{
+	return &domain.ReceiveOrderResponse{
 		OrderID:       orderID,
-		OrderStatus:   domain.OrderStatusCompleted,
+		OrderStatus:   domain.OrderStatusReceived,
 		PaymentStatus: order.PaymentStatus,
-		CompletedAt:   time.Now(),
+		ReceivedAt:    time.Now(),
 	}, nil
 }
 

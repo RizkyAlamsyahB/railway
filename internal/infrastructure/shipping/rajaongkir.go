@@ -287,3 +287,157 @@ func (c *rajaOngkirClient) CalculateDomesticCost(ctx context.Context, originDist
 	}
 	return options, nil
 }
+
+// TrackWaybill tracks a shipment via RajaOngkir Komerce waybill API.
+// POST /track/waybill?awb={awb}&courier={courier}
+func (c *rajaOngkirClient) TrackWaybill(ctx context.Context, awbNumber, courierCode string) (*domain.TrackWaybillResponse, error) {
+	apiURL := c.baseURL + "/track/waybill?awb=" + url.QueryEscape(awbNumber) + "&courier=" + url.QueryEscape(courierCode)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("rajaongkir track: failed to create request: %w", err)
+	}
+	req.Header.Set("key", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("rajaongkir track: request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("rajaongkir track: failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("rajaongkir track: unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the Komerce envelope.
+	var envelope komerceEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, fmt.Errorf("rajaongkir track: failed to parse envelope: %w", err)
+	}
+	if envelope.Data == nil {
+		return nil, fmt.Errorf("rajaongkir track: empty data in response")
+	}
+
+	// Parse the waybill tracking data.
+	var waybillResp waybillAPIResponse
+	if err := json.Unmarshal(envelope.Data, &waybillResp); err != nil {
+		return nil, fmt.Errorf("rajaongkir track: failed to parse waybill data: %w", err)
+	}
+
+	return mapWaybillResponse(&waybillResp), nil
+}
+
+// --- waybill API response structs ---
+
+type waybillAPIResponse struct {
+	Delivered      bool                  `json:"delivered"`
+	Summary        waybillSummary        `json:"summary"`
+	Details        waybillDetails        `json:"details"`
+	DeliveryStatus waybillDeliveryStatus `json:"delivery_status"`
+	Manifest       []waybillManifest     `json:"manifest"`
+}
+
+type waybillSummary struct {
+	CourierCode   string `json:"courier_code"`
+	CourierName   string `json:"courier_name"`
+	WaybillNumber string `json:"waybill_number"`
+	ServiceCode   string `json:"service_code"`
+	WaybillDate   string `json:"waybill_date"`
+	ShipperName   string `json:"shipper_name"`
+	ReceiverName  string `json:"receiver_name"`
+	Origin        string `json:"origin"`
+	Destination   string `json:"destination"`
+	Status        string `json:"status"`
+}
+
+type waybillDetails struct {
+	WaybillNumber    string `json:"waybill_number"`
+	WaybillDate      string `json:"waybill_date"`
+	WaybillTime      string `json:"waybill_time"`
+	Weight           string `json:"weight"`
+	Origin           string `json:"origin"`
+	Destination      string `json:"destination"`
+	ShipperName      string `json:"shipper_name"`
+	ShipperAddress1  string `json:"shipper_address1"`
+	ShipperAddress2  string `json:"shipper_address2"`
+	ShipperAddress3  string `json:"shipper_address3"`
+	ShipperCity      string `json:"shipper_city"`
+	ReceiverName     string `json:"receiver_name"`
+	ReceiverAddress1 string `json:"receiver_address1"`
+	ReceiverAddress2 string `json:"receiver_address2"`
+	ReceiverAddress3 string `json:"receiver_address3"`
+	ReceiverCity     string `json:"receiver_city"`
+}
+
+type waybillDeliveryStatus struct {
+	Status      string `json:"status"`
+	PodReceiver string `json:"pod_receiver"`
+	PodDate     string `json:"pod_date"`
+	PodTime     string `json:"pod_time"`
+}
+
+type waybillManifest struct {
+	ManifestCode        string `json:"manifest_code"`
+	ManifestDescription string `json:"manifest_description"`
+	ManifestDate        string `json:"manifest_date"`
+	ManifestTime        string `json:"manifest_time"`
+	CityName            string `json:"city_name"`
+}
+
+func mapWaybillResponse(r *waybillAPIResponse) *domain.TrackWaybillResponse {
+	manifest := make([]domain.TrackManifestItem, len(r.Manifest))
+	for i, m := range r.Manifest {
+		manifest[i] = domain.TrackManifestItem{
+			ManifestCode:        m.ManifestCode,
+			ManifestDescription: m.ManifestDescription,
+			ManifestDate:        m.ManifestDate,
+			ManifestTime:        m.ManifestTime,
+			CityName:            m.CityName,
+		}
+	}
+	return &domain.TrackWaybillResponse{
+		Delivered: r.Delivered,
+		Summary: domain.TrackWaybillSummary{
+			CourierCode:   r.Summary.CourierCode,
+			CourierName:   r.Summary.CourierName,
+			WaybillNumber: r.Summary.WaybillNumber,
+			ServiceCode:   r.Summary.ServiceCode,
+			WaybillDate:   r.Summary.WaybillDate,
+			ShipperName:   r.Summary.ShipperName,
+			ReceiverName:  r.Summary.ReceiverName,
+			Origin:        r.Summary.Origin,
+			Destination:   r.Summary.Destination,
+			Status:        r.Summary.Status,
+		},
+		Details: domain.TrackWaybillDetails{
+			WaybillNumber:    r.Details.WaybillNumber,
+			WaybillDate:      r.Details.WaybillDate,
+			WaybillTime:      r.Details.WaybillTime,
+			Weight:           r.Details.Weight,
+			Origin:           r.Details.Origin,
+			Destination:      r.Details.Destination,
+			ShipperName:      r.Details.ShipperName,
+			ShipperAddress1:  r.Details.ShipperAddress1,
+			ShipperAddress2:  r.Details.ShipperAddress2,
+			ShipperAddress3:  r.Details.ShipperAddress3,
+			ShipperCity:      r.Details.ShipperCity,
+			ReceiverName:     r.Details.ReceiverName,
+			ReceiverAddress1: r.Details.ReceiverAddress1,
+			ReceiverAddress2: r.Details.ReceiverAddress2,
+			ReceiverAddress3: r.Details.ReceiverAddress3,
+			ReceiverCity:     r.Details.ReceiverCity,
+		},
+		DeliveryStatus: domain.TrackDeliveryStatus{
+			Status:      r.DeliveryStatus.Status,
+			PodReceiver: r.DeliveryStatus.PodReceiver,
+			PodDate:     r.DeliveryStatus.PodDate,
+			PodTime:     r.DeliveryStatus.PodTime,
+		},
+		Manifest: manifest,
+	}
+}

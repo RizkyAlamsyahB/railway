@@ -13,6 +13,10 @@ type EmailMessage struct {
 	// BCC is the list of blind-carbon-copy recipient email addresses.
 	BCC []string
 
+	// ReplyTo is the list of email addresses that replies should be directed to.
+	// When set, the Reply-To header overrides the From address for replies.
+	ReplyTo []string
+
 	// Subject is the email subject line.
 	Subject string
 

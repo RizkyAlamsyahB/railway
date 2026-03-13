@@ -20,6 +20,12 @@ func main() {
 	}
 	defer application.Close()
 
+	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+	defer schedulerCancel()
+	if application.Scheduler != nil {
+		go application.Scheduler.Start(schedulerCtx)
+	}
+
 	// Create HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", application.Config.App.Port),
@@ -42,6 +48,8 @@ func main() {
 
 	<-quit
 	log.Println("shutting down server...")
+
+	schedulerCancel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -100,6 +100,24 @@ func (r *vendorRepository) Create(ctx context.Context, vendor *domain.Vendor, ba
 	})
 }
 
+func (r *vendorRepository) CreateMinimal(ctx context.Context, vendor *domain.Vendor, documents []domain.VendorDocument) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		vm := toVendorModel(vendor)
+		if err := tx.Create(&vm).Error; err != nil {
+			return err
+		}
+
+		for i := range documents {
+			dm := toVendorDocumentModel(&documents[i])
+			if err := tx.Create(&dm).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
 func (r *vendorRepository) FindByOwnerUserID(ctx context.Context, userID uuid.UUID) (*domain.Vendor, error) {
 	var model vendorModel
 	if err := r.db.WithContext(ctx).Where("owner_user_id = ?", userID.String()).First(&model).Error; err != nil {
@@ -286,6 +304,7 @@ type vendorBalanceModel struct {
 	VendorID         string    `gorm:"column:vendor_id;primaryKey"`
 	AvailableBalance float64   `gorm:"column:available_balance"`
 	PendingBalance   float64   `gorm:"column:pending_balance"`
+	EscrowBalance    float64   `gorm:"column:escrow_balance"`
 	TotalEarned      float64   `gorm:"column:total_earned"`
 	TotalWithdrawn   float64   `gorm:"column:total_withdrawn"`
 	UpdatedAt        time.Time `gorm:"column:updated_at"`
@@ -320,6 +339,7 @@ func (r *vendorRepository) InitBalance(ctx context.Context, vendorID uuid.UUID) 
 		VendorID:         vendorID.String(),
 		AvailableBalance: 0,
 		PendingBalance:   0,
+		EscrowBalance:    0,
 		TotalEarned:      0,
 		TotalWithdrawn:   0,
 		UpdatedAt:        time.Now(),
@@ -546,6 +566,7 @@ func toDomainVendorBalance(m *vendorBalanceModel) *domain.VendorBalance {
 		VendorID:         vendorID,
 		AvailableBalance: m.AvailableBalance,
 		PendingBalance:   m.PendingBalance,
+		EscrowBalance:    m.EscrowBalance,
 		TotalEarned:      m.TotalEarned,
 		TotalWithdrawn:   m.TotalWithdrawn,
 		UpdatedAt:        m.UpdatedAt,

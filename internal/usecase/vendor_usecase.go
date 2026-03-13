@@ -15,21 +15,12 @@ import (
 
 // Required document types for vendor registration (must be uploaded for draft→submitted).
 var requiredDocTypes = []string{
-	"owner_ktp",
-	"owner_passport",
+	"owner_document_id",
 	"store_photo",
 	"bank_account_proof",
 	"business_logo",
 	"business_banner",
 }
-
-// Optional document types (presigned URLs generated, but not required for submission).
-var optionalDocTypes = []string{
-	"business_npwp",
-}
-
-// allDocTypes combines required + optional for presigned URL generation.
-var allDocTypes = append(append([]string{}, requiredDocTypes...), optionalDocTypes...)
 
 const (
 	defaultWithdrawalFeeEstimateFixed = 0.0
@@ -45,8 +36,10 @@ type VendorWithdrawalPolicy struct {
 }
 
 type vendorUseCase struct {
+	otpUseCase                 domain.OTPUseCase
 	userRepo                   domain.UserRepository
 	vendorRepo                 domain.VendorRepository
+	onboardingRepo             domain.VendorOnboardingRepository
 	storage                    domain.StorageProvider
 	xenditPayout               domain.XenditPayoutProvider
 	jwtSecret                  string
@@ -58,8 +51,10 @@ type vendorUseCase struct {
 
 // NewVendorUseCase creates a new VendorUseCase.
 func NewVendorUseCase(
+	otpUseCase domain.OTPUseCase,
 	userRepo domain.UserRepository,
 	vendorRepo domain.VendorRepository,
+	onboardingRepo domain.VendorOnboardingRepository,
 	storage domain.StorageProvider,
 	xenditPayout domain.XenditPayoutProvider,
 	jwtSecret string,
@@ -82,8 +77,10 @@ func NewVendorUseCase(
 	}
 
 	return &vendorUseCase{
+		otpUseCase:                 otpUseCase,
 		userRepo:                   userRepo,
 		vendorRepo:                 vendorRepo,
+		onboardingRepo:             onboardingRepo,
 		storage:                    storage,
 		xenditPayout:               xenditPayout,
 		jwtSecret:                  jwtSecret,
@@ -92,129 +89,6 @@ func NewVendorUseCase(
 		withdrawalFeeEstimateFixed: cfg.FeeEstimateFixed,
 		withdrawalMinNetAmount:     cfg.MinNetAmount,
 	}
-}
-
-func (uc *vendorUseCase) Register(ctx context.Context, req domain.VendorRegisterRequest) (*domain.VendorRegisterResponse, error) {
-	// 1. Check if email is already taken. If user exists, check for existing vendor.
-	existing, err := uc.userRepo.FindByEmail(ctx, req.Email)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check email: %w", err)
-	}
-	if existing != nil {
-		existingVendor, err := uc.vendorRepo.FindByOwnerUserID(ctx, existing.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check existing vendor: %w", err)
-		}
-		if existingVendor != nil {
-			return nil, ErrVendorAlreadyExists
-		}
-		return nil, ErrEmailAlreadyRegistered
-	}
-
-	// 2. Hash password.
-	hash, err := auth.HashPassword(req.Password)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	// 3. Prepare all entities in memory.
-	now := time.Now()
-	phone := req.Phone
-	userID := uuid.New()
-	vendorID := uuid.New()
-
-	user := &domain.User{
-		ID:           userID,
-		Email:        req.Email,
-		FullName:     req.OwnerName,
-		Phone:        &phone,
-		PasswordHash: hash,
-		Status:       domain.UserStatusPending,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-
-	vendor := &domain.Vendor{
-		ID:                    vendorID,
-		OwnerUserID:           userID,
-		VendorType:            req.StoreType,
-		LegalName:             req.LegalName,
-		DisplayName:           req.StoreName,
-		ResponsiblePersonName: req.ResponsiblePersonName,
-		Status:                domain.VendorStatusDraft,
-		CreatedAt:             now,
-		UpdatedAt:             now,
-	}
-
-	bankAccount := &domain.VendorBankAccount{
-		ID:                 uuid.New(),
-		VendorID:           vendorID,
-		BankName:           req.BankName,
-		AccountNumber:      req.BankAccountNumber,
-		AccountHolderName:  req.BankAccountHolderName,
-		VerificationStatus: domain.VerificationStatusPending,
-		CreatedAt:          now,
-		UpdatedAt:          now,
-	}
-
-	// 4. Generate presigned upload URLs BEFORE any DB writes.
-	//    Also prepare VendorDocument records for each document type.
-	uploadURLs := make([]domain.PresignedUploadInfo, 0, len(allDocTypes))
-	documents := make([]domain.VendorDocument, 0, len(allDocTypes))
-
-	for _, docType := range allDocTypes {
-		objectKey := fmt.Sprintf("vendors/%s/documents/%s/%s", vendorID.String(), docType, uuid.New().String())
-
-		// Keep content type unsigned so client can upload with the file's actual MIME type.
-		uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, "", PresignedUploadExpiry)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate presigned URL for %s: %w", docType, err)
-		}
-
-		uploadURLs = append(uploadURLs, domain.PresignedUploadInfo{
-			DocType:   docType,
-			UploadURL: uploadURL,
-			ObjectKey: objectKey,
-		})
-
-		documents = append(documents, domain.VendorDocument{
-			ID:                 uuid.New(),
-			VendorID:           vendorID,
-			DocType:            docType,
-			FileURL:            objectKey,
-			VerificationStatus: domain.VerificationStatusPending,
-			CreatedAt:          now,
-			UpdatedAt:          now,
-		})
-	}
-
-	// 5. Persist user to DB.
-	if err := uc.userRepo.Create(ctx, user, domain.RoleUMKM); err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	// 6. Persist vendor + bank account + documents in one transaction.
-	if err := uc.vendorRepo.Create(ctx, vendor, bankAccount, documents); err != nil {
-		return nil, fmt.Errorf("failed to create vendor: %w", err)
-	}
-
-	// 7. Initialize vendor balance (zero balance).
-	if err := uc.vendorRepo.InitBalance(ctx, vendorID); err != nil {
-		return nil, fmt.Errorf("failed to initialize vendor balance: %w", err)
-	}
-
-	// 7. Generate JWT token.
-	token, err := auth.GenerateToken(userID, user.Email, domain.RoleUMKM, &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate token: %w", err)
-	}
-
-	return &domain.VendorRegisterResponse{
-		VendorID:   vendorID,
-		UserID:     userID,
-		Token:      token,
-		UploadURLs: uploadURLs,
-	}, nil
 }
 
 func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID, req domain.ConfirmDocumentsRequest) (*domain.ConfirmDocumentsResponse, error) {
@@ -415,6 +289,7 @@ func (uc *vendorUseCase) GetBalance(ctx context.Context, vendorID uuid.UUID) (*d
 	return &domain.VendorBalanceResponse{
 		AvailableBalance: balance.AvailableBalance,
 		PendingBalance:   balance.PendingBalance,
+		EscrowBalance:    balance.EscrowBalance,
 		TotalEarned:      balance.TotalEarned,
 		TotalWithdrawn:   balance.TotalWithdrawn,
 	}, nil

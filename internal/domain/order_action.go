@@ -7,12 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// CompleteOrderResponse is the output DTO for customer order completion.
-type CompleteOrderResponse struct {
+// ReceiveOrderResponse is the output DTO for customer order received confirmation.
+type ReceiveOrderResponse struct {
 	OrderID       uuid.UUID `json:"order_id"`
 	OrderStatus   string    `json:"order_status"`
 	PaymentStatus string    `json:"payment_status"`
-	CompletedAt   time.Time `json:"completed_at"`
+	ReceivedAt    time.Time `json:"received_at"`
 }
 
 // CustomerOrderListParams holds query parameters for customer order listing.
@@ -40,8 +40,8 @@ type CustomerOrderListItem struct {
 
 // OrderActionUseCase defines customer order lifecycle actions.
 type OrderActionUseCase interface {
-	// CompleteByCustomer marks an eligible customer order as completed.
-	CompleteByCustomer(ctx context.Context, userID, orderID uuid.UUID) (*CompleteOrderResponse, error)
+	// CompleteByCustomer marks an eligible customer order as received.
+	CompleteByCustomer(ctx context.Context, userID, orderID uuid.UUID) (*ReceiveOrderResponse, error)
 	// ListByCustomer returns customer order rows with pagination metadata.
 	ListByCustomer(ctx context.Context, userID uuid.UUID, params CustomerOrderListParams) ([]CustomerOrderListItem, *PaginationMeta, error)
 	// ListOrderStatuses returns available order statuses.

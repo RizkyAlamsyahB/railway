@@ -98,6 +98,20 @@ func (mr *MockVendorRepositoryMockRecorder) Create(ctx, vendor, bankAccount, doc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockVendorRepository)(nil).Create), ctx, vendor, bankAccount, documents)
 }
 
+// CreateMinimal mocks base method.
+func (m *MockVendorRepository) CreateMinimal(ctx context.Context, vendor *domain.Vendor, documents []domain.VendorDocument) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateMinimal", ctx, vendor, documents)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateMinimal indicates an expected call of CreateMinimal.
+func (mr *MockVendorRepositoryMockRecorder) CreateMinimal(ctx, vendor, documents any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMinimal", reflect.TypeOf((*MockVendorRepository)(nil).CreateMinimal), ctx, vendor, documents)
+}
+
 // CreateWithdrawal mocks base method.
 func (m *MockVendorRepository) CreateWithdrawal(ctx context.Context, withdrawal *domain.VendorWithdrawal) error {
 	m.ctrl.T.Helper()

@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout Flow — Manual Test (Local v2)</title>
+<style>
+  :root { --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a; --accent: #c9a96e; --accent2: #e6c88a; --text: #e4e4e7; --muted: #9ca3af; --green: #22c55e; --red: #ef4444; --blue: #3b82f6; --orange: #f59e0b; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 1300px; margin: 0 auto; padding: 24px; }
+  h1 { color: var(--accent2); font-size: 1.6rem; margin-bottom: 4px; }
+  h1 small { color: var(--muted); font-size: 0.75rem; font-weight: 400; }
+  h2 { color: var(--accent); font-size: 1.05rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  h3 { color: var(--text); font-size: 0.95rem; margin: 12px 0 8px; }
+  .badge { font-size: 0.6rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .badge-post { background: var(--green); color: #000; }
+  .badge-get { background: var(--blue); color: #fff; }
+  .badge-del { background: var(--red); color: #fff; }
+  .badge-patch { background: var(--orange); color: #000; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .card.full { grid-column: 1 / -1; }
+
+  label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; margin-top: 8px; }
+  input, select, textarea { width: 100%; padding: 7px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.82rem; outline: none; }
+  input:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 50px; font-family: inherit; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600; transition: opacity .15s; }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-orange { background: var(--orange); color: #000; }
+  .btn-small { padding: 5px 12px; font-size: 0.72rem; }
+  .btn-group { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  .status-bar { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); }
+  .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .status-dot.ok { background: var(--green); }
+  .status-dot.err { background: var(--red); }
+  .status-text { font-size: 0.78rem; color: var(--muted); }
+
+  .log-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 10px; max-height: 350px; overflow-y: auto; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.72rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: var(--muted); }
+  .log-box .req { color: var(--accent); }
+  .log-box .ok { color: var(--green); }
+  .log-box .err { color: var(--red); }
+
+  .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 10px; }
+  .product-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .product-card h4 { font-size: 0.88rem; margin-bottom: 4px; }
+  .product-card .price { color: var(--accent2); font-weight: 600; font-size: 0.95rem; }
+  .product-card .meta { font-size: 0.72rem; color: var(--muted); margin: 4px 0; }
+  .product-card select { margin-top: 6px; }
+
+  .addr-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 8px; cursor: pointer; transition: border-color .15s; }
+  .addr-card:hover, .addr-card.selected { border-color: var(--accent); }
+  .addr-card.selected { background: rgba(201,169,110,0.08); }
+  .addr-card .label { font-weight: 600; font-size: 0.85rem; }
+  .addr-card .detail { font-size: 0.75rem; color: var(--muted); margin-top: 3px; }
+  .addr-card .default-tag { font-size: 0.6rem; background: var(--accent); color: #000; padding: 1px 6px; border-radius: 3px; font-weight: 600; margin-left: 8px; }
+
+  .vendor-group { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-top: 10px; }
+  .vendor-group h4 { color: var(--accent); font-size: 0.9rem; margin-bottom: 8px; }
+  .vendor-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; }
+  .vendor-item:last-child { border-bottom: none; }
+  .vendor-item img { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; background: var(--card); }
+  .vendor-item .info { flex: 1; }
+  .vendor-item .info .name { font-size: 0.82rem; font-weight: 500; }
+  .vendor-item .info .variant { font-size: 0.7rem; color: var(--muted); }
+  .vendor-item .price-col { text-align: right; font-size: 0.82rem; font-weight: 600; color: var(--accent2); }
+  .shipping-select { margin-top: 10px; padding: 10px; background: var(--card); border-radius: 6px; }
+  .shipping-select label { color: var(--text); font-size: 0.8rem; font-weight: 500; }
+
+  .summary-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.82rem; }
+  .summary-row.total { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 10px; font-weight: 700; font-size: 0.95rem; color: var(--accent2); }
+
+  .tab-bar { display: flex; gap: 0; margin-top: 16px; border-bottom: 2px solid var(--border); }
+  .tab { padding: 10px 20px; cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .step-indicator { display: flex; gap: 0; margin: 16px 0; }
+  .step { flex: 1; text-align: center; padding: 10px; font-size: 0.75rem; font-weight: 600; color: var(--muted); background: var(--card); border: 1px solid var(--border); }
+  .step:first-child { border-radius: 8px 0 0 8px; }
+  .step:last-child { border-radius: 0 8px 8px 0; }
+  .step.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .step.done { background: rgba(34,197,94,0.15); color: var(--green); border-color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🕌 Checkout Flow Test <small>— Local Manual API Tester v2</small></h1>
+
+  <!-- ========== STEP INDICATOR ========== -->
+  <div class="step-indicator">
+    <div class="step active" id="step1">① Login</div>
+    <div class="step" id="step2">② Browse & Add to Cart</div>
+    <div class="step" id="step3">③ Preview Checkout</div>
+    <div class="step" id="step4">④ Place Order</div>
+  </div>
+
+  <div class="grid">
+
+    <!-- ==================== LOGIN ==================== -->
+    <div class="card" id="loginCard">
+      <h2><span class="badge badge-post">POST</span> Customer Login</h2>
+      <label>Base URL</label>
+      <input id="baseUrl" value="http://localhost/api/v1">
+      <div class="row">
+        <div><label>Email</label><input id="loginEmail" value="customer@dev.local"></div>
+        <div><label>Password</label><input id="loginPass" type="password" value="Password123!"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="doLogin()">🔑 Login</button>
+      </div>
+      <div class="status-bar">
+        <div class="status-dot" id="loginDot"></div>
+        <span class="status-text" id="loginStatus">Belum login</span>
+      </div>
+    </div>
+
+    <!-- ==================== VENDOR LOGIN ==================== -->
+    <div class="card" id="vendorLoginCard">
+      <h2><span class="badge badge-post">POST</span> Vendor Login (UMKM)</h2>
+      <label>Base URL</label>
+      <input id="vendorBaseUrl" value="http://localhost/api/v1">
+      <div class="row">
+        <div><label>Email</label><input id="vendorLoginEmail" value="vendor2@seed.local"></div>
+        <div><label>Password</label><input id="vendorLoginPass" type="password" value="Password123!"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="doVendorLogin()">🔑 Login Vendor</button>
+      </div>
+      <div class="status-bar">
+        <div class="status-dot" id="vendorLoginDot"></div>
+        <span class="status-text" id="vendorLoginStatus">Belum login</span>
+      </div>
+    </div>
+
+    <!-- ==================== LOG ==================== -->
+    <div class="card">
+      <h2>📋 API Log</h2>
+      <div class="btn-group" style="margin-top:0">
+        <button class="btn-small btn-danger" onclick="clearLog()">Clear</button>
+        <button class="btn-small btn-blue" onclick="$('logBox').scrollTop=$('logBox').scrollHeight">↓ Bottom</button>
+      </div>
+      <div class="log-box" id="logBox">Belum ada request...\n</div>
+    </div>
+
+
+
+    <!-- ==================== PRODUCTS ==================== -->
+    <div class="card full" id="productsCard">
+      <h2><span class="badge badge-get">GET</span> Browse Products & Add to Cart</h2>
+      <div class="btn-group" style="margin-top:0">
+        <button class="btn-blue" onclick="loadProducts()">🔄 Muat Produk</button>
+        <button class="btn-orange btn-small" onclick="loadCart()">🛒 Lihat Cart</button>
+        <button class="btn-danger btn-small" onclick="clearCart()">🗑️ Kosongkan Cart</button>
+      </div>
+      <div class="product-grid" id="productGrid">
+        <p style="color:var(--muted);font-size:0.8rem;grid-column:1/-1;">Klik "Muat Produk" untuk menampilkan daftar produk.</p>
+      </div>
+      <div id="cartPreview" style="margin-top:14px;display:none;">
+        <h3>🛒 Cart Saat Ini</h3>
+        <div id="cartItems"></div>
+      </div>
+    </div>
+
+    <!-- ==================== ADDRESS ==================== -->
+    <div class="card full" id="addressCard" style="display:none;">
+      <h2><span class="badge badge-get">GET</span> Pilih Alamat Pengiriman</h2>
+      <div class="btn-group" style="margin-top:0">
+        <button class="btn-blue" onclick="loadAddresses()">🔄 Muat Alamat</button>
+        <button class="btn-green btn-small" onclick="toggleNewAddress()">➕ Tambah Alamat Baru</button>
+      </div>
+      <div id="addressList"></div>
+
+      <!-- New address form (hidden by default) -->
+      <div id="newAddressForm" style="display:none;margin-top:14px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
+        <h3>Tambah Alamat Baru</h3>
+        <!-- Location lookup -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
+          <div><label>Provinsi</label><select id="selProvince" onchange="onProvinceChange()"><option value="">—</option></select></div>
+          <div><label>Kota</label><select id="selCity" onchange="onCityChange()"><option value="">—</option></select></div>
+          <div><label>Kecamatan</label><select id="selDistrict" onchange="onDistrictChange()"><option value="">—</option></select></div>
+          <div><label>Kelurahan</label><select id="selSubdistrict"><option value="">—</option></select></div>
+        </div>
+        <button class="btn-blue btn-small" onclick="loadProvinces()" style="margin-top:8px;">🔄 Muat Provinsi</button>
+        <div class="row" style="margin-top:4px;">
+          <div><label>Label</label><input id="addrLabel" placeholder="Rumah"></div>
+          <div><label>Nama Penerima</label><input id="addrName" placeholder="Nama lengkap"></div>
+        </div>
+        <div class="row">
+          <div><label>No HP</label><input id="addrPhone" placeholder="081234567890"></div>
+          <div><label>Kode Pos</label><input id="addrPostal" placeholder="12160"></div>
+        </div>
+        <label>Alamat Lengkap *</label>
+        <textarea id="addrLine" placeholder="Jl. ..., RT/RW, Kelurahan"></textarea>
+        <label>Catatan</label>
+        <input id="addrNotes" placeholder="Patokan, warna rumah, dll">
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+          <input type="checkbox" id="addrDefault" checked style="width:auto;">
+          <label for="addrDefault" style="margin:0">Jadikan default</label>
+        </div>
+        <div class="btn-group">
+          <button class="btn-primary" onclick="createAddress()">💾 Simpan Alamat</button>
+          <button class="btn-danger btn-small" onclick="toggleNewAddress()">Batal</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CHECKOUT PREVIEW ==================== -->
+    <div class="card full" id="previewCard" style="display:none;">
+      <h2><span class="badge badge-post">POST</span> Checkout Preview — Pilih Kurir</h2>
+      <div id="previewContent">
+        <p style="color:var(--muted);font-size:0.8rem;">Pilih alamat terlebih dahulu, lalu klik Preview.</p>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" id="btnPreview" onclick="doPreview()">📦 Load Preview</button>
+      </div>
+    </div>
+
+    <!-- ==================== PLACE ORDER ==================== -->
+    <div class="card full" id="orderCard" style="display:none;">
+      <h2><span class="badge badge-post">POST</span> Place Order (Checkout)</h2>
+      <div id="orderSummary"></div>
+      <label>Catatan Order (opsional)</label>
+      <input id="orderNotes" placeholder="Catatan untuk semua vendor...">
+      <div class="btn-group">
+        <button class="btn-green" id="btnCheckout" onclick="doCheckout()" disabled>✅ Bayar & Buat Order</button>
+      </div>
+      <div id="orderResult" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- ==================== POST-CHECKOUT ACTIONS ==================== -->
+    <div class="card full" id="postCheckoutCard" style="display:none;">
+      <h2><span class="badge badge-post">POST</span> Post-Checkout Actions (Local)</h2>
+
+      <div class="row">
+        <div>
+          <label>Order ID</label>
+          <input id="orderIdInput" placeholder="auto-filled after checkout">
+        </div>
+        <div>
+          <label>Vendor ID (opsional)</label>
+          <input id="vendorIdInput" placeholder="auto-filled after checkout">
+        </div>
+      </div>
+
+      <h3>Simulasi Webhook PAID</h3>
+      <div class="row">
+        <div>
+          <label>External Invoice ID</label>
+          <input id="externalInvoiceId" placeholder="ambil dari DB: payment_invoices.external_invoice_id">
+        </div>
+        <div>
+          <label>Xendit Callback Token</label>
+          <input id="webhookToken" placeholder="XENDIT_WEBHOOK_VERIFICATION_TOKEN">
+        </div>
+      </div>
+      <div class="row3">
+        <div>
+          <label>Paid Amount</label>
+          <input id="paidAmount" value="206000">
+        </div>
+        <div>
+          <label>Payment Method</label>
+          <input id="paymentMethod" value="BANK_TRANSFER">
+        </div>
+        <div>
+          <label>Payment Channel</label>
+          <input id="paymentChannel" value="BCA">
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-orange" onclick="simulatePaidWebhook()">⚡ Simulate PAID Webhook</button>
+        <button class="btn-blue" onclick="loadOrders()">📦 List Orders</button>
+      </div>
+
+      <h3>Pesanan Diterima & Balance</h3>
+      <div class="btn-group">
+        <button class="btn-green" onclick="markReceived()">✅ Mark Received</button>
+        <button class="btn-blue" onclick="getVendorBalance()">💰 Get Vendor Balance</button>
+      </div>
+
+      <div class="status-bar" style="margin-top:10px;">
+        <div class="status-dot" id="postCheckoutDot"></div>
+        <span class="status-text" id="postCheckoutStatus">Belum ada aksi post-checkout</span>
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+</div>
+
+<script>
+// ===========================
+// STATE
+// ===========================
+let TOKEN = '';
+let BASE = '';
+let VENDOR_TOKEN = '';
+let VENDOR_BASE = '';
+let LAST_ORDER_ID = '';
+let LAST_VENDOR_ID = '';
+
+let selectedAddressId = '';
+let previewData = null;     // holds the preview response
+let shippingChoices = {};   // vendorId -> { courier_code, service, _displayCost }
+
+// ===========================
+// VENDOR ORIGIN LOOKUP (from seed data)
+// Maps vendor_id → origin city, district_id, owner email
+// ===========================
+const VENDOR_ORIGINS = {
+  'da000001-0000-0000-0000-000000000001': {
+    display_name: 'Ihram Jaya',
+    owner_email:  'umkm@dev.local',
+    city:         'Jakarta Selatan',
+    district_id:  '2096',
+    district_name:'Kebayoran Baru',
+  },
+  'da000001-0000-0000-0000-000000000002': {
+    display_name: 'Oleh-Oleh Tanah Suci',
+    owner_email:  'umkm2@dev.local',
+    city:         'Surabaya',
+    district_id:  '3980',
+    district_name:'Gubeng',
+  },
+  'da000001-0000-0000-0000-000000000003': {
+    display_name: 'Barokah Store',
+    owner_email:  'umkm3@dev.local',
+    city:         'Bandung',
+    district_id:  '832',
+    district_name:'Coblong',
+  },
+};
+
+// ===========================
+// HELPERS
+// ===========================
+const $ = id => document.getElementById(id);
+const esc = s => s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+const fmt = n => new Intl.NumberFormat('id-ID').format(n);
+const clearLog = () => { $('logBox').innerHTML = ''; };
+const json = o => JSON.stringify(o, null, 2);
+
+function log(type, text) {
+  const box = $('logBox');
+  const cls = type === 'req' ? 'req' : type === 'ok' ? 'ok' : 'err';
+  const time = new Date().toLocaleTimeString();
+  box.innerHTML += `<span class="${cls}">[${time}] ${esc(text)}</span>\n`;
+  box.scrollTop = box.scrollHeight;
+}
+
+async function apiWithToken(baseUrl, token, method, path, body, extraHeaders) {
+  const url = baseUrl + path;
+  log('req', `${method} ${path}`);
+  const h = { 'Content-Type': 'application/json' };
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  if (extraHeaders) Object.assign(h, extraHeaders);
+  const opts = { method, headers: h };
+  if (body) { opts.body = JSON.stringify(body); log('req', `Body: ${json(body)}`); }
+  try {
+    const res = await fetch(url, opts);
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch {
+      log('err', `${res.status} — Not JSON: ${text.substring(0, 500)}`);
+      return { status: res.status, data: null };
+    }
+    if (data.success) log('ok', `${res.status} — ${json(data)}`);
+    else log('err', `${res.status} — ${json(data)}`);
+    return { status: res.status, data };
+  } catch (e) {
+    log('err', `Fetch error: ${e.message}`);
+    return { status: 0, data: null };
+  }
+}
+
+async function api(method, path, body) {
+  return apiWithToken(BASE, TOKEN, method, path, body);
+}
+
+async function apiVendor(method, path, body) {
+  const base = VENDOR_BASE || BASE;
+  return apiWithToken(base, VENDOR_TOKEN, method, path, body);
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    const el = $('step' + i);
+    el.className = i < n ? 'step done' : i === n ? 'step active' : 'step';
+  }
+}
+
+// ===========================
+// 1. LOGIN
+// ===========================
+async function doLogin() {
+  BASE = $('baseUrl').value.replace(/\/+$/, '');
+  const email = $('loginEmail').value.trim();
+  const pass = $('loginPass').value.trim();
+  if (!email || !pass) return alert('Email & password wajib diisi');
+
+  const { data } = await api('POST', '/users/login', { email, password: pass });
+  if (data?.success) {
+    TOKEN = data.data.token;
+    $('loginDot').className = 'status-dot ok';
+    $('loginStatus').textContent = `✅ Login: ${data.data.full_name || email}`;
+    setStep(2);
+    loadProducts();
+    loadAddresses();
+    $('addressCard').style.display = '';
+  } else {
+    $('loginDot').className = 'status-dot err';
+    $('loginStatus').textContent = `❌ ${data?.message || 'Login gagal'}`;
+  }
+}
+
+// ===========================
+// 1b. VENDOR LOGIN
+// ===========================
+async function doVendorLogin() {
+  VENDOR_BASE = $('vendorBaseUrl').value.replace(/\/+$/, '');
+  const email = $('vendorLoginEmail').value.trim();
+  const pass = $('vendorLoginPass').value.trim();
+  if (!email || !pass) return alert('Email & password wajib diisi');
+
+  const { data } = await apiWithToken(VENDOR_BASE, '', 'POST', '/vendors/login', { email, password: pass });
+  if (data?.success) {
+    VENDOR_TOKEN = data.data.token;
+    $('vendorLoginDot').className = 'status-dot ok';
+    $('vendorLoginStatus').textContent = `✅ Login: ${data.data.display_name || email}`;
+  } else {
+    $('vendorLoginDot').className = 'status-dot err';
+    $('vendorLoginStatus').textContent = `❌ ${data?.message || 'Login gagal'}`;
+  }
+}
+
+// ===========================
+// 2. PRODUCTS
+// ===========================
+async function loadProducts() {
+  if (!TOKEN) return alert('Login dulu!');
+  const { data } = await api('GET', '/products');
+  if (!data?.data) return;
+  const products = data.data;
+  const grid = $('productGrid');
+
+  if (products.length === 0) {
+    grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;">Tidak ada produk tersedia.</p>';
+    return;
+  }
+
+  // For each product, fetch details to get variants and vendor info
+  grid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;">Memuat detail produk...</p>';
+  const cards = [];
+  for (const p of products) {
+    const { data: detail } = await api('GET', `/products/${p.id}`);
+    if (!detail?.data) continue;
+    const prod = detail.data;
+    const variants = prod.variants || [];
+    const vendorOrigin = VENDOR_ORIGINS[prod.vendor?.id] || null;
+    cards.push(`
+      <div class="product-card">
+        <h4>${esc(prod.name)}</h4>
+        <div style="display:flex;align-items:center;gap:6px;margin:4px 0;">
+          <span style="font-size:0.72rem;background:var(--accent);color:#000;padding:1px 8px;border-radius:3px;font-weight:600;">🏪 ${esc(prod.vendor?.display_name || '-')}</span>
+        </div>
+        ${vendorOrigin ? `<div class="meta" style="color:var(--blue);">📍 Origin: ${esc(vendorOrigin.city)} (district: ${vendorOrigin.district_id}) — <span style="color:var(--muted);">${esc(vendorOrigin.owner_email)}</span></div>` : ''}
+        <div class="price">Rp ${fmt(prod.price || variants[0]?.price || 0)}</div>
+        <div class="meta">Stok: ${variants.map(v => v.variant_name + ': ' + v.stock_on_hand).join(', ')}</div>
+        <div class="meta">Berat: ${variants.map(v => v.variant_name + ': ' + (v.weight_gram || 500) + 'g').join(', ')}</div>
+        <label>Pilih Varian</label>
+        <select id="var_${prod.id}">
+          ${variants.map(v => `<option value="${v.id}" data-price="${v.price}">${v.variant_name} — Rp ${fmt(v.price)}</option>`).join('')}
+        </select>
+        <div class="row" style="margin-top:6px;align-items:end;">
+          <div><label>Qty</label><input type="number" id="qty_${prod.id}" value="1" min="1" max="10" style="width:70px;"></div>
+          <div><button class="btn-primary btn-small" onclick="addToCart('${prod.id}')">🛒 Add to Cart</button></div>
+        </div>
+      </div>
+    `);
+  }
+  grid.innerHTML = cards.join('');
+}
+
+async function addToCart(productId) {
+  const variantId = $('var_' + productId)?.value;
+  const qty = parseInt($('qty_' + productId)?.value || '1');
+  if (!variantId) return alert('Pilih varian!');
+  const { data } = await api('POST', '/users/cart/items', { product_variant_id: variantId, qty });
+  if (data?.success) {
+    alert('✅ Ditambahkan ke cart!');
+    loadCart();
+  }
+}
+
+async function loadCart() {
+  if (!TOKEN) return;
+  const { data } = await api('GET', '/users/cart');
+  if (!data?.data) {
+    $('cartPreview').style.display = 'none';
+    return;
+  }
+  const cart = data.data;
+  const items = cart.items || [];
+  if (items.length === 0) {
+    $('cartPreview').style.display = 'none';
+    return;
+  }
+  $('cartPreview').style.display = '';
+  $('cartItems').innerHTML = items.map(i => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;">
+      <div>
+        <span style="font-size:0.82rem;">${esc(i.product_name)} — ${esc(i.variant_name)}</span>
+        <span style="font-size:0.72rem;color:var(--muted);margin-left:8px;">x${i.qty}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="color:var(--accent2);font-weight:600;font-size:0.82rem;">Rp ${fmt(i.subtotal)}</span>
+        <button class="btn-danger btn-small" onclick="removeCartItem('${i.id}')">✕</button>
+      </div>
+    </div>
+  `).join('');
+  setStep(3);
+  $('previewCard').style.display = '';
+}
+
+async function removeCartItem(itemId) {
+  await api('DELETE', `/users/cart/items/${itemId}`);
+  loadCart();
+}
+
+async function clearCart() {
+  if (!confirm('Kosongkan cart?')) return;
+  await api('DELETE', '/users/cart');
+  $('cartPreview').style.display = 'none';
+  $('cartItems').innerHTML = '';
+}
+
+// ===========================
+// 3. ADDRESSES
+// ===========================
+async function loadAddresses() {
+  if (!TOKEN) return;
+  const { data } = await api('GET', '/addresses');
+  if (!data?.data) return;
+  const addrs = data.data;
+  const list = $('addressList');
+  if (addrs.length === 0) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:0.8rem;margin-top:10px;">Belum ada alamat. Tambahkan alamat baru.</p>';
+    return;
+  }
+
+  // Auto-select default address
+  if (!selectedAddressId) {
+    const def = addrs.find(a => a.is_default);
+    if (def) selectedAddressId = def.id;
+  }
+
+  list.innerHTML = addrs.map(a => `
+    <div class="addr-card ${a.id === selectedAddressId ? 'selected' : ''}" onclick="selectAddress('${a.id}')">
+      <span class="label">${esc(a.label || 'Alamat')}</span>
+      ${a.is_default ? '<span class="default-tag">DEFAULT</span>' : ''}
+      <div class="detail">${esc(a.recipient_name)} — ${esc(a.phone)}</div>
+      <div class="detail">${esc(a.address_line)}</div>
+      <div class="detail">${[a.district_name, a.city_name, a.province_name, a.postal_code].filter(Boolean).join(', ')}</div>
+      <div class="detail" style="color:${a.district_id ? 'var(--green)' : 'var(--red)'}">District ID: ${a.district_id || '⚠️ BELUM DISET'}</div>
+    </div>
+  `).join('');
+}
+
+function selectAddress(id) {
+  selectedAddressId = id;
+  document.querySelectorAll('.addr-card').forEach(el => el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+function toggleNewAddress() {
+  const form = $('newAddressForm');
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+  if (form.style.display !== 'none') loadProvinces();
+}
+
+// Location lookup
+async function loadProvinces() {
+  const { data } = await api('GET', '/shipping/provinces');
+  const sel = $('selProvince');
+  sel.innerHTML = '<option value="">— Pilih —</option>';
+  if (data?.data) data.data.forEach(p => {
+    sel.innerHTML += `<option value="${p.id}" data-name="${esc(p.name)}">${p.name}</option>`;
+  });
+}
+
+async function onProvinceChange() {
+  const pid = $('selProvince').value;
+  $('selCity').innerHTML = '<option value="">—</option>';
+  $('selDistrict').innerHTML = '<option value="">—</option>';
+  $('selSubdistrict').innerHTML = '<option value="">—</option>';
+  if (!pid) return;
+  const { data } = await api('GET', `/shipping/cities?province_id=${pid}`);
+  if (data?.data) {
+    $('selCity').innerHTML = '<option value="">— Pilih —</option>';
+    data.data.forEach(c => {
+      $('selCity').innerHTML += `<option value="${c.id}" data-name="${esc(c.type + ' ' + c.name)}" data-postal="${c.postal_code || ''}">${c.type} ${c.name}</option>`;
+    });
+  }
+}
+
+async function onCityChange() {
+  const cid = $('selCity').value;
+  $('selDistrict').innerHTML = '<option value="">—</option>';
+  $('selSubdistrict').innerHTML = '<option value="">—</option>';
+  if (!cid) return;
+  const { data } = await api('GET', `/shipping/districts?city_id=${cid}`);
+  if (data?.data) {
+    $('selDistrict').innerHTML = '<option value="">— Pilih —</option>';
+    data.data.forEach(d => {
+      $('selDistrict').innerHTML += `<option value="${d.id}" data-name="${esc(d.name)}">${d.name}</option>`;
+    });
+  }
+}
+
+async function onDistrictChange() {
+  const did = $('selDistrict').value;
+  $('selSubdistrict').innerHTML = '<option value="">—</option>';
+  if (!did) return;
+  const { data } = await api('GET', `/shipping/subdistricts?district_id=${did}`);
+  if (data?.data) {
+    $('selSubdistrict').innerHTML = '<option value="">— Pilih —</option>';
+    data.data.forEach(s => {
+      $('selSubdistrict').innerHTML += `<option value="${s.id}" data-name="${esc(s.name)}">${s.name}</option>`;
+    });
+  }
+}
+
+async function createAddress() {
+  const prov = $('selProvince');
+  const city = $('selCity');
+  const dist = $('selDistrict');
+  const subdist = $('selSubdistrict');
+
+  const body = {
+    address_line: $('addrLine').value,
+    is_default: $('addrDefault').checked,
+  };
+  if ($('addrLabel').value) body.label = $('addrLabel').value;
+  if ($('addrName').value) body.recipient_name = $('addrName').value;
+  if ($('addrPhone').value) body.phone = $('addrPhone').value;
+  if ($('addrPostal').value) body.postal_code = $('addrPostal').value;
+  if ($('addrNotes').value) body.notes = $('addrNotes').value;
+  if (prov.value) {
+    body.province_id = prov.value;
+    body.province_name = prov.options[prov.selectedIndex]?.dataset?.name || '';
+  }
+  if (city.value) {
+    body.city_id = city.value;
+    body.city_name = city.options[city.selectedIndex]?.dataset?.name || '';
+  }
+  if (dist.value) {
+    body.district_id = dist.value;
+    body.district_name = dist.options[dist.selectedIndex]?.dataset?.name || '';
+  }
+  if (subdist.value) {
+    body.subdistrict_id = subdist.value;
+    body.subdistrict_name = subdist.options[subdist.selectedIndex]?.dataset?.name || '';
+  }
+
+  const { data } = await api('POST', '/addresses', body);
+  if (data?.success) {
+    alert('✅ Alamat berhasil disimpan!');
+    $('newAddressForm').style.display = 'none';
+    selectedAddressId = data.data.id;
+    loadAddresses();
+  }
+}
+
+// ===========================
+// 4. CHECKOUT PREVIEW
+// ===========================
+async function doPreview() {
+  if (!TOKEN) return alert('Login dulu!');
+  if (!selectedAddressId) return alert('Pilih alamat pengiriman dulu!');
+
+  const { data } = await api('POST', '/users/checkout/preview', { address_id: selectedAddressId });
+  if (!data?.success) return;
+  previewData = data.data;
+  shippingChoices = {};
+
+  const preview = $('previewContent');
+  const vendors = previewData.vendors || [];
+  if (vendors.length === 0) {
+    preview.innerHTML = '<p style="color:var(--red);">Cart kosong! Tambahkan produk dulu.</p>';
+    return;
+  }
+
+  // Render address info
+  const addr = previewData.address;
+  let html = `
+    <div style="padding:10px;background:var(--bg);border-radius:6px;border:1px solid var(--border);margin-bottom:12px;">
+      <div style="font-size:0.82rem;font-weight:600;">📍 ${esc(addr.label || 'Alamat')} — ${esc(addr.recipient_name)}</div>
+      <div style="font-size:0.75rem;color:var(--muted);">${esc(addr.address_line)}, ${esc(addr.district_name)}, ${esc(addr.city_name)}, ${esc(addr.province_name)} ${esc(addr.postal_code)}</div>
+    </div>
+  `;
+
+  // Render vendor groups
+  for (const vg of vendors) {
+    html += `<div class="vendor-group">
+      <h4>🏪 ${esc(vg.vendor_name)}</h4>`;
+
+    for (const item of vg.items) {
+      html += `
+        <div class="vendor-item">
+          <img src="${item.image_url || ''}" onerror="this.style.display='none'">
+          <div class="info">
+            <div class="name">${esc(item.product_name)}</div>
+            <div class="variant">${esc(item.variant_name)} — ${item.weight_gram}g × ${item.qty}</div>
+          </div>
+          <div class="price-col">Rp ${fmt(item.subtotal)}</div>
+        </div>`;
+    }
+
+    // Shipping options
+    const opts = vg.shipping_options || [];
+    html += `<div class="shipping-select">
+      <label>🚚 Pilih Kurir (Total berat: ${fmt(vg.total_weight_gram)}g)</label>
+      <select id="ship_${vg.vendor_id}" onchange="onShippingChange('${vg.vendor_id}', this)" style="margin-top:4px;">
+        <option value="">— Pilih Kurir —</option>`;
+    for (const opt of opts) {
+      html += `<option value='${JSON.stringify({code: opt.code, service: opt.service, cost: opt.cost})}'>
+        ${esc(opt.name)} ${esc(opt.service)} — Rp ${fmt(opt.cost)} (${esc(opt.etd)})
+      </option>`;
+    }
+    html += `</select></div>`;
+
+    html += `<div class="summary-row" style="margin-top:8px;"><span>Subtotal Produk</span><span>Rp ${fmt(vg.subtotal)}</span></div>`;
+    html += `</div>`;
+  }
+
+  // Platform fee
+  html += `<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:6px;border:1px solid var(--border);">
+    <div class="summary-row"><span>Platform Fee (per vendor)</span><span>Rp ${fmt(previewData.platform_fee)}</span></div>
+  </div>`;
+
+  preview.innerHTML = html;
+  setStep(3);
+  $('orderCard').style.display = '';
+  updateOrderSummary();
+}
+
+function onShippingChange(vendorId, sel) {
+  if (!sel.value) {
+    delete shippingChoices[vendorId];
+  } else {
+    const parsed = JSON.parse(sel.value);
+    shippingChoices[vendorId] = {
+      vendor_id: vendorId,
+      courier_code: parsed.code,
+      service: parsed.service,
+      _displayCost: parsed.cost, // kept for local display only; NOT sent to API
+    };
+  }
+  updateOrderSummary();
+}
+
+function updateOrderSummary() {
+  if (!previewData) return;
+
+  const vendors = previewData.vendors || [];
+  let totalSubtotal = 0;
+  let totalShipping = 0;
+  let totalPlatformFee = 0;
+  let allSelected = true;
+
+  let html = '<h3>📋 Ringkasan Order</h3>';
+
+  for (const vg of vendors) {
+    const sc = shippingChoices[vg.vendor_id];
+    const shipping = sc ? sc._displayCost : 0;
+    if (!sc) allSelected = false;
+    const vendorTotal = vg.subtotal + shipping + previewData.platform_fee;
+
+    html += `<div style="padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;">
+      <div style="font-weight:600;font-size:0.82rem;">🏪 ${esc(vg.vendor_name)}</div>
+      <div class="summary-row"><span>Produk</span><span>Rp ${fmt(vg.subtotal)}</span></div>
+      <div class="summary-row"><span>Ongkir</span><span style="color:${sc ? 'var(--green)' : 'var(--red)'};">${sc ? 'Rp ' + fmt(shipping) + ' (' + sc.courier_code.toUpperCase() + ' ' + sc.service + ')' : '⚠️ Belum dipilih'}</span></div>
+      <div class="summary-row"><span>Platform Fee</span><span>Rp ${fmt(previewData.platform_fee)}</span></div>
+      <div class="summary-row total"><span>Total</span><span>Rp ${fmt(vendorTotal)}</span></div>
+    </div>`;
+
+    totalSubtotal += vg.subtotal;
+    totalShipping += shipping;
+    totalPlatformFee += previewData.platform_fee;
+  }
+
+  const grandTotal = totalSubtotal + totalShipping + totalPlatformFee;
+  html += `<div style="margin-top:10px;padding:12px;background:var(--accent);color:#000;border-radius:8px;font-weight:700;font-size:1rem;text-align:center;">
+    Grand Total: Rp ${fmt(grandTotal)}
+  </div>`;
+
+  $('orderSummary').innerHTML = html;
+  $('btnCheckout').disabled = !allSelected;
+}
+
+// ===========================
+// 5. PLACE ORDER
+// ===========================
+async function doCheckout() {
+  if (!TOKEN) return alert('Login dulu!');
+  if (!selectedAddressId) return alert('Pilih alamat!');
+
+  const vendors = previewData?.vendors || [];
+  const choices = [];
+  for (const vg of vendors) {
+    const sc = shippingChoices[vg.vendor_id];
+    if (!sc) return alert(`Pilih kurir untuk vendor ${vg.vendor_name}!`);
+    // Only send vendor_id, courier_code, service — cost is calculated server-side
+    choices.push({ vendor_id: sc.vendor_id, courier_code: sc.courier_code, service: sc.service });
+  }
+
+  const body = {
+    address_id: selectedAddressId,
+    shipping_choices: choices,
+  };
+  const notes = $('orderNotes').value.trim();
+  if (notes) body.notes = notes;
+
+  $('btnCheckout').disabled = true;
+  $('btnCheckout').textContent = '⏳ Processing...';
+
+  const { data } = await api('POST', '/users/checkout', body);
+
+  $('btnCheckout').textContent = '✅ Bayar & Buat Order';
+
+  if (!data?.success) {
+    $('btnCheckout').disabled = false;
+    return;
+  }
+
+  setStep(4);
+  const orders = data.data.orders || [];
+  let html = '<h3 style="color:var(--green);">✅ Order Berhasil Dibuat!</h3>';
+  if (orders[0]) {
+    LAST_ORDER_ID = orders[0].order_id || '';
+    LAST_VENDOR_ID = orders[0].vendor_id || '';
+    $('orderIdInput').value = LAST_ORDER_ID;
+    $('vendorIdInput').value = LAST_VENDOR_ID;
+    $('postCheckoutCard').style.display = '';
+  }
+  for (const o of orders) {
+    html += `
+      <div style="padding:12px;background:var(--bg);border:1px solid var(--green);border-radius:8px;margin-top:8px;">
+        <div style="font-weight:700;font-size:0.9rem;">Order: ${esc(o.order_no)}</div>
+        <div style="font-size:0.78rem;color:var(--muted);">Vendor: ${esc(o.vendor_name)} | ID: ${o.order_id}</div>
+        <div class="summary-row"><span>Subtotal</span><span>Rp ${fmt(o.subtotal)}</span></div>
+        <div class="summary-row"><span>Ongkir</span><span>Rp ${fmt(o.shipping_fee)}</span></div>
+        <div class="summary-row"><span>Platform Fee</span><span>Rp ${fmt(o.platform_fee)}</span></div>
+        <div class="summary-row total"><span>Grand Total</span><span>Rp ${fmt(o.grand_total)}</span></div>
+        ${o.invoice_url ? `<a href="${esc(o.invoice_url)}" target="_blank" style="display:inline-block;margin-top:8px;padding:8px 16px;background:var(--blue);color:#fff;border-radius:6px;text-decoration:none;font-size:0.82rem;font-weight:600;">💳 Bayar via Xendit</a>` : ''}
+        ${o.expires_at ? `<div style="font-size:0.7rem;color:var(--orange);margin-top:4px;">⏰ Expired: ${new Date(o.expires_at).toLocaleString('id-ID')}</div>` : ''}
+      </div>`;
+  }
+  $('orderResult').innerHTML = html;
+
+  // Refresh cart
+  $('cartPreview').style.display = 'none';
+  $('cartItems').innerHTML = '';
+}
+
+// ===========================
+// 6. POST-CHECKOUT ACTIONS
+// ===========================
+async function simulatePaidWebhook() {
+  const ext = $('externalInvoiceId').value.trim();
+  const token = $('webhookToken').value.trim();
+  const amount = Number($('paidAmount').value || 0);
+  const method = $('paymentMethod').value.trim() || 'BANK_TRANSFER';
+  const channel = $('paymentChannel').value.trim() || 'BCA';
+  if (!ext || !token) return alert('External Invoice ID dan Callback Token wajib diisi');
+
+  const payload = {
+    id: 'xinv_manual_' + Date.now(),
+    external_id: ext,
+    status: 'PAID',
+    amount: amount,
+    paid_amount: amount,
+    paid_at: new Date().toISOString(),
+    payment_method: method,
+    payment_channel: channel,
+    currency: 'IDR',
+    metadata: {},
+  };
+
+  const { data, status } = await apiWithToken(BASE, '', 'POST', '/webhooks/xendit/invoice', payload, {
+    'x-callback-token': token,
+  });
+
+  if (data?.success || status === 200) {
+    $('postCheckoutDot').className = 'status-dot ok';
+    $('postCheckoutStatus').textContent = '✅ Webhook PAID terkirim';
+  } else {
+    $('postCheckoutDot').className = 'status-dot err';
+    $('postCheckoutStatus').textContent = `❌ Webhook gagal (${status})`;
+  }
+}
+
+async function loadOrders() {
+  if (!TOKEN) return alert('Login customer dulu!');
+  const { data } = await api('GET', '/users/orders');
+  if (!data?.success) return;
+  $('postCheckoutDot').className = 'status-dot ok';
+  $('postCheckoutStatus').textContent = '✅ Orders loaded (cek log)';
+}
+
+async function markReceived() {
+  if (!TOKEN) return alert('Login customer dulu!');
+  const orderId = $('orderIdInput').value.trim();
+  if (!orderId) return alert('Order ID wajib diisi');
+  const { data } = await api('POST', `/users/orders/${orderId}/complete`);
+  if (data?.success) {
+    $('postCheckoutDot').className = 'status-dot ok';
+    $('postCheckoutStatus').textContent = '✅ Order marked as received';
+  } else {
+    $('postCheckoutDot').className = 'status-dot err';
+    $('postCheckoutStatus').textContent = `❌ Gagal mark received`;
+  }
+}
+
+async function getVendorBalance() {
+  if (!VENDOR_TOKEN) return alert('Login vendor dulu!');
+  const { data } = await apiVendor('GET', '/vendors/balance');
+  if (data?.success) {
+    $('postCheckoutDot').className = 'status-dot ok';
+    $('postCheckoutStatus').textContent = '✅ Vendor balance loaded (cek log)';
+  } else {
+    $('postCheckoutDot').className = 'status-dot err';
+    $('postCheckoutStatus').textContent = '❌ Gagal ambil saldo';
+  }
+}
+</script>
+</body>
+</html>

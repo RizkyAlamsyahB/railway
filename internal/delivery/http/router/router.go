@@ -17,6 +17,7 @@ func NewRouter(
 	vendorHandler *handler.VendorHandler,
 	productHandler *handler.ProductHandler,
 	catalogHandler *handler.CatalogHandler,
+	otpHandler *handler.OTPHandler,
 	userHandler *handler.UserHandler,
 	cartHandler *handler.CartHandler,
 	wishlistHandler *handler.WishlistHandler,
@@ -44,6 +45,7 @@ func NewRouter(
 	addressHandler *handler.AddressHandler,
 	shippingHandler *handler.ShippingHandler,
 	vendorCourierHandler *handler.VendorCourierHandler,
+	vendorOrderHandler *handler.VendorOrderHandler,
 	wsHandler *ws.Handler,
 	jwtSecret string,
 ) *gin.Engine {
@@ -88,6 +90,13 @@ func NewRouter(
 	{
 		faqGroup.GET("", faqHandler.ListFAQs)
 		faqGroup.GET("/categories", faqHandler.ListCategories)
+	}
+
+	// User routes (public registration + email verification + login)
+	otpGroup := v1.Group("/otp")
+	{
+		otpGroup.POST("/request", otpHandler.RequestOTP)
+		otpGroup.POST("/verify", otpHandler.VerifyOTP)
 	}
 
 	// User routes (public registration + email verification + login)
@@ -150,8 +159,18 @@ func NewRouter(
 	// Vendor routes (public registration + login)
 	vendorGroup := v1.Group("/vendors")
 	{
-		vendorGroup.POST("/register", vendorHandler.Register)
+		vendorGroup.POST("/register/request-otp", vendorHandler.RequestRegistrationOTP)
+		vendorGroup.POST("/register/verify-otp", vendorHandler.VerifyRegistrationOTP)
 		vendorGroup.POST("/login", vendorHandler.Login)
+	}
+
+	vendorOnboarding := v1.Group("/vendors/register")
+	vendorOnboarding.Use(middleware.AuthVendorOnboarding(jwtSecret))
+	{
+		vendorOnboarding.POST("/password", vendorHandler.SetRegistrationPassword)
+		vendorOnboarding.POST("/store", vendorHandler.SaveRegistrationStore)
+		vendorOnboarding.POST("/legal-document/presign", vendorHandler.PresignRegistrationLegalDocument)
+		vendorOnboarding.POST("/legal-document/submit", vendorHandler.SubmitRegistrationLegal)
 	}
 
 	// Vendor authenticated routes (requires auth + umkm role)
@@ -184,6 +203,14 @@ func NewRouter(
 		vendorAuth.PUT("/couriers", vendorCourierHandler.SetVendorCouriers)
 		vendorAuth.DELETE("/couriers/:courierId", vendorCourierHandler.RemoveVendorCourier)
 		vendorAuth.DELETE("/banners/:id", vendorBannerHandler.DeleteBanner)
+
+		// Vendor Order management
+		vendorAuth.GET("/orders", vendorOrderHandler.ListOrders)
+		vendorAuth.GET("/orders/:orderId", vendorOrderHandler.GetOrderDetail)
+		vendorAuth.POST("/orders/:orderId/accept", vendorOrderHandler.AcceptOrder)
+		vendorAuth.POST("/orders/:orderId/reject", vendorOrderHandler.RejectOrder)
+		vendorAuth.POST("/orders/:orderId/ship", vendorOrderHandler.ShipOrder)
+		vendorAuth.GET("/orders/:orderId/tracking", vendorOrderHandler.TrackWaybill)
 	}
 
 	// Admin login route (public - no auth required)

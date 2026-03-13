@@ -1,8 +1,10 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/config"
@@ -28,6 +30,8 @@ type App struct {
 	Email       domain.EmailProvider
 	XenPlatform domain.XenPlatformProvider
 	Router      *gin.Engine
+	Scheduler   *usecase.OrderSettlementScheduler
+	IMAPWorker  *usecase.IMAPWorker // nil when IMAP is disabled
 }
 
 // Initialize loads config, connects to the database, wires all dependencies,
@@ -98,10 +102,24 @@ func Initialize() (*App, error) {
 	adminAuthUseCase := usecase.NewAdminAuthUseCase(userRepo, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	adminLoginHandler := handler.NewAdminLoginHandler(adminAuthUseCase)
 
+	otpRepo := repository.NewOTPRepository(db)
+	otpSigningSecret := cfg.OTP.Secret
+	if otpSigningSecret == "" {
+		otpSigningSecret = cfg.JWT.Secret
+	}
+	otpUseCase, err := usecase.NewOTPUseCase(otpRepo, emailProvider, cfg.OTP, otpSigningSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize otp usecase: %w", err)
+	}
+	otpHandler := handler.NewOTPHandler(otpUseCase)
+
 	vendorRepo := repository.NewVendorRepository(db)
+	vendorOnboardingRepo := repository.NewVendorOnboardingRepository(db)
 	vendorUseCase := usecase.NewVendorUseCase(
+		otpUseCase,
 		userRepo,
 		vendorRepo,
+		vendorOnboardingRepo,
 		storageProvider,
 		xenditPayoutProvider,
 		cfg.JWT.Secret,
@@ -219,7 +237,7 @@ func Initialize() (*App, error) {
 
 	orderRepo := repository.NewOrderRepository(db)
 	paymentRepo := repository.NewPaymentRepository(db)
-	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, subjectRepo, userRepo, orderRepo, paymentRepo, emailProvider, storageProvider)
+	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, subjectRepo, userRepo, orderRepo, paymentRepo, emailProvider, storageProvider, cfg.SMTP.FromEmail)
 	csReportUseCase := usecase.NewCSReportUseCase(ticketRepo)
 	ticketSubjectUseCase := usecase.NewTicketSubjectUseCase(subjectRepo)
 	chatUseCase := usecase.NewChatUseCase(chatRepo, userRepo, storageProvider)
@@ -241,15 +259,37 @@ func Initialize() (*App, error) {
 
 	// Checkout & payment feature
 	ledgerRepo := repository.NewLedgerRepository(db)
-	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, rajaOngkirProvider, storageProvider, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
+	shipmentRepo := repository.NewShipmentRepository(db)
+	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, shipmentRepo, rajaOngkirProvider, storageProvider, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
 	checkoutHandler := handler.NewCheckoutHandler(checkoutUseCase, cfg.Xendit.WebhookVerificationToken)
 	orderActionUseCase := usecase.NewOrderActionUseCase(orderRepo)
 	orderActionHandler := handler.NewOrderActionHandler(orderActionUseCase)
+	orderSettlementScheduler := usecase.NewOrderSettlementScheduler(orderRepo)
+
+	// Vendor Order management
+	vendorOrderRepo := repository.NewVendorOrderRepository(db)
+	vendorOrderUseCase := usecase.NewVendorOrderUseCase(vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, rajaOngkirProvider)
+	vendorOrderHandler := handler.NewVendorOrderHandler(vendorOrderUseCase)
 
 	reviewRepo := repository.NewReviewRepository(db)
 	reviewUseCase := usecase.NewReviewUseCase(reviewRepo, orderRepo, productRepo, storageProvider)
 	reviewHandler := handler.NewReviewHandler(reviewUseCase)
 	xenditWebhookHandler := handler.NewXenditWebhookHandler(vendorUseCase, cfg.Xendit.WebhookVerificationToken)
+
+	// IMAP inbox poller (optional, enabled via IMAP_ENABLED=true)
+	var imapWorker *usecase.IMAPWorker
+	if cfg.IMAP.Enabled {
+		imapReader, err := email.NewIMAPReader(cfg.IMAP)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize IMAP reader: %w", err)
+		}
+		pollInterval := time.Duration(cfg.IMAP.PollIntervalSec) * time.Second
+		imapWorker = usecase.NewIMAPWorker(imapReader, ticketRepo, userRepo, pollInterval)
+		go imapWorker.Start(context.Background())
+		log.Printf("IMAP inbox poller started (interval=%ds)", cfg.IMAP.PollIntervalSec)
+	} else {
+		log.Println("IMAP inbox poller disabled (IMAP_ENABLED=false)")
+	}
 
 	// Setup router
 	// r := router.NewRouter(healthHandler, adminUserHandler, adminVendorHandler, adminLoginHandler, vendorHandler, productHandler, catalogHandler, userHandler, cartHandler, checkoutHandler, cfg.JWT.Secret)
@@ -261,6 +301,7 @@ func Initialize() (*App, error) {
 		vendorHandler,
 		productHandler,
 		catalogHandler,
+		otpHandler,
 		userHandler,
 		cartHandler,
 		wishlistHandler,
@@ -288,6 +329,7 @@ func Initialize() (*App, error) {
 		addressHandler,
 		shippingHandler,
 		vendorCourierHandler,
+		vendorOrderHandler,
 		wsHandler,
 		cfg.JWT.Secret,
 	)
@@ -299,6 +341,8 @@ func Initialize() (*App, error) {
 		Email:       emailProvider,
 		XenPlatform: xenPlatformProvider,
 		Router:      r,
+		Scheduler:   orderSettlementScheduler,
+		IMAPWorker:  imapWorker,
 	}, nil
 }
 
@@ -343,6 +387,10 @@ func newRajaOngkirProvider(cfg config.RajaOngkirConfig) (domain.RajaOngkirProvid
 
 // Close cleans up application resources.
 func (a *App) Close() error {
+	if a.IMAPWorker != nil {
+		a.IMAPWorker.Stop()
+	}
+
 	sqlDB, err := a.DB.DB()
 	if err != nil {
 		return fmt.Errorf("failed to get underlying sql.DB: %w", err)

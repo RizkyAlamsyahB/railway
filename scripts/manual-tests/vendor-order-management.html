@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Haji &amp; Umrah Store — Kelola Order</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    :root {
+      --gold: #C5A46C;
+      --gold-light: #d4b88a;
+      --gold-dark: #a8894e;
+      --gold-bg: #f9f3ea;
+      --sidebar-bg: #1a1a1a;
+      --sidebar-text: #ccc;
+      --sidebar-active: #C5A46C;
+      --bg: #f5f5f5;
+      --card: #fff;
+      --border: #e5e5e5;
+      --text: #333;
+      --text-muted: #888;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: 240px; background: var(--sidebar-bg); color: var(--sidebar-text);
+      display: flex; flex-direction: column; position: fixed; top: 0; left: 0;
+      height: 100vh; z-index: 100; transition: transform .3s;
+    }
+    .sidebar-brand {
+      padding: 20px 18px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid #333; font-weight: 700; color: #fff; font-size: .95rem;
+    }
+    .sidebar-brand .icon { width: 32px; height: 32px; background: var(--gold); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .sidebar nav { flex: 1; padding: 12px 0; display: flex; flex-direction: column; }
+    .sidebar nav a {
+      display: flex; align-items: center; gap: 12px; padding: 11px 20px;
+      color: var(--sidebar-text); text-decoration: none; font-size: .85rem;
+      transition: all .15s; border-left: 3px solid transparent;
+    }
+    .sidebar nav a:hover { background: #2a2a2a; color: #fff; }
+    .sidebar nav a.active { background: #2a2a2a; color: var(--sidebar-active); border-left-color: var(--sidebar-active); font-weight: 600; }
+    .sidebar nav a .nav-icon { width: 20px; text-align: center; font-size: .95rem; }
+    .sidebar nav .spacer { flex: 1; }
+
+    /* ===== MAIN ===== */
+    .main { flex: 1; margin-left: 240px; padding: 0; min-height: 100vh; display: flex; flex-direction: column; }
+    .topbar {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 14px 28px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar h1 { font-size: 1.1rem; font-weight: 700; }
+    .content { padding: 24px 28px; flex: 1; }
+    .footer { text-align: center; padding: 16px; font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border); background: var(--card); }
+
+    /* ===== LOGIN PANEL ===== */
+    .login-panel {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 22px; margin-bottom: 20px;
+    }
+    .login-panel h3 { font-size: .82rem; font-weight: 600; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+    .config-row { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+    .config-row label { min-width: 80px; font-size: .82rem; color: var(--text-muted); font-weight: 500; }
+    .config-row input {
+      flex: 1; min-width: 160px; padding: 8px 12px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: .82rem; font-family: inherit; outline: none;
+    }
+    .config-row input:focus { border-color: var(--gold); }
+    .token-badge { font-size: .75rem; padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+    .token-badge.active { background: #dcfce7; color: #166534; }
+    .token-badge.inactive { background: #fee2e2; color: #991b1b; }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border: none; border-radius: 6px;
+      font-size: .82rem; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: all .15s; white-space: nowrap;
+    }
+    .btn-gold { background: var(--gold); color: #fff; }
+    .btn-gold:hover { background: var(--gold-dark); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: #f5f5f5; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-sm { padding: 5px 12px; font-size: .78rem; }
+
+    /* ===== FILTER BAR ===== */
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 18px; align-items: center; flex-wrap: wrap; }
+    .filter-bar select, .filter-bar input {
+      padding: 8px 14px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: .82rem; font-family: inherit; outline: none; background: #fff;
+    }
+    .filter-bar select:focus, .filter-bar input:focus { border-color: var(--gold); }
+    .filter-count { font-size: .82rem; color: var(--text-muted); margin-left: auto; }
+
+    /* ===== TABLE ===== */
+    .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: linear-gradient(135deg, var(--gold), var(--gold-light)); }
+    th { padding: 12px 16px; text-align: left; font-size: .75rem; font-weight: 600; color: #fff; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+    td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; font-size: .83rem; vertical-align: middle; }
+    tbody tr { transition: background .1s; }
+    tbody tr:hover { background: #fafafa; }
+    .order-no { font-weight: 600; color: var(--gold-dark); font-size: .8rem; }
+    .customer-name { font-weight: 500; }
+    .order-date { color: var(--text-muted); font-size: .78rem; }
+    .price { font-weight: 600; text-align: right; white-space: nowrap; }
+
+    /* ===== STATUS BADGES ===== */
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: .72rem; font-weight: 600; text-transform: capitalize; white-space: nowrap; }
+    .status-paid { background: #fef3c7; color: #92400e; }
+    .status-processing { background: #dbeafe; color: #1e40af; }
+    .status-shipped { background: #cffafe; color: #155e75; }
+    .status-completed { background: #dcfce7; color: #166534; }
+    .status-canceled { background: #fee2e2; color: #991b1b; }
+    .status-pending { background: #f3f4f6; color: #6b7280; }
+
+    /* ===== ACTION BUTTONS ===== */
+    .action-btns { display: flex; gap: 4px; flex-wrap: nowrap; }
+    .action-btn {
+      width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: .82rem; transition: all .15s; background: #fff;
+    }
+    .action-btn:hover { background: #f5f5f5; }
+    .action-btn.accept { border-color: #16a34a; color: #16a34a; }
+    .action-btn.accept:hover { background: #16a34a; color: #fff; }
+    .action-btn.reject { border-color: #dc2626; color: #dc2626; }
+    .action-btn.reject:hover { background: #dc2626; color: #fff; }
+    .action-btn.ship { border-color: var(--gold); color: var(--gold-dark); }
+    .action-btn.ship:hover { background: var(--gold); color: #fff; }
+    .action-btn.track { border-color: #0891b2; color: #0891b2; }
+    .action-btn.track:hover { background: #0891b2; color: #fff; }
+    .action-btn.detail { border-color: #6b7280; color: #6b7280; }
+    .action-btn.detail:hover { background: #6b7280; color: #fff; }
+
+    /* ===== PAGINATION ===== */
+    .pagination-bar { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #f0f0f0; font-size: .82rem; }
+    .pagination-info { color: var(--text-muted); }
+    .pagination-btns { display: flex; gap: 4px; align-items: center; }
+    .page-btn {
+      min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); border-radius: 6px; background: #fff;
+      cursor: pointer; font-size: .82rem; font-weight: 500; transition: all .15s; padding: 0 8px;
+    }
+    .page-btn:hover { border-color: var(--gold); color: var(--gold-dark); }
+    .page-btn.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .page-input { width: 50px; text-align: center; padding: 6px; border: 1px solid var(--border); border-radius: 6px; font-size: .82rem; margin: 0 4px; }
+    .page-input:focus { border-color: var(--gold); outline: none; }
+
+    /* ===== MODAL ===== */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; display: none; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #fff; border-radius: 12px; max-width: 600px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .modal-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h3 { font-size: 1rem; font-weight: 700; }
+    .modal-close { width: 30px; height: 30px; border: none; background: #f5f5f5; border-radius: 50%; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; }
+    .modal-close:hover { background: #e5e5e5; }
+    .modal-body { padding: 22px; }
+    .modal-footer { padding: 16px 22px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ===== DETAIL ===== */
+    .detail-section { margin-bottom: 20px; }
+    .detail-section h4 { font-size: .82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .detail-grid { display: grid; grid-template-columns: 130px 1fr; gap: 6px 12px; font-size: .84rem; }
+    .detail-label { color: var(--text-muted); font-weight: 500; }
+    .detail-value { font-weight: 500; word-break: break-word; }
+    .product-card { display: flex; gap: 14px; padding: 12px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0; margin-bottom: 8px; }
+    .product-card .product-img { width: 56px; height: 56px; background: #e5e5e5; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; }
+    .product-card .product-info { flex: 1; }
+    .product-card .product-name { font-weight: 600; font-size: .85rem; margin-bottom: 2px; }
+    .product-card .product-variant { font-size: .78rem; color: var(--text-muted); }
+    .product-card .product-price { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: .84rem; }
+    .product-card .product-price .qty { color: var(--text-muted); }
+    .product-card .product-price .total { font-weight: 700; color: var(--gold-dark); }
+    .price-summary { background: #fafafa; border-radius: 8px; padding: 14px; border: 1px solid #f0f0f0; }
+    .price-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: .84rem; }
+    .price-row.total { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 10px; font-weight: 700; font-size: .92rem; }
+    .price-row.total .val { color: var(--gold-dark); }
+
+    /* ===== FORM ===== */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: .82rem; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
+    .form-group input, .form-group select { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; font-family: inherit; outline: none; }
+    .form-group input:focus, .form-group select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(197,164,108,.15); }
+
+    /* ===== TRACKING ===== */
+    .tracking-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .tracking-card { background: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; padding: 12px 14px; }
+    .tracking-card .label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+    .tracking-card .value { font-size: .9rem; font-weight: 600; margin-top: 2px; }
+    .timeline { position: relative; padding-left: 24px; }
+    .timeline::before { content: ''; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 2px; background: #e5e5e5; }
+    .timeline-item { position: relative; padding-bottom: 16px; }
+    .timeline-item:last-child { padding-bottom: 0; }
+    .timeline-dot { position: absolute; left: -20px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--gold); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--gold); }
+    .timeline-item:not(:first-child) .timeline-dot { background: #d1d5db; box-shadow: 0 0 0 2px #d1d5db; }
+    .timeline-desc { font-size: .82rem; font-weight: 500; }
+    .timeline-meta { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ===== CONFIRM ===== */
+    .confirm-body { text-align: center; padding: 10px 0; }
+    .confirm-body .confirm-icon { font-size: 3rem; margin-bottom: 10px; }
+    .confirm-body p { font-size: .92rem; margin-bottom: 4px; }
+    .confirm-body .sub { color: var(--text-muted); font-size: .82rem; }
+
+    /* ===== TOAST ===== */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 20px; border-radius: 8px; font-size: .84rem; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,.15); transform: translateX(120%); transition: transform .3s; max-width: 360px; }
+    .toast.show { transform: translateX(0); }
+    .toast.success { background: #16a34a; color: #fff; }
+    .toast.error { background: #dc2626; color: #fff; }
+    .toast.info { background: #0891b2; color: #fff; }
+
+    /* ===== EMPTY ===== */
+    .empty-state { text-align: center; padding: 50px 20px; }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .empty-state p { color: var(--text-muted); font-size: .88rem; }
+
+    /* ===== JSON ===== */
+    .json-output { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 8px; font-family: 'Fira Code','Cascadia Code',monospace; font-size: .76rem; max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin-top: 12px; display: none; }
+    .json-output.show { display: block; }
+    .json-output .k { color: #7dd3fc; }
+    .json-output .s { color: #86efac; }
+    .json-output .n { color: #fdba74; }
+    .json-output .b { color: #c4b5fd; }
+    .json-output .nl { color: #94a3b8; }
+    .toggle-json { font-size: .75rem; color: var(--text-muted); cursor: pointer; text-decoration: underline; display: inline-block; margin-top: 8px; }
+    .toggle-json:hover { color: var(--text); }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; }
+      .content { padding: 16px; }
+      .topbar { padding: 14px 16px; }
+      .tracking-summary { grid-template-columns: 1fr; }
+      td, th { padding: 8px 10px; font-size: .78rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="icon">🕋</div>
+    <span>Haji &amp; Umrah Store</span>
+  </div>
+  <nav>
+    <a href="#"><span class="nav-icon">📊</span> Dashboard</a>
+    <a href="#"><span class="nav-icon">📦</span> Kelola Produk</a>
+    <a href="#" class="active"><span class="nav-icon">📋</span> Kelola Order</a>
+    <a href="#"><span class="nav-icon">🚚</span> Pengiriman &amp; Resi</a>
+    <a href="#"><span class="nav-icon">🏷️</span> Promo</a>
+    <a href="#"><span class="nav-icon">📈</span> Laporan Penjualan</a>
+    <a href="#"><span class="nav-icon">💰</span> Payout/Settlement</a>
+    <a href="#"><span class="nav-icon">⚙️</span> Pengaturan</a>
+    <div class="spacer"></div>
+    <a href="#" style="border-top: 1px solid #333;"><span class="nav-icon">🚪</span> Log Out</a>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+
+  <div class="topbar">
+    <h1>Kelola Order</h1>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="vendorName" style="font-size:.84rem;color:var(--text-muted);"></span>
+      <span id="tokenBadge" class="token-badge inactive">● Belum Login</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Login -->
+    <div class="login-panel" id="loginPanel">
+      <h3>⚙️ Konfigurasi &amp; Login</h3>
+      <div class="config-row">
+        <label>Base URL</label>
+        <input type="text" id="baseUrl" value="http://localhost:8080/api/v1" />
+      </div>
+      <div class="config-row">
+        <label>Email</label>
+        <input type="text" id="loginEmail" value="umkm@dev.local" />
+        <label style="min-width:auto;">Password</label>
+        <input type="password" id="loginPassword" value="Password123!" style="max-width:180px;" />
+        <button class="btn btn-gold" onclick="doLogin()">🔑 Login</button>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="filter-bar">
+      <select id="filterStatus" onchange="loadOrders()">
+        <option value="">Semua Status</option>
+        <option value="paid">Paid</option>
+        <option value="processing">Processing</option>
+        <option value="shipped">Shipped</option>
+        <option value="completed">Completed</option>
+        <option value="canceled">Canceled</option>
+      </select>
+      <select id="filterLimit" onchange="loadOrders()">
+        <option value="10">10 / halaman</option>
+        <option value="15" selected>15 / halaman</option>
+        <option value="25">25 / halaman</option>
+        <option value="50">50 / halaman</option>
+      </select>
+      <button class="btn btn-sm btn-outline" onclick="loadOrders()">🔄 Refresh</button>
+      <span class="filter-count" id="filterCount"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px;">#</th>
+            <th>Order</th>
+            <th>Tanggal Pesanan</th>
+            <th>Nama Pemesan</th>
+            <th style="text-align:right;">Total Pembayaran</th>
+            <th>Status</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="orderTableBody">
+          <tr><td colspan="7">
+            <div class="empty-state"><div class="icon">🔑</div><p>Silakan login terlebih dahulu.</p></div>
+          </td></tr>
+        </tbody>
+      </table>
+      <div class="pagination-bar">
+        <span class="pagination-info" id="paginationInfo">—</span>
+        <div class="pagination-btns" id="paginationBtns"></div>
+      </div>
+    </div>
+
+    <span class="toggle-json" onclick="toggleJson('listJson')">📄 Lihat Raw JSON Response</span>
+    <pre class="json-output" id="listJson"></pre>
+
+  </div>
+
+  <div class="footer">© 2026 — Haji &amp; Umrah Store · Manual Test Console</div>
+</div>
+
+<!-- MODAL: DETAIL -->
+<div class="modal-overlay" id="modalDetail" onclick="if(event.target===this)closeModal('modalDetail')">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-header">
+      <h3>📋 Detail Pesanan</h3>
+      <button class="modal-close" onclick="closeModal('modalDetail')">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('detailJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalDetail')">Tutup</button>
+    </div>
+    <pre class="json-output" id="detailJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: INPUT RESI -->
+<div class="modal-overlay" id="modalShip" onclick="if(event.target===this)closeModal('modalShip')">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <h3>🚚 Input Resi</h3>
+      <button class="modal-close" onclick="closeModal('modalShip')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Nomor Resi</label>
+        <input type="text" id="shipTrackingNo" placeholder="Masukkan Nomor Resi" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalShip')">Batal</button>
+      <button class="btn btn-gold" onclick="doShip()">🚚 Input Resi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRM -->
+<div class="modal-overlay" id="modalConfirm" onclick="if(event.target===this)closeModal('modalConfirm')">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <h3 id="confirmTitle">Konfirmasi</h3>
+      <button class="modal-close" onclick="closeModal('modalConfirm')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="confirm-body">
+        <div class="confirm-icon" id="confirmIcon">✅</div>
+        <p id="confirmMsg">Apakah Anda yakin?</p>
+        <p class="sub" id="confirmSub"></p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalConfirm')">Batal</button>
+      <button class="btn" id="confirmBtn" onclick="doConfirmAction()">Ya</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: TRACKING -->
+<div class="modal-overlay" id="modalTrack" onclick="if(event.target===this)closeModal('modalTrack')">
+  <div class="modal" style="max-width:540px;">
+    <div class="modal-header">
+      <h3>📍 Lacak Pengiriman</h3>
+      <button class="modal-close" onclick="closeModal('modalTrack')">✕</button>
+    </div>
+    <div class="modal-body" id="trackBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('trackJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalTrack')">Tutup</button>
+    </div>
+    <pre class="json-output" id="trackJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════ State ═══════
+let vendorToken = '';
+let currentPage = 1;
+let pendingAction = null;
+let shipOrderId = '';
+
+const $ = id => document.getElementById(id);
+const baseUrl = () => $('baseUrl').value.replace(/\/+$/, '');
+
+function fmt(num) { return 'Rp ' + Number(num || 0).toLocaleString('id-ID'); }
+function fmtDate(s) {
+  if (!s) return '-';
+  const d = new Date(s);
+  return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+}
+function statusBadge(s) { return '<span class="status-badge status-' + (s||'').toLowerCase() + '">' + (s||'-') + '</span>'; }
+
+function toast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type||'info');
+  t.textContent = msg;
+  $('toastContainer').appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+}
+function openModal(id) { $(id).classList.add('show'); }
+function closeModal(id) { $(id).classList.remove('show'); }
+function toggleJson(id) { $(id).classList.toggle('show'); }
+
+function hl(obj) {
+  return JSON.stringify(obj, null, 2)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    m => { let c='n'; if(/^"/.test(m)) c=/:$/.test(m)?'k':'s'; else if(/true|false/.test(m)) c='b'; else if(/null/.test(m)) c='nl'; return '<span class="'+c+'">'+m+'</span>'; });
+}
+
+function updateUI() {
+  const b = $('tokenBadge');
+  if (vendorToken) { b.className='token-badge active'; b.textContent='● Login Aktif'; }
+  else { b.className='token-badge inactive'; b.textContent='● Belum Login'; }
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (vendorToken) opts.headers['Authorization'] = 'Bearer ' + vendorToken;
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const res = await fetch(baseUrl() + path, opts);
+  const text = await res.text();
+  let json; try { json = JSON.parse(text); } catch { json = null; }
+  return { status: res.status, json, text };
+}
+
+// ═══════ LOGIN ═══════
+async function doLogin() {
+  try {
+    const res = await api('POST', '/vendors/login', { email: $('loginEmail').value, password: $('loginPassword').value });
+    if (res.json?.success && res.json.data?.token) {
+      vendorToken = res.json.data.token;
+      $('vendorName').textContent = res.json.data.display_name || res.json.data.name || '';
+      updateUI();
+      toast('Login berhasil!', 'success');
+      loadOrders();
+    } else {
+      toast('Login gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Network error: ' + e.message, 'error'); }
+}
+
+// ═══════ LIST ORDERS ═══════
+async function loadOrders(page) {
+  if (!vendorToken) { toast('Login dulu!', 'error'); return; }
+  if (page) currentPage = page;
+  const status = $('filterStatus').value;
+  const limit = $('filterLimit').value;
+  let path = '/vendors/orders?page=' + currentPage + '&limit=' + limit;
+  if (status) path += '&status=' + status;
+
+  $('orderTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">⏳ Memuat...</td></tr>';
+
+  try {
+    const res = await api('GET', path);
+    $('listJson').innerHTML = res.json ? hl(res.json) : (res.text || '');
+
+    if (res.status === 200 && res.json?.success) {
+      renderTable(res.json.data || [], res.json.meta || {});
+    } else {
+      $('orderTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#dc2626;">❌ ' + (res.json?.message || 'Error ' + res.status) + '</td></tr>';
+      $('filterCount').textContent = '';
+      $('paginationInfo').textContent = '—';
+      $('paginationBtns').innerHTML = '';
+    }
+  } catch (e) {
+    $('orderTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#dc2626;">❌ ' + e.message + '</td></tr>';
+  }
+}
+
+function renderTable(orders, meta) {
+  if (!orders.length) {
+    $('orderTableBody').innerHTML = '<tr><td colspan="7"><div class="empty-state"><div class="icon">📭</div><p>Tidak ada order ditemukan.</p></div></td></tr>';
+    $('filterCount').textContent = '0 order';
+    $('paginationInfo').textContent = '—';
+    $('paginationBtns').innerHTML = '';
+    return;
+  }
+  const offset = ((meta.page||1)-1) * (meta.limit||10);
+  let html = '';
+  orders.forEach((o, i) => {
+    html += '<tr>' +
+      '<td>' + (offset+i+1) + '</td>' +
+      '<td><span class="order-no">' + (o.order_no||'-') + '</span></td>' +
+      '<td><span class="order-date">' + fmtDate(o.order_date) + '</span></td>' +
+      '<td><span class="customer-name">' + (o.customer_name||'-') + '</span></td>' +
+      '<td class="price">' + fmt(o.total_payment) + '</td>' +
+      '<td>' + statusBadge(o.status) + '</td>' +
+      '<td><div class="action-btns">' + buildActions(o) + '</div></td>' +
+      '</tr>';
+  });
+  $('orderTableBody').innerHTML = html;
+
+  const total = meta.total_items || orders.length;
+  const totalPages = meta.total_pages || 1;
+  $('filterCount').textContent = total + ' order';
+  $('paginationInfo').textContent = 'Showing ' + (offset+1) + ' to ' + Math.min(offset+orders.length, total) + ' of ' + total + ' entries';
+
+  let pg = '<button class="page-btn" onclick="loadOrders(' + Math.max(1,currentPage-1) + ')" ' + (currentPage<=1?'disabled':'') + '>&laquo;</button>';
+  const maxShow = 5;
+  let startP = Math.max(1, currentPage - Math.floor(maxShow/2));
+  let endP = Math.min(totalPages, startP + maxShow - 1);
+  if (endP - startP < maxShow - 1) startP = Math.max(1, endP - maxShow + 1);
+  if (startP > 1) pg += '<button class="page-btn" onclick="loadOrders(1)">1</button><span style="padding:0 4px;color:var(--text-muted);">…</span>';
+  for (let p = startP; p <= endP; p++) pg += '<button class="page-btn ' + (p===currentPage?'active':'') + '" onclick="loadOrders(' + p + ')">' + p + '</button>';
+  if (endP < totalPages) pg += '<span style="padding:0 4px;color:var(--text-muted);">…</span><button class="page-btn" onclick="loadOrders(' + totalPages + ')">' + totalPages + '</button>';
+  pg += '<button class="page-btn" onclick="loadOrders(' + Math.min(totalPages,currentPage+1) + ')" ' + (currentPage>=totalPages?'disabled':'') + '>&raquo;</button>';
+  pg += '<span style="font-size:.78rem;color:var(--text-muted);margin-left:8px;">Go to</span><input class="page-input" type="text" value="' + currentPage + '" onkeydown="if(event.key===\'Enter\'){var p=parseInt(this.value);if(p>=1&&p<=' + totalPages + ')loadOrders(p);}" />';
+  $('paginationBtns').innerHTML = pg;
+}
+
+function buildActions(o) {
+  const s = (o.status||'').toLowerCase();
+  let b = '<button class="action-btn detail" title="Detail" onclick="showDetail(\'' + o.order_id + '\')">🔍</button>';
+  if (s === 'paid') {
+    b += '<button class="action-btn accept" title="Terima Pesanan" onclick="confirmAccept(\'' + o.order_id + '\',\'' + (o.order_no||'') + '\')">✅</button>';
+    b += '<button class="action-btn reject" title="Tolak Pesanan" onclick="confirmReject(\'' + o.order_id + '\',\'' + (o.order_no||'') + '\')">❌</button>';
+  }
+  if (s === 'processing') {
+    b += '<button class="action-btn ship" title="Input Resi" onclick="openShip(\'' + o.order_id + '\')">🚚</button>';
+    b += '<button class="action-btn reject" title="Tolak Pesanan" onclick="confirmReject(\'' + o.order_id + '\',\'' + (o.order_no||'') + '\')">❌</button>';
+  }
+  if (s === 'shipped') {
+    b += '<button class="action-btn track" title="Lacak Resi" onclick="showTracking(\'' + o.order_id + '\')">📍</button>';
+  }
+  return b;
+}
+
+// ═══════ DETAIL ═══════
+async function showDetail(id) {
+  openModal('modalDetail');
+  $('detailBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat detail...</p>';
+  $('detailJson').innerHTML = ''; $('detailJson').classList.remove('show');
+  try {
+    const res = await api('GET', '/vendors/orders/' + id);
+    $('detailJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.status === 200 && res.json?.success) renderDetail(res.json.data);
+    else $('detailBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+  } catch (e) { $('detailBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+function renderDetail(d) {
+  const ship = d.shipment ? '<div class="detail-section"><h4>🚚 Informasi Pengiriman</h4><div class="detail-grid">' +
+    '<span class="detail-label">Kurir</span><span class="detail-value">' + (d.shipment.courier_code||'').toUpperCase() + ' — ' + (d.shipment.service_type||'') + '</span>' +
+    '<span class="detail-label">No. Resi</span><span class="detail-value" style="font-family:monospace;color:var(--gold-dark);font-weight:700;">' + (d.shipment.tracking_no||'-') + '</span>' +
+    '<span class="detail-label">Status</span><span class="detail-value">' + statusBadge(d.shipment.shipment_status) + '</span>' +
+    (d.shipment.etd ? '<span class="detail-label">Estimasi (ETD)</span><span class="detail-value">' + d.shipment.etd + '</span>' : '') +
+    (d.shipment.shipped_at ? '<span class="detail-label">Dikirim</span><span class="detail-value">' + fmtDate(d.shipment.shipped_at) + '</span>' : '') +
+    (d.shipment.estimated_arrival ? '<span class="detail-label">Estimasi Tiba</span><span class="detail-value" style="color:var(--gold-dark);font-weight:600;">' + d.shipment.estimated_arrival + '</span>' : '') +
+    '</div></div>' : '';
+
+  const addr = d.shipping_address ? '<div class="detail-section"><h4>📍 Alamat Pengiriman</h4><div class="detail-grid">' +
+    '<span class="detail-label">Penerima</span><span class="detail-value">' + (d.shipping_address.recipient_name||'-') + '</span>' +
+    '<span class="detail-label">Telepon</span><span class="detail-value">' + (d.shipping_address.phone||'-') + '</span>' +
+    '<span class="detail-label">Alamat</span><span class="detail-value">' + (d.shipping_address.full_address||d.shipping_address.street||'-') + '</span>' +
+    '<span class="detail-label">Kota</span><span class="detail-value">' + (d.shipping_address.city||d.shipping_address.district||'-') + ', ' + (d.shipping_address.province||'') + '</span>' +
+    '</div></div>' : '';
+
+  const pay = d.payment_info ? '<div class="detail-section"><h4>💳 Pembayaran</h4><div class="detail-grid">' +
+    '<span class="detail-label">Status</span><span class="detail-value">' + statusBadge(d.payment_info.status) + '</span>' +
+    (d.payment_info.payment_method ? '<span class="detail-label">Metode</span><span class="detail-value">' + d.payment_info.payment_method + '</span>' : '') +
+    (d.payment_info.payment_channel ? '<span class="detail-label">Channel</span><span class="detail-value">' + d.payment_info.payment_channel + '</span>' : '') +
+    (d.payment_info.paid_at ? '<span class="detail-label">Dibayar</span><span class="detail-value">' + fmtDate(d.payment_info.paid_at) + '</span>' : '') +
+    '</div></div>' : '';
+
+  const items = (d.items||[]).map(it =>
+    '<div class="product-card">' +
+    '<div class="product-img">📦</div>' +
+    '<div class="product-info">' +
+    '<div class="product-name">' + it.product_name + '</div>' +
+    '<div class="product-variant">' + (it.selected_variant||'-') + '</div>' +
+    '<div class="product-price"><span class="qty">' + it.qty + 'x ' + fmt(it.unit_price) + '</span><span class="total">' + fmt(it.line_total) + '</span></div>' +
+    '</div></div>'
+  ).join('');
+
+  $('detailBody').innerHTML =
+    '<div class="detail-section"><h4>📋 Informasi Order</h4><div class="detail-grid">' +
+    '<span class="detail-label">Order No</span><span class="detail-value" style="font-weight:700;color:var(--gold-dark);">' + d.order_no + '</span>' +
+    '<span class="detail-label">Tanggal</span><span class="detail-value">' + fmtDate(d.order_date) + '</span>' +
+    '<span class="detail-label">Status</span><span class="detail-value">' + statusBadge(d.status) + '</span>' +
+    '<span class="detail-label">Customer</span><span class="detail-value">' + (d.customer_name||'-') + '</span>' +
+    '</div></div>' +
+    ship + addr +
+    '<div class="detail-section"><h4>📦 Produk</h4>' + items + '</div>' +
+    '<div class="detail-section"><div class="price-summary">' +
+    '<div class="price-row"><span>Subtotal</span><span>' + fmt(d.subtotal) + '</span></div>' +
+    '<div class="price-row"><span>Ongkos Kirim</span><span>' + fmt(d.shipping_fee) + '</span></div>' +
+    '<div class="price-row"><span>Platform Fee</span><span>' + fmt(d.platform_fee) + '</span></div>' +
+    '<div class="price-row total"><span>Grand Total</span><span class="val">' + fmt(d.grand_total) + '</span></div>' +
+    '</div></div>' + pay;
+}
+
+// ═══════ ACCEPT / REJECT ═══════
+function confirmAccept(id, no) {
+  pendingAction = { type:'accept', id };
+  $('confirmTitle').textContent = 'Terima Pesanan';
+  $('confirmIcon').textContent = '✅';
+  $('confirmMsg').textContent = 'Terima pesanan ini?';
+  $('confirmSub').textContent = no + ' — Status berubah ke processing';
+  $('confirmBtn').className = 'btn btn-success'; $('confirmBtn').textContent = '✅ Ya, Terima';
+  openModal('modalConfirm');
+}
+function confirmReject(id, no) {
+  pendingAction = { type:'reject', id };
+  $('confirmTitle').textContent = 'Tolak Pesanan';
+  $('confirmIcon').textContent = '❌';
+  $('confirmMsg').textContent = 'Tolak pesanan ini?';
+  $('confirmSub').textContent = no + ' — Status berubah ke canceled, stok dikembalikan.';
+  $('confirmBtn').className = 'btn btn-danger'; $('confirmBtn').textContent = '❌ Ya, Tolak';
+  openModal('modalConfirm');
+}
+async function doConfirmAction() {
+  if (!pendingAction) return;
+  closeModal('modalConfirm');
+  const { type, id } = pendingAction; pendingAction = null;
+  try {
+    const res = await api('POST', '/vendors/orders/' + id + '/' + type);
+    if (res.json?.success) { toast(type==='accept'?'Pesanan diterima → processing':'Pesanan ditolak → canceled','success'); loadOrders(); }
+    else toast('Gagal: ' + (res.json?.message || res.text), 'error');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ═══════ SHIP ═══════
+function openShip(id) {
+  shipOrderId = id;
+  $('shipTrackingNo').value = '';
+  openModal('modalShip');
+  setTimeout(() => $('shipTrackingNo').focus(), 200);
+}
+async function doShip() {
+  const no = $('shipTrackingNo').value.trim();
+  if (!no) { toast('Masukkan nomor resi!', 'error'); return; }
+  closeModal('modalShip');
+  try {
+    const res = await api('POST', '/vendors/orders/' + shipOrderId + '/ship', {
+      tracking_no: no
+    });
+    if (res.json?.success) {
+      const d = res.json.data;
+      let msg = 'Resi berhasil diinput: ' + no;
+      if (d?.estimated_arrival) msg += ' · Estimasi tiba: ' + d.estimated_arrival;
+      toast(msg, 'success');
+      loadOrders();
+    }
+    else toast('Gagal: ' + (res.json?.message || res.text), 'error');
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ═══════ TRACKING ═══════
+async function showTracking(id) {
+  openModal('modalTrack');
+  $('trackBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat tracking...</p>';
+  $('trackJson').innerHTML = ''; $('trackJson').classList.remove('show');
+  try {
+    const res = await api('GET', '/vendors/orders/' + id + '/tracking');
+    $('trackJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.status === 200 && res.json?.success) renderTracking(res.json.data);
+    else $('trackBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+  } catch (e) { $('trackBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+function renderTracking(d) {
+  const s = d.summary||{}, ds = d.delivery_status||{}, mf = d.manifest||[];
+  // Progress bar logic: only ON PROCESS for 'Sedang Dikirim' and 'Menuju Alamat'
+  let step1 = false, step2 = false;
+  if (mf.some(m => m.manifest_code === 'ON PROCESS')) {
+    step1 = true;
+    step2 = true;
+  } else if (mf.length > 0) {
+    step1 = true;
+  }
+  html = '<div style="margin-bottom:18px;">'
+    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">'
+    + '<div style="flex:1;height:6px;background:#e5e5e5;border-radius:4px;position:relative;">'
+    + '<div style="position:absolute;left:0;top:0;height:100%;background:' + (step1 ? '#C5A46C' : '#e5e5e5') + ';width:' + (step2 ? '100%' : step1 ? '50%' : '0%') + ';border-radius:4px;transition:.3s;"></div>'
+    + '</div>'
+    + '<span style="font-size:.78rem;font-weight:600;color:' + (step1 ? '#C5A46C' : '#888') + '">Sedang Dikirim</span>'
+    + '<span style="font-size:.78rem;font-weight:600;color:' + (step2 ? '#C5A46C' : '#888') + '">Menuju Alamat</span>'
+    + '</div>';
+  html += '<div class="tracking-summary">' +
+    '<div class="tracking-card"><div class="label">Kurir</div><div class="value">' + (s.courier_name||s.courier_code||'-') + '</div></div>' +
+    '<div class="tracking-card"><div class="label">No. Resi</div><div class="value" style="font-family:monospace;">' + (s.waybill_number||'-') + '</div></div>' +
+    '<div class="tracking-card"><div class="label">Status</div><div class="value">' + (d.delivered?'✅ Terkirim':'🔄 '+(ds.status||s.status||'Proses')) + '</div></div>' +
+    '<div class="tracking-card"><div class="label">Rute</div><div class="value">' + (s.origin||'?') + ' → ' + (s.destination||'?') + '</div></div>' +
+    '</div>';
+  if (mf.length) {
+    html += '<h4 style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:12px;">📦 Riwayat Pengiriman</h4><div class="timeline">';
+    mf.forEach(m => html += '<div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-desc">' + m.manifest_description + '</div><div class="timeline-meta">' + m.manifest_date + ' ' + m.manifest_time + ' — ' + m.city_name + '</div></div>');
+    html += '</div>';
+  }
+  $('trackBody').innerHTML = html;
+}
+
+updateUI();
+</script>
+</body>
+</html>

@@ -38,15 +38,34 @@ var (
 	ErrUserAccountBlocked       = errors.New("account is blocked")
 )
 
+// --- OTP errors ---
+
+var (
+	ErrOTPInvalid             = errors.New("invalid otp code")
+	ErrOTPExpired             = errors.New("otp code has expired")
+	ErrOTPTooManyAttempts     = errors.New("too many invalid otp attempts")
+	ErrOTPResendTooSoon       = errors.New("please wait before requesting another otp")
+	ErrOTPPurposeInvalid      = errors.New("invalid otp purpose")
+	ErrOTPProofInvalid        = errors.New("invalid otp proof token")
+	ErrOTPProofExpired        = errors.New("otp proof token has expired")
+	ErrOTPSecretNotConfigured = errors.New("otp secret is not configured")
+)
+
 // --- Vendor errors ---
 
 var (
 	ErrEmailAlreadyRegistered   = errors.New("email already registered")
 	ErrVendorAlreadyExists      = errors.New("user already has a vendor")
 	ErrVendorNotFound           = errors.New("vendor not found")
+	ErrVendorOnboardingNotFound = errors.New("vendor onboarding not found")
+	ErrVendorOnboardingInvalid  = errors.New("invalid vendor onboarding token")
+	ErrVendorOnboardingExpired  = errors.New("vendor onboarding token has expired")
+	ErrVendorOnboardingStep     = errors.New("invalid vendor onboarding step")
+	ErrVendorOnboardingDone     = errors.New("vendor onboarding already completed")
 	ErrDocumentNotFound         = errors.New("document not found for this vendor")
 	ErrObjectNotUploaded        = errors.New("object not found in storage")
 	ErrInvalidDocumentContent   = errors.New("invalid document content type")
+	ErrInvalidDocumentObjectKey = errors.New("invalid document object key")
 	ErrDocumentSizeOverflow     = errors.New("document file size exceeds supported limit")
 	ErrVendorInvalidCredentials = errors.New("invalid email or password")
 	ErrVendorAccountBlocked     = errors.New("vendor account is blocked")
@@ -240,4 +259,16 @@ var (
 
 var (
 	ErrRajaOngkirFailed = errors.New("failed to fetch data from shipping provider")
+)
+
+// --- Vendor Order Management errors ---
+
+var (
+	ErrOrderNotBelongToVendor       = errors.New("order does not belong to this vendor")
+	ErrInvalidOrderAcceptTransition = errors.New("order can only be accepted when status is paid")
+	ErrInvalidOrderRejectTransition = errors.New("order can only be rejected when status is paid or processing")
+	ErrInvalidOrderShipTransition   = errors.New("order can only be shipped when status is processing")
+	ErrTrackingNumberRequired       = errors.New("tracking number is required")
+	ErrShipmentNotFound             = errors.New("shipment not found for this order")
+	ErrTrackingFailed               = errors.New("failed to track waybill")
 )

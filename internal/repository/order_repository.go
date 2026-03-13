@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GORM model structs (internal to repository layer).
@@ -242,6 +243,181 @@ func (r *orderRepository) UpdateOrderStatus(ctx context.Context, orderID uuid.UU
 
 		return nil
 	})
+}
+
+func (r *orderRepository) MarkOrderReceived(ctx context.Context, orderID uuid.UUID, changedBy *uuid.UUID, notes *string) (bool, error) {
+	applied := false
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current orderModel
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", orderID.String()).First(&current).Error; err != nil {
+			return fmt.Errorf("find order: %w", err)
+		}
+		if current.OrderStatus != domain.OrderStatusShipped {
+			return nil
+		}
+
+		now := time.Now()
+		if err := tx.Model(&orderModel{}).
+			Where("id = ?", orderID.String()).
+			Updates(map[string]interface{}{
+				"order_status":   domain.OrderStatusReceived,
+				"payment_status": current.PaymentStatus,
+				"updated_at":     now,
+			}).Error; err != nil {
+			return fmt.Errorf("update order: %w", err)
+		}
+
+		var changedByStr *string
+		if changedBy != nil {
+			s := changedBy.String()
+			changedByStr = &s
+		}
+
+		history := orderStatusHistoryModel{
+			ID:        uuid.New().String(),
+			OrderID:   orderID.String(),
+			OldStatus: &current.OrderStatus,
+			NewStatus: domain.OrderStatusReceived,
+			ChangedBy: changedByStr,
+			ChangedAt: now,
+			Notes:     notes,
+		}
+		if err := tx.Create(&history).Error; err != nil {
+			return fmt.Errorf("insert status history: %w", err)
+		}
+
+		res := tx.Model(&vendorBalanceModel{}).
+			Where("vendor_id = ?", current.VendorID).
+			Updates(map[string]interface{}{
+				"escrow_balance": gorm.Expr("escrow_balance + ?", current.Subtotal),
+				"total_earned":   gorm.Expr("total_earned + ?", current.Subtotal),
+				"updated_at":     now,
+			})
+		if res.Error != nil {
+			return fmt.Errorf("update escrow balance: %w", res.Error)
+		}
+		if res.RowsAffected == 0 {
+			return errors.New("failed to apply escrow balance update")
+		}
+
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return applied, nil
+}
+
+func (r *orderRepository) MarkOrderCompleted(ctx context.Context, orderID uuid.UUID, changedBy *uuid.UUID, notes *string) (bool, error) {
+	applied := false
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current orderModel
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", orderID.String()).First(&current).Error; err != nil {
+			return fmt.Errorf("find order: %w", err)
+		}
+		if current.OrderStatus != domain.OrderStatusReceived {
+			return nil
+		}
+
+		now := time.Now()
+		if err := tx.Model(&orderModel{}).
+			Where("id = ?", orderID.String()).
+			Updates(map[string]interface{}{
+				"order_status":   domain.OrderStatusCompleted,
+				"payment_status": current.PaymentStatus,
+				"updated_at":     now,
+			}).Error; err != nil {
+			return fmt.Errorf("update order: %w", err)
+		}
+
+		var changedByStr *string
+		if changedBy != nil {
+			s := changedBy.String()
+			changedByStr = &s
+		}
+
+		history := orderStatusHistoryModel{
+			ID:        uuid.New().String(),
+			OrderID:   orderID.String(),
+			OldStatus: &current.OrderStatus,
+			NewStatus: domain.OrderStatusCompleted,
+			ChangedBy: changedByStr,
+			ChangedAt: now,
+			Notes:     notes,
+		}
+		if err := tx.Create(&history).Error; err != nil {
+			return fmt.Errorf("insert status history: %w", err)
+		}
+
+		res := tx.Model(&vendorBalanceModel{}).
+			Where("vendor_id = ? AND escrow_balance >= ?", current.VendorID, current.Subtotal).
+			Updates(map[string]interface{}{
+				"escrow_balance":    gorm.Expr("escrow_balance - ?", current.Subtotal),
+				"available_balance": gorm.Expr("available_balance + ?", current.Subtotal),
+				"updated_at":        now,
+			})
+		if res.Error != nil {
+			return fmt.Errorf("release escrow balance: %w", res.Error)
+		}
+		if res.RowsAffected == 0 {
+			return errors.New("failed to release escrow balance")
+		}
+
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return applied, nil
+}
+
+func (r *orderRepository) ListAutoReceiveCandidates(ctx context.Context, deliveredBefore time.Time, limit int) ([]domain.Order, error) {
+	var models []orderModel
+	query := r.db.WithContext(ctx).
+		Table("orders o").
+		Select("o.*").
+		Joins("JOIN shipments s ON s.order_id = o.id").
+		Where("o.order_status = ?", domain.OrderStatusShipped).
+		Where("s.delivered_at IS NOT NULL AND s.delivered_at <= ?", deliveredBefore).
+		Order("s.delivered_at ASC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if err := query.Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	orders := make([]domain.Order, len(models))
+	for i, m := range models {
+		orders[i] = *toDomainOrder(&m)
+	}
+	return orders, nil
+}
+
+func (r *orderRepository) ListSettlementCandidates(ctx context.Context, receivedBefore time.Time, limit int) ([]domain.Order, error) {
+	var models []orderModel
+	query := r.db.WithContext(ctx).
+		Model(&orderModel{}).
+		Where("order_status = ? AND updated_at <= ?", domain.OrderStatusReceived, receivedBefore).
+		Order("updated_at ASC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	if err := query.Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	orders := make([]domain.Order, len(models))
+	for i, m := range models {
+		orders[i] = *toDomainOrder(&m)
+	}
+	return orders, nil
 }
 
 func (r *orderRepository) RestoreStock(ctx context.Context, orderID uuid.UUID) error {
