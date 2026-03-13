@@ -33,10 +33,12 @@ func NewTicketHandler(uc domain.TicketUseCase) *TicketHandler {
 // GET /customer-service/tickets
 func (h *TicketHandler) ListTickets(c *gin.Context) {
 	params := domain.TicketListParams{
-		Page:   queryInt(c, "page", 1),
-		Limit:  queryInt(c, "limit", 10),
-		Status: c.Query("status"),
-		Search: c.Query("search"),
+		Page:     queryInt(c, "page", 1),
+		Limit:    queryInt(c, "limit", 10),
+		Status:   c.Query("status"),
+		Search:   c.Query("search"),
+		FromDate: c.Query("from_date"),
+		ToDate:   c.Query("to_date"),
 	}
 	if csIDStr := c.Query("assigned_cs_id"); csIDStr != "" {
 		if id, err := uuid.Parse(csIDStr); err == nil {

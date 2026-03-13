@@ -592,10 +592,22 @@
                   "value": "",
                   "description": "Filter tiket milik CS tertentu (UUID). Kosongkan untuk semua.",
                   "disabled": true
+                },
+                {
+                  "key": "from_date",
+                  "value": "",
+                  "description": "Filter dari tanggal (format: YYYY-MM-DD). Kosongkan untuk semua.",
+                  "disabled": true
+                },
+                {
+                  "key": "to_date",
+                  "value": "",
+                  "description": "Filter sampai tanggal (format: YYYY-MM-DD, inklusif). Kosongkan untuk semua.",
+                  "disabled": true
                 }
               ]
             },
-            "description": "List semua tiket bantuan dengan pagination dan filter.\n\nSemua CS bisa melihat semua tiket (termasuk yang belum diambil).\n\nResponse mengandung `customer_email` dan `assigned_cs_name` untuk display.\n\n**Auth:** Bearer Token (Role: cs)"
+            "description": "List semua tiket bantuan dengan pagination dan filter.\n\nSemua CS bisa melihat semua tiket (termasuk yang belum diambil).\n\nResponse mengandung `customer_email` dan `assigned_cs_name` untuk display.\n\n**Filter tanggal:**\n- `from_date`: format YYYY-MM-DD (contoh: 2026-03-01)\n- `to_date`: format YYYY-MM-DD (contoh: 2026-03-13), inklusif\n\n**Auth:** Bearer Token (Role: cs)"
           },
           "response": [
             {
@@ -1465,7 +1477,7 @@
                 }
               ]
             },
-            "description": "List data customer dengan pagination dan search. Hanya menampilkan user dengan role `customer`.\n\n**Query params:**\n- `page` (default: 1)\n- `limit` (default: 10)\n- `q`: search by nama/email\n\n**Response fields:** id, email, full_name, phone, role, created_at\n\n**Auth:** Bearer Token (Role: cs)"
+            "description": "List data customer dengan pagination dan search. Hanya menampilkan user dengan role `customer`.\n\n**Query params:**\n- `page` (default: 1)\n- `limit` (default: 10)\n- `q`: search by nama/email\n\n**Response fields:** id, email, full_name, phone, role, `ticket_count` (jumlah tiket yang dibuat user), created_at\n\n**Auth:** Bearer Token (Role: cs)"
           },
           "response": [
             {
@@ -1478,7 +1490,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"success\": true,\n  \"message\": \"users retrieved\",\n  \"data\": [\n    {\n      \"id\": \"f34f2433-af16-4235-8eac-7...\",\n      \"email\": \"customer@dev.local\",\n      \"full_name\": \"Dev Customer\",\n      \"phone\": \"081234567890\",\n      \"status\": \"active\",\n      \"email_verified_at\": \"2026-02-20T03:39:27.197Z\",\n      \"role\": \"customer\",\n      \"created_at\": \"2026-02-20T03:39:27.197Z\",\n      \"updated_at\": \"2026-02-20T03:39:27.197Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
+              "body": "{\n  \"success\": true,\n  \"message\": \"users retrieved\",\n  \"data\": [\n    {\n      \"id\": \"f34f2433-af16-4235-8eac-7...\",\n      \"email\": \"customer@dev.local\",\n      \"full_name\": \"Dev Customer\",\n      \"phone\": \"081234567890\",\n      \"status\": \"active\",\n      \"email_verified_at\": \"2026-02-20T03:39:27.197Z\",\n      \"role\": \"customer\",\n      \"ticket_count\": 3,\n      \"created_at\": \"2026-02-20T03:39:27.197Z\",\n      \"updated_at\": \"2026-02-20T03:39:27.197Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
             }
           ]
         },

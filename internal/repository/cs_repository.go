@@ -176,6 +176,12 @@ func (r *ticketRepository) List(ctx context.Context, p domain.TicketListParams) 
 	if p.CustomerID != nil {
 		q = q.Where("customer_id = ?", p.CustomerID.String())
 	}
+	if p.FromDate != "" {
+		q = q.Where("created_at >= ?", p.FromDate)
+	}
+	if p.ToDate != "" {
+		q = q.Where("created_at < ?::date + INTERVAL '1 day'", p.ToDate)
+	}
 
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -342,6 +348,37 @@ func (r *ticketRepository) CreateStatusLog(ctx context.Context, log *domain.Tick
 		CreatedAt: log.CreatedAt,
 	}
 	return r.db.WithContext(ctx).Create(&m).Error
+}
+
+func (r *ticketRepository) CountByCustomerIDs(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]int64, error) {
+	if len(customerIDs) == 0 {
+		return make(map[uuid.UUID]int64), nil
+	}
+
+	ids := make([]string, len(customerIDs))
+	for i, id := range customerIDs {
+		ids[i] = id.String()
+	}
+
+	type row struct {
+		CustomerID string `gorm:"column:customer_id"`
+		Count      int64  `gorm:"column:count"`
+	}
+	var rows []row
+	if err := r.db.WithContext(ctx).
+		Model(&ticketModel{}).
+		Select("customer_id, COUNT(*) as count").
+		Where("customer_id IN ?", ids).
+		Group("customer_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID]int64, len(rows))
+	for _, r := range rows {
+		result[mustParseUUID(r.CustomerID)] = r.Count
+	}
+	return result, nil
 }
 
 func (r *ticketRepository) CountOnDate(ctx context.Context, date string) (int64, error) {

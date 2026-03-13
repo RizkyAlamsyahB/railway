@@ -218,7 +218,7 @@ func NewCSUserUseCase(userRepo domain.UserRepository, ticketRepo domain.TicketRe
 	return &csUserUseCase{userRepo: userRepo, ticketRepo: ticketRepo}
 }
 
-func (uc *csUserUseCase) ListUsers(ctx context.Context, params domain.CSUserListParams) ([]domain.UserResponse, *domain.PaginationMeta, error) {
+func (uc *csUserUseCase) ListUsers(ctx context.Context, params domain.CSUserListParams) ([]domain.CSUserResponse, *domain.PaginationMeta, error) {
 	users, total, err := uc.userRepo.List(ctx, domain.UserListParams{
 		Page:   params.Page,
 		Limit:  params.Limit,
@@ -236,9 +236,32 @@ func (uc *csUserUseCase) ListUsers(ctx context.Context, params domain.CSUserList
 		params.Limit = 10
 	}
 
-	resp := make([]domain.UserResponse, len(users))
+	// Collect customer IDs and fetch ticket counts in one query
+	customerIDs := make([]uuid.UUID, len(users))
 	for i := range users {
-		resp[i] = *toUserResponse(&users[i])
+		customerIDs[i] = users[i].ID
+	}
+	ticketCounts, err := uc.ticketRepo.CountByCustomerIDs(ctx, customerIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to count tickets: %w", err)
+	}
+
+	resp := make([]domain.CSUserResponse, len(users))
+	for i := range users {
+		u := toUserResponse(&users[i])
+		resp[i] = domain.CSUserResponse{
+			ID:              u.ID,
+			Email:           u.Email,
+			FullName:        u.FullName,
+			BirthDate:       u.BirthDate,
+			Phone:           u.Phone,
+			Status:          u.Status,
+			EmailVerifiedAt: u.EmailVerifiedAt,
+			Role:            u.Role,
+			TicketCount:     ticketCounts[users[i].ID],
+			CreatedAt:       u.CreatedAt,
+			UpdatedAt:       u.UpdatedAt,
+		}
 	}
 	return resp, &domain.PaginationMeta{
 		Page:       params.Page,

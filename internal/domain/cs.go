@@ -152,6 +152,8 @@ type TicketListParams struct {
 	Search       string
 	AssignedCSID *uuid.UUID
 	CustomerID   *uuid.UUID
+	FromDate     string // format: "2006-01-02"
+	ToDate       string // format: "2006-01-02"
 }
 
 type TicketResponse struct {
@@ -384,6 +386,20 @@ type CSUserListParams struct {
 	Query string
 }
 
+type CSUserResponse struct {
+	ID              uuid.UUID  `json:"id"`
+	Email           string     `json:"email"`
+	FullName        string     `json:"full_name"`
+	BirthDate       *time.Time `json:"birth_date,omitempty"`
+	Phone           *string    `json:"phone,omitempty"`
+	Status          string     `json:"status"`
+	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty"`
+	Role            string     `json:"role"`
+	TicketCount     int64      `json:"ticket_count"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
 // ============================================================
 // Repository Interfaces
 // ============================================================
@@ -407,6 +423,9 @@ type TicketRepository interface {
 
 	// Status log
 	CreateStatusLog(ctx context.Context, log *TicketStatusLog) error
+
+	// Ticket counts per customer (for CS user list)
+	CountByCustomerIDs(ctx context.Context, customerIDs []uuid.UUID) (map[uuid.UUID]int64, error)
 
 	// Ticket count for number generation
 	CountOnDate(ctx context.Context, date string) (int64, error)
@@ -517,7 +536,7 @@ type TicketSubjectUseCase interface {
 }
 
 type CSUserUseCase interface {
-	ListUsers(ctx context.Context, params CSUserListParams) ([]UserResponse, *PaginationMeta, error)
+	ListUsers(ctx context.Context, params CSUserListParams) ([]CSUserResponse, *PaginationMeta, error)
 	GetUser(ctx context.Context, userID uuid.UUID) (*UserResponse, error)
 	GetUserTickets(ctx context.Context, customerID uuid.UUID, params TicketListParams) ([]TicketResponse, *PaginationMeta, error)
 }
