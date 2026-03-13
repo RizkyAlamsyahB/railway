@@ -17,6 +17,7 @@ DELETE FROM vendor_couriers;
 DELETE FROM couriers;
 TRUNCATE TABLE
   cart_items, carts,
+  order_items, order_status_history, payment_invoices, orders, shipments,
   product_images, product_variants, products,
   vendor_bank_accounts, vendor_balances, vendors,
   addresses, categories,
@@ -108,37 +109,37 @@ INSERT INTO users (id, email, full_name, phone, password_hash, role_id, status, 
 -- 2. VENDORS (3 vendors — different types & cities)
 -- ============================================================
 INSERT INTO vendors (id, owner_user_id, vendor_type, legal_name, display_name,
-  responsible_person_name, description, status, approved_by, approved_at) VALUES
+  responsible_person_name, description, status, approved_by, approved_at, xendit_account_id) VALUES
   -- Vendor 1: existing umkm@dev.local → Jakarta
   ('da000001-0000-0000-0000-000000000001',
    '8ab0c9c7-4dac-4087-9e47-cd4c7317ef6d',
-   'hajj_souvenir_store',
+   'souvenir_store',
    'PT Ihram Jaya Nusantara',
    'Ihram Jaya',
    'Dev UMKM',
    'Toko perlengkapan haji & umrah terlengkap di Jakarta. Menyediakan kain ihram, sajadah, dan perlengkapan ibadah lainnya dengan kualitas premium.',
    'active',
-   '7907d953-ba02-40a4-b403-07b68d8471e8', NOW()),
+   '7907d953-ba02-40a4-b403-07b68d8471e8', NOW(), 'xen_seed_vendor_001'),
   -- Vendor 2: umkm2@dev.local → Surabaya
   ('da000001-0000-0000-0000-000000000002',
    'aa000002-0000-0000-0000-000000000001',
-   'umrah_souvenir_store',
+   'ppiu',
    'CV Oleh-Oleh Tanah Suci',
    'Oleh-Oleh Tanah Suci',
    'Toko Oleh-Oleh Tanah Suci',
    'Pusat oleh-oleh haji dan umrah langsung dari Tanah Suci. Kurma premium, minyak zaitun asli, dan souvenir eksklusif Mekkah-Madinah.',
    'active',
-   '7907d953-ba02-40a4-b403-07b68d8471e8', NOW()),
+   '7907d953-ba02-40a4-b403-07b68d8471e8', NOW(), 'xen_seed_vendor_002'),
   -- Vendor 3: umkm3@dev.local → Bandung
   ('da000001-0000-0000-0000-000000000003',
    'aa000002-0000-0000-0000-000000000002',
-   'general_souvenir_store',
+   'hajj_dormitory',
    'UD Barokah Store',
    'Barokah Store',
    'Perlengkapan Ibadah Barokah',
    'Menyediakan berbagai perlengkapan ibadah berkualitas dengan harga terjangkau. Mulai dari mukena, tasbih, Al-Quran, hingga hampers haji umrah.',
    'active',
-   '7907d953-ba02-40a4-b403-07b68d8471e8', NOW());
+   '7907d953-ba02-40a4-b403-07b68d8471e8', NOW(), 'xen_seed_vendor_003');
 
 -- ============================================================
 -- 3. VENDOR BALANCES
@@ -437,7 +438,68 @@ INSERT INTO addresses (id, user_id, label, recipient_name, phone,
 ;
 
 -- ============================================================
--- 13. VERIFY — count all seeded tables
+-- 13. ORDERS (for escrow/settlement + auto-received testing)
+-- ============================================================
+INSERT INTO orders (id, order_no, user_id, vendor_id, shipping_address_snapshot,
+  order_status, payment_status, subtotal, shipping_fee, platform_fee, grand_total,
+  placed_at, created_at, updated_at) VALUES
+  -- Received order (eligible for settlement H+1)
+  ('e1000001-0000-0000-0000-000000000001', 'SEED-REC-0001',
+   '7d281d37-8f4a-48a8-9b33-e47c76b3d13c', 'da000001-0000-0000-0000-000000000001',
+   '{"recipient_name":"Customer Test","phone":"081234567890","address_line":"Jl. Senopati No. 123","city":"Jakarta","province":"DKI Jakarta","postal_code":"12160"}',
+   'received', 'paid', 75000, 15000, 3750, 93750,
+   NOW() - interval '3 days', NOW() - interval '3 days', NOW() - interval '25 hours'),
+  -- Shipped order with delivered_at > 48h (eligible for auto-received)
+  ('e1000001-0000-0000-0000-000000000002', 'SEED-SHP-0001',
+   'aa000002-0000-0000-0000-000000000003', 'da000001-0000-0000-0000-000000000002',
+   '{"recipient_name":"Siti Aisyah","phone":"081200000004","address_line":"Perumahan Grand Galaxy City Blok AA-12","city":"Bekasi","province":"Jawa Barat","postal_code":"17134"}',
+   'shipped', 'paid', 120000, 20000, 6000, 146000,
+   NOW() - interval '2 days', NOW() - interval '2 days', NOW() - interval '2 hours');
+
+-- ============================================================
+-- 14. ORDER ITEMS
+-- ============================================================
+INSERT INTO order_items (id, order_id, product_variant_id, product_name_snapshot,
+  sku_snapshot, qty, unit_price, line_total) VALUES
+  ('e2000001-0000-0000-0000-000000000001',
+   'e1000001-0000-0000-0000-000000000001', 'c0000001-0000-0000-0000-000000000001',
+   'Kain Ihram Pria Premium', 'IHR-PRM-STD', 1, 75000, 75000),
+  ('e2000001-0000-0000-0000-000000000002',
+   'e1000001-0000-0000-0000-000000000002', 'c0000001-0000-0000-0000-000000000007',
+   'Kurma Ajwa Madinah Asli', 'KRM-AJW-500', 1, 120000, 120000);
+
+-- ============================================================
+-- 15. SHIPMENTS (auto-received uses delivered_at)
+-- ============================================================
+INSERT INTO shipments (id, order_id, courier_code, service_type, tracking_no,
+  shipment_status, shipped_at, delivered_at) VALUES
+  ('e3000001-0000-0000-0000-000000000001',
+   'e1000001-0000-0000-0000-000000000002',
+   'jne', 'REG', 'JNE123456789',
+   'delivered', NOW() - interval '60 hours', NOW() - interval '49 hours');
+
+-- ============================================================
+-- 16. ORDER STATUS HISTORY
+-- ============================================================
+INSERT INTO order_status_history (id, order_id, old_status, new_status, changed_at, notes) VALUES
+  ('e4000001-0000-0000-0000-000000000001',
+   'e1000001-0000-0000-0000-000000000001', 'shipped', 'received',
+   NOW() - interval '25 hours', 'Seed received'),
+  ('e4000001-0000-0000-0000-000000000002',
+   'e1000001-0000-0000-0000-000000000002', 'packed', 'shipped',
+   NOW() - interval '3 hours', 'Seed shipped');
+
+-- ============================================================
+-- 17. ESCROW BALANCE UPDATE (for received order)
+-- ============================================================
+UPDATE vendor_balances
+SET escrow_balance = escrow_balance + 75000,
+    total_earned = total_earned + 75000,
+    updated_at = NOW()
+WHERE vendor_id = 'da000001-0000-0000-0000-000000000001';
+
+-- ============================================================
+-- 18. VERIFY — count all seeded tables
 -- ============================================================
 DO $$ BEGIN RAISE NOTICE '──── SEED VERIFICATION ────'; END $$;
 
@@ -452,6 +514,9 @@ SELECT tbl, cnt FROM (
   UNION ALL SELECT 'products (published)',   COUNT(*) FROM products WHERE status = 'published'
   UNION ALL SELECT 'product_variants',       COUNT(*) FROM product_variants
   UNION ALL SELECT 'product_images',         COUNT(*) FROM product_images
+  UNION ALL SELECT 'orders',                 COUNT(*) FROM orders
+  UNION ALL SELECT 'order_items',            COUNT(*) FROM order_items
+  UNION ALL SELECT 'shipments',              COUNT(*) FROM shipments
 ) AS verification
 ORDER BY tbl;
 

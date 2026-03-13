@@ -719,23 +719,7 @@ async function showTracking(id) {
 
 function renderTracking(d) {
   const s = d.summary||{}, ds = d.delivery_status||{}, mf = d.manifest||[];
-  // Progress bar logic: only ON PROCESS for 'Sedang Dikirim' and 'Menuju Alamat'
-  let step1 = false, step2 = false;
-  if (mf.some(m => m.manifest_code === 'ON PROCESS')) {
-    step1 = true;
-    step2 = true;
-  } else if (mf.length > 0) {
-    step1 = true;
-  }
-  html = '<div style="margin-bottom:18px;">'
-    + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">'
-    + '<div style="flex:1;height:6px;background:#e5e5e5;border-radius:4px;position:relative;">'
-    + '<div style="position:absolute;left:0;top:0;height:100%;background:' + (step1 ? '#C5A46C' : '#e5e5e5') + ';width:' + (step2 ? '100%' : step1 ? '50%' : '0%') + ';border-radius:4px;transition:.3s;"></div>'
-    + '</div>'
-    + '<span style="font-size:.78rem;font-weight:600;color:' + (step1 ? '#C5A46C' : '#888') + '">Sedang Dikirim</span>'
-    + '<span style="font-size:.78rem;font-weight:600;color:' + (step2 ? '#C5A46C' : '#888') + '">Menuju Alamat</span>'
-    + '</div>';
-  html += '<div class="tracking-summary">' +
+  let html = '<div class="tracking-summary">' +
     '<div class="tracking-card"><div class="label">Kurir</div><div class="value">' + (s.courier_name||s.courier_code||'-') + '</div></div>' +
     '<div class="tracking-card"><div class="label">No. Resi</div><div class="value" style="font-family:monospace;">' + (s.waybill_number||'-') + '</div></div>' +
     '<div class="tracking-card"><div class="label">Status</div><div class="value">' + (d.delivered?'✅ Terkirim':'🔄 '+(ds.status||s.status||'Proses')) + '</div></div>' +

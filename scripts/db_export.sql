@@ -931,7 +931,7 @@ CREATE TABLE public.vendor_documents (
     verified_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT ck_vendor_documents_doc_type CHECK (((doc_type)::text = ANY ((ARRAY['owner_ktp'::character varying, 'owner_passport'::character varying, 'business_npwp'::character varying, 'store_photo'::character varying, 'bank_account_proof'::character varying, 'business_logo'::character varying, 'business_banner'::character varying])::text[]))),
+    CONSTRAINT ck_vendor_documents_doc_type CHECK (((doc_type)::text = ANY ((ARRAY['owner_document_id'::character varying, 'business_npwp'::character varying, 'store_photo'::character varying, 'bank_account_proof'::character varying, 'business_logo'::character varying, 'business_banner'::character varying])::text[]))),
     CONSTRAINT ck_vendor_documents_verification_status CHECK (((verification_status)::text = ANY ((ARRAY['pending'::character varying, 'verified'::character varying, 'rejected'::character varying])::text[]))),
     CONSTRAINT ck_vendor_documents_verified_consistency CHECK (((((verification_status)::text = 'verified'::text) AND (verified_by IS NOT NULL) AND (verified_at IS NOT NULL)) OR (((verification_status)::text = ANY ((ARRAY['pending'::character varying, 'rejected'::character varying])::text[])) AND (verified_by IS NULL) AND (verified_at IS NULL))))
 );
@@ -3196,4 +3196,3 @@ ALTER TABLE ONLY public.vendor_couriers
 --
 
 \unrestrict bIF4ooiSRpwcf5IUMzkjoAvUzVDvYTG2iw8yd3ryvByArb8IkxhtYzXuRbl5Bog
-
