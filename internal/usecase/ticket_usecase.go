@@ -128,6 +128,10 @@ func (uc *ticketUseCase) ListTickets(ctx context.Context, params domain.TicketLi
 	return resp, meta, nil
 }
 
+func (uc *ticketUseCase) ExportTickets(ctx context.Context, params domain.TicketListParams) ([]domain.TicketExportRow, error) {
+	return uc.ticketRepo.ExportList(ctx, params)
+}
+
 func (uc *ticketUseCase) GetTicket(ctx context.Context, id uuid.UUID) (*domain.TicketResponse, error) {
 	t, err := uc.ticketRepo.FindByID(ctx, id)
 	if err != nil {

@@ -33,12 +33,14 @@ func NewTicketHandler(uc domain.TicketUseCase) *TicketHandler {
 // GET /customer-service/tickets
 func (h *TicketHandler) ListTickets(c *gin.Context) {
 	params := domain.TicketListParams{
-		Page:     queryInt(c, "page", 1),
-		Limit:    queryInt(c, "limit", 10),
-		Status:   c.Query("status"),
-		Search:   c.Query("search"),
-		FromDate: c.Query("from_date"),
-		ToDate:   c.Query("to_date"),
+		Page:      queryInt(c, "page", 1),
+		Limit:     queryInt(c, "limit", 10),
+		Status:    c.Query("status"),
+		Search:    c.Query("search"),
+		FromDate:  c.Query("from_date"),
+		ToDate:    c.Query("to_date"),
+		SortBy:    c.Query("sort_by"),
+		SortOrder: c.Query("sort_order"),
 	}
 	if csIDStr := c.Query("assigned_cs_id"); csIDStr != "" {
 		if id, err := uuid.Parse(csIDStr); err == nil {
@@ -52,6 +54,58 @@ func (h *TicketHandler) ListTickets(c *gin.Context) {
 		return
 	}
 	response.SuccessWithMeta(c, http.StatusOK, "tickets retrieved", tickets, meta)
+}
+
+// ExportTickets godoc
+// GET /customer-service/tickets/export
+func (h *TicketHandler) ExportTickets(c *gin.Context) {
+	params := domain.TicketListParams{
+		Status:    c.Query("status"),
+		Search:    c.Query("search"),
+		FromDate:  c.Query("from_date"),
+		ToDate:    c.Query("to_date"),
+		SortBy:    c.Query("sort_by"),
+		SortOrder: c.Query("sort_order"),
+	}
+	if csIDStr := c.Query("assigned_cs_id"); csIDStr != "" {
+		if id, err := uuid.Parse(csIDStr); err == nil {
+			params.AssignedCSID = &id
+		}
+	}
+
+	rows, err := h.uc.ExportTickets(c.Request.Context(), params)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	header := []string{"Ticket Number", "Subject", "Status", "Source", "Reporter", "Assigned CS", "Phone", "Order Number", "Closed At", "Created At"}
+	records := make([][]string, len(rows))
+	for i, r := range rows {
+		cs := ""
+		if r.AssignedCSName != nil {
+			cs = *r.AssignedCSName
+		}
+		closedAt := ""
+		if r.ClosedAt != nil {
+			closedAt = r.ClosedAt.UTC().Format("2006-01-02 15:04:05")
+		}
+		records[i] = []string{
+			r.TicketNumber,
+			r.Subject,
+			r.Status,
+			r.Source,
+			r.ReporterName,
+			cs,
+			r.Phone,
+			r.OrderNumber,
+			closedAt,
+			r.CreatedAt.UTC().Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	filename := fmt.Sprintf("tickets-export-%s.csv", time.Now().Format("2006-01-02"))
+	writeCSV(c, filename, header, records)
 }
 
 // GetTicket godoc

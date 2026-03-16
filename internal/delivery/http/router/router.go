@@ -326,6 +326,7 @@ func NewRouter(
 
 		// Tickets
 		csAuth.GET("/tickets", ticketHandler.ListTickets)
+		csAuth.GET("/tickets/export", ticketHandler.ExportTickets)
 		csAuth.GET("/tickets/:id", ticketHandler.GetTicket)
 		csAuth.PATCH("/tickets/:id/take", ticketHandler.TakeTicket)
 		csAuth.PATCH("/tickets/:id/status", ticketHandler.UpdateTicketStatus)

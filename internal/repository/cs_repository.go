@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -188,8 +189,27 @@ func (r *ticketRepository) List(ctx context.Context, p domain.TicketListParams) 
 		return nil, nil, err
 	}
 
+	// Sorting
+	sortOrder := "DESC"
+	if p.SortOrder == "asc" {
+		sortOrder = "ASC"
+	}
+
+	dataQ := q.Session(&gorm.Session{})
+	orderClause := "tickets.created_at " + sortOrder
+
+	switch p.SortBy {
+	case "reporter_name":
+		orderClause = "tickets.reporter_name " + sortOrder
+	case "assigned_cs_name":
+		dataQ = dataQ.Joins("LEFT JOIN users u ON u.id = tickets.assigned_cs_id")
+		orderClause = "u.full_name " + sortOrder + " NULLS LAST"
+	case "created_at":
+		orderClause = "tickets.created_at " + sortOrder
+	}
+
 	var rows []ticketModel
-	if err := q.Order("created_at DESC").Offset(offset).Limit(p.Limit).Find(&rows).Error; err != nil {
+	if err := dataQ.Order(orderClause).Offset(offset).Limit(p.Limit).Find(&rows).Error; err != nil {
 		return nil, nil, err
 	}
 
@@ -966,6 +986,103 @@ func (r *ticketRepository) ExportByMonth(ctx context.Context, year, month int) (
 			AssignedCS:   r.AssignedCS,
 			ClosedAt:     r.ClosedAt,
 			CreatedAt:    r.CreatedAt,
+		}
+	}
+	return result, nil
+}
+
+func (r *ticketRepository) ExportList(ctx context.Context, p domain.TicketListParams) ([]domain.TicketExportRow, error) {
+	type row struct {
+		TicketNumber   string     `gorm:"column:ticket_number"`
+		Subject        string     `gorm:"column:subject"`
+		Status         string     `gorm:"column:status"`
+		Source         string     `gorm:"column:source"`
+		ReporterName   string     `gorm:"column:reporter_name"`
+		AssignedCSName *string    `gorm:"column:assigned_cs_name"`
+		Phone          string     `gorm:"column:phone"`
+		OrderNumber    string     `gorm:"column:order_number"`
+		ClosedAt       *time.Time `gorm:"column:closed_at"`
+		CreatedAt      time.Time  `gorm:"column:created_at"`
+	}
+
+	var conditions []string
+	var args []interface{}
+
+	if p.Status != "" {
+		conditions = append(conditions, "t.status = ?")
+		args = append(args, p.Status)
+	}
+	if p.Search != "" {
+		like := "%" + p.Search + "%"
+		conditions = append(conditions, "(t.ticket_number ILIKE ? OR t.reporter_name ILIKE ? OR t.subject ILIKE ? OR t.phone ILIKE ?)")
+		args = append(args, like, like, like, like)
+	}
+	if p.AssignedCSID != nil {
+		conditions = append(conditions, "t.assigned_cs_id = ?")
+		args = append(args, p.AssignedCSID.String())
+	}
+	if p.CustomerID != nil {
+		conditions = append(conditions, "t.customer_id = ?")
+		args = append(args, p.CustomerID.String())
+	}
+	if p.FromDate != "" {
+		conditions = append(conditions, "t.created_at >= ?")
+		args = append(args, p.FromDate)
+	}
+	if p.ToDate != "" {
+		conditions = append(conditions, "t.created_at < ?::date + INTERVAL '1 day'")
+		args = append(args, p.ToDate)
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Sorting
+	sortOrder := "DESC"
+	if p.SortOrder == "asc" {
+		sortOrder = "ASC"
+	}
+	orderClause := "t.created_at " + sortOrder
+	switch p.SortBy {
+	case "reporter_name":
+		orderClause = "t.reporter_name " + sortOrder
+	case "assigned_cs_name":
+		orderClause = "u.full_name " + sortOrder + " NULLS LAST"
+	case "created_at":
+		orderClause = "t.created_at " + sortOrder
+	}
+
+	query := fmt.Sprintf(`
+		SELECT t.ticket_number, ts.label as subject, t.status, t.source,
+		       t.reporter_name, u.full_name as assigned_cs_name, t.phone,
+		       t.order_number, t.closed_at, t.created_at
+		FROM tickets t
+		JOIN ticket_subjects ts ON ts.id = t.subject_id
+		LEFT JOIN users u ON u.id = t.assigned_cs_id
+		%s
+		ORDER BY %s
+	`, whereClause, orderClause)
+
+	var rows []row
+	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.TicketExportRow, len(rows))
+	for i, r := range rows {
+		result[i] = domain.TicketExportRow{
+			TicketNumber:   r.TicketNumber,
+			Subject:        r.Subject,
+			Status:         r.Status,
+			Source:         r.Source,
+			ReporterName:   r.ReporterName,
+			AssignedCSName: r.AssignedCSName,
+			Phone:          r.Phone,
+			OrderNumber:    r.OrderNumber,
+			ClosedAt:       r.ClosedAt,
+			CreatedAt:      r.CreatedAt,
 		}
 	}
 	return result, nil

@@ -154,6 +154,8 @@ type TicketListParams struct {
 	CustomerID   *uuid.UUID
 	FromDate     string // format: "2006-01-02"
 	ToDate       string // format: "2006-01-02"
+	SortBy       string // allowed: "reporter_name", "assigned_cs_name", "created_at"
+	SortOrder    string // allowed: "asc", "desc"
 }
 
 type TicketResponse struct {
@@ -378,6 +380,19 @@ type CSReportExportRow struct {
 	CreatedAt    time.Time  `json:"created_at"`
 }
 
+type TicketExportRow struct {
+	TicketNumber   string     `json:"ticket_number"`
+	Subject        string     `json:"subject"`
+	Status         string     `json:"status"`
+	Source         string     `json:"source"`
+	ReporterName   string     `json:"reporter_name"`
+	AssignedCSName *string    `json:"assigned_cs_name"`
+	Phone          string     `json:"phone"`
+	OrderNumber    string     `json:"order_number"`
+	ClosedAt       *time.Time `json:"closed_at"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
 // --- CS User List (data pengguna) ---
 
 type CSUserListParams struct {
@@ -442,6 +457,7 @@ type TicketRepository interface {
 	TopSubjectsByMonth(ctx context.Context, year, month, limit int) ([]SubjectCount, error)
 	TicketsPerDayByMonth(ctx context.Context, year, month int) ([]DayCount, error)
 	ExportByMonth(ctx context.Context, year, month int) ([]CSReportExportRow, error)
+	ExportList(ctx context.Context, params TicketListParams) ([]TicketExportRow, error)
 }
 
 type ChatRepository interface {
@@ -491,6 +507,8 @@ type TicketUseCase interface {
 	AddTicketMessage(ctx context.Context, senderID uuid.UUID, isCS bool, ticketID uuid.UUID, req AddTicketMessageRequest) (*TicketMessageResponse, error)
 	// CS: list pesan tiket
 	ListTicketMessages(ctx context.Context, ticketID uuid.UUID) ([]TicketMessageResponse, error)
+	// CS: export tiket ke CSV berdasarkan filter
+	ExportTickets(ctx context.Context, params TicketListParams) ([]TicketExportRow, error)
 }
 
 type ChatUseCase interface {

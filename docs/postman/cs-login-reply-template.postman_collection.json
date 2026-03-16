@@ -604,10 +604,22 @@
                   "value": "",
                   "description": "Filter sampai tanggal (format: YYYY-MM-DD, inklusif). Kosongkan untuk semua.",
                   "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "description": "Sort berdasarkan kolom. Nilai: reporter_name | assigned_cs_name | created_at. Default: created_at",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort order. Nilai: asc | desc. Default: desc",
+                  "disabled": true
                 }
               ]
             },
-            "description": "List semua tiket bantuan dengan pagination dan filter.\n\nSemua CS bisa melihat semua tiket (termasuk yang belum diambil).\n\nResponse mengandung `customer_email` dan `assigned_cs_name` untuk display.\n\n**Filter tanggal:**\n- `from_date`: format YYYY-MM-DD (contoh: 2026-03-01)\n- `to_date`: format YYYY-MM-DD (contoh: 2026-03-13), inklusif\n\n**Auth:** Bearer Token (Role: cs)"
+            "description": "List semua tiket bantuan dengan pagination, filter, dan sorting.\n\nSemua CS bisa melihat semua tiket (termasuk yang belum diambil).\n\nResponse mengandung `customer_email` dan `assigned_cs_name` untuk display.\n\n**Filter tanggal:**\n- `from_date`: format YYYY-MM-DD (contoh: 2026-03-01)\n- `to_date`: format YYYY-MM-DD (contoh: 2026-03-13), inklusif\n\n**Sorting:**\n- `sort_by`: reporter_name | assigned_cs_name | created_at (default: created_at)\n- `sort_order`: asc | desc (default: desc)\n\n**Auth:** Bearer Token (Role: cs)"
           },
           "response": [
             {
@@ -621,6 +633,92 @@
                 }
               ],
               "body": "{\n  \"success\": true,\n  \"message\": \"tickets retrieved\",\n  \"data\": [\n    {\n      \"id\": \"d1e2f3a4-b5c6-7890-1234-567890abcdef\",\n      \"ticket_number\": \"TKT-20260225-0001\",\n      \"customer_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"customer_email\": \"customer@dev.local\",\n      \"assigned_cs_id\": null,\n      \"assigned_cs_name\": null,\n      \"order_number\": \"ORD-20260225-001\",\n      \"order_status\": \"diproses\",\n      \"payment_method\": \"QRIS\",\n      \"grand_total\": 450000,\n      \"phone\": \"081234567890\",\n      \"reporter_name\": \"Ahmad Customer\",\n      \"subject\": \"Pesanan belum sampai\",\n      \"detail\": \"Sudah 7 hari tapi pesanan perlengkapan haji saya belum sampai.\",\n      \"status\": \"open\",\n      \"source\": \"web\",\n      \"attachment_url\": \"https://s3.amazonaws.com/bucket/tickets/attachments/abc123.jpg\",\n      \"attachment_content_type\": \"image/jpeg\",\n      \"closed_at\": null,\n      \"closed_at\": null,\n      \"created_at\": \"2026-02-25T08:00:00.000Z\",\n      \"updated_at\": \"2026-02-25T08:00:00.000Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Export Tickets (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cs_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/customer-service/tickets/export?status=&from_date=&to_date=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "customer-service",
+                "tickets",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Filter berdasarkan status tiket. Nilai: open | on_progress | closed. Kosongkan untuk semua.",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Cari berdasarkan nomor tiket, nama pelapor, subjek, atau nomor telepon (ILIKE). Kosongkan untuk semua.",
+                  "disabled": true
+                },
+                {
+                  "key": "assigned_cs_id",
+                  "value": "",
+                  "description": "Filter tiket milik CS tertentu (UUID). Kosongkan untuk semua.",
+                  "disabled": true
+                },
+                {
+                  "key": "from_date",
+                  "value": "",
+                  "description": "Filter dari tanggal (format: YYYY-MM-DD). Contoh: 2026-03-01",
+                  "disabled": true
+                },
+                {
+                  "key": "to_date",
+                  "value": "",
+                  "description": "Filter sampai tanggal (format: YYYY-MM-DD, inklusif). Contoh: 2026-03-16",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_by",
+                  "value": "",
+                  "description": "Sort berdasarkan kolom. Nilai: reporter_name | assigned_cs_name | created_at. Default: created_at",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort order. Nilai: asc | desc. Default: desc",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Export semua tiket bantuan ke file CSV berdasarkan filter dan sorting yang diterapkan.\n\n**Response:** File CSV dengan nama `tickets-export-YYYY-MM-DD.csv`\n\n**Kolom CSV:**\n- Ticket Number\n- Subject\n- Status\n- Source\n- Reporter\n- Assigned CS\n- Phone\n- Order Number\n- Closed At\n- Created At\n\n**Filter & Sorting:**\nMendukung semua filter yang sama dengan List Tickets (status, search, assigned_cs_id, from_date, to_date) dan sorting (sort_by, sort_order).\n\n**Contoh use case:**\n- Export semua tiket open: `?status=open`\n- Export tiket bulan Maret 2026: `?from_date=2026-03-01&to_date=2026-03-31`\n- Export tiket dengan status + tanggal: `?status=closed&from_date=2026-03-01&to_date=2026-03-16`\n- Export dengan sorting by reporter: `?sort_by=reporter_name&sort_order=asc`\n\n**Auth:** Bearer Token (Role: cs)"
+          },
+          "response": [
+            {
+              "name": "200 - CSV File",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/csv"
+                },
+                {
+                  "key": "Content-Disposition",
+                  "value": "attachment; filename=\"tickets-export-2026-03-16.csv\""
+                }
+              ],
+              "body": "Ticket Number,Subject,Status,Source,Reporter,Assigned CS,Phone,Order Number,Closed At,Created At\nTKT-20260301-0001,Pesanan belum sampai,closed,web,Ahmad Customer,Budi CS,081234567890,ORD-20260301-001,2026-03-02 10:30:00,2026-03-01 08:00:00\nTKT-20260302-0002,Cara pembayaran,on_progress,web,Siti Customer,Ani CS,081234567891,ORD-20260302-002,,2026-03-02 09:15:00"
             }
           ]
         },
