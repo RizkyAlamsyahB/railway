@@ -15,11 +15,13 @@ type FinancePeriod struct {
 
 // FinanceListParams holds common query parameters for finance list endpoints.
 type FinanceListParams struct {
-	Month  string
-	Page   int
-	Limit  int
-	Status string
-	Search string
+	Month    string
+	DateFrom string
+	DateTo   string
+	Page     int
+	Limit    int
+	Status   string
+	Search   string
 }
 
 // --- Dashboard ---
@@ -53,10 +55,10 @@ type FinanceDashboardResponse struct {
 
 // FinanceReportSummary holds aggregated totals for the financial report.
 type FinanceReportSummary struct {
-	GrossRevenueTotal     float64 `json:"gross_revenue_total"`
-	PlatformCommission    float64 `json:"platform_commission"`
-	VendorPayoutTotal     float64 `json:"vendor_payout_total"`
-	TemporaryGrossProfit  float64 `json:"temporary_gross_profit"`
+	GrossRevenueTotal    float64 `json:"gross_revenue_total"`
+	PlatformCommission   float64 `json:"platform_commission"`
+	VendorPayoutTotal    float64 `json:"vendor_payout_total"`
+	TemporaryGrossProfit float64 `json:"temporary_gross_profit"`
 }
 
 // FinanceReportDailyItem represents daily aggregated income.
@@ -67,9 +69,9 @@ type FinanceReportDailyItem struct {
 
 // FinanceReportResponse is the output DTO for the financial report.
 type FinanceReportResponse struct {
-	Month        string                   `json:"month"`
-	Summary      FinanceReportSummary     `json:"summary"`
-	DailyIncome  []FinanceReportDailyItem `json:"daily_income"`
+	Month       string                   `json:"month"`
+	Summary     FinanceReportSummary     `json:"summary"`
+	DailyIncome []FinanceReportDailyItem `json:"daily_income"`
 }
 
 // --- Transactions & Payments ---
@@ -130,8 +132,8 @@ type FinanceRefundItem struct {
 
 // FinanceRefundSummary holds aggregated counts for the refund & dispute page.
 type FinanceRefundSummary struct {
-	SubmittedCount    int64   `json:"submitted_count"`
-	DisputeActiveCount int64  `json:"dispute_active_count"`
+	SubmittedCount     int64   `json:"submitted_count"`
+	DisputeActiveCount int64   `json:"dispute_active_count"`
 	ApprovedAmount     float64 `json:"approved_amount"`
 	ProcessedCount     int64   `json:"processed_count"`
 }

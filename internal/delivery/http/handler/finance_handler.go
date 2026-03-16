@@ -306,11 +306,13 @@ func (h *FinanceHandler) parseListParams(c *gin.Context) domain.FinanceListParam
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 
 	return domain.FinanceListParams{
-		Month:  c.Query("month"),
-		Page:   page,
-		Limit:  limit,
-		Status: c.Query("status"),
-		Search: c.Query("search"),
+		Month:    c.Query("month"),
+		DateFrom: c.Query("date_from"),
+		DateTo:   c.Query("date_to"),
+		Page:     page,
+		Limit:    limit,
+		Status:   c.Query("status"),
+		Search:   c.Query("search"),
 	}
 }
 

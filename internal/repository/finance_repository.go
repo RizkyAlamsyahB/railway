@@ -356,7 +356,7 @@ func (r *financeRepository) ListPayouts(ctx context.Context, period domain.Finan
 		pb.total_fee AS commission,
 		pb.total_net AS net_payout,
 		pb.status AS status
-	`).Order("pb.period_end DESC")
+	`).Order("pb.paid_at DESC")
 
 	if params.Limit > 0 {
 		offset := (params.Page - 1) * params.Limit
@@ -403,7 +403,7 @@ func (r *financeRepository) GetPayoutSummary(ctx context.Context, period domain.
 			COALESCE(SUM(CASE WHEN pb.status = 'completed' THEN pb.total_net ELSE 0 END), 0) AS completed,
 			COALESCE(SUM(CASE WHEN pb.status = 'failed' THEN pb.total_net ELSE 0 END), 0) AS failed
 		`).
-		Where("pb.period_end >= ? AND pb.period_end < ?", period.Start, period.End).
+		Where("pb.paid_at >= ? AND pb.paid_at < ?", period.Start, period.End).
 		Scan(&row).Error; err != nil {
 		return nil, err
 	}
@@ -420,7 +420,7 @@ func (r *financeRepository) payoutBaseQuery(ctx context.Context, period domain.F
 	query := r.db.WithContext(ctx).
 		Table("payout_batches pb").
 		Joins("JOIN vendors v ON v.id = pb.vendor_id").
-		Where("pb.period_end >= ? AND pb.period_end < ?", period.Start, period.End)
+		Where("pb.paid_at >= ? AND pb.paid_at < ?", period.Start, period.End)
 
 	if params.Status != "" {
 		query = query.Where("pb.status = ?", params.Status)
@@ -460,7 +460,7 @@ func (r *financeRepository) ListRefunds(ctx context.Context, period domain.Finan
 		r.reason AS reason,
 		r.amount AS amount,
 		r.status AS status
-	`).Order("o.placed_at DESC")
+	`).Order("r.requested_at DESC")
 
 	if params.Limit > 0 {
 		offset := (params.Page - 1) * params.Limit
@@ -496,10 +496,10 @@ func (r *financeRepository) ListRefunds(ctx context.Context, period domain.Finan
 
 func (r *financeRepository) GetRefundSummary(ctx context.Context, period domain.FinancePeriod) (*domain.FinanceRefundSummary, error) {
 	type summaryRow struct {
-		Submitted    int64   `gorm:"column:submitted"`
-		DisputeActive int64  `gorm:"column:dispute_active"`
+		Submitted      int64   `gorm:"column:submitted"`
+		DisputeActive  int64   `gorm:"column:dispute_active"`
 		ApprovedAmount float64 `gorm:"column:approved_amount"`
-		Processed    int64   `gorm:"column:processed"`
+		Processed      int64   `gorm:"column:processed"`
 	}
 
 	var row summaryRow
@@ -510,9 +510,9 @@ func (r *financeRepository) GetRefundSummary(ctx context.Context, period domain.
 			COALESCE(SUM(CASE WHEN r.status IN ('requested', 'approved', 'rejected', 'processed') THEN 1 ELSE 0 END), 0) AS submitted,
 			COALESCE(SUM(CASE WHEN r.status = 'requested' THEN 1 ELSE 0 END), 0) AS dispute_active,
 			COALESCE(SUM(CASE WHEN r.status = 'approved' THEN r.amount ELSE 0 END), 0) AS approved_amount,
-			COALESCE(SUM(CASE WHEN r.status = 'approved' THEN 1 ELSE 0 END), 0) AS processed
+			COALESCE(SUM(CASE WHEN r.status = 'processed' THEN 1 ELSE 0 END), 0) AS processed
 		`).
-		Where("o.placed_at >= ? AND o.placed_at < ?", period.Start, period.End).
+		Where("r.requested_at >= ? AND r.requested_at < ?", period.Start, period.End).
 		Scan(&row).Error; err != nil {
 		return nil, err
 	}
@@ -531,7 +531,7 @@ func (r *financeRepository) refundBaseQuery(ctx context.Context, period domain.F
 		Joins("JOIN orders o ON o.id = r.order_id").
 		Joins("JOIN users u ON u.id = o.user_id").
 		Joins("JOIN vendors v ON v.id = o.vendor_id").
-		Where("o.placed_at >= ? AND o.placed_at < ?", period.Start, period.End)
+		Where("r.requested_at >= ? AND r.requested_at < ?", period.Start, period.End)
 
 	if params.Status != "" {
 		query = query.Where("r.status = ?", params.Status)

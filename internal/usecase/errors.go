@@ -149,6 +149,8 @@ var (
 
 var (
 	ErrInvalidMonth            = errors.New("invalid month format, expected YYYY-MM")
+	ErrInvalidDate             = errors.New("invalid date format, expected YYYY-MM-DD")
+	ErrInvalidDateRange        = errors.New("invalid date range: date_from must be before or equal to date_to")
 	ErrInvalidPaymentStatus    = errors.New("invalid payment status")
 	ErrInvalidRefundStatus     = errors.New("invalid refund status")
 	ErrInvalidPayoutStatus     = errors.New("invalid payout status")

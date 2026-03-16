@@ -126,6 +126,8 @@ var errorRules = []errorRule{
 
 	// Finance
 	{usecase.ErrInvalidMonth, http.StatusBadRequest, "invalid month format, expected YYYY-MM"},
+	{usecase.ErrInvalidDate, http.StatusBadRequest, "invalid date format, expected YYYY-MM-DD"},
+	{usecase.ErrInvalidDateRange, http.StatusBadRequest, "invalid date range: date_from must be before or equal to date_to"},
 	{usecase.ErrInvalidPaymentStatus, http.StatusBadRequest, "invalid payment status"},
 	{usecase.ErrInvalidRefundStatus, http.StatusBadRequest, "invalid refund status"},
 	{usecase.ErrInvalidPayoutStatus, http.StatusBadRequest, "invalid payout status"},

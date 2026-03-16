@@ -14,6 +14,8 @@ type financeUseCase struct {
 	repo domain.FinanceRepository
 }
 
+var wibLocation = time.FixedZone("WIB", 7*60*60)
+
 // NewFinanceUseCase creates a new FinanceUseCase.
 func NewFinanceUseCase(repo domain.FinanceRepository) domain.FinanceUseCase {
 	return &financeUseCase{repo: repo}
@@ -71,11 +73,15 @@ func (uc *financeUseCase) ListTransactions(ctx context.Context, params domain.Fi
 	params.Page = page
 	params.Limit = limit
 
-	if params.Status != "" && !isValidPaymentStatus(params.Status) {
-		return nil, nil, ErrInvalidPaymentStatus
+	if params.Status != "" {
+		normalized := strings.ToLower(strings.TrimSpace(params.Status))
+		if !isValidPaymentStatus(normalized) {
+			return nil, nil, ErrInvalidPaymentStatus
+		}
+		params.Status = normalized
 	}
 
-	period, _, err := uc.parseMonth(params.Month)
+	period, _, err := uc.parseListPeriod(params)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -99,11 +105,15 @@ func (uc *financeUseCase) GetTransactionSummary(ctx context.Context, month strin
 }
 
 func (uc *financeUseCase) ExportTransactions(ctx context.Context, params domain.FinanceListParams) ([]domain.FinanceTransactionItem, error) {
-	if params.Status != "" && !isValidPaymentStatus(params.Status) {
-		return nil, ErrInvalidPaymentStatus
+	if params.Status != "" {
+		normalized := strings.ToLower(strings.TrimSpace(params.Status))
+		if !isValidPaymentStatus(normalized) {
+			return nil, ErrInvalidPaymentStatus
+		}
+		params.Status = normalized
 	}
 
-	period, _, err := uc.parseMonth(params.Month)
+	period, _, err := uc.parseListPeriod(params)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +142,7 @@ func (uc *financeUseCase) ListPayouts(ctx context.Context, params domain.Finance
 		params.Status = normalized
 	}
 
-	period, _, err := uc.parseMonth(params.Month)
+	period, _, err := uc.parseListPeriod(params)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,7 +174,7 @@ func (uc *financeUseCase) ExportPayouts(ctx context.Context, params domain.Finan
 		params.Status = normalized
 	}
 
-	period, _, err := uc.parseMonth(params.Month)
+	period, _, err := uc.parseListPeriod(params)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +203,7 @@ func (uc *financeUseCase) ListRefunds(ctx context.Context, params domain.Finance
 		params.Status = normalized
 	}
 
-	period, _, err := uc.parseMonth(params.Month)
+	period, _, err := uc.parseListPeriod(params)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -225,7 +235,7 @@ func (uc *financeUseCase) ExportRefunds(ctx context.Context, params domain.Finan
 		params.Status = normalized
 	}
 
-	period, _, err := uc.parseMonth(params.Month)
+	period, _, err := uc.parseListPeriod(params)
 	if err != nil {
 		return nil, err
 	}
@@ -296,22 +306,82 @@ func (uc *financeUseCase) UpdatePayoutStatus(ctx context.Context, payoutID uuid.
 func (uc *financeUseCase) parseMonth(month string) (domain.FinancePeriod, string, error) {
 	trimmed := strings.TrimSpace(month)
 	if trimmed == "" {
-		now := time.Now().UTC()
+		now := time.Now().In(wibLocation)
 		trimmed = now.Format("2006-01")
 	}
 
-	parsed, err := time.ParseInLocation("2006-01", trimmed, time.UTC)
+	parsed, err := time.ParseInLocation("2006-01", trimmed, wibLocation)
 	if err != nil {
 		return domain.FinancePeriod{}, "", ErrInvalidMonth
 	}
 
-	start := time.Date(parsed.Year(), parsed.Month(), 1, 0, 0, 0, 0, time.UTC)
-	end := start.AddDate(0, 1, 0)
+	startLocal := time.Date(parsed.Year(), parsed.Month(), 1, 0, 0, 0, 0, wibLocation)
+	endLocal := startLocal.AddDate(0, 1, 0)
 
 	return domain.FinancePeriod{
-		Start: start,
-		End:   end,
-	}, trimmed, nil
+		Start: startLocal.UTC(),
+		End:   endLocal.UTC(),
+	}, parsed.Format("2006-01"), nil
+}
+
+func (uc *financeUseCase) parseListPeriod(params domain.FinanceListParams) (domain.FinancePeriod, string, error) {
+	monthPeriod, monthLabel, err := uc.parseMonth(params.Month)
+	if err != nil {
+		return domain.FinancePeriod{}, "", err
+	}
+
+	startLocal := monthPeriod.Start.In(wibLocation)
+	endLocal := monthPeriod.End.In(wibLocation)
+
+	var fromStart *time.Time
+	if strings.TrimSpace(params.DateFrom) != "" {
+		v, err := parseDateStartWIB(params.DateFrom)
+		if err != nil {
+			return domain.FinancePeriod{}, "", err
+		}
+		fromStart = &v
+	}
+
+	var toStart *time.Time
+	if strings.TrimSpace(params.DateTo) != "" {
+		v, err := parseDateStartWIB(params.DateTo)
+		if err != nil {
+			return domain.FinancePeriod{}, "", err
+		}
+		toStart = &v
+	}
+
+	if fromStart != nil && toStart != nil && fromStart.After(*toStart) {
+		return domain.FinancePeriod{}, "", ErrInvalidDateRange
+	}
+
+	if fromStart != nil && fromStart.After(startLocal) {
+		startLocal = *fromStart
+	}
+	if toStart != nil {
+		toEndLocal := toStart.AddDate(0, 0, 1)
+		if toEndLocal.Before(endLocal) {
+			endLocal = toEndLocal
+		}
+	}
+
+	if !startLocal.Before(endLocal) {
+		endLocal = startLocal
+	}
+
+	return domain.FinancePeriod{
+		Start: startLocal.UTC(),
+		End:   endLocal.UTC(),
+	}, monthLabel, nil
+}
+
+func parseDateStartWIB(raw string) (time.Time, error) {
+	trimmed := strings.TrimSpace(raw)
+	parsed, err := time.ParseInLocation("2006-01-02", trimmed, wibLocation)
+	if err != nil {
+		return time.Time{}, ErrInvalidDate
+	}
+	return time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 0, 0, 0, 0, wibLocation), nil
 }
 
 func normalizePaging(page, limit int) (int, int) {
@@ -356,10 +426,11 @@ func isValidPaymentStatus(status string) bool {
 }
 
 func normalizeRefundStatus(status string) string {
-	if strings.EqualFold(status, "pending") {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	if normalized == "pending" {
 		return domain.RefundStatusRequested
 	}
-	return status
+	return normalized
 }
 
 func isValidRefundStatus(status string) bool {
@@ -390,13 +461,14 @@ func isRefundTransitionAllowed(current, target string) bool {
 }
 
 func normalizePayoutStatus(status string) string {
+	normalized := strings.ToLower(strings.TrimSpace(status))
 	switch {
-	case strings.EqualFold(status, "on hold"), strings.EqualFold(status, "on_hold"):
+	case normalized == "on hold", normalized == "on_hold":
 		return domain.PayoutStatusOnHold
-	case strings.EqualFold(status, "complete"), strings.EqualFold(status, "completed"):
+	case normalized == "complete", normalized == "completed":
 		return domain.PayoutStatusComplete
 	default:
-		return strings.ToLower(status)
+		return normalized
 	}
 }
 

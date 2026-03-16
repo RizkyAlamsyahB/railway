@@ -115,6 +115,8 @@ paths:
       operationId: listFinanceTransactions
       parameters:
         - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/DateFromParam'
+        - $ref: '#/components/parameters/DateToParam'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/LimitParam'
         - $ref: '#/components/parameters/SearchParam'
@@ -154,6 +156,8 @@ paths:
       operationId: exportFinanceTransactions
       parameters:
         - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/DateFromParam'
+        - $ref: '#/components/parameters/DateToParam'
         - $ref: '#/components/parameters/SearchParam'
         - name: status
           in: query
@@ -189,6 +193,8 @@ paths:
       operationId: listFinancePayouts
       parameters:
         - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/DateFromParam'
+        - $ref: '#/components/parameters/DateToParam'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/LimitParam'
         - $ref: '#/components/parameters/SearchParam'
@@ -227,6 +233,8 @@ paths:
       operationId: exportFinancePayouts
       parameters:
         - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/DateFromParam'
+        - $ref: '#/components/parameters/DateToParam'
         - $ref: '#/components/parameters/SearchParam'
         - name: status
           in: query
@@ -261,6 +269,8 @@ paths:
       operationId: listFinanceRefunds
       parameters:
         - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/DateFromParam'
+        - $ref: '#/components/parameters/DateToParam'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/LimitParam'
         - $ref: '#/components/parameters/SearchParam'
@@ -299,6 +309,8 @@ paths:
       operationId: exportFinanceRefunds
       parameters:
         - $ref: '#/components/parameters/MonthParam'
+        - $ref: '#/components/parameters/DateFromParam'
+        - $ref: '#/components/parameters/DateToParam'
         - $ref: '#/components/parameters/SearchParam'
         - name: status
           in: query
@@ -467,11 +479,29 @@ components:
     MonthParam:
       name: month
       in: query
-      description: Bulan dalam format YYYY-MM (UTC). Default bulan sekarang.
+      description: Bulan dalam format YYYY-MM (WIB/UTC+7). Default bulan sekarang.
       required: false
       schema:
         type: string
         example: "2026-01"
+    DateFromParam:
+      name: date_from
+      in: query
+      description: Tanggal awal filter dalam format YYYY-MM-DD (WIB/UTC+7, inklusif).
+      required: false
+      schema:
+        type: string
+        format: date
+        example: "2026-01-10"
+    DateToParam:
+      name: date_to
+      in: query
+      description: Tanggal akhir filter dalam format YYYY-MM-DD (WIB/UTC+7, inklusif).
+      required: false
+      schema:
+        type: string
+        format: date
+        example: "2026-01-20"
     PageParam:
       name: page
       in: query

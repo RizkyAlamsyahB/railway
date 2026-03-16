@@ -1,8 +1,8 @@
 -- Revert: remove 'processing' from order_status_history CHECK constraints.
 ALTER TABLE order_status_history DROP CONSTRAINT IF EXISTS ck_order_status_history_old_status;
 ALTER TABLE order_status_history ADD CONSTRAINT ck_order_status_history_old_status
-    CHECK (old_status IS NULL OR old_status IN ('pending_payment', 'paid', 'packed', 'shipped', 'completed', 'canceled', 'refunded'));
+    CHECK (old_status IS NULL OR old_status IN ('pending_payment', 'paid', 'packed', 'shipped', 'received', 'completed', 'canceled', 'refunded'));
 
 ALTER TABLE order_status_history DROP CONSTRAINT IF EXISTS ck_order_status_history_new_status;
 ALTER TABLE order_status_history ADD CONSTRAINT ck_order_status_history_new_status
-    CHECK (new_status IN ('pending_payment', 'paid', 'packed', 'shipped', 'completed', 'canceled', 'refunded'));
+    CHECK (new_status IN ('pending_payment', 'paid', 'packed', 'shipped', 'received', 'completed', 'canceled', 'refunded'));
