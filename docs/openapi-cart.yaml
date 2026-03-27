@@ -20,8 +20,12 @@ paths:
         Cart dibuat otomatis (lazy create) saat pertama kali diakses.
 
         **Harga live:**
-        Harga setiap item diambil langsung dari `product_variants.price` saat request dilakukan,
-        bukan snapshot harga saat item ditambahkan. Ini memastikan customer selalu melihat harga terkini.
+        Harga setiap item dihitung live saat request dilakukan.
+        Response menyediakan:
+        - `price` sebagai harga efektif (sudah mempertimbangkan promo aktif jika ada),
+        - `original_price` sebagai harga normal,
+        - `promo_price` sebagai harga promo aktif (nullable),
+        - `has_promo` sebagai indikator promo aktif.
 
         **Field `is_available`:**
         Bernilai `true` hanya jika variant aktif (`is_active = true`) DAN product berstatus `published`.
@@ -63,6 +67,9 @@ paths:
                       product_slug: sajadah-premium-madinah
                       image_url: products/aaaaaaaa/images/img001/photo.jpg
                       price: 150000
+                      original_price: 175000
+                      promo_price: 150000
+                      has_promo: true
                       currency: IDR
                       qty: 2
                       subtotal: 300000
@@ -821,8 +828,23 @@ components:
         price:
           type: number
           format: double
-          description: Harga live per unit dari product variant (bukan snapshot).
+          description: Harga efektif live per unit (sudah mempertimbangkan promo aktif jika ada).
           example: 150000
+        original_price:
+          type: number
+          format: double
+          description: Harga normal per unit tanpa promo.
+          example: 175000
+        promo_price:
+          type: number
+          format: double
+          nullable: true
+          description: Harga promo per unit jika promo aktif; `null` jika tidak ada promo.
+          example: 150000
+        has_promo:
+          type: boolean
+          description: Menandakan apakah item sedang terkena promo aktif.
+          example: true
         currency:
           type: string
           description: Mata uang harga.

@@ -192,6 +192,22 @@ func (mr *MockProductRepositoryMockRecorder) ListPublishedForCustomer(ctx, param
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPublishedForCustomer", reflect.TypeOf((*MockProductRepository)(nil).ListPublishedForCustomer), ctx, params)
 }
 
+// ListByVendor mocks base method.
+func (m *MockProductRepository) ListByVendor(ctx context.Context, vendorID uuid.UUID, params domain.VendorProductListParams) ([]domain.VendorProductListItem, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByVendor", ctx, vendorID, params)
+	ret0, _ := ret[0].([]domain.VendorProductListItem)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListByVendor indicates an expected call of ListByVendor.
+func (mr *MockProductRepositoryMockRecorder) ListByVendor(ctx, vendorID, params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByVendor", reflect.TypeOf((*MockProductRepository)(nil).ListByVendor), ctx, vendorID, params)
+}
+
 // UpdateImages mocks base method.
 func (m *MockProductRepository) UpdateImages(ctx context.Context, images []domain.ProductImage) error {
 	m.ctrl.T.Helper()

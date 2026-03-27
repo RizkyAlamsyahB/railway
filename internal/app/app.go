@@ -19,6 +19,7 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/storage"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/repository"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/sensitivedata"
 	"gorm.io/gorm"
 )
 
@@ -91,6 +92,11 @@ func Initialize() (*App, error) {
 
 	log.Println("xendit payout provider initialized")
 
+	fieldCipher, err := newSensitiveDataCipher(cfg.Sensitive)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize sensitive data protection: %w", err)
+	}
+
 	// Wire dependencies
 	healthUseCase := usecase.NewHealthUseCase()
 	healthHandler := handler.NewHealthHandler(healthUseCase)
@@ -113,8 +119,8 @@ func Initialize() (*App, error) {
 	}
 	otpHandler := handler.NewOTPHandler(otpUseCase)
 
-	vendorRepo := repository.NewVendorRepository(db)
-	vendorOnboardingRepo := repository.NewVendorOnboardingRepository(db)
+	vendorRepo := repository.NewVendorRepository(db, fieldCipher)
+	vendorOnboardingRepo := repository.NewVendorOnboardingRepository(db, fieldCipher)
 	vendorUseCase := usecase.NewVendorUseCase(
 		otpUseCase,
 		userRepo,
@@ -261,14 +267,14 @@ func Initialize() (*App, error) {
 	ledgerRepo := repository.NewLedgerRepository(db)
 	shipmentRepo := repository.NewShipmentRepository(db)
 	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, shipmentRepo, rajaOngkirProvider, storageProvider, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
-	checkoutHandler := handler.NewCheckoutHandler(checkoutUseCase, cfg.Xendit.WebhookVerificationToken)
+	checkoutHandler := handler.NewCheckoutHandler(checkoutUseCase, cfg.Xendit.WebhookVerificationToken, cfg.Xendit.Bypass)
 	orderActionUseCase := usecase.NewOrderActionUseCase(orderRepo)
 	orderActionHandler := handler.NewOrderActionHandler(orderActionUseCase)
 	orderSettlementScheduler := usecase.NewOrderSettlementScheduler(orderRepo)
 
 	// Vendor Order management
 	vendorOrderRepo := repository.NewVendorOrderRepository(db)
-	vendorOrderUseCase := usecase.NewVendorOrderUseCase(vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, rajaOngkirProvider)
+	vendorOrderUseCase := usecase.NewVendorOrderUseCase(vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, vendorRepo, rajaOngkirProvider)
 	vendorOrderHandler := handler.NewVendorOrderHandler(vendorOrderUseCase)
 
 	reviewRepo := repository.NewReviewRepository(db)
@@ -378,6 +384,13 @@ func newXenditInvoiceProvider(cfg config.XenditConfig) (domain.XenditInvoiceProv
 // newXenditPayoutProvider creates the Xendit-backed XenditPayoutProvider from config.
 func newXenditPayoutProvider(cfg config.XenditConfig) (domain.XenditPayoutProvider, error) {
 	return payment.NewXenditPayoutClient(cfg)
+}
+
+func newSensitiveDataCipher(cfg config.SensitiveDataConfig) (*sensitivedata.FieldCipher, error) {
+	if cfg.EncryptionKey == "" {
+		return nil, fmt.Errorf("SENSITIVE_DATA_ENCRYPTION_KEY is required")
+	}
+	return sensitivedata.NewFieldCipher([]byte(cfg.EncryptionKey))
 }
 
 // newRajaOngkirProvider creates the RajaOngkir API client from config.

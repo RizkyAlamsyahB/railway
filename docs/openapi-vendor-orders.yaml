@@ -118,8 +118,8 @@ paths:
       description: |
         Mengambil detail lengkap satu pesanan milik vendor, termasuk:
         - Item pesanan (produk, varian, qty, harga)
-        - Ringkasan biaya (subtotal, ongkir, platform fee, grand total)
-        - Alamat pengiriman
+        - Ringkasan biaya (subtotal produk, ongkos kirim, biaya layanan, grand total)
+        - Alamat pengiriman / penerima
         - Informasi pengiriman (kurir, resi, status)
         - Informasi pembayaran
       operationId: getVendorOrderDetail
@@ -141,40 +141,42 @@ paths:
                 success: true
                 message: order detail retrieved successfully
                 data:
-                  order_id: "4354c494-d5a1-4f00-b120-abcdef123456"
-                  order_no: "ORD-20260301-ABC1"
-                  order_date: "2026-03-01T10:30:00Z"
-                  status: "processing"
-                  customer_name: "Ahmad Rizky"
-                  items:
-                    - product_name: "Kain Ihram Premium"
-                      selected_variant: "Putih - L"
-                      qty: 2
-                      unit_price: 150000
-                      line_total: 300000
-                  subtotal: 300000
-                  shipping_fee: 15000
-                  platform_fee: 10000
-                  grand_total: 325000
-                  shipping_address:
-                    recipient_name: "Ahmad Rizky"
-                    phone: "081234567890"
-                    address_line: "Jl. Merdeka No. 10"
-                    city: "Jakarta Selatan"
-                    province: "DKI Jakarta"
-                    postal_code: "12345"
-                  shipment:
-                    courier_code: "jnt"
-                    service_type: "EZ"
-                    tracking_no: ""
-                    shipment_status: "waiting_pickup"
-                    shipped_at: null
+                  shipping:
+                    courier: "anteraja"
+                    tracking_number: "11002960818873"
+                    status: "Paket dalam pengiriman"
                     delivered_at: null
-                  payment_info:
-                    status: "paid"
-                    payment_method: "EWALLET"
-                    payment_channel: "OVO"
-                    paid_at: "2026-03-01T10:35:00Z"
+                  recipient:
+                    name: "Ahmad Rizky"
+                    phone: "081234567890"
+                    address:
+                      street: "Jl. Merdeka No. 10"
+                      district: "Menteng"
+                      city: "Jakarta"
+                      province: "DKI Jakarta"
+                      postal_code: "12345"
+                  store:
+                    name: "Toko Umroh"
+                  items:
+                    - name: "Kain Ihram Premium"
+                      variant: "Putih - L"
+                      price: 150000
+                      quantity: 2
+                      subtotal: 300000
+                  payment:
+                    method: "QRIS"
+                    total_amount: 325000
+                  order:
+                    order_number: "ORD-20260301-ABC1"
+                    order_time: "2026-03-01T10:30:00Z"
+                    payment_time: "2026-03-01T10:35:00Z"
+                    shipping_time: "2026-03-02T08:00:00Z"
+                    delivered_time: null
+                  summary:
+                    items_total: 300000
+                    shipping_fee: 15000
+                    service_fee: 10000
+                    grand_total: 325000
                 errors: null
                 meta: null
         '401':
@@ -688,122 +690,124 @@ components:
 
     VendorOrderDetailResponse:
       type: object
+      description: Detail pesanan vendor (nested structure).
       properties:
-        order_id:
-          type: string
-          format: uuid
-        order_no:
-          type: string
-          example: "ORD-20260301-ABC1"
-        order_date:
-          type: string
-          format: date-time
-        status:
-          type: string
-          enum:
-            - paid
-            - processing
-            - shipped
-            - delivered
-            - completed
-            - canceled
-        customer_name:
-          type: string
+        shipping:
+          type: object
+          properties:
+            courier:
+              type: string
+              example: "anteraja"
+            tracking_number:
+              type: string
+              example: "11002960818873"
+            status:
+              type: string
+              example: "Paket dalam pengiriman"
+            delivered_at:
+              type: string
+              format: date-time
+              nullable: true
+        recipient:
+          type: object
+          properties:
+            name:
+              type: string
+              example: "Ahmad Rizky"
+            phone:
+              type: string
+              example: "081234567890"
+            address:
+              type: object
+              properties:
+                street:
+                  type: string
+                district:
+                  type: string
+                city:
+                  type: string
+                province:
+                  type: string
+                postal_code:
+                  type: string
+        store:
+          type: object
+          properties:
+            name:
+              type: string
+              example: "Toko Umroh"
         items:
           type: array
           items:
-            $ref: '#/components/schemas/VendorOrderProductItem'
-        subtotal:
-          type: number
-          format: double
-          description: Subtotal item tanpa ongkir dan fee.
-          example: 300000
-        shipping_fee:
-          type: number
-          format: double
-          description: Biaya pengiriman.
-          example: 15000
-        platform_fee:
-          type: number
-          format: double
-          description: Fee platform.
-          example: 10000
-        grand_total:
-          type: number
-          format: double
-          description: Total yang dibayar customer.
-          example: 325000
-        shipping_address:
+            type: object
+            properties:
+              name:
+                type: string
+              variant:
+                type: string
+              price:
+                type: number
+                format: double
+              quantity:
+                type: integer
+              subtotal:
+                type: number
+                format: double
+        payment:
           type: object
-          description: Alamat pengiriman customer (format fleksibel).
-          additionalProperties: true
-        shipment:
-          nullable: true
-          description: Informasi pengiriman (null jika belum ada shipment).
-          allOf:
-            - $ref: '#/components/schemas/VendorOrderShipmentResponse'
-        payment_info:
-          nullable: true
-          description: Informasi pembayaran.
-          allOf:
-            - $ref: '#/components/schemas/VendorOrderPaymentInfo'
-
-    VendorOrderShipmentResponse:
-      type: object
-      properties:
-        courier_code:
-          type: string
-          description: Kode kurir (dipilih customer saat checkout).
-          example: "jnt"
-        service_type:
-          type: string
-          description: Jenis layanan kurir (dipilih customer saat checkout).
-          example: "EZ"
-        tracking_no:
-          type: string
-          description: Nomor resi (kosong jika belum diinput vendor).
-          example: "JNT0123456789"
-        shipment_status:
-          type: string
-          description: Status pengiriman.
-          enum:
-            - waiting_pickup
-            - shipped
-            - delivered
-          example: "waiting_pickup"
-        shipped_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: Waktu pengiriman (null jika belum dikirim).
-        delivered_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: Waktu pengiriman sampai (null jika belum sampai).
-
-    VendorOrderPaymentInfo:
-      type: object
-      properties:
-        status:
-          type: string
-          description: Status pembayaran.
-          example: "paid"
-        payment_method:
-          type: string
-          nullable: true
-          description: Metode pembayaran.
-          example: "EWALLET"
-        payment_channel:
-          type: string
-          nullable: true
-          description: Channel pembayaran.
-          example: "OVO"
-        paid_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: Waktu pembayaran.
+          properties:
+            method:
+              type: string
+              description: Metode pembayaran (dari kolom payment_method di tabel payment_invoices).
+              example: "QRIS"
+            total_amount:
+              type: number
+              format: double
+              example: 325000
+        order:
+          type: object
+          properties:
+            order_number:
+              type: string
+              example: "ORD-20260301-ABC1"
+            order_time:
+              type: string
+              format: date-time
+            payment_time:
+              type: string
+              format: date-time
+              nullable: true
+            shipping_time:
+              type: string
+              format: date-time
+              nullable: true
+            delivered_time:
+              type: string
+              format: date-time
+              nullable: true
+        summary:
+          type: object
+          properties:
+            items_total:
+              type: number
+              format: double
+              description: Subtotal produk.
+              example: 300000
+            shipping_fee:
+              type: number
+              format: double
+              description: Ongkos kirim.
+              example: 15000
+            service_fee:
+              type: number
+              format: double
+              description: Biaya layanan (platform fee).
+              example: 10000
+            grand_total:
+              type: number
+              format: double
+              description: Total yang dibayar customer.
+              example: 325000
 
     AcceptRejectOrderResponse:
       type: object

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -43,6 +44,21 @@ type productVariantModel struct {
 }
 
 func (productVariantModel) TableName() string { return "product_variants" }
+
+type productVariantPricingRow struct {
+	ID            string   `gorm:"column:id"`
+	ProductID     string   `gorm:"column:product_id"`
+	SKU           string   `gorm:"column:sku"`
+	VariantName   string   `gorm:"column:variant_name"`
+	Price         float64  `gorm:"column:price"`
+	OriginalPrice float64  `gorm:"column:original_price"`
+	PromoPrice    *float64 `gorm:"column:promo_price"`
+	Currency      string   `gorm:"column:currency"`
+	StockOnHand   int      `gorm:"column:stock_on_hand"`
+	WeightGram    *int     `gorm:"column:weight_gram"`
+	IsDefault     bool     `gorm:"column:is_default"`
+	IsActive      bool     `gorm:"column:is_active"`
+}
 
 type productImageModel struct {
 	ID            string    `gorm:"column:id;primaryKey"`
@@ -173,14 +189,33 @@ func (r *productRepository) CountByVendorID(ctx context.Context, vendorID uuid.U
 }
 
 func (r *productRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (*domain.ProductVariant, error) {
-	var model productVariantModel
-	if err := r.db.WithContext(ctx).Where("id = ?", id.String()).First(&model).Error; err != nil {
+	var row productVariantPricingRow
+	activePromoExpr := buildActivePromoMinExpr("pv.product_id")
+	effectivePriceExpr := buildEffectivePriceExpr("pv.price", "pv.product_id")
+	if err := r.db.WithContext(ctx).
+		Table("product_variants pv").
+		Select(fmt.Sprintf(`
+			pv.id,
+			pv.product_id,
+			pv.sku,
+			pv.variant_name,
+			pv.price AS original_price,
+			%s AS promo_price,
+			%s AS price,
+			pv.currency,
+			pv.stock_on_hand,
+			pv.weight_gram,
+			pv.is_default,
+			pv.is_active
+		`, activePromoExpr, effectivePriceExpr)).
+		Where("pv.id = ?", id.String()).
+		Take(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	return toDomainProductVariant(&model), nil
+	return toDomainProductVariantFromPricingRow(&row), nil
 }
 
 func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, id uuid.UUID) (*domain.ProductDetailResponse, error) {
@@ -234,29 +269,49 @@ func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, i
 		return nil, err
 	}
 
-	var variantModels []productVariantModel
+	activePromoExpr := buildActivePromoMinExpr("pv.product_id")
+	effectivePriceExpr := buildEffectivePriceExpr("pv.price", "pv.product_id")
+	var variantRows []productVariantPricingRow
 	if err := r.db.WithContext(ctx).
-		Where("product_id = ?", id.String()).
-		Where("is_active = ?", true).
-		Order("is_default DESC").
+		Table("product_variants pv").
+		Select(fmt.Sprintf(`
+			pv.id,
+			pv.product_id,
+			pv.sku,
+			pv.variant_name,
+			pv.price AS original_price,
+			%s AS promo_price,
+			%s AS price,
+			pv.currency,
+			pv.stock_on_hand,
+			pv.weight_gram,
+			pv.is_default,
+			pv.is_active
+		`, activePromoExpr, effectivePriceExpr)).
+		Where("pv.product_id = ?", id.String()).
+		Where("pv.is_active = ?", true).
+		Order("pv.is_default DESC").
 		Order("price ASC").
-		Find(&variantModels).Error; err != nil {
+		Find(&variantRows).Error; err != nil {
 		return nil, err
 	}
 
-	variantItems := make([]domain.ProductVariantResponse, len(variantModels))
-	for i := range variantModels {
-		v := toDomainProductVariant(&variantModels[i])
+	variantItems := make([]domain.ProductVariantResponse, len(variantRows))
+	for i := range variantRows {
+		v := toDomainProductVariantFromPricingRow(&variantRows[i])
 		variantItems[i] = domain.ProductVariantResponse{
-			ID:          v.ID,
-			SKU:         v.SKU,
-			VariantName: v.VariantName,
-			Price:       v.Price,
-			Currency:    v.Currency,
-			StockOnHand: v.StockOnHand,
-			WeightGram:  v.WeightGram,
-			IsDefault:   v.IsDefault,
-			IsActive:    v.IsActive,
+			ID:            v.ID,
+			SKU:           v.SKU,
+			VariantName:   v.VariantName,
+			Price:         v.Price,
+			OriginalPrice: v.OriginalPrice,
+			PromoPrice:    v.PromoPrice,
+			HasPromo:      v.HasPromo,
+			Currency:      v.Currency,
+			StockOnHand:   v.StockOnHand,
+			WeightGram:    v.WeightGram,
+			IsDefault:     v.IsDefault,
+			IsActive:      v.IsActive,
 		}
 	}
 
@@ -309,6 +364,9 @@ func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, i
 }
 
 func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params domain.ProductListParams) ([]domain.ProductListItem, int64, error) {
+	activePromoExpr := buildActivePromoMinExpr("products.id")
+	effectivePriceExpr := buildEffectivePriceExpr("pv.price", "products.id")
+
 	query := r.db.WithContext(ctx).Model(&productModel{}).
 		Joins("JOIN product_variants pv ON pv.product_id = products.id").
 		Joins("LEFT JOIN product_review_stats prs ON prs.product_id = products.id").
@@ -327,19 +385,30 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 	}
 
 	type productListRow struct {
-		ID            string  `gorm:"column:id"`
-		Name          string  `gorm:"column:name"`
-		Price         float64 `gorm:"column:price"`
-		RatingAverage float64 `gorm:"column:rating_average"`
-		RatingCount   int64   `gorm:"column:rating_count"`
+		ID            string   `gorm:"column:id"`
+		Name          string   `gorm:"column:name"`
+		Price         float64  `gorm:"column:price"`
+		OriginalPrice float64  `gorm:"column:original_price"`
+		PromoPrice    *float64 `gorm:"column:promo_price"`
+		RatingAverage float64  `gorm:"column:rating_average"`
+		RatingCount   int64    `gorm:"column:rating_count"`
 	}
 
 	offset := (params.Page - 1) * params.Limit
-	listQuery := query.Select("products.id, products.name, MIN(pv.price) AS price, products.created_at, COALESCE(prs.average_rating, 0) AS rating_average, COALESCE(prs.total_reviews, 0) AS rating_count").
+	listQuery := query.Select(fmt.Sprintf(`
+			products.id,
+			products.name,
+			MIN(pv.price) AS original_price,
+			MIN(%s) AS promo_price,
+			MIN(%s) AS price,
+			products.created_at,
+			COALESCE(prs.average_rating, 0) AS rating_average,
+			COALESCE(prs.total_reviews, 0) AS rating_count
+		`, activePromoExpr, effectivePriceExpr)).
 		Group("products.id, products.name, products.created_at, prs.average_rating, prs.total_reviews")
 
 	if params.Sort == "cheapest" {
-		listQuery = listQuery.Order("MIN(pv.price) ASC").Order("products.created_at DESC")
+		listQuery = listQuery.Order("price ASC").Order("products.created_at DESC")
 	} else {
 		listQuery = listQuery.Order("products.created_at DESC")
 	}
@@ -352,16 +421,136 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 	items := make([]domain.ProductListItem, len(rows))
 	for i, row := range rows {
 		id, _ := uuid.Parse(row.ID)
+		promoPrice, hasPromo := normalizePromoInfo(row.OriginalPrice, row.Price)
 		items[i] = domain.ProductListItem{
 			ID:            id,
 			Name:          row.Name,
 			Price:         row.Price,
+			OriginalPrice: row.OriginalPrice,
+			PromoPrice:    promoPrice,
+			HasPromo:      hasPromo,
 			RatingAverage: row.RatingAverage,
 			RatingCount:   row.RatingCount,
 		}
 	}
 
 	return items, total, nil
+}
+
+func (r *productRepository) ListByVendor(ctx context.Context, vendorID uuid.UUID, params domain.VendorProductListParams) ([]domain.VendorProductListItem, int64, error) {
+	type vendorProductRow struct {
+		ID           string    `gorm:"column:id"`
+		Name         string    `gorm:"column:name"`
+		CategoryName string    `gorm:"column:category_name"`
+		Price        float64   `gorm:"column:price"`
+		Stock        int       `gorm:"column:stock"`
+		Status       string    `gorm:"column:status"`
+		CreatedAt    time.Time `gorm:"column:created_at"`
+	}
+
+	baseQuery := r.db.WithContext(ctx).
+		Table("products p").
+		Joins("JOIN categories c ON c.id = p.category_id").
+		Joins("LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active = true").
+		Where("p.vendor_id = ?", vendorID.String())
+
+	if params.Status != "" {
+		baseQuery = baseQuery.Where("p.status = ?", params.Status)
+	}
+
+	if params.Search != "" {
+		search := "%" + strings.ToLower(params.Search) + "%"
+		baseQuery = baseQuery.Where("LOWER(p.name) LIKE ?", search)
+	}
+
+	// Count distinct products.
+	var total int64
+	countQuery := r.db.WithContext(ctx).
+		Table("products p").
+		Joins("JOIN categories c ON c.id = p.category_id").
+		Where("p.vendor_id = ?", vendorID.String())
+
+	if params.Status != "" {
+		countQuery = countQuery.Where("p.status = ?", params.Status)
+	}
+	if params.Search != "" {
+		search := "%" + strings.ToLower(params.Search) + "%"
+		countQuery = countQuery.Where("LOWER(p.name) LIKE ?", search)
+	}
+
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Build select with aggregates.
+	listQuery := baseQuery.
+		Select(`
+			p.id,
+			p.name,
+			c.name AS category_name,
+			COALESCE(MIN(pv.price), 0) AS price,
+			COALESCE(SUM(pv.stock_on_hand), 0) AS stock,
+			p.status,
+			p.created_at
+		`).
+		Group("p.id, p.name, c.name, p.status, p.created_at")
+
+	// Apply sorting.
+	switch params.SortBy {
+	case "name":
+		listQuery = listQuery.Order("p.name " + params.SortOrder)
+	case "price":
+		listQuery = listQuery.Order("MIN(pv.price) " + params.SortOrder)
+	case "stock":
+		listQuery = listQuery.Order("SUM(pv.stock_on_hand) " + params.SortOrder)
+	default: // "created_at"
+		listQuery = listQuery.Order("p.created_at " + params.SortOrder)
+	}
+
+	offset := (params.Page - 1) * params.Limit
+	var rows []vendorProductRow
+	if err := listQuery.Offset(offset).Limit(params.Limit).Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]domain.VendorProductListItem, len(rows))
+	for i, row := range rows {
+		id, _ := uuid.Parse(row.ID)
+		items[i] = domain.VendorProductListItem{
+			ID:           id,
+			Name:         row.Name,
+			CategoryName: row.CategoryName,
+			Price:        row.Price,
+			Stock:        row.Stock,
+			Status:       row.Status,
+			CreatedAt:    row.CreatedAt,
+		}
+	}
+
+	return items, total, nil
+}
+
+func buildActivePromoMinExpr(productIDCol string) string {
+	return fmt.Sprintf(`
+		(
+			SELECT MIN(pp.promo_price)
+			FROM product_promotions pp
+			WHERE pp.product_id = %s
+				AND pp.is_active = TRUE
+				AND pp.starts_at <= NOW()
+				AND pp.ends_at >= NOW()
+		)
+	`, productIDCol)
+}
+
+func buildEffectivePriceExpr(basePriceCol, productIDCol string) string {
+	activePromoExpr := buildActivePromoMinExpr(productIDCol)
+	return fmt.Sprintf(`
+		LEAST(
+			%s,
+			COALESCE(%s, %s)
+		)
+	`, basePriceCol, activePromoExpr, basePriceCol)
 }
 
 // Mapper helpers.
@@ -422,17 +611,50 @@ func toDomainProductVariant(m *productVariantModel) *domain.ProductVariant {
 	productID, _ := uuid.Parse(m.ProductID)
 
 	return &domain.ProductVariant{
-		ID:          id,
-		ProductID:   productID,
-		SKU:         m.SKU,
-		VariantName: m.VariantName,
-		Price:       m.Price,
-		Currency:    m.Currency,
-		StockOnHand: m.StockOnHand,
-		WeightGram:  m.WeightGram,
-		IsDefault:   m.IsDefault,
-		IsActive:    m.IsActive,
+		ID:            id,
+		ProductID:     productID,
+		SKU:           m.SKU,
+		VariantName:   m.VariantName,
+		Price:         m.Price,
+		OriginalPrice: m.Price,
+		PromoPrice:    nil,
+		HasPromo:      false,
+		Currency:      m.Currency,
+		StockOnHand:   m.StockOnHand,
+		WeightGram:    m.WeightGram,
+		IsDefault:     m.IsDefault,
+		IsActive:      m.IsActive,
 	}
+}
+
+func toDomainProductVariantFromPricingRow(row *productVariantPricingRow) *domain.ProductVariant {
+	id, _ := uuid.Parse(row.ID)
+	productID, _ := uuid.Parse(row.ProductID)
+	promoPrice, hasPromo := normalizePromoInfo(row.OriginalPrice, row.Price)
+
+	return &domain.ProductVariant{
+		ID:            id,
+		ProductID:     productID,
+		SKU:           row.SKU,
+		VariantName:   row.VariantName,
+		Price:         row.Price,
+		OriginalPrice: row.OriginalPrice,
+		PromoPrice:    promoPrice,
+		HasPromo:      hasPromo,
+		Currency:      row.Currency,
+		StockOnHand:   row.StockOnHand,
+		WeightGram:    row.WeightGram,
+		IsDefault:     row.IsDefault,
+		IsActive:      row.IsActive,
+	}
+}
+
+func normalizePromoInfo(originalPrice, effectivePrice float64) (*float64, bool) {
+	if effectivePrice < originalPrice {
+		p := effectivePrice
+		return &p, true
+	}
+	return nil, false
 }
 
 func toProductImageModel(img *domain.ProductImage) productImageModel {

@@ -294,7 +294,7 @@ paths:
                 errors: null
                 meta: null
         '400':
-          description: Request tidak valid (validasi gagal, email sudah ada, atau birth_date tidak valid).
+          description: Request tidak valid (validasi payload gagal atau format birth_date tidak valid).
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestIDHeader'
@@ -309,23 +309,74 @@ paths:
                     success: false
                     message: validation failed
                     data: null
-                    errors: "Key: 'CreateUserRequest.Password' Error:Field validation for 'Password' failed on the 'min' tag"
+                    errors:
+                      fields:
+                        email:
+                          - must be a valid email address
+                        full_name:
+                          - is required
+                        password:
+                          - must be at least 8 characters
+                        role:
+                          - "must be one of: admin, umkm, customer, cs, finance"
+                      request: []
                     meta: null
+                invalidBirthDate:
+                  summary: Format birth_date tidak valid
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors:
+                      fields:
+                        birth_date:
+                          - must use YYYY-MM-DD format
+                      request: []
+                    meta: null
+                malformedJson:
+                  summary: Body JSON tidak valid
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors:
+                      fields: {}
+                      request:
+                        - request body must be valid JSON
+                    meta: null
+        '409':
+          description: Terjadi konflik data unik pada user.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
                 emailExists:
                   summary: Email sudah terdaftar
                   value:
                     success: false
                     message: email already exists
                     data: null
-                    errors: null
+                    errors:
+                      fields:
+                        email:
+                          - email is already registered
+                      request: []
                     meta: null
-                invalidBirthDate:
-                  summary: Format birth_date tidak valid
+                phoneExists:
+                  summary: Nomor telepon sudah terdaftar
                   value:
                     success: false
-                    message: invalid birth_date format, expected YYYY-MM-DD
+                    message: phone number already registered
                     data: null
-                    errors: null
+                    errors:
+                      fields:
+                        phone:
+                          - phone number is already registered
+                      request: []
                     meta: null
         '401':
           description: Token tidak ada, format salah, atau token expired/invalid.
@@ -379,12 +430,34 @@ paths:
                     success: false
                     message: internal server error
                     data: null
-                    errors: "failed to create user: database timeout"
+                    errors:
+                      fields: {}
+                      request: []
                     meta: null
     get:
       tags:
         - Admin Users
-      summary: Mengambil daftar user dengan pagination dan filter
+      summary: Mengambil daftar user dengan pagination, filter, dan sorting
+      description: |
+        Endpoint untuk mengambil daftar semua user dengan fitur pagination, filter, pencarian, dan sorting.
+
+        URL: `GET /api/v1/admin/users`
+        Header: `Authorization: Bearer <admin_jwt>`
+
+        **Pagination:**
+        - `page` — nomor halaman (default: 1)
+        - `limit` — jumlah item per halaman (default: 10, maks: 100)
+
+        **Filter:**
+        - `role` — filter berdasarkan role user (`admin`, `umkm`, `customer`, `cs`, `finance`)
+        - `status` — filter berdasarkan status user (`pending`, `active`, `blocked`)
+
+        **Pencarian:**
+        - `search` — pencarian berdasarkan `full_name` atau `email` (case-insensitive, partial match)
+
+        **Sorting:**
+        - `sort_by` — kolom untuk pengurutan: `full_name`, `email`, `role`, `status`, `created_at` (default: `created_at`)
+        - `sort_order` — arah pengurutan: `asc` (ascending) atau `desc` (descending) (default: `desc`)
       operationId: listAdminUsers
       security:
         - BearerAuth: []
@@ -432,10 +505,35 @@ paths:
               - blocked
         - name: search
           in: query
-          description: Pencarian berdasarkan nama lengkap atau email (case-insensitive).
+          description: Pencarian berdasarkan nama lengkap atau email (case-insensitive, partial match).
           required: false
           schema:
             type: string
+        - name: sort_by
+          in: query
+          description: |
+            Kolom yang digunakan untuk pengurutan. Default: `created_at`.
+          required: false
+          schema:
+            type: string
+            enum:
+              - full_name
+              - email
+              - role
+              - status
+              - created_at
+            default: created_at
+        - name: sort_order
+          in: query
+          description: |
+            Arah pengurutan. Default: `desc` (descending/terbaru dulu).
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
       responses:
         '200':
           description: Daftar user berhasil diambil.
@@ -910,7 +1008,7 @@ paths:
         - Admin Vendors
       summary: Mengambil daftar vendor dengan pagination dan filter
       description: >
-        Menampilkan daftar vendor yang terdaftar. Gunakan parameter `status=submitted`
+        Menampilkan daftar vendor yang terdaftar beserta informasi pemilik. Gunakan parameter `status=submitted`
         untuk melihat vendor yang menunggu persetujuan admin.
       operationId: listAdminVendors
       security:
@@ -987,6 +1085,7 @@ paths:
                     xendit_account_id: null
                     owner_name: Budi Santoso
                     owner_email: budi@example.com
+                    registered_address: "Jl. Raya Bogor No. 123, Jakarta Timur"
                     created_at: "2026-02-10T08:00:00Z"
                     updated_at: "2026-02-10T09:30:00Z"
                   - id: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -999,6 +1098,7 @@ paths:
                     xendit_account_id: null
                     owner_name: Siti Aminah
                     owner_email: siti@example.com
+                    registered_address: null
                     created_at: "2026-02-09T14:00:00Z"
                     updated_at: "2026-02-09T15:00:00Z"
                 errors: null
@@ -1091,6 +1191,7 @@ paths:
                   legal_name: PT Mabrur Sejahtera
                   responsible_person_name: Ahmad Fauzi
                   description: Toko oleh-oleh haji terlengkap di Jakarta
+                  registered_address: "Jl. Raya Bogor No. 123, Jakarta Timur"
                   status: submitted
                   status_reason: null
                   approved_at: null
@@ -2221,6 +2322,11 @@ components:
           format: email
           description: Email pemilik vendor (dari tabel users).
           example: budi@example.com
+        registered_address:
+          type: string
+          nullable: true
+          description: Alamat perusahaan terdaftar. Null jika belum diisi saat pendaftaran.
+          example: "Jl. Raya Bogor No. 123, Jakarta Timur"
         created_at:
           type: string
           format: date-time
@@ -2415,6 +2521,11 @@ components:
           type: string
           nullable: true
           example: Toko oleh-oleh haji terlengkap di Jakarta
+        registered_address:
+          type: string
+          nullable: true
+          description: Alamat perusahaan terdaftar. Null jika vendor perorangan atau belum diisi.
+          example: "Jl. Raya Bogor No. 123, Jakarta Timur"
         status:
           type: string
           enum:

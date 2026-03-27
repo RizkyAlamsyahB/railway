@@ -24,16 +24,19 @@ type Product struct {
 
 // ProductVariant represents the product_variants table.
 type ProductVariant struct {
-	ID          uuid.UUID `json:"id"`
-	ProductID   uuid.UUID `json:"product_id"`
-	SKU         string    `json:"sku"`
-	VariantName string    `json:"variant_name"`
-	Price       float64   `json:"price"`
-	Currency    string    `json:"currency"`
-	StockOnHand int       `json:"stock_on_hand"`
-	WeightGram  *int      `json:"weight_gram,omitempty"`
-	IsDefault   bool      `json:"is_default"`
-	IsActive    bool      `json:"is_active"`
+	ID            uuid.UUID `json:"id"`
+	ProductID     uuid.UUID `json:"product_id"`
+	SKU           string    `json:"sku"`
+	VariantName   string    `json:"variant_name"`
+	Price         float64   `json:"price"`
+	OriginalPrice float64   `json:"original_price"`
+	PromoPrice    *float64  `json:"promo_price,omitempty"`
+	HasPromo      bool      `json:"has_promo"`
+	Currency      string    `json:"currency"`
+	StockOnHand   int       `json:"stock_on_hand"`
+	WeightGram    *int      `json:"weight_gram,omitempty"`
+	IsDefault     bool      `json:"is_default"`
+	IsActive      bool      `json:"is_active"`
 }
 
 // ProductImage represents the product_images table.
@@ -112,15 +115,18 @@ type ProductImageUploadInfo struct {
 
 // ProductVariantResponse is the output DTO for a product variant.
 type ProductVariantResponse struct {
-	ID          uuid.UUID `json:"id"`
-	SKU         string    `json:"sku"`
-	VariantName string    `json:"variant_name"`
-	Price       float64   `json:"price"`
-	Currency    string    `json:"currency"`
-	StockOnHand int       `json:"stock_on_hand"`
-	WeightGram  *int      `json:"weight_gram,omitempty"`
-	IsDefault   bool      `json:"is_default"`
-	IsActive    bool      `json:"is_active"`
+	ID            uuid.UUID `json:"id"`
+	SKU           string    `json:"sku"`
+	VariantName   string    `json:"variant_name"`
+	Price         float64   `json:"price"`
+	OriginalPrice float64   `json:"original_price"`
+	PromoPrice    *float64  `json:"promo_price,omitempty"`
+	HasPromo      bool      `json:"has_promo"`
+	Currency      string    `json:"currency"`
+	StockOnHand   int       `json:"stock_on_hand"`
+	WeightGram    *int      `json:"weight_gram,omitempty"`
+	IsDefault     bool      `json:"is_default"`
+	IsActive      bool      `json:"is_active"`
 }
 
 // CreateProductResponse is the output DTO for a successful product creation.
@@ -157,6 +163,9 @@ type ProductListItem struct {
 	ID            uuid.UUID `json:"id"`
 	Name          string    `json:"name"`
 	Price         float64   `json:"price"`
+	OriginalPrice float64   `json:"original_price"`
+	PromoPrice    *float64  `json:"promo_price,omitempty"`
+	HasPromo      bool      `json:"has_promo"`
 	RatingAverage float64   `json:"rating_average"`
 	RatingCount   int64     `json:"rating_count"`
 }
@@ -200,6 +209,27 @@ type ProductDetailResponse struct {
 	UpdatedAt     time.Time                `json:"updated_at"`
 }
 
+// VendorProductListParams holds query parameters for vendor product listing.
+type VendorProductListParams struct {
+	Page      int
+	Limit     int
+	Search    string
+	Status    string // filter: "draft", "published", or "" (all)
+	SortBy    string // allowed: "name", "price", "stock", "created_at"
+	SortOrder string // allowed: "asc", "desc"
+}
+
+// VendorProductListItem is the output DTO for vendor product listing.
+type VendorProductListItem struct {
+	ID           uuid.UUID `json:"id"`
+	Name         string    `json:"name"`
+	CategoryName string    `json:"category_name"`
+	Price        float64   `json:"price"`
+	Stock        int       `json:"stock"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 // --- Repository Interfaces ---
 
 // ProductRepository defines the interface for product data access.
@@ -238,6 +268,9 @@ type ProductRepository interface {
 
 	// GetPublishedDetailForCustomer returns a single published product detail for customers.
 	GetPublishedDetailForCustomer(ctx context.Context, id uuid.UUID) (*ProductDetailResponse, error)
+
+	// ListByVendor returns paginated products owned by a specific vendor.
+	ListByVendor(ctx context.Context, vendorID uuid.UUID, params VendorProductListParams) ([]VendorProductListItem, int64, error)
 }
 
 // CategoryRepository defines the interface for category data access.
@@ -259,6 +292,9 @@ type ProductUseCase interface {
 	// ConfirmImages verifies product images were uploaded to S3 and updates metadata.
 	ConfirmImages(ctx context.Context, vendorID uuid.UUID, productID uuid.UUID,
 		req ConfirmProductImagesRequest) (*ConfirmProductImagesResponse, error)
+
+	// ListProducts returns paginated products belonging to the authenticated vendor.
+	ListProducts(ctx context.Context, vendorID uuid.UUID, params VendorProductListParams) ([]VendorProductListItem, *PaginationMeta, error)
 }
 
 // CatalogUseCase defines the interface for public catalog queries.

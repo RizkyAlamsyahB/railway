@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -15,7 +17,9 @@ import (
 )
 
 type stubVendorUseCase struct {
-	getMe func(ctx context.Context, vendorID uuid.UUID) (*domain.VendorProfileResponse, error)
+	getRegistrationStatus                 func(ctx context.Context, onboardingID uuid.UUID) (*domain.VendorOnboardingStatusResponse, error)
+	getMe                                 func(ctx context.Context, vendorID uuid.UUID) (*domain.VendorProfileResponse, error)
+	presignRegistrationIndividualDocument func(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationPresignDocumentRequest) (*domain.VendorRegistrationPresignDocumentResponse, error)
 }
 
 func (s stubVendorUseCase) RequestRegistrationOTP(context.Context, domain.VendorRegisterOTPRequest) (*domain.VendorRegisterOTPResponse, error) {
@@ -26,19 +30,41 @@ func (s stubVendorUseCase) VerifyRegistrationOTP(context.Context, domain.VendorV
 	return nil, nil
 }
 
+func (s stubVendorUseCase) GetRegistrationStatus(ctx context.Context, onboardingID uuid.UUID) (*domain.VendorOnboardingStatusResponse, error) {
+	if s.getRegistrationStatus == nil {
+		return nil, nil
+	}
+	return s.getRegistrationStatus(ctx, onboardingID)
+}
+
 func (s stubVendorUseCase) SetRegistrationPassword(context.Context, uuid.UUID, domain.VendorRegistrationPasswordRequest) (*domain.VendorOnboardingProgressResponse, error) {
 	return nil, nil
 }
 
-func (s stubVendorUseCase) SaveRegistrationStore(context.Context, uuid.UUID, domain.VendorRegistrationStoreRequest) (*domain.VendorOnboardingProgressResponse, error) {
+func (s stubVendorUseCase) PresignRegistrationIndividualDocument(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationPresignDocumentRequest) (*domain.VendorRegistrationPresignDocumentResponse, error) {
+	if s.presignRegistrationIndividualDocument == nil {
+		return nil, nil
+	}
+	return s.presignRegistrationIndividualDocument(ctx, onboardingID, req)
+}
+
+func (s stubVendorUseCase) PresignRegistrationCorporateDocument(context.Context, uuid.UUID) (*domain.VendorRegistrationPresignDocumentResponse, error) {
 	return nil, nil
 }
 
-func (s stubVendorUseCase) PresignRegistrationLegalDocument(context.Context, uuid.UUID, domain.VendorRegistrationPresignDocumentRequest) (*domain.VendorRegistrationPresignDocumentResponse, error) {
+func (s stubVendorUseCase) SubmitRegistrationIndividual(context.Context, uuid.UUID, domain.VendorRegistrationIndividualLegalRequest) (*domain.VendorLoginResponse, error) {
 	return nil, nil
 }
 
-func (s stubVendorUseCase) SubmitRegistrationLegal(context.Context, uuid.UUID, domain.VendorRegistrationLegalRequest) (*domain.VendorLoginResponse, error) {
+func (s stubVendorUseCase) SubmitRegistrationCorporate(context.Context, uuid.UUID, domain.VendorRegistrationCorporateLegalRequest) (*domain.VendorLoginResponse, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) SaveBankAccount(context.Context, uuid.UUID, domain.VendorSaveBankAccountRequest) (*domain.VendorSaveBankAccountResponse, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) PresignDocument(context.Context, uuid.UUID, domain.VendorDocumentPresignRequest) (*domain.VendorDocumentPresignResponse, error) {
 	return nil, nil
 }
 
@@ -77,6 +103,167 @@ type handlerEnvelope struct {
 	Success bool            `json:"success"`
 	Message string          `json:"message"`
 	Data    json.RawMessage `json:"data"`
+}
+
+func TestVendorHandlerGetRegistrationStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("success", func(t *testing.T) {
+		onboardingID := uuid.New()
+		h := NewVendorHandler(stubVendorUseCase{
+			getRegistrationStatus: func(ctx context.Context, gotOnboardingID uuid.UUID) (*domain.VendorOnboardingStatusResponse, error) {
+				if gotOnboardingID != onboardingID {
+					t.Fatalf("expected onboarding ID %s, got %s", onboardingID, gotOnboardingID)
+				}
+				return &domain.VendorOnboardingStatusResponse{
+					Status: domain.VendorOnboardingStatusPasswordSet,
+					Email:  "toko.mabrur@example.com",
+				}, nil
+			},
+		})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/vendors/register/status", nil)
+		c.Request = req
+		c.Set(middleware.ContextKeyVendorOnboardingID, onboardingID)
+
+		h.GetRegistrationStatus(c)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+
+		var env handlerEnvelope
+		if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if env.Message != "vendor registration status retrieved" {
+			t.Fatalf("unexpected message: %s", env.Message)
+		}
+
+		var data domain.VendorOnboardingStatusResponse
+		if err := json.Unmarshal(env.Data, &data); err != nil {
+			t.Fatalf("failed to decode data: %v", err)
+		}
+		if data.Status != domain.VendorOnboardingStatusPasswordSet {
+			t.Fatalf("unexpected status: %s", data.Status)
+		}
+		if data.Email != "toko.mabrur@example.com" {
+			t.Fatalf("unexpected email: %s", data.Email)
+		}
+	})
+
+	t.Run("invalid onboarding id in context", func(t *testing.T) {
+		h := NewVendorHandler(stubVendorUseCase{})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/vendors/register/status", nil)
+		c.Request = req
+		c.Set(middleware.ContextKeyVendorOnboardingID, 123)
+
+		h.GetRegistrationStatus(c)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", w.Code)
+		}
+
+		var env handlerEnvelope
+		if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if env.Message != "invalid vendor onboarding ID in token" {
+			t.Fatalf("unexpected message: %s", env.Message)
+		}
+	})
+
+	t.Run("usecase error is mapped", func(t *testing.T) {
+		onboardingID := uuid.New()
+		h := NewVendorHandler(stubVendorUseCase{
+			getRegistrationStatus: func(context.Context, uuid.UUID) (*domain.VendorOnboardingStatusResponse, error) {
+				return nil, usecase.ErrVendorOnboardingNotFound
+			},
+		})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/vendors/register/status", nil)
+		c.Request = req
+		c.Set(middleware.ContextKeyVendorOnboardingID, onboardingID)
+
+		h.GetRegistrationStatus(c)
+
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected status 404, got %d", w.Code)
+		}
+
+		var env handlerEnvelope
+		if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if env.Message != "vendor onboarding not found" {
+			t.Fatalf("unexpected message: %s", env.Message)
+		}
+	})
+}
+
+func TestVendorHandlerPresignRegistrationIndividualDocument(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("success", func(t *testing.T) {
+		onboardingID := uuid.New()
+		h := NewVendorHandler(stubVendorUseCase{
+			presignRegistrationIndividualDocument: func(ctx context.Context, gotOnboardingID uuid.UUID, req domain.VendorRegistrationPresignDocumentRequest) (*domain.VendorRegistrationPresignDocumentResponse, error) {
+				if gotOnboardingID != onboardingID {
+					t.Fatalf("expected onboarding ID %s, got %s", onboardingID, gotOnboardingID)
+				}
+				if req.DocumentIDType != domain.VendorDocumentIDTypeKTP {
+					t.Fatalf("unexpected document id type: %s", req.DocumentIDType)
+				}
+				if req.ContentType != "image/jpeg" {
+					t.Fatalf("unexpected content type: %s", req.ContentType)
+				}
+				return &domain.VendorRegistrationPresignDocumentResponse{
+					UploadURL:       "https://upload.example.com",
+					ObjectKey:       "vendor-onboardings/x/documents/owner_document_id/file",
+					ExpiresAt:       time.Now().Add(time.Minute),
+					DocumentIDType:  req.DocumentIDType,
+					DocumentDocType: domain.VendorDocumentTypeOwnerDocumentID,
+				}, nil
+			},
+		})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/vendors/register/souvenir-store/individual/presign", strings.NewReader(`{"document_id_type":"ktp","content_type":"image/jpeg"}`))
+		req.Header.Set("Content-Type", "application/json")
+		c.Request = req
+		c.Set(middleware.ContextKeyVendorOnboardingID, onboardingID)
+
+		h.PresignRegistrationIndividualDocument(c)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing content type", func(t *testing.T) {
+		h := NewVendorHandler(stubVendorUseCase{})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/vendors/register/souvenir-store/individual/presign", strings.NewReader(`{"document_id_type":"ktp"}`))
+		req.Header.Set("Content-Type", "application/json")
+		c.Request = req
+		c.Set(middleware.ContextKeyVendorOnboardingID, uuid.New())
+
+		h.PresignRegistrationIndividualDocument(c)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", w.Code)
+		}
+	})
 }
 
 func TestVendorHandlerGetMe(t *testing.T) {

@@ -1188,3 +1188,135 @@ func TestIsAllowedImageContentType(t *testing.T) {
 		}
 	}
 }
+
+// ============================================================
+// ListProducts (vendor)
+// ============================================================
+
+func TestListProducts_Success(t *testing.T) {
+	productRepo, _, _, _, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+	productID := uuid.New()
+
+	items := []domain.VendorProductListItem{
+		{
+			ID:           productID,
+			Name:         "Sajadah Premium",
+			CategoryName: "Oleh-Oleh",
+			Price:        150000,
+			Stock:        100,
+			Status:       "published",
+		},
+	}
+
+	params := domain.VendorProductListParams{
+		Page:  1,
+		Limit: 10,
+	}
+
+	productRepo.EXPECT().ListByVendor(ctx, vendorID, gomock.Any()).Return(items, int64(1), nil)
+
+	result, meta, err := uc.ListProducts(ctx, vendorID, params)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(result))
+	}
+	if result[0].Name != "Sajadah Premium" {
+		t.Errorf("expected name 'Sajadah Premium', got %s", result[0].Name)
+	}
+	if meta.Page != 1 {
+		t.Errorf("expected page 1, got %d", meta.Page)
+	}
+	if meta.TotalItems != 1 {
+		t.Errorf("expected total_items 1, got %d", meta.TotalItems)
+	}
+	if meta.TotalPages != 1 {
+		t.Errorf("expected total_pages 1, got %d", meta.TotalPages)
+	}
+}
+
+func TestListProducts_PaginationMeta(t *testing.T) {
+	productRepo, _, _, _, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+
+	productRepo.EXPECT().ListByVendor(ctx, vendorID, gomock.Any()).Return([]domain.VendorProductListItem{}, int64(25), nil)
+
+	params := domain.VendorProductListParams{
+		Page:  2,
+		Limit: 10,
+	}
+
+	_, meta, err := uc.ListProducts(ctx, vendorID, params)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if meta.Page != 2 {
+		t.Errorf("expected page 2, got %d", meta.Page)
+	}
+	if meta.Limit != 10 {
+		t.Errorf("expected limit 10, got %d", meta.Limit)
+	}
+	if meta.TotalItems != 25 {
+		t.Errorf("expected total_items 25, got %d", meta.TotalItems)
+	}
+	if meta.TotalPages != 3 {
+		t.Errorf("expected total_pages 3, got %d", meta.TotalPages)
+	}
+}
+
+func TestListProducts_RepoError(t *testing.T) {
+	productRepo, _, _, _, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+
+	productRepo.EXPECT().ListByVendor(ctx, vendorID, gomock.Any()).Return(nil, int64(0), errors.New("db error"))
+
+	params := domain.VendorProductListParams{
+		Page:  1,
+		Limit: 10,
+	}
+
+	_, _, err := uc.ListProducts(ctx, vendorID, params)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestListProducts_DefaultNormalization(t *testing.T) {
+	productRepo, _, _, _, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+
+	productRepo.EXPECT().ListByVendor(ctx, vendorID, gomock.Any()).Return([]domain.VendorProductListItem{}, int64(0), nil)
+
+	// Pass invalid params to test normalization.
+	params := domain.VendorProductListParams{
+		Page:      -1,
+		Limit:     999,
+		Status:    "invalid_status",
+		SortBy:    "invalid_sort",
+		SortOrder: "invalid_order",
+	}
+
+	_, meta, err := uc.ListProducts(ctx, vendorID, params)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	// Normalized page should be 1.
+	if meta.Page != 1 {
+		t.Errorf("expected page 1 (normalized), got %d", meta.Page)
+	}
+	// Normalized limit should be 10.
+	if meta.Limit != 10 {
+		t.Errorf("expected limit 10 (normalized), got %d", meta.Limit)
+	}
+}
+

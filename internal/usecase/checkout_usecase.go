@@ -194,6 +194,11 @@ func (uc *checkoutUseCase) Preview(ctx context.Context, userID uuid.UUID, req do
 			totalWeightGram += weight * ei.cartItem.Qty
 
 			imageURL := uc.resolvePrimaryImageURL(ctx, ei.product.ID)
+			originalPrice := ei.variant.OriginalPrice
+			if originalPrice <= 0 {
+				originalPrice = ei.variant.Price
+			}
+			hasPromo := ei.variant.HasPromo && ei.variant.PromoPrice != nil && ei.variant.Price < originalPrice
 
 			previewItems = append(previewItems, domain.CheckoutPreviewVendorItem{
 				ProductVariantID: ei.variant.ID,
@@ -201,6 +206,9 @@ func (uc *checkoutUseCase) Preview(ctx context.Context, userID uuid.UUID, req do
 				VariantName:      ei.variant.VariantName,
 				ImageURL:         imageURL,
 				Price:            ei.variant.Price,
+				OriginalPrice:    originalPrice,
+				PromoPrice:       ei.variant.PromoPrice,
+				HasPromo:         hasPromo,
 				Qty:              ei.cartItem.Qty,
 				Subtotal:         lineTotal,
 				WeightGram:       weight,
@@ -644,6 +652,31 @@ func (uc *checkoutUseCase) compensateCheckoutFailure(ctx context.Context, create
 		return errors.New(strings.Join(compensationErrs, "; "))
 	}
 	return nil
+}
+
+func (uc *checkoutUseCase) SimulatePayment(ctx context.Context, orderID uuid.UUID) error {
+	invoice, err := uc.paymentRepo.FindInvoiceByOrderID(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("find invoice: %w", err)
+	}
+	if invoice == nil {
+		return ErrInvoiceNotFound
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	payload := domain.XenditWebhookPayload{
+		ID:             fmt.Sprintf("sim-%s", uuid.New().String()[:8]),
+		ExternalID:     invoice.ExternalInvoiceID,
+		Status:         "PAID",
+		Amount:         invoice.Amount,
+		PaidAmount:     invoice.Amount,
+		PaidAt:         &now,
+		PaymentMethod:  "SIMULATE",
+		PaymentChannel: "BYPASS",
+		Currency:       invoice.Currency,
+	}
+
+	return uc.HandleWebhook(ctx, payload)
 }
 
 func (uc *checkoutUseCase) HandleWebhook(ctx context.Context, payload domain.XenditWebhookPayload) error {

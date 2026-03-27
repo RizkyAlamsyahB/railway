@@ -28,9 +28,44 @@ type Shipment struct {
 
 // VendorOrderListParams holds query parameters for vendor order listing.
 type VendorOrderListParams struct {
-	Page   int
-	Limit  int
-	Status string
+	Page      int
+	Limit     int
+	Status    string
+	Search    string     // Search by order_no or customer_name
+	DateFrom  *time.Time // Filter orders from this date (inclusive)
+	DateTo    *time.Time // Filter orders to this date (inclusive)
+	SortBy    string     // Sort field: order_date, customer_name, total_payment
+	SortOrder string     // Sort order: asc, desc
+}
+
+// VendorOrderSortBy constants.
+const (
+	VendorOrderSortByOrderDate    = "order_date"
+	VendorOrderSortByCustomerName = "customer_name"
+	VendorOrderSortByTotalPayment = "total_payment"
+)
+
+// VendorOrderSortOrder constants.
+const (
+	VendorOrderSortOrderAsc  = "asc"
+	VendorOrderSortOrderDesc = "desc"
+)
+
+// VendorOrderExportItem is the output DTO for vendor order CSV export.
+type VendorOrderExportItem struct {
+	OrderNo      string    `json:"order_no"`
+	OrderDate    time.Time `json:"order_date"`
+	CustomerName string    `json:"customer_name"`
+	ProductName  string    `json:"product_name"`
+	Variant      string    `json:"variant"`
+	Qty          int       `json:"qty"`
+	UnitPrice    float64   `json:"unit_price"`
+	LineTotal    float64   `json:"line_total"`
+	Subtotal     float64   `json:"subtotal"`
+	ShippingFee  float64   `json:"shipping_fee"`
+	PlatformFee  float64   `json:"platform_fee"`
+	GrandTotal   float64   `json:"grand_total"`
+	Status       string    `json:"status"`
 }
 
 // VendorOrderListItem is the output DTO for vendor order listing.
@@ -44,7 +79,7 @@ type VendorOrderListItem struct {
 	Status       string                   `json:"status"`
 }
 
-// VendorOrderProductItem is product info in a vendor order row.
+// VendorOrderProductItem is product info in a vendor order row (used in list).
 type VendorOrderProductItem struct {
 	ProductName     string  `json:"product_name"`
 	SelectedVariant string  `json:"selected_variant"`
@@ -53,41 +88,78 @@ type VendorOrderProductItem struct {
 	LineTotal       float64 `json:"line_total"`
 }
 
+// --- Order Detail Response (redesigned for frontend) ---
+
 // VendorOrderDetailResponse is the full detail DTO for a vendor order.
 type VendorOrderDetailResponse struct {
-	OrderID      uuid.UUID                    `json:"order_id"`
-	OrderNo      string                       `json:"order_no"`
-	OrderDate    time.Time                    `json:"order_date"`
-	Status       string                       `json:"status"`
-	CustomerName string                       `json:"customer_name"`
-	Items        []VendorOrderProductItem     `json:"items"`
-	Subtotal     float64                      `json:"subtotal"`
-	ShippingFee  float64                      `json:"shipping_fee"`
-	PlatformFee  float64                      `json:"platform_fee"`
-	GrandTotal   float64                      `json:"grand_total"`
-	Address      map[string]interface{}       `json:"shipping_address"`
-	Shipment     *VendorOrderShipmentResponse `json:"shipment"`
-	PaymentInfo  *VendorOrderPaymentInfo      `json:"payment_info"`
+	Shipping  VendorOrderDetailShipping  `json:"shipping"`
+	Recipient VendorOrderDetailRecipient `json:"recipient"`
+	Store     VendorOrderDetailStore     `json:"store"`
+	Items     []VendorOrderDetailItem    `json:"items"`
+	Payment   VendorOrderDetailPayment   `json:"payment"`
+	Order     VendorOrderDetailOrder     `json:"order"`
+	Summary   VendorOrderDetailSummary   `json:"summary"`
 }
 
-// VendorOrderShipmentResponse is shipping info within a vendor order.
-type VendorOrderShipmentResponse struct {
-	CourierCode      string     `json:"courier_code"`
-	ServiceType      string     `json:"service_type"`
-	TrackingNo       string     `json:"tracking_no"`
-	ETD              string     `json:"etd"`
-	ShipmentStatus   string     `json:"shipment_status"`
-	ShippedAt        *time.Time `json:"shipped_at,omitempty"`
-	DeliveredAt      *time.Time `json:"delivered_at,omitempty"`
-	EstimatedArrival *string    `json:"estimated_arrival,omitempty"`
-}
-
-// VendorOrderPaymentInfo is payment info within a vendor order.
-type VendorOrderPaymentInfo struct {
+// VendorOrderDetailShipping is shipping/tracking info.
+type VendorOrderDetailShipping struct {
+	Courier        string     `json:"courier"`
+	TrackingNumber string     `json:"tracking_number"`
 	Status         string     `json:"status"`
-	PaymentMethod  *string    `json:"payment_method,omitempty"`
-	PaymentChannel *string    `json:"payment_channel,omitempty"`
-	PaidAt         *time.Time `json:"paid_at,omitempty"`
+	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
+}
+
+// VendorOrderDetailRecipientAddress is the nested address structure.
+type VendorOrderDetailRecipientAddress struct {
+	Street     string `json:"street"`
+	District   string `json:"district"`
+	City       string `json:"city"`
+	Province   string `json:"province"`
+	PostalCode string `json:"postal_code"`
+}
+
+// VendorOrderDetailRecipient is recipient info.
+type VendorOrderDetailRecipient struct {
+	Name    string                            `json:"name"`
+	Phone   string                            `json:"phone"`
+	Address VendorOrderDetailRecipientAddress `json:"address"`
+}
+
+// VendorOrderDetailStore is store/vendor info.
+type VendorOrderDetailStore struct {
+	Name string `json:"name"`
+}
+
+// VendorOrderDetailItem is product item info.
+type VendorOrderDetailItem struct {
+	Name     string  `json:"name"`
+	Variant  string  `json:"variant"`
+	Price    float64 `json:"price"`
+	Quantity int     `json:"quantity"`
+	Subtotal float64 `json:"subtotal"`
+}
+
+// VendorOrderDetailPayment is payment info.
+type VendorOrderDetailPayment struct {
+	Method      string  `json:"method"`
+	TotalAmount float64 `json:"total_amount"`
+}
+
+// VendorOrderDetailOrder is order metadata/timestamps.
+type VendorOrderDetailOrder struct {
+	OrderNumber   string     `json:"order_number"`
+	OrderTime     time.Time  `json:"order_time"`
+	PaymentTime   *time.Time `json:"payment_time,omitempty"`
+	ShippingTime  *time.Time `json:"shipping_time,omitempty"`
+	DeliveredTime *time.Time `json:"delivered_time,omitempty"`
+}
+
+// VendorOrderDetailSummary is the order summary with totals.
+type VendorOrderDetailSummary struct {
+	ItemsTotal  float64 `json:"items_total"`
+	ShippingFee float64 `json:"shipping_fee"`
+	ServiceFee  float64 `json:"service_fee"`
+	GrandTotal  float64 `json:"grand_total"`
 }
 
 // ShipOrderRequest is the input DTO for vendor shipping an order (input resi).
@@ -199,14 +271,118 @@ type VendorOrderRepository interface {
 	FindByIDAndVendor(ctx context.Context, orderID, vendorID uuid.UUID) (*Order, error)
 }
 
+// --- Invoice DTOs ---
+
+// InvoiceActions indicates what actions are available for the invoice.
+type InvoiceActions struct {
+	CanCopy     bool `json:"can_copy"`
+	CanPrint    bool `json:"can_print"`
+	CanDownload bool `json:"can_download"`
+}
+
+// InvoiceInfo holds invoice metadata.
+type InvoiceInfo struct {
+	InvoiceNumber string         `json:"invoice_number"`
+	IssuedAt      string         `json:"issued_at"`
+	Actions       InvoiceActions `json:"actions"`
+}
+
+// InvoiceCustomerAddress holds customer address info for invoice.
+type InvoiceCustomerAddress struct {
+	Street     string `json:"street"`
+	District   string `json:"district"`
+	City       string `json:"city"`
+	Province   string `json:"province"`
+	PostalCode string `json:"postal_code"`
+}
+
+// InvoiceCustomer holds customer info for invoice.
+type InvoiceCustomer struct {
+	Name    string                 `json:"name"`
+	Phone   string                 `json:"phone"`
+	Address InvoiceCustomerAddress `json:"address"`
+}
+
+// InvoicePayment holds payment info for invoice.
+type InvoicePayment struct {
+	Method string `json:"method"`
+	PaidAt string `json:"paid_at"`
+}
+
+// InvoiceItem holds a single item in the invoice.
+type InvoiceItem struct {
+	Name     string  `json:"name"`
+	Variant  string  `json:"variant"`
+	Price    float64 `json:"price"`
+	Quantity int     `json:"quantity"`
+	Subtotal float64 `json:"subtotal"`
+	ImageURL *string `json:"image_url"`
+}
+
+// InvoiceSummary holds invoice totals.
+type InvoiceSummary struct {
+	Subtotal    float64 `json:"subtotal"`
+	ShippingFee float64 `json:"shipping_fee"`
+	ServiceFee  float64 `json:"service_fee"`
+	Total       float64 `json:"total"`
+	Currency    string  `json:"currency"`
+}
+
+// VendorOrderInvoiceResponse is the output DTO for vendor order invoice.
+type VendorOrderInvoiceResponse struct {
+	Invoice  InvoiceInfo     `json:"invoice"`
+	Customer InvoiceCustomer `json:"customer"`
+	Payment  InvoicePayment  `json:"payment"`
+	Items    []InvoiceItem   `json:"items"`
+	Summary  InvoiceSummary  `json:"summary"`
+}
+
+// --- Shipping Info DTOs ---
+
+// ShippingInfoStage represents a stage in the shipping timeline.
+type ShippingInfoStage struct {
+	Status    string `json:"status"`
+	Label     string `json:"label"`
+	Completed bool   `json:"completed"`
+	Active    bool   `json:"active"`
+}
+
+// ShippingInfoCourier holds courier info for shipping.
+type ShippingInfoCourier struct {
+	Name       string `json:"name"`
+	Code       string `json:"code"`
+	TrackingNo string `json:"tracking_no"`
+}
+
+// ShippingInfoEvent represents a single tracking event.
+type ShippingInfoEvent struct {
+	DateTime    string `json:"date_time"`
+	Description string `json:"description"`
+	Location    string `json:"location"`
+}
+
+// VendorOrderShippingInfoResponse is the output DTO for shipping info.
+type VendorOrderShippingInfoResponse struct {
+	EstimatedArrival *string             `json:"estimated_arrival,omitempty"`
+	Stages           []ShippingInfoStage `json:"stages"`
+	Courier          ShippingInfoCourier `json:"courier"`
+	Events           []ShippingInfoEvent `json:"events"`
+}
+
 // --- Usecase interface ---
 
 // VendorOrderUseCase defines the interface for vendor order management.
 type VendorOrderUseCase interface {
 	// ListOrders returns paginated orders for a vendor.
 	ListOrders(ctx context.Context, vendorID uuid.UUID, params VendorOrderListParams) ([]VendorOrderListItem, *PaginationMeta, error)
+	// ExportOrders returns all orders for CSV export (no pagination).
+	ExportOrders(ctx context.Context, vendorID uuid.UUID, params VendorOrderListParams) ([]VendorOrderExportItem, error)
 	// GetOrderDetail returns full order detail for a vendor.
 	GetOrderDetail(ctx context.Context, vendorID, orderID uuid.UUID) (*VendorOrderDetailResponse, error)
+	// GetOrderInvoice returns invoice data for an order.
+	GetOrderInvoice(ctx context.Context, vendorID, orderID uuid.UUID) (*VendorOrderInvoiceResponse, error)
+	// GetOrderShippingInfo returns shipping/tracking info for an order.
+	GetOrderShippingInfo(ctx context.Context, vendorID, orderID uuid.UUID) (*VendorOrderShippingInfoResponse, error)
 	// AcceptOrder transitions an order from paid → processing.
 	AcceptOrder(ctx context.Context, vendorID, orderID, userID uuid.UUID) (*AcceptRejectOrderResponse, error)
 	// RejectOrder transitions an order from paid/processing → canceled.

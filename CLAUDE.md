@@ -64,3 +64,25 @@ Viper-based, loads from `.env` file with environment variable overrides. Config 
 ## Migrations
 
 SQL files in `migrations/` using golang-migrate. Numbered sequentially (`000001_`, `000002_`, ...). Each migration has `.up.sql` and `.down.sql`.
+
+## Coding Style & Naming Conventions
+
+Use standard Go formatting (`gofmt`) and idiomatic Go naming.
+- Package names: lowercase, no underscores.
+- Constructors: `NewXxx(...)`.
+- Files: descriptive snake_case (e.g., `user_usecase.go`, `user_handler.go`).
+- Keep dependency direction inward (`delivery -> usecase -> domain`).
+- Add use case sentinel errors in `internal/usecase/errors.go`, then map them in `internal/delivery/http/handler/error_mapper.go`.
+
+## Commit & Pull Request Guidelines
+
+Follow Conventional Commit style: `feat(scope): ...`, `fix(scope): ...`, `test(scope): ...`, `docs(scope): ...`, `refactor(scope): ...`.
+- Keep commits scoped to one logical change.
+- Mention migration files and config impacts in commit/PR descriptions.
+- PRs should include: concise summary, linked issue/task, test commands run, and OpenAPI updates in `docs/openapi-*.yaml` when API behavior changes.
+
+## Security & Configuration Tips
+
+- Copy `.env.example` to `.env`; never commit secrets.
+- Validate DB, JWT, SMTP, and storage variables before running locally.
+- Run migrations before starting the API to avoid schema drift.

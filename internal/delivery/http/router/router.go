@@ -167,10 +167,12 @@ func NewRouter(
 	vendorOnboarding := v1.Group("/vendors/register")
 	vendorOnboarding.Use(middleware.AuthVendorOnboarding(jwtSecret))
 	{
+		vendorOnboarding.GET("/status", vendorHandler.GetRegistrationStatus)
 		vendorOnboarding.POST("/password", vendorHandler.SetRegistrationPassword)
-		vendorOnboarding.POST("/store", vendorHandler.SaveRegistrationStore)
-		vendorOnboarding.POST("/legal-document/presign", vendorHandler.PresignRegistrationLegalDocument)
-		vendorOnboarding.POST("/legal-document/submit", vendorHandler.SubmitRegistrationLegal)
+		vendorOnboarding.POST("/souvenir-store/individual/presign", vendorHandler.PresignRegistrationIndividualDocument)
+		vendorOnboarding.POST("/souvenir-store/individual", vendorHandler.SubmitRegistrationIndividual)
+		vendorOnboarding.POST("/souvenir-store/corporate/presign", vendorHandler.PresignRegistrationCorporateDocument)
+		vendorOnboarding.POST("/souvenir-store/corporate", vendorHandler.SubmitRegistrationCorporate)
 	}
 
 	// Vendor authenticated routes (requires auth + umkm role)
@@ -179,8 +181,11 @@ func NewRouter(
 	vendorAuth.Use(middleware.RequireRoles("umkm"))
 	{
 		vendorAuth.GET("/me", vendorHandler.GetMe)
+		vendorAuth.POST("/bank-account", vendorHandler.SaveBankAccount)
+		vendorAuth.POST("/documents/presign", vendorHandler.PresignDocument)
 		vendorAuth.POST("/documents/confirm", vendorHandler.ConfirmDocuments)
 		vendorAuth.POST("/products", productHandler.CreateProduct)
+		vendorAuth.GET("/products", productHandler.ListProducts)
 		vendorAuth.POST("/products/:id/images/confirm", productHandler.ConfirmImages)
 		vendorAuth.GET("/balance", vendorHandler.GetBalance)
 		vendorAuth.GET("/payout-channels", vendorHandler.ListPayoutChannels)
@@ -206,7 +211,11 @@ func NewRouter(
 
 		// Vendor Order management
 		vendorAuth.GET("/orders", vendorOrderHandler.ListOrders)
+		vendorAuth.GET("/orders/export", vendorOrderHandler.ExportOrders)
 		vendorAuth.GET("/orders/:orderId", vendorOrderHandler.GetOrderDetail)
+		vendorAuth.GET("/orders/:orderId/invoice", vendorOrderHandler.GetOrderInvoice)
+		vendorAuth.GET("/orders/:orderId/invoice/download", vendorOrderHandler.DownloadOrderInvoice)
+		vendorAuth.GET("/orders/:orderId/shipping", vendorOrderHandler.GetOrderShippingInfo)
 		vendorAuth.POST("/orders/:orderId/accept", vendorOrderHandler.AcceptOrder)
 		vendorAuth.POST("/orders/:orderId/reject", vendorOrderHandler.RejectOrder)
 		vendorAuth.POST("/orders/:orderId/ship", vendorOrderHandler.ShipOrder)
@@ -386,6 +395,12 @@ func NewRouter(
 	{
 		webhooks.POST("/xendit/invoice", checkoutHandler.Webhook)
 		webhooks.POST("/xendit/payout", xenditWebhookHandler.Payout)
+	}
+
+	// Dev routes (guarded by XENDIT_BYPASS in handler)
+	dev := v1.Group("/dev")
+	{
+		dev.POST("/simulate-payment/:orderId", checkoutHandler.SimulatePayment)
 	}
 
 	return r

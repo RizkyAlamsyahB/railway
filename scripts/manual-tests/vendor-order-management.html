@@ -98,13 +98,17 @@
       font-size: .82rem; font-family: inherit; outline: none; background: #fff;
     }
     .filter-bar select:focus, .filter-bar input:focus { border-color: var(--gold); }
+    .filter-bar input[type="date"] { width: 140px; }
+    .filter-bar input[type="text"] { width: 200px; }
     .filter-count { font-size: .82rem; color: var(--text-muted); margin-left: auto; }
 
     /* ===== TABLE ===== */
     .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
     table { width: 100%; border-collapse: collapse; }
     thead { background: linear-gradient(135deg, var(--gold), var(--gold-light)); }
-    th { padding: 12px 16px; text-align: left; font-size: .75rem; font-weight: 600; color: #fff; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+    th { padding: 12px 16px; text-align: left; font-size: .75rem; font-weight: 600; color: #fff; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; cursor: pointer; }
+    th:hover { background: rgba(0,0,0,.1); }
+    th .sort-icon { margin-left: 4px; opacity: .6; }
     td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; font-size: .83rem; vertical-align: middle; }
     tbody tr { transition: background .1s; }
     tbody tr:hover { background: #fafafa; }
@@ -121,6 +125,7 @@
     .status-completed { background: #dcfce7; color: #166534; }
     .status-canceled { background: #fee2e2; color: #991b1b; }
     .status-pending { background: #f3f4f6; color: #6b7280; }
+    .status-received { background: #e0e7ff; color: #3730a3; }
 
     /* ===== ACTION BUTTONS ===== */
     .action-btns { display: flex; gap: 4px; flex-wrap: nowrap; }
@@ -301,13 +306,26 @@
 
     <!-- Filter -->
     <div class="filter-bar">
+      <input type="text" id="filterSearch" placeholder="🔍 Cari order/nama..." onkeydown="if(event.key==='Enter')loadOrders()" />
       <select id="filterStatus" onchange="loadOrders()">
         <option value="">Semua Status</option>
         <option value="paid">Paid</option>
         <option value="processing">Processing</option>
         <option value="shipped">Shipped</option>
+        <option value="received">Received</option>
         <option value="completed">Completed</option>
         <option value="canceled">Canceled</option>
+      </select>
+      <input type="date" id="filterDateFrom" title="Dari tanggal" />
+      <input type="date" id="filterDateTo" title="Sampai tanggal" />
+      <select id="filterSortBy" onchange="loadOrders()">
+        <option value="">Urut default</option>
+        <option value="order_date">Tanggal Order</option>
+        <option value="total_payment">Total Pembayaran</option>
+      </select>
+      <select id="filterSortOrder" onchange="loadOrders()">
+        <option value="desc">Terbaru ↓</option>
+        <option value="asc">Terlama ↑</option>
       </select>
       <select id="filterLimit" onchange="loadOrders()">
         <option value="10">10 / halaman</option>
@@ -316,6 +334,7 @@
         <option value="50">50 / halaman</option>
       </select>
       <button class="btn btn-sm btn-outline" onclick="loadOrders()">🔄 Refresh</button>
+      <button class="btn btn-sm btn-gold" onclick="exportOrders()">📥 Export CSV</button>
       <span class="filter-count" id="filterCount"></span>
     </div>
 
@@ -355,7 +374,7 @@
 
 <!-- MODAL: DETAIL -->
 <div class="modal-overlay" id="modalDetail" onclick="if(event.target===this)closeModal('modalDetail')">
-  <div class="modal" style="max-width:620px;">
+  <div class="modal" style="max-width:680px;">
     <div class="modal-header">
       <h3>📋 Detail Pesanan</h3>
       <button class="modal-close" onclick="closeModal('modalDetail')">✕</button>
@@ -363,6 +382,7 @@
     <div class="modal-body" id="detailBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
     <div class="modal-footer">
       <span class="toggle-json" onclick="toggleJson('detailJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-gold" onclick="openInvoiceFromDetail()">🧾 Lihat Nota Pesanan</button>
       <button class="btn btn-outline" onclick="closeModal('modalDetail')">Tutup</button>
     </div>
     <pre class="json-output" id="detailJson" style="margin:0 22px 16px;"></pre>
@@ -426,6 +446,41 @@
   </div>
 </div>
 
+<!-- MODAL: INVOICE -->
+<div class="modal-overlay" id="modalInvoice" onclick="if(event.target===this)closeModal('modalInvoice')">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <h3>🧾 Nota Pesanan</h3>
+      <button class="modal-close" onclick="closeModal('modalInvoice')">✕</button>
+    </div>
+    <div class="modal-body" id="invoiceBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('invoiceJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="copyInvoice()">📋 Copy</button>
+      <button class="btn btn-outline" onclick="printInvoice()">🖨️ Print</button>
+      <button class="btn btn-gold" onclick="downloadInvoice()">📥 Download PDF</button>
+      <button class="btn btn-outline" onclick="closeModal('modalInvoice')">Tutup</button>
+    </div>
+    <pre class="json-output" id="invoiceJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: SHIPPING INFO -->
+<div class="modal-overlay" id="modalShipInfo" onclick="if(event.target===this)closeModal('modalShipInfo')">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <h3>📦 Informasi Pengiriman</h3>
+      <button class="modal-close" onclick="closeModal('modalShipInfo')">✕</button>
+    </div>
+    <div class="modal-body" id="shipInfoBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('shipInfoJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalShipInfo')">Tutup</button>
+    </div>
+    <pre class="json-output" id="shipInfoJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -435,6 +490,7 @@ let vendorToken = '';
 let currentPage = 1;
 let pendingAction = null;
 let shipOrderId = '';
+let currentDetailOrderId = '';
 
 const $ = id => document.getElementById(id);
 const baseUrl = () => $('baseUrl').value.replace(/\/+$/, '');
@@ -482,6 +538,23 @@ async function api(method, path, body) {
   return { status: res.status, json, text };
 }
 
+function buildFilterParams() {
+  let params = 'page=' + currentPage + '&limit=' + $('filterLimit').value;
+  const status = $('filterStatus').value;
+  const search = $('filterSearch').value.trim();
+  const dateFrom = $('filterDateFrom').value;
+  const dateTo = $('filterDateTo').value;
+  const sortBy = $('filterSortBy').value;
+  const sortOrder = $('filterSortOrder').value;
+  if (status) params += '&status=' + status;
+  if (search) params += '&search=' + encodeURIComponent(search);
+  if (dateFrom) params += '&date_from=' + dateFrom;
+  if (dateTo) params += '&date_to=' + dateTo;
+  if (sortBy) params += '&sort_by=' + sortBy;
+  if (sortOrder) params += '&sort_order=' + sortOrder;
+  return params;
+}
+
 // ═══════ LOGIN ═══════
 async function doLogin() {
   try {
@@ -502,10 +575,7 @@ async function doLogin() {
 async function loadOrders(page) {
   if (!vendorToken) { toast('Login dulu!', 'error'); return; }
   if (page) currentPage = page;
-  const status = $('filterStatus').value;
-  const limit = $('filterLimit').value;
-  let path = '/vendors/orders?page=' + currentPage + '&limit=' + limit;
-  if (status) path += '&status=' + status;
+  const path = '/vendors/orders?' + buildFilterParams();
 
   $('orderTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">⏳ Memuat...</td></tr>';
 
@@ -524,6 +594,29 @@ async function loadOrders(page) {
   } catch (e) {
     $('orderTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#dc2626;">❌ ' + e.message + '</td></tr>';
   }
+}
+
+// ═══════ EXPORT CSV ═══════
+function exportOrders() {
+  if (!vendorToken) { toast('Login dulu!', 'error'); return; }
+  const params = buildFilterParams();
+  const url = baseUrl() + '/vendors/orders/export?' + params;
+
+  // Create a hidden link and click it to download
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'orders.csv';
+  // Add authorization header via fetch
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + vendorToken } })
+    .then(res => res.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      a.href = blobUrl;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      toast('CSV berhasil didownload!', 'success');
+    })
+    .catch(e => toast('Export gagal: ' + e.message, 'error'));
 }
 
 function renderTable(orders, meta) {
@@ -570,6 +663,7 @@ function renderTable(orders, meta) {
 function buildActions(o) {
   const s = (o.status||'').toLowerCase();
   let b = '<button class="action-btn detail" title="Detail" onclick="showDetail(\'' + o.order_id + '\')">🔍</button>';
+  b += '<button class="action-btn" title="Nota Pesanan" onclick="showInvoice(\'' + o.order_id + '\')" style="border-color:#6366f1;color:#6366f1;">🧾</button>';
   if (s === 'paid') {
     b += '<button class="action-btn accept" title="Terima Pesanan" onclick="confirmAccept(\'' + o.order_id + '\',\'' + (o.order_no||'') + '\')">✅</button>';
     b += '<button class="action-btn reject" title="Tolak Pesanan" onclick="confirmReject(\'' + o.order_id + '\',\'' + (o.order_no||'') + '\')">❌</button>';
@@ -578,14 +672,16 @@ function buildActions(o) {
     b += '<button class="action-btn ship" title="Input Resi" onclick="openShip(\'' + o.order_id + '\')">🚚</button>';
     b += '<button class="action-btn reject" title="Tolak Pesanan" onclick="confirmReject(\'' + o.order_id + '\',\'' + (o.order_no||'') + '\')">❌</button>';
   }
-  if (s === 'shipped') {
+  if (s === 'shipped' || s === 'received' || s === 'completed') {
+    b += '<button class="action-btn" title="Info Pengiriman" onclick="showShippingInfo(\'' + o.order_id + '\')" style="border-color:#0ea5e9;color:#0ea5e9;">📦</button>';
     b += '<button class="action-btn track" title="Lacak Resi" onclick="showTracking(\'' + o.order_id + '\')">📍</button>';
   }
   return b;
 }
 
-// ═══════ DETAIL ═══════
+// ═══════ DETAIL (NEW STRUCTURE) ═══════
 async function showDetail(id) {
+  currentDetailOrderId = id;
   openModal('modalDetail');
   $('detailBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat detail...</p>';
   $('detailJson').innerHTML = ''; $('detailJson').classList.remove('show');
@@ -597,55 +693,78 @@ async function showDetail(id) {
   } catch (e) { $('detailBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
 }
 
+function openInvoiceFromDetail() {
+  if (!currentDetailOrderId) {
+    toast('Order belum dipilih', 'error');
+    return;
+  }
+  closeModal('modalDetail');
+  showInvoice(currentDetailOrderId);
+}
+
 function renderDetail(d) {
-  const ship = d.shipment ? '<div class="detail-section"><h4>🚚 Informasi Pengiriman</h4><div class="detail-grid">' +
-    '<span class="detail-label">Kurir</span><span class="detail-value">' + (d.shipment.courier_code||'').toUpperCase() + ' — ' + (d.shipment.service_type||'') + '</span>' +
-    '<span class="detail-label">No. Resi</span><span class="detail-value" style="font-family:monospace;color:var(--gold-dark);font-weight:700;">' + (d.shipment.tracking_no||'-') + '</span>' +
-    '<span class="detail-label">Status</span><span class="detail-value">' + statusBadge(d.shipment.shipment_status) + '</span>' +
-    (d.shipment.etd ? '<span class="detail-label">Estimasi (ETD)</span><span class="detail-value">' + d.shipment.etd + '</span>' : '') +
-    (d.shipment.shipped_at ? '<span class="detail-label">Dikirim</span><span class="detail-value">' + fmtDate(d.shipment.shipped_at) + '</span>' : '') +
-    (d.shipment.estimated_arrival ? '<span class="detail-label">Estimasi Tiba</span><span class="detail-value" style="color:var(--gold-dark);font-weight:600;">' + d.shipment.estimated_arrival + '</span>' : '') +
+  // New structure: shipping, recipient, store, items, payment, order, summary
+
+  // Order Info
+  const orderInfo = '<div class="detail-section"><h4>📋 Informasi Order</h4><div class="detail-grid">' +
+    '<span class="detail-label">Order No</span><span class="detail-value" style="font-weight:700;color:var(--gold-dark);">' + (d.order?.order_number || '-') + '</span>' +
+    '<span class="detail-label">Waktu Order</span><span class="detail-value">' + fmtDate(d.order?.order_time) + '</span>' +
+    (d.order?.payment_time ? '<span class="detail-label">Waktu Bayar</span><span class="detail-value">' + fmtDate(d.order.payment_time) + '</span>' : '') +
+    (d.order?.shipping_time ? '<span class="detail-label">Waktu Kirim</span><span class="detail-value">' + fmtDate(d.order.shipping_time) + '</span>' : '') +
+    (d.order?.delivered_time ? '<span class="detail-label">Waktu Terima</span><span class="detail-value">' + fmtDate(d.order.delivered_time) + '</span>' : '') +
+    '</div></div>';
+
+  // Store Info
+  const storeInfo = '<div class="detail-section"><h4>🏪 Toko</h4><div class="detail-grid">' +
+    '<span class="detail-label">Nama Toko</span><span class="detail-value">' + (d.store?.name || '-') + '</span>' +
+    '</div></div>';
+
+  // Shipping Info
+  const shipInfo = d.shipping ? '<div class="detail-section"><h4>🚚 Informasi Pengiriman</h4><div class="detail-grid">' +
+    '<span class="detail-label">Kurir</span><span class="detail-value">' + (d.shipping.courier||'-').toUpperCase() + '</span>' +
+    '<span class="detail-label">No. Resi</span><span class="detail-value" style="font-family:monospace;color:var(--gold-dark);font-weight:700;">' + (d.shipping.tracking_number||'-') + '</span>' +
+    '<span class="detail-label">Status</span><span class="detail-value">' + (d.shipping.status||'-') + '</span>' +
+    (d.shipping.delivered_at ? '<span class="detail-label">Diterima</span><span class="detail-value">' + fmtDate(d.shipping.delivered_at) + '</span>' : '') +
     '</div></div>' : '';
 
-  const addr = d.shipping_address ? '<div class="detail-section"><h4>📍 Alamat Pengiriman</h4><div class="detail-grid">' +
-    '<span class="detail-label">Penerima</span><span class="detail-value">' + (d.shipping_address.recipient_name||'-') + '</span>' +
-    '<span class="detail-label">Telepon</span><span class="detail-value">' + (d.shipping_address.phone||'-') + '</span>' +
-    '<span class="detail-label">Alamat</span><span class="detail-value">' + (d.shipping_address.full_address||d.shipping_address.street||'-') + '</span>' +
-    '<span class="detail-label">Kota</span><span class="detail-value">' + (d.shipping_address.city||d.shipping_address.district||'-') + ', ' + (d.shipping_address.province||'') + '</span>' +
+  // Recipient Info
+  const recipientInfo = d.recipient ? '<div class="detail-section"><h4>📍 Penerima</h4><div class="detail-grid">' +
+    '<span class="detail-label">Nama</span><span class="detail-value">' + (d.recipient.name||'-') + '</span>' +
+    '<span class="detail-label">Telepon</span><span class="detail-value">' + (d.recipient.phone||'-') + '</span>' +
+    '<span class="detail-label">Alamat</span><span class="detail-value">' + (d.recipient.address?.street||'-') + '</span>' +
+    '<span class="detail-label">Kecamatan</span><span class="detail-value">' + (d.recipient.address?.district||'-') + '</span>' +
+    '<span class="detail-label">Kota</span><span class="detail-value">' + (d.recipient.address?.city||'-') + ', ' + (d.recipient.address?.province||'') + '</span>' +
+    '<span class="detail-label">Kode Pos</span><span class="detail-value">' + (d.recipient.address?.postal_code||'-') + '</span>' +
     '</div></div>' : '';
 
-  const pay = d.payment_info ? '<div class="detail-section"><h4>💳 Pembayaran</h4><div class="detail-grid">' +
-    '<span class="detail-label">Status</span><span class="detail-value">' + statusBadge(d.payment_info.status) + '</span>' +
-    (d.payment_info.payment_method ? '<span class="detail-label">Metode</span><span class="detail-value">' + d.payment_info.payment_method + '</span>' : '') +
-    (d.payment_info.payment_channel ? '<span class="detail-label">Channel</span><span class="detail-value">' + d.payment_info.payment_channel + '</span>' : '') +
-    (d.payment_info.paid_at ? '<span class="detail-label">Dibayar</span><span class="detail-value">' + fmtDate(d.payment_info.paid_at) + '</span>' : '') +
+  // Payment Info
+  const payInfo = d.payment ? '<div class="detail-section"><h4>💳 Pembayaran</h4><div class="detail-grid">' +
+    '<span class="detail-label">Metode</span><span class="detail-value">' + (d.payment.method||'-') + '</span>' +
+    '<span class="detail-label">Total</span><span class="detail-value" style="font-weight:700;color:var(--gold-dark);">' + fmt(d.payment.total_amount) + '</span>' +
     '</div></div>' : '';
 
+  // Items
   const items = (d.items||[]).map(it =>
     '<div class="product-card">' +
     '<div class="product-img">📦</div>' +
     '<div class="product-info">' +
-    '<div class="product-name">' + it.product_name + '</div>' +
-    '<div class="product-variant">' + (it.selected_variant||'-') + '</div>' +
-    '<div class="product-price"><span class="qty">' + it.qty + 'x ' + fmt(it.unit_price) + '</span><span class="total">' + fmt(it.line_total) + '</span></div>' +
+    '<div class="product-name">' + (it.name||'-') + '</div>' +
+    '<div class="product-variant">' + (it.variant||'-') + '</div>' +
+    '<div class="product-price"><span class="qty">' + (it.quantity||0) + 'x ' + fmt(it.price) + '</span><span class="total">' + fmt(it.subtotal) + '</span></div>' +
     '</div></div>'
   ).join('');
 
-  $('detailBody').innerHTML =
-    '<div class="detail-section"><h4>📋 Informasi Order</h4><div class="detail-grid">' +
-    '<span class="detail-label">Order No</span><span class="detail-value" style="font-weight:700;color:var(--gold-dark);">' + d.order_no + '</span>' +
-    '<span class="detail-label">Tanggal</span><span class="detail-value">' + fmtDate(d.order_date) + '</span>' +
-    '<span class="detail-label">Status</span><span class="detail-value">' + statusBadge(d.status) + '</span>' +
-    '<span class="detail-label">Customer</span><span class="detail-value">' + (d.customer_name||'-') + '</span>' +
-    '</div></div>' +
-    ship + addr +
+  // Summary
+  const summary = d.summary ? '<div class="detail-section"><div class="price-summary">' +
+    '<div class="price-row"><span>Subtotal Produk</span><span>' + fmt(d.summary.items_total) + '</span></div>' +
+    '<div class="price-row"><span>Ongkos Kirim</span><span>' + fmt(d.summary.shipping_fee) + '</span></div>' +
+    '<div class="price-row"><span>Biaya Layanan</span><span>' + fmt(d.summary.service_fee) + '</span></div>' +
+    '<div class="price-row total"><span>Grand Total</span><span class="val">' + fmt(d.summary.grand_total) + '</span></div>' +
+    '</div></div>' : '';
+
+  $('detailBody').innerHTML = orderInfo + storeInfo + shipInfo + recipientInfo +
     '<div class="detail-section"><h4>📦 Produk</h4>' + items + '</div>' +
-    '<div class="detail-section"><div class="price-summary">' +
-    '<div class="price-row"><span>Subtotal</span><span>' + fmt(d.subtotal) + '</span></div>' +
-    '<div class="price-row"><span>Ongkos Kirim</span><span>' + fmt(d.shipping_fee) + '</span></div>' +
-    '<div class="price-row"><span>Platform Fee</span><span>' + fmt(d.platform_fee) + '</span></div>' +
-    '<div class="price-row total"><span>Grand Total</span><span class="val">' + fmt(d.grand_total) + '</span></div>' +
-    '</div></div>' + pay;
+    summary + payInfo;
 }
 
 // ═══════ ACCEPT / REJECT ═══════
@@ -731,6 +850,180 @@ function renderTracking(d) {
     html += '</div>';
   }
   $('trackBody').innerHTML = html;
+}
+
+// ═══════ INVOICE (NOTA PESANAN) ═══════
+let currentInvoiceOrderId = '';
+async function showInvoice(id) {
+  currentInvoiceOrderId = id;
+  openModal('modalInvoice');
+  $('invoiceBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat invoice...</p>';
+  $('invoiceJson').innerHTML = ''; $('invoiceJson').classList.remove('show');
+  try {
+    const res = await api('GET', '/vendors/orders/' + id + '/invoice');
+    $('invoiceJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.status === 200 && res.json?.success) renderInvoice(res.json.data);
+    else $('invoiceBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+  } catch (e) { $('invoiceBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+function renderInvoice(d) {
+  const inv = d.invoice||{}, cust = d.customer||{}, pay = d.payment||{}, items = d.items||[], sum = d.summary||{};
+
+  let html = '<div style="background:#f9f9f9;border:1px solid #e5e5e5;border-radius:8px;padding:20px;">';
+
+  // Header
+  html += '<div style="display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--gold);">';
+  html += '<div><h2 style="margin:0;font-size:1.2rem;color:var(--gold-dark);">NOTA PESANAN</h2><p style="margin:4px 0 0;font-size:.8rem;color:var(--text-muted);">Haji & Umrah Store</p></div>';
+  html += '<div style="text-align:right;"><p style="margin:0;font-weight:700;font-size:.95rem;">' + (inv.invoice_number||'-') + '</p><p style="margin:4px 0 0;font-size:.78rem;color:var(--text-muted);">' + (inv.issued_at||'-') + '</p></div>';
+  html += '</div>';
+
+  // Customer & Payment
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">';
+  html += '<div><h4 style="font-size:.75rem;color:var(--text-muted);margin:0 0 6px;">PELANGGAN</h4>';
+  html += '<p style="margin:0;font-weight:600;">' + (cust.name||'-') + '</p>';
+  html += '<p style="margin:2px 0;font-size:.82rem;">' + (cust.phone||'-') + '</p>';
+  const addr = cust.address||{};
+  html += '<p style="margin:2px 0;font-size:.82rem;color:var(--text-muted);">' + [addr.street, addr.district, addr.city, addr.province, addr.postal_code].filter(x=>x).join(', ') + '</p></div>';
+  html += '<div><h4 style="font-size:.75rem;color:var(--text-muted);margin:0 0 6px;">PEMBAYARAN</h4>';
+  html += '<p style="margin:0;font-weight:500;">' + (pay.method||'-') + '</p>';
+  html += '<p style="margin:2px 0;font-size:.82rem;color:var(--text-muted);">Dibayar: ' + (pay.paid_at||'-') + '</p></div>';
+  html += '</div>';
+
+  // Items table
+  html += '<table style="width:100%;border-collapse:collapse;margin-bottom:12px;">';
+  html += '<thead><tr style="background:#f0f0f0;"><th style="padding:8px;text-align:left;font-size:.75rem;">Produk</th><th style="padding:8px;text-align:center;font-size:.75rem;">Qty</th><th style="padding:8px;text-align:right;font-size:.75rem;">Harga</th><th style="padding:8px;text-align:right;font-size:.75rem;">Subtotal</th></tr></thead>';
+  html += '<tbody>';
+  items.forEach(it => {
+    html += '<tr style="border-bottom:1px solid #f0f0f0;">';
+    html += '<td style="padding:8px;font-size:.82rem;">' + (it.name||'-') + (it.variant ? '<br><span style="color:var(--text-muted);font-size:.75rem;">' + it.variant + '</span>' : '') + '</td>';
+    html += '<td style="padding:8px;text-align:center;font-size:.82rem;">' + (it.quantity||0) + '</td>';
+    html += '<td style="padding:8px;text-align:right;font-size:.82rem;">' + fmt(it.price) + '</td>';
+    html += '<td style="padding:8px;text-align:right;font-size:.82rem;font-weight:600;">' + fmt(it.subtotal) + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  // Summary
+  html += '<div style="text-align:right;padding-top:8px;border-top:1px solid #e5e5e5;">';
+  html += '<div style="display:flex;justify-content:flex-end;gap:40px;margin-bottom:4px;font-size:.84rem;"><span>Subtotal</span><span>' + fmt(sum.subtotal) + '</span></div>';
+  html += '<div style="display:flex;justify-content:flex-end;gap:40px;margin-bottom:4px;font-size:.84rem;"><span>Ongkos Kirim</span><span>' + fmt(sum.shipping_fee) + '</span></div>';
+  html += '<div style="display:flex;justify-content:flex-end;gap:40px;margin-bottom:4px;font-size:.84rem;"><span>Biaya Layanan</span><span>' + fmt(sum.service_fee) + '</span></div>';
+  html += '<div style="display:flex;justify-content:flex-end;gap:40px;font-size:1rem;font-weight:700;color:var(--gold-dark);padding-top:6px;border-top:2px solid #333;"><span>TOTAL</span><span>' + fmt(sum.total) + '</span></div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  $('invoiceBody').innerHTML = html;
+}
+
+function copyInvoice() {
+  const el = $('invoiceBody');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(el.innerText).then(() => toast('Invoice disalin ke clipboard!', 'success'));
+  } else {
+    toast('Clipboard tidak didukung browser ini', 'error');
+  }
+}
+
+function printInvoice() {
+  const content = $('invoiceBody').innerHTML;
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up diblokir browser. Izinkan pop-up untuk halaman ini.', 'error'); return; }
+  const printHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    '<title>Nota Pesanan<\/title>' +
+    '<style>body { font-family: Arial, sans-serif; padding: 20px; }<\/style>' +
+    '<\/head><body>' + content + '<\/body><\/html>';
+  w.document.write(printHtml);
+  w.document.close();
+  w.print();
+}
+
+function downloadInvoice() {
+  if (!currentInvoiceOrderId) { toast('Order ID tidak ditemukan', 'error'); return; }
+  const url = baseUrl() + '/vendors/orders/' + currentInvoiceOrderId + '/invoice/download';
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + vendorToken } })
+    .then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.blob();
+    })
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'invoice.pdf';
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      toast('PDF berhasil didownload!', 'success');
+    })
+    .catch(e => toast('Download gagal: ' + e.message, 'error'));
+}
+
+// ═══════ SHIPPING INFO (INFORMASI PENGIRIMAN) ═══════
+async function showShippingInfo(id) {
+  openModal('modalShipInfo');
+  $('shipInfoBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat info pengiriman...</p>';
+  $('shipInfoJson').innerHTML = ''; $('shipInfoJson').classList.remove('show');
+  try {
+    const res = await api('GET', '/vendors/orders/' + id + '/shipping');
+    $('shipInfoJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.status === 200 && res.json?.success) renderShippingInfo(res.json.data);
+    else $('shipInfoBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+  } catch (e) { $('shipInfoBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+function renderShippingInfo(d) {
+  const stages = d.stages||[], courier = d.courier||{}, events = d.events||[];
+
+  let html = '';
+
+  // Estimated arrival
+  if (d.estimated_arrival) {
+    html += '<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">';
+    html += '<span style="font-size:1.5rem;">📅</span>';
+    html += '<div><p style="margin:0;font-size:.82rem;color:#92400e;">Estimasi Tiba</p><p style="margin:0;font-weight:700;font-size:1rem;">' + d.estimated_arrival + '</p></div>';
+    html += '</div>';
+  }
+
+  // Stages
+  html += '<div style="display:flex;justify-content:space-between;margin-bottom:20px;padding:16px;background:#f9f9f9;border-radius:8px;">';
+  stages.forEach((s, i) => {
+    const isCompleted = s.completed;
+    const isActive = s.active;
+    const color = isCompleted ? '#16a34a' : (isActive ? 'var(--gold)' : '#d1d5db');
+    html += '<div style="text-align:center;flex:1;">';
+    html += '<div style="width:32px;height:32px;border-radius:50%;background:' + color + ';margin:0 auto 6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;">';
+    html += isCompleted ? '✓' : (i+1);
+    html += '</div>';
+    html += '<p style="margin:0;font-size:.75rem;font-weight:' + (isActive?'700':'500') + ';color:' + (isCompleted||isActive?'#333':'#9ca3af') + ';">' + (s.label||s.status) + '</p>';
+    html += '</div>';
+    if (i < stages.length-1) {
+      html += '<div style="flex:0.5;display:flex;align-items:center;"><div style="height:2px;width:100%;background:' + (isCompleted?'#16a34a':'#e5e5e5') + ';"></div></div>';
+    }
+  });
+  html += '</div>';
+
+  // Courier info
+  html += '<div style="display:flex;gap:16px;margin-bottom:16px;">';
+  html += '<div style="flex:1;background:#f5f5f5;padding:12px;border-radius:8px;"><p style="margin:0;font-size:.72rem;color:var(--text-muted);text-transform:uppercase;">Kurir</p><p style="margin:4px 0 0;font-weight:700;">' + (courier.name||courier.code||'-') + '</p></div>';
+  html += '<div style="flex:1;background:#f5f5f5;padding:12px;border-radius:8px;"><p style="margin:0;font-size:.72rem;color:var(--text-muted);text-transform:uppercase;">No. Resi</p><p style="margin:4px 0 0;font-weight:700;font-family:monospace;color:var(--gold-dark);">' + (courier.tracking_no||'-') + '</p></div>';
+  html += '</div>';
+
+  // Events timeline
+  if (events.length) {
+    html += '<h4 style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin:16px 0 12px;">📦 Riwayat Pengiriman</h4>';
+    html += '<div class="timeline">';
+    events.forEach(e => {
+      html += '<div class="timeline-item"><div class="timeline-dot"></div>';
+      html += '<div class="timeline-desc">' + (e.description||'-') + '</div>';
+      html += '<div class="timeline-meta">' + (e.date_time||'') + (e.location ? ' — ' + e.location : '') + '</div></div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<p style="text-align:center;color:var(--text-muted);padding:20px;">Belum ada riwayat pengiriman.</p>';
+  }
+
+  $('shipInfoBody').innerHTML = html;
 }
 
 updateUI();

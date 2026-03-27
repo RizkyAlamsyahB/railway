@@ -183,6 +183,20 @@ func (mr *MockVendorRepositoryMockRecorder) FindBankAccountByVendorID(ctx, vendo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBankAccountByVendorID", reflect.TypeOf((*MockVendorRepository)(nil).FindBankAccountByVendorID), ctx, vendorID)
 }
 
+// UpsertBankAccount mocks base method.
+func (m *MockVendorRepository) UpsertBankAccount(ctx context.Context, bankAccount *domain.VendorBankAccount) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertBankAccount", ctx, bankAccount)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertBankAccount indicates an expected call of UpsertBankAccount.
+func (mr *MockVendorRepositoryMockRecorder) UpsertBankAccount(ctx, bankAccount any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertBankAccount", reflect.TypeOf((*MockVendorRepository)(nil).UpsertBankAccount), ctx, bankAccount)
+}
+
 // FindByID mocks base method.
 func (m *MockVendorRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Vendor, error) {
 	m.ctrl.T.Helper()

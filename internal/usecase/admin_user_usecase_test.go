@@ -64,6 +64,7 @@ func TestCreate(t *testing.T) {
 			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, req domain.CreateUserRequest) {
 				userID := uuid.New()
 				repo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
+				repo.EXPECT().FindByPhone(ctx, gomock.Any()).Times(0)
 				repo.EXPECT().Create(ctx, gomock.Any(), req.Role).Return(nil)
 				repo.EXPECT().FindByID(ctx, gomock.Any()).Return(dummyUser(userID), nil)
 			},
@@ -89,6 +90,7 @@ func TestCreate(t *testing.T) {
 			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, req domain.CreateUserRequest) {
 				userID := uuid.New()
 				repo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
+				repo.EXPECT().FindByPhone(ctx, gomock.Any()).Times(0)
 				repo.EXPECT().Create(ctx, gomock.Any(), req.Role).Return(nil)
 				repo.EXPECT().FindByID(ctx, gomock.Any()).Return(dummyUser(userID), nil)
 			},
@@ -114,6 +116,21 @@ func TestCreate(t *testing.T) {
 			wantErr: ErrEmailExists,
 		},
 		{
+			name: "phone already exists",
+			req: domain.CreateUserRequest{
+				Email:    "new@example.com",
+				FullName: "Jane Doe",
+				Password: "password123",
+				Phone:    ptrString("08123456789"),
+				Role:     "admin",
+			},
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, req domain.CreateUserRequest) {
+				repo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
+				repo.EXPECT().FindByPhone(ctx, *req.Phone).Return(dummyUser(uuid.New()), nil)
+			},
+			wantErr: ErrPhoneAlreadyRegistered,
+		},
+		{
 			name: "invalid birth date",
 			req: domain.CreateUserRequest{
 				Email:     "new@example.com",
@@ -124,8 +141,32 @@ func TestCreate(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, req domain.CreateUserRequest) {
 				repo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
+				repo.EXPECT().FindByPhone(ctx, gomock.Any()).Times(0)
 			},
 			wantErr: ErrInvalidBirthDate,
+		},
+		{
+			name: "success with phone",
+			req: domain.CreateUserRequest{
+				Email:    "new@example.com",
+				FullName: "Jane Doe",
+				Password: "password123",
+				Phone:    ptrString("08123456789"),
+				Role:     "admin",
+			},
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, req domain.CreateUserRequest) {
+				userID := uuid.New()
+				repo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
+				repo.EXPECT().FindByPhone(ctx, *req.Phone).Return(nil, nil)
+				repo.EXPECT().Create(ctx, gomock.Any(), req.Role).Return(nil)
+				repo.EXPECT().FindByID(ctx, gomock.Any()).Return(dummyUser(userID), nil)
+			},
+			checkResp: func(t *testing.T, resp *domain.UserResponse) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected non-nil response")
+				}
+			},
 		},
 		{
 			name: "FindByEmail error",
@@ -141,6 +182,21 @@ func TestCreate(t *testing.T) {
 			wantNil: true,
 		},
 		{
+			name: "FindByPhone error",
+			req: domain.CreateUserRequest{
+				Email:    "new@example.com",
+				FullName: "Jane Doe",
+				Password: "password123",
+				Phone:    ptrString("08123456789"),
+				Role:     "admin",
+			},
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, req domain.CreateUserRequest) {
+				repo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
+				repo.EXPECT().FindByPhone(ctx, *req.Phone).Return(nil, errors.New("db error"))
+			},
+			wantNil: true,
+		},
+		{
 			name: "repo Create error",
 			req: domain.CreateUserRequest{
 				Email:    "new@example.com",
@@ -150,6 +206,7 @@ func TestCreate(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, req domain.CreateUserRequest) {
 				repo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
+				repo.EXPECT().FindByPhone(ctx, gomock.Any()).Times(0)
 				repo.EXPECT().Create(ctx, gomock.Any(), req.Role).Return(errors.New("db error"))
 			},
 			wantNil: true,
@@ -164,6 +221,7 @@ func TestCreate(t *testing.T) {
 			},
 			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context, req domain.CreateUserRequest) {
 				repo.EXPECT().FindByEmail(ctx, req.Email).Return(nil, nil)
+				repo.EXPECT().FindByPhone(ctx, gomock.Any()).Times(0)
 				repo.EXPECT().Create(ctx, gomock.Any(), req.Role).Return(nil)
 				repo.EXPECT().FindByID(ctx, gomock.Any()).Return(nil, errors.New("db error"))
 			},
@@ -283,6 +341,32 @@ func TestList(t *testing.T) {
 				// 7 items / 3 per page = ceil(2.33) = 3 pages
 				if meta.TotalPages != 3 {
 					t.Errorf("expected total_pages=3, got %d", meta.TotalPages)
+				}
+			},
+		},
+		{
+			name:   "sort by full_name asc",
+			params: domain.UserListParams{Page: 1, Limit: 10, SortBy: "full_name", SortOrder: "asc"},
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context) {
+				repo.EXPECT().List(ctx, domain.UserListParams{Page: 1, Limit: 10, SortBy: "full_name", SortOrder: "asc"}).Return([]domain.User{*dummyUser(uuid.New())}, int64(1), nil)
+			},
+			checkResp: func(t *testing.T, responses []domain.UserResponse, meta *domain.PaginationMeta) {
+				t.Helper()
+				if len(responses) != 1 {
+					t.Errorf("expected 1 response, got %d", len(responses))
+				}
+			},
+		},
+		{
+			name:   "sort by email desc",
+			params: domain.UserListParams{Page: 1, Limit: 10, SortBy: "email", SortOrder: "desc"},
+			setupMock: func(repo *mocks.MockUserRepository, ctx context.Context) {
+				repo.EXPECT().List(ctx, domain.UserListParams{Page: 1, Limit: 10, SortBy: "email", SortOrder: "desc"}).Return([]domain.User{*dummyUser(uuid.New()), *dummyUser(uuid.New())}, int64(2), nil)
+			},
+			checkResp: func(t *testing.T, responses []domain.UserResponse, meta *domain.PaginationMeta) {
+				t.Helper()
+				if len(responses) != 2 {
+					t.Errorf("expected 2 responses, got %d", len(responses))
 				}
 			},
 		},

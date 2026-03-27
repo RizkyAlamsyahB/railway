@@ -52,11 +52,13 @@ type UpdateUserRequest struct {
 
 // UserListParams holds query parameters for listing users.
 type UserListParams struct {
-	Page   int
-	Limit  int
-	Role   string
-	Status string
-	Search string
+	Page      int
+	Limit     int
+	Role      string
+	Status    string
+	Search    string
+	SortBy    string // allowed: "full_name", "email", "role", "status", "created_at"
+	SortOrder string // allowed: "asc", "desc"
 }
 
 // UserResponse is the output DTO for a user.

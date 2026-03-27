@@ -67,6 +67,32 @@ func (h *ProductHandler) ConfirmImages(c *gin.Context) {
 	response.OK(c, "images confirmed successfully", result)
 }
 
+// ListProducts handles GET /api/v1/vendors/products
+func (h *ProductHandler) ListProducts(c *gin.Context) {
+	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)
+	vendorID, _ := vendorIDVal.(uuid.UUID)
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	params := domain.VendorProductListParams{
+		Page:      page,
+		Limit:     limit,
+		Search:    c.Query("search"),
+		Status:    c.Query("status"),
+		SortBy:    c.Query("sort_by"),
+		SortOrder: c.Query("sort_order"),
+	}
+
+	items, meta, err := h.useCase.ListProducts(c.Request.Context(), vendorID, params)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.SuccessWithMeta(c, http.StatusOK, "vendor products retrieved successfully", items, meta)
+}
+
 // CatalogHandler handles public catalog endpoints.
 type CatalogHandler struct {
 	useCase domain.CatalogUseCase

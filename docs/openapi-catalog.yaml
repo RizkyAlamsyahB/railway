@@ -166,7 +166,10 @@ paths:
         Field response produk saat ini:
         - `id`
         - `name`
-        - `price` (harga varian termurah yang memenuhi kriteria)
+        - `price` (harga efektif termurah, sudah memperhitungkan promo aktif jika ada)
+        - `original_price` (harga normal termurah tanpa promo)
+        - `promo_price` (harga promo termurah jika ada, `null` bila tidak ada promo aktif)
+        - `has_promo` (`true` jika ada promo aktif yang membuat harga lebih murah)
         - `rating_average` (rata-rata rating produk)
         - `rating_count` (jumlah review)
       operationId: listProducts
@@ -220,11 +223,17 @@ paths:
                   - id: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
                     name: Sajadah Premium
                     price: 150000
+                    original_price: 150000
+                    promo_price: null
+                    has_promo: false
                     rating_average: 4.7
                     rating_count: 120
                   - id: db04f006-7498-4a96-a242-8ab9cf834248
                     name: Kurma Ajwa 500gr
                     price: 90000
+                    original_price: 120000
+                    promo_price: 90000
+                    has_promo: true
                     rating_average: 0
                     rating_count: 0
                 errors: null
@@ -310,6 +319,9 @@ paths:
                       sku: MBR-SJD-001
                       variant_name: Default
                       price: 150000
+                      original_price: 180000
+                      promo_price: 150000
+                      has_promo: true
                       currency: IDR
                       stock_on_hand: 20
                       weight_gram: 500
@@ -627,6 +639,8 @@ components:
         - id
         - name
         - price
+        - original_price
+        - has_promo
         - rating_average
         - rating_count
       properties:
@@ -642,8 +656,23 @@ components:
         price:
           type: number
           format: double
-          description: Harga varian termurah yang tersedia untuk dibeli.
+          description: Harga efektif termurah (sudah mempertimbangkan promo aktif).
           example: 150000
+        original_price:
+          type: number
+          format: double
+          description: Harga normal termurah tanpa promo.
+          example: 150000
+        promo_price:
+          type: number
+          format: double
+          nullable: true
+          description: Harga promo termurah jika promo aktif; `null` jika tidak ada promo aktif.
+          example: 120000
+        has_promo:
+          type: boolean
+          description: Menandakan apakah produk sedang memiliki promo aktif dengan harga lebih murah.
+          example: true
         rating_average:
           type: number
           format: double
@@ -722,6 +751,8 @@ components:
         - sku
         - variant_name
         - price
+        - original_price
+        - has_promo
         - currency
         - stock_on_hand
         - is_default
@@ -743,8 +774,23 @@ components:
         price:
           type: number
           format: double
-          description: Harga varian.
+          description: Harga efektif varian (sudah mempertimbangkan promo aktif produk).
           example: 150000
+        original_price:
+          type: number
+          format: double
+          description: Harga normal varian tanpa promo.
+          example: 180000
+        promo_price:
+          type: number
+          format: double
+          nullable: true
+          description: Harga promo aktif produk yang diterapkan ke varian; `null` jika tidak ada promo aktif.
+          example: 150000
+        has_promo:
+          type: boolean
+          description: Menandakan varian sedang terpengaruh promo aktif.
+          example: true
         currency:
           type: string
           description: Mata uang harga.

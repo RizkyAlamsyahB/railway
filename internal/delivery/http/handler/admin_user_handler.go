@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
 
@@ -25,13 +27,13 @@ func NewAdminUserHandler(uc domain.AdminUserUseCase) *AdminUserHandler {
 func (h *AdminUserHandler) Create(c *gin.Context) {
 	var req domain.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "validation failed", err.Error())
+		respondValidationError(c, err, req)
 		return
 	}
 
 	result, err := h.useCase.Create(c.Request.Context(), req)
 	if err != nil {
-		HandleUsecaseError(c, err)
+		h.handleCreateError(c, err)
 		return
 	}
 
@@ -44,11 +46,13 @@ func (h *AdminUserHandler) List(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 
 	params := domain.UserListParams{
-		Page:   page,
-		Limit:  limit,
-		Role:   c.Query("role"),
-		Status: c.Query("status"),
-		Search: c.Query("search"),
+		Page:      page,
+		Limit:     limit,
+		Role:      c.Query("role"),
+		Status:    c.Query("status"),
+		Search:    c.Query("search"),
+		SortBy:    c.Query("sort_by"),
+		SortOrder: c.Query("sort_order"),
 	}
 
 	users, meta, err := h.useCase.List(c.Request.Context(), params)
@@ -134,4 +138,24 @@ func (h *AdminUserHandler) Delete(c *gin.Context) {
 	}
 
 	response.OK(c, "user deleted successfully", nil)
+}
+
+func (h *AdminUserHandler) handleCreateError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, usecase.ErrEmailExists):
+		details := newRequestErrors()
+		details.Fields["email"] = []string{"email is already registered"}
+		respondErrorWithRequestDetails(c, http.StatusConflict, "email already exists", details)
+	case errors.Is(err, usecase.ErrPhoneAlreadyRegistered):
+		details := newRequestErrors()
+		details.Fields["phone"] = []string{"phone number is already registered"}
+		respondErrorWithRequestDetails(c, http.StatusConflict, "phone number already registered", details)
+	case errors.Is(err, usecase.ErrInvalidBirthDate):
+		details := newRequestErrors()
+		details.Fields["birth_date"] = []string{"must use YYYY-MM-DD format"}
+		respondErrorWithRequestDetails(c, http.StatusBadRequest, "validation failed", details)
+	default:
+		details := newRequestErrors()
+		respondErrorWithRequestDetails(c, http.StatusInternalServerError, "internal server error", details)
+	}
 }

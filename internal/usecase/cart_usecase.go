@@ -114,6 +114,11 @@ func (uc *cartUseCase) GetCart(ctx context.Context, userID uuid.UUID) (*domain.G
 
 		isAvailable := variant.IsActive && product.Status == domain.ProductStatusPublished
 		subtotal := variant.Price * float64(item.Qty)
+		originalPrice := variant.OriginalPrice
+		if originalPrice <= 0 {
+			originalPrice = variant.Price
+		}
+		hasPromo := variant.HasPromo && variant.PromoPrice != nil && variant.Price < originalPrice
 
 		if isAvailable {
 			total += subtotal
@@ -129,6 +134,9 @@ func (uc *cartUseCase) GetCart(ctx context.Context, userID uuid.UUID) (*domain.G
 			ProductSlug:      product.Slug,
 			ImageURL:         imageURL,
 			Price:            variant.Price,
+			OriginalPrice:    originalPrice,
+			PromoPrice:       variant.PromoPrice,
+			HasPromo:         hasPromo,
 			Currency:         variant.Currency,
 			Qty:              item.Qty,
 			Subtotal:         subtotal,

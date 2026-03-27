@@ -29,6 +29,16 @@ func (uc *adminUserUseCase) Create(ctx context.Context, req domain.CreateUserReq
 		return nil, ErrEmailExists
 	}
 
+	if req.Phone != nil {
+		existingPhone, err := uc.userRepo.FindByPhone(ctx, *req.Phone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check phone: %w", err)
+		}
+		if existingPhone != nil {
+			return nil, ErrPhoneAlreadyRegistered
+		}
+	}
+
 	var birthDate *time.Time
 	if req.BirthDate != nil {
 		t, err := time.Parse("2006-01-02", *req.BirthDate)

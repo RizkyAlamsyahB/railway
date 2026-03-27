@@ -12,7 +12,7 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/auth"
 )
 
-const vendorOnboardingDocumentDocType = "owner_document_id"
+const vendorOnboardingDocumentDocType = domain.VendorDocumentTypeOwnerDocumentID
 
 func (uc *vendorUseCase) RequestRegistrationOTP(ctx context.Context, req domain.VendorRegisterOTPRequest) (*domain.VendorRegisterOTPResponse, error) {
 	email := normalizeVendorEmail(req.Email)
@@ -71,6 +71,11 @@ func (uc *vendorUseCase) VerifyRegistrationOTP(ctx context.Context, req domain.V
 	onboarding.OwnerName = nil
 	onboarding.BirthDate = nil
 	onboarding.DocumentIDObjectKey = nil
+	onboarding.NIB = nil
+	onboarding.CompanyName = nil
+	onboarding.EstablishedDate = nil
+	onboarding.RegisteredAddress = nil
+	onboarding.NIBDocumentObjectKey = nil
 	onboarding.OTPVerifiedAt = now
 	onboarding.CompletedAt = nil
 	onboarding.UpdatedAt = now
@@ -94,6 +99,21 @@ func (uc *vendorUseCase) VerifyRegistrationOTP(ctx context.Context, req domain.V
 		OnboardingToken:     token,
 		OnboardingExpiresAt: expiresAt,
 		Status:              onboarding.Status,
+	}, nil
+}
+
+func (uc *vendorUseCase) GetRegistrationStatus(ctx context.Context, onboardingID uuid.UUID) (*domain.VendorOnboardingStatusResponse, error) {
+	onboarding, err := uc.onboardingRepo.FindByID(ctx, onboardingID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor onboarding: %w", err)
+	}
+	if onboarding == nil {
+		return nil, ErrVendorOnboardingNotFound
+	}
+
+	return &domain.VendorOnboardingStatusResponse{
+		Status: onboarding.Status,
+		Email:  onboarding.Email,
 	}, nil
 }
 
@@ -123,7 +143,7 @@ func (uc *vendorUseCase) SetRegistrationPassword(ctx context.Context, onboarding
 	return &domain.VendorOnboardingProgressResponse{Status: onboarding.Status}, nil
 }
 
-func (uc *vendorUseCase) SaveRegistrationStore(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationStoreRequest) (*domain.VendorOnboardingProgressResponse, error) {
+func (uc *vendorUseCase) PresignRegistrationIndividualDocument(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationPresignDocumentRequest) (*domain.VendorRegistrationPresignDocumentResponse, error) {
 	onboarding, err := uc.getActiveOnboarding(ctx, onboardingID)
 	if err != nil {
 		return nil, err
@@ -132,32 +152,13 @@ func (uc *vendorUseCase) SaveRegistrationStore(ctx context.Context, onboardingID
 		return nil, ErrVendorOnboardingStep
 	}
 
-	now := time.Now()
-	storeName := strings.TrimSpace(req.StoreName)
-	vendorType := strings.TrimSpace(req.VendorType)
-	onboarding.StoreName = &storeName
-	onboarding.VendorType = &vendorType
-	onboarding.Status = domain.VendorOnboardingStatusStoreInfoComplete
-	onboarding.UpdatedAt = now
-
-	if err := uc.onboardingRepo.Update(ctx, onboarding, "store_name", "vendor_type", "status", "updated_at"); err != nil {
-		return nil, fmt.Errorf("failed to update vendor onboarding store info: %w", err)
-	}
-
-	return &domain.VendorOnboardingProgressResponse{Status: onboarding.Status}, nil
-}
-
-func (uc *vendorUseCase) PresignRegistrationLegalDocument(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationPresignDocumentRequest) (*domain.VendorRegistrationPresignDocumentResponse, error) {
-	onboarding, err := uc.getActiveOnboarding(ctx, onboardingID)
-	if err != nil {
-		return nil, err
-	}
-	if onboarding.Status != domain.VendorOnboardingStatusStoreInfoComplete {
-		return nil, ErrVendorOnboardingStep
+	contentType := normalizeContentType(req.ContentType)
+	if !isAllowedIndividualOnboardingContentType(contentType) {
+		return nil, fmt.Errorf("%w: %s (%s)", ErrInvalidDocumentContent, vendorOnboardingDocumentDocType, req.ContentType)
 	}
 
 	objectKey := buildVendorOnboardingDocumentObjectKey(onboardingID)
-	uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, "", PresignedUploadExpiry)
+	uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, contentType, PresignedUploadExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate presigned URL for vendor onboarding document: %w", err)
 	}
@@ -171,12 +172,36 @@ func (uc *vendorUseCase) PresignRegistrationLegalDocument(ctx context.Context, o
 	}, nil
 }
 
-func (uc *vendorUseCase) SubmitRegistrationLegal(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationLegalRequest) (*domain.VendorLoginResponse, error) {
+func (uc *vendorUseCase) PresignRegistrationCorporateDocument(ctx context.Context, onboardingID uuid.UUID) (*domain.VendorRegistrationPresignDocumentResponse, error) {
 	onboarding, err := uc.getActiveOnboarding(ctx, onboardingID)
 	if err != nil {
 		return nil, err
 	}
-	if onboarding.Status != domain.VendorOnboardingStatusStoreInfoComplete || onboarding.PasswordHash == nil || onboarding.StoreName == nil || onboarding.VendorType == nil {
+	if onboarding.Status != domain.VendorOnboardingStatusPasswordSet {
+		return nil, ErrVendorOnboardingStep
+	}
+
+	objectKey := buildVendorOnboardingNIBDocumentObjectKey(onboardingID)
+	uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, "application/pdf", PresignedUploadExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate presigned URL for vendor onboarding nib document: %w", err)
+	}
+
+	return &domain.VendorRegistrationPresignDocumentResponse{
+		UploadURL:       uploadURL,
+		ObjectKey:       objectKey,
+		ExpiresAt:       time.Now().Add(PresignedUploadExpiry),
+		DocumentIDType:  "",
+		DocumentDocType: domain.VendorDocumentTypeBusinessNIB,
+	}, nil
+}
+
+func (uc *vendorUseCase) SubmitRegistrationIndividual(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationIndividualLegalRequest) (*domain.VendorLoginResponse, error) {
+	onboarding, err := uc.getActiveOnboarding(ctx, onboardingID)
+	if err != nil {
+		return nil, err
+	}
+	if onboarding.Status != domain.VendorOnboardingStatusPasswordSet || onboarding.PasswordHash == nil {
 		return nil, ErrVendorOnboardingStep
 	}
 
@@ -198,7 +223,7 @@ func (uc *vendorUseCase) SubmitRegistrationLegal(ctx context.Context, onboarding
 		return nil, ErrObjectNotUploaded
 	}
 	contentType := normalizeContentType(info.ContentType)
-	if !isAllowedDocumentContentType(contentType) {
+	if !isAllowedIndividualOnboardingContentType(contentType) {
 		return nil, fmt.Errorf("%w: %s (%s)", ErrInvalidDocumentContent, vendorOnboardingDocumentDocType, info.ContentType)
 	}
 	if info.ContentLength > int64(math.MaxInt32) {
@@ -210,12 +235,16 @@ func (uc *vendorUseCase) SubmitRegistrationLegal(ctx context.Context, onboarding
 	}
 
 	now := time.Now()
-	businessLegalType := req.BusinessLegalType
+	businessLegalType := domain.VendorBusinessLegalTypeIndividual
+	vendorType := domain.VendorTypeSouvenirStore
+	storeName := strings.TrimSpace(req.StoreName)
 	documentIDType := req.DocumentIDType
 	nik := strings.TrimSpace(req.NIK)
 	ownerName := strings.TrimSpace(req.OwnerName)
 	objectKey := req.DocumentIDObjectKey
 
+	onboarding.StoreName = &storeName
+	onboarding.VendorType = &vendorType
 	onboarding.BusinessLegalType = &businessLegalType
 	onboarding.DocumentIDType = &documentIDType
 	onboarding.NIK = &nik
@@ -226,6 +255,8 @@ func (uc *vendorUseCase) SubmitRegistrationLegal(ctx context.Context, onboarding
 	if err := uc.onboardingRepo.Update(
 		ctx,
 		onboarding,
+		"store_name",
+		"vendor_type",
 		"business_legal_type",
 		"document_id_type",
 		"nik",
@@ -250,16 +281,13 @@ func (uc *vendorUseCase) SubmitRegistrationLegal(ctx context.Context, onboarding
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
-	if err := uc.userRepo.Create(ctx, user, domain.RoleUMKM); err != nil {
-		return nil, fmt.Errorf("failed to create vendor user: %w", err)
-	}
-
 	vendorID := uuid.New()
 	vendor := &domain.Vendor{
 		ID:                    vendorID,
 		OwnerUserID:           userID,
-		VendorType:            *onboarding.VendorType,
-		DisplayName:           *onboarding.StoreName,
+		VendorType:            vendorType,
+		BusinessLegalType:     &businessLegalType,
+		DisplayName:           storeName,
 		ResponsiblePersonName: ownerName,
 		Status:                domain.VendorStatusDraft,
 		CreatedAt:             now,
@@ -270,7 +298,7 @@ func (uc *vendorUseCase) SubmitRegistrationLegal(ctx context.Context, onboarding
 	document := domain.VendorDocument{
 		ID:                 uuid.New(),
 		VendorID:           vendorID,
-		DocType:            vendorOnboardingDocumentDocType,
+		DocType:            domain.VendorDocumentTypeOwnerDocumentID,
 		FileURL:            objectKey,
 		MimeType:           &contentType,
 		FileSizeBytes:      &fileSize,
@@ -279,14 +307,15 @@ func (uc *vendorUseCase) SubmitRegistrationLegal(ctx context.Context, onboarding
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
-	if err := uc.vendorRepo.CreateMinimal(ctx, vendor, []domain.VendorDocument{document}); err != nil {
-		return nil, fmt.Errorf("failed to create vendor profile: %w", err)
-	}
-	if err := uc.vendorRepo.InitBalance(ctx, vendorID); err != nil {
-		return nil, fmt.Errorf("failed to initialize vendor balance: %w", err)
-	}
-	if err := uc.onboardingRepo.MarkCompleted(ctx, onboarding.ID, now); err != nil {
-		return nil, fmt.Errorf("failed to finalize vendor onboarding: %w", err)
+	if err := uc.onboardingRepo.FinalizeRegistration(ctx, domain.VendorRegistrationFinalizeInput{
+		User:         user,
+		UserRole:     domain.RoleUMKM,
+		Vendor:       vendor,
+		Documents:    []domain.VendorDocument{document},
+		OnboardingID: onboarding.ID,
+		CompletedAt:  now,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to finalize vendor registration: %w", err)
 	}
 
 	token, err := auth.GenerateToken(userID, onboarding.Email, domain.RoleUMKM, &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
@@ -300,9 +329,149 @@ func (uc *vendorUseCase) SubmitRegistrationLegal(ctx context.Context, onboarding
 		ImageURL:     "",
 		Email:        onboarding.Email,
 		Name:         ownerName,
-		VendorType:   *onboarding.VendorType,
+		VendorType:   vendorType,
 		VendorStatus: domain.VendorStatusDraft,
-		DisplayName:  *onboarding.StoreName,
+		DisplayName:  storeName,
+	}, nil
+}
+
+func (uc *vendorUseCase) SubmitRegistrationCorporate(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationCorporateLegalRequest) (*domain.VendorLoginResponse, error) {
+	onboarding, err := uc.getActiveOnboarding(ctx, onboardingID)
+	if err != nil {
+		return nil, err
+	}
+	if onboarding.Status != domain.VendorOnboardingStatusPasswordSet || onboarding.PasswordHash == nil {
+		return nil, ErrVendorOnboardingStep
+	}
+
+	establishedDate, err := time.Parse("2006-01-02", req.EstablishedDate)
+	if err != nil {
+		return nil, ErrInvalidBirthDate
+	}
+
+	expectedPrefix := vendorOnboardingNIBDocumentPrefix(onboardingID)
+	if !strings.HasPrefix(req.NIBDocumentObjectKey, expectedPrefix) {
+		return nil, ErrInvalidDocumentObjectKey
+	}
+
+	info, err := uc.storage.HeadObject(ctx, req.NIBDocumentObjectKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify onboarding nib document object: %w", err)
+	}
+	if info == nil {
+		return nil, ErrObjectNotUploaded
+	}
+	contentType := normalizeContentType(info.ContentType)
+	if !isAllowedNIBDocumentContentType(contentType) {
+		return nil, fmt.Errorf("%w: %s (%s)", ErrInvalidDocumentContent, domain.VendorDocumentTypeBusinessNIB, info.ContentType)
+	}
+	if info.ContentLength > int64(math.MaxInt32) {
+		return nil, fmt.Errorf("%w: %s (%d bytes)", ErrDocumentSizeOverflow, domain.VendorDocumentTypeBusinessNIB, info.ContentLength)
+	}
+
+	if err := uc.ensureVendorRegistrationEmailAvailable(ctx, onboarding.Email); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	businessLegalType := domain.VendorBusinessLegalTypeCorporate
+	vendorType := domain.VendorTypeSouvenirStore
+	storeName := strings.TrimSpace(req.StoreName)
+	nib := strings.TrimSpace(req.NIB)
+	companyName := strings.TrimSpace(req.CompanyName)
+	registeredAddress := strings.TrimSpace(req.RegisteredAddress)
+	nibObjectKey := req.NIBDocumentObjectKey
+
+	onboarding.StoreName = &storeName
+	onboarding.VendorType = &vendorType
+	onboarding.BusinessLegalType = &businessLegalType
+	onboarding.NIB = &nib
+	onboarding.CompanyName = &companyName
+	onboarding.EstablishedDate = &establishedDate
+	onboarding.RegisteredAddress = &registeredAddress
+	onboarding.NIBDocumentObjectKey = &nibObjectKey
+	onboarding.UpdatedAt = now
+	if err := uc.onboardingRepo.Update(
+		ctx,
+		onboarding,
+		"store_name",
+		"vendor_type",
+		"business_legal_type",
+		"nib",
+		"company_name",
+		"established_date",
+		"registered_address",
+		"nib_document_object_key",
+		"updated_at",
+	); err != nil {
+		return nil, fmt.Errorf("failed to update vendor onboarding corporate info: %w", err)
+	}
+
+	userID := uuid.New()
+	emailVerifiedAt := onboarding.OTPVerifiedAt
+	user := &domain.User{
+		ID:              userID,
+		Email:           onboarding.Email,
+		FullName:        companyName,
+		BirthDate:       nil,
+		PasswordHash:    *onboarding.PasswordHash,
+		Status:          domain.UserStatusActive,
+		EmailVerifiedAt: &emailVerifiedAt,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	vendorID := uuid.New()
+	vendor := &domain.Vendor{
+		ID:                    vendorID,
+		OwnerUserID:           userID,
+		VendorType:            vendorType,
+		BusinessLegalType:     &businessLegalType,
+		DisplayName:           storeName,
+		ResponsiblePersonName: companyName,
+		RegisteredAddress:     &registeredAddress,
+		Status:                domain.VendorStatusDraft,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
+
+	fileSize := int(info.ContentLength)
+	document := domain.VendorDocument{
+		ID:                 uuid.New(),
+		VendorID:           vendorID,
+		DocType:            domain.VendorDocumentTypeBusinessNIB,
+		FileURL:            nibObjectKey,
+		MimeType:           &contentType,
+		FileSizeBytes:      &fileSize,
+		UploadedBy:         &userID,
+		VerificationStatus: domain.VerificationStatusPending,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	if err := uc.onboardingRepo.FinalizeRegistration(ctx, domain.VendorRegistrationFinalizeInput{
+		User:         user,
+		UserRole:     domain.RoleUMKM,
+		Vendor:       vendor,
+		Documents:    []domain.VendorDocument{document},
+		OnboardingID: onboarding.ID,
+		CompletedAt:  now,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to finalize vendor registration: %w", err)
+	}
+
+	token, err := auth.GenerateToken(userID, onboarding.Email, domain.RoleUMKM, &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate vendor auth token: %w", err)
+	}
+
+	return &domain.VendorLoginResponse{
+		Token:        token,
+		VendorID:     vendorID,
+		ImageURL:     "",
+		Email:        onboarding.Email,
+		Name:         companyName,
+		VendorType:   vendorType,
+		VendorStatus: domain.VendorStatusDraft,
+		DisplayName:  storeName,
 	}, nil
 }
 
@@ -350,4 +519,12 @@ func buildVendorOnboardingDocumentObjectKey(onboardingID uuid.UUID) string {
 
 func vendorOnboardingDocumentPrefix(onboardingID uuid.UUID) string {
 	return fmt.Sprintf("vendor-onboardings/%s/documents/%s/", onboardingID.String(), vendorOnboardingDocumentDocType)
+}
+
+func buildVendorOnboardingNIBDocumentObjectKey(onboardingID uuid.UUID) string {
+	return fmt.Sprintf("%s%s", vendorOnboardingNIBDocumentPrefix(onboardingID), uuid.New().String())
+}
+
+func vendorOnboardingNIBDocumentPrefix(onboardingID uuid.UUID) string {
+	return fmt.Sprintf("vendor-onboardings/%s/documents/%s/", onboardingID.String(), domain.VendorDocumentTypeBusinessNIB)
 }

@@ -157,10 +157,35 @@ func (r *userRepository) List(ctx context.Context, params domain.UserListParams)
 		return nil, 0, err
 	}
 
+	// Sorting
+	sortOrder := "DESC"
+	if params.SortOrder == "asc" {
+		sortOrder = "ASC"
+	}
+
+	orderClause := "users.created_at " + sortOrder
+
+	switch params.SortBy {
+	case "full_name":
+		orderClause = "users.full_name " + sortOrder
+	case "email":
+		orderClause = "users.email " + sortOrder
+	case "role":
+		if params.Role == "" {
+			// JOIN only if not already joined by role filter
+			query = query.Joins("JOIN roles ON roles.id = users.role_id")
+		}
+		orderClause = "roles.name " + sortOrder
+	case "status":
+		orderClause = "users.status " + sortOrder
+	case "created_at":
+		orderClause = "users.created_at " + sortOrder
+	}
+
 	offset := (params.Page - 1) * params.Limit
 	var models []userModel
 	if err := query.Select("users.*").
-		Order("users.created_at DESC").
+		Order(orderClause).
 		Offset(offset).Limit(params.Limit).
 		Find(&models).Error; err != nil {
 		return nil, 0, err

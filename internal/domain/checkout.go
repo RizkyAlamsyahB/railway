@@ -130,6 +130,9 @@ type CheckoutPreviewVendorItem struct {
 	VariantName      string    `json:"variant_name"`
 	ImageURL         *string   `json:"image_url"`
 	Price            float64   `json:"price"`
+	OriginalPrice    float64   `json:"original_price"`
+	PromoPrice       *float64  `json:"promo_price,omitempty"`
+	HasPromo         bool      `json:"has_promo"`
 	Qty              int       `json:"qty"`
 	Subtotal         float64   `json:"subtotal"`
 	WeightGram       int       `json:"weight_gram"`
@@ -306,4 +309,8 @@ type CheckoutUseCase interface {
 
 	// HandleWebhook processes an incoming Xendit webhook callback.
 	HandleWebhook(ctx context.Context, payload XenditWebhookPayload) error
+
+	// SimulatePayment marks an order as paid without calling Xendit.
+	// Used for local development when XENDIT_BYPASS=true.
+	SimulatePayment(ctx context.Context, orderID uuid.UUID) error
 }

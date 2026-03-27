@@ -253,6 +253,84 @@
       color: var(--danger);
     }
 
+    .doc-checklist {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .doc-row {
+      display: grid;
+      grid-template-columns: 170px 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .doc-row:last-child {
+      border-bottom: none;
+    }
+
+    .doc-label {
+      font-size: 12px;
+      font-weight: 700;
+      font-family: Consolas, Monaco, monospace;
+      word-break: break-all;
+    }
+
+    .doc-required {
+      font-weight: 400;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .doc-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .doc-actions button {
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+
+    .doc-badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .doc-badge.idle {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .doc-badge.presigned {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .doc-badge.uploaded {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .doc-badge.confirmed {
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    @media (max-width: 720px) {
+      .doc-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 980px) {
       .layout {
         grid-template-columns: 1fr;
@@ -276,8 +354,10 @@
       <h1>Vendor Register Multi Step Manual Test</h1>
       <p>
         Manual tester untuk flow vendor onboarding terbaru:
-        request OTP, verify OTP, set password, save store, presign legal document,
-        upload file via presigned URL, lalu submit legal info untuk mendapat auth token vendor.
+        request OTP → verify OTP → set password → save store → pilih tipe badan usaha
+        (<span class="mono">perorangan</span> atau <span class="mono">korporasi</span>) →
+        presign dokumen → upload file → submit legal info → auth token vendor diterima.
+        Lanjutkan post-login completion sampai status vendor menjadi <span class="mono">submitted</span>.
       </p>
     </div>
 
@@ -390,13 +470,17 @@
           </div>
           <div class="panel-body">
             <div class="grid">
-              <div class="field">
+              <div class="field full">
                 <label for="businessLegalType">Business Legal Type</label>
                 <select id="businessLegalType">
-                  <option value="perorangan" selected>perorangan</option>
-                  <option value="korporasi">korporasi</option>
+                  <option value="perorangan" selected>perorangan (individual)</option>
+                  <option value="korporasi">korporasi (corporate)</option>
                 </select>
               </div>
+            </div>
+
+            <!-- Individual fields (perorangan) -->
+            <div id="individualFields" class="grid" style="margin-top: 12px;">
               <div class="field">
                 <label for="documentIdType">Document ID Type</label>
                 <select id="documentIdType">
@@ -405,7 +489,7 @@
                 </select>
               </div>
               <div class="field">
-                <label for="nik">NIK</label>
+                <label for="nik">NIK / Passport Number</label>
                 <input id="nik" type="text" value="3173000000000001" />
               </div>
               <div class="field">
@@ -416,9 +500,33 @@
                 <label for="birthDate">Birth Date</label>
                 <input id="birthDate" type="date" value="1990-01-02" />
               </div>
+            </div>
+
+            <!-- Corporate fields (korporasi) -->
+            <div id="corporateFields" class="grid" style="margin-top: 12px; display: none;">
+              <div class="field">
+                <label for="nib">NIB (Nomor Induk Berusaha)</label>
+                <input id="nib" type="text" value="1234567890123" />
+              </div>
+              <div class="field">
+                <label for="companyName">Company Name</label>
+                <input id="companyName" type="text" value="PT Toko Oleh-Oleh Haji Mabrur" />
+              </div>
+              <div class="field">
+                <label for="establishedDate">Established Date</label>
+                <input id="establishedDate" type="date" value="2010-05-20" />
+              </div>
+              <div class="field full">
+                <label for="registeredAddress">Registered Address</label>
+                <input id="registeredAddress" type="text" value="Jl. Sudirman No. 1, Jakarta Pusat" />
+              </div>
+            </div>
+
+            <!-- Shared: file input + readonly fields -->
+            <div class="grid" style="margin-top: 12px;">
               <div class="field">
                 <label for="documentFile">Document File</label>
-                <input id="documentFile" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                <input id="documentFile" type="file" accept=".jpg,.jpeg,.pdf" />
               </div>
               <div class="field full">
                 <label for="documentObjectKey">Presigned Object Key</label>
@@ -429,12 +537,104 @@
                 <textarea id="presignedUploadUrl" readonly></textarea>
               </div>
             </div>
+
             <div class="button-row">
-              <button id="btnPresignDoc">Presign Legal Document</button>
+              <button id="btnPresignDoc">Presign Document</button>
               <button id="btnUploadDoc" class="button-accent">Upload Selected File</button>
               <button id="btnSubmitLegal">Submit Legal Info</button>
             </div>
+            <p id="legalEndpointHint" class="hint" style="margin-top: 10px;"></p>
             <div id="legalStatus" class="status-line">Belum dijalankan.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Step 6 - Post Login Completion</h2>
+            <span class="badge">Bank + Docs + Confirm</span>
+          </div>
+          <div class="panel-body">
+            <!-- Bank Account -->
+            <div class="grid">
+              <div class="field">
+                <label for="bankName">Bank Name</label>
+                <input id="bankName" type="text" value="Bank Syariah Indonesia" />
+              </div>
+              <div class="field">
+                <label for="bankAccountNumber">Account Number</label>
+                <input id="bankAccountNumber" type="text" value="1234567890" />
+              </div>
+              <div class="field full">
+                <label for="bankAccountHolderName">Account Holder Name</label>
+                <input id="bankAccountHolderName" type="text" value="Ahmad Subarkah" />
+              </div>
+            </div>
+            <div class="button-row">
+              <button id="btnSaveBankAccount">Save Bank Account</button>
+            </div>
+            <div id="bankAccountStatus" class="status-line" style="margin-bottom: 16px;">Belum dijalankan.</div>
+
+            <!-- Document Checklist -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <strong style="font-size: 14px;">Document Checklist</strong>
+              <span id="docProgress" class="badge">0 / 4 uploaded</span>
+            </div>
+            <p class="hint" style="margin-bottom: 12px;">
+              Jika memilih <span class="mono">korporasi</span>, dokumen <span class="mono">business_npwp</span> juga wajib di-upload dan di-confirm sebelum status vendor bisa berubah menjadi <span class="mono">submitted</span>.
+              Dokumen legal awal korporasi berasal dari step onboarding sebagai <span class="mono">business_nib</span>, bukan <span class="mono">owner_document_id</span>.
+            </p>
+            <div class="doc-checklist">
+              <div class="doc-row" id="docrow-store_photo">
+                <div class="doc-label">store_photo<br/><span class="doc-required">(wajib)</span></div>
+                <input type="file" class="doc-file" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                <div class="doc-actions">
+                  <button class="doc-btn-presign button-secondary" data-doc="store_photo">Presign</button>
+                  <button class="doc-btn-upload button-accent" data-doc="store_photo">Upload</button>
+                </div>
+                <span class="doc-badge idle">idle</span>
+              </div>
+              <div class="doc-row" id="docrow-bank_account_proof">
+                <div class="doc-label">bank_account_proof<br/><span class="doc-required">(wajib)</span></div>
+                <input type="file" class="doc-file" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                <div class="doc-actions">
+                  <button class="doc-btn-presign button-secondary" data-doc="bank_account_proof">Presign</button>
+                  <button class="doc-btn-upload button-accent" data-doc="bank_account_proof">Upload</button>
+                </div>
+                <span class="doc-badge idle">idle</span>
+              </div>
+              <div class="doc-row" id="docrow-business_logo">
+                <div class="doc-label">business_logo<br/><span class="doc-required">(wajib)</span></div>
+                <input type="file" class="doc-file" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                <div class="doc-actions">
+                  <button class="doc-btn-presign button-secondary" data-doc="business_logo">Presign</button>
+                  <button class="doc-btn-upload button-accent" data-doc="business_logo">Upload</button>
+                </div>
+                <span class="doc-badge idle">idle</span>
+              </div>
+              <div class="doc-row" id="docrow-business_banner">
+                <div class="doc-label">business_banner<br/><span class="doc-required">(wajib)</span></div>
+                <input type="file" class="doc-file" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                <div class="doc-actions">
+                  <button class="doc-btn-presign button-secondary" data-doc="business_banner">Presign</button>
+                  <button class="doc-btn-upload button-accent" data-doc="business_banner">Upload</button>
+                </div>
+                <span class="doc-badge idle">idle</span>
+              </div>
+              <div class="doc-row" id="docrow-business_npwp" style="display: none;">
+                <div class="doc-label">business_npwp<br/><span class="doc-required">(wajib korporasi)</span></div>
+                <input type="file" class="doc-file" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                <div class="doc-actions">
+                  <button class="doc-btn-presign button-secondary" data-doc="business_npwp">Presign</button>
+                  <button class="doc-btn-upload button-accent" data-doc="business_npwp">Upload</button>
+                </div>
+                <span class="doc-badge idle">idle</span>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button id="btnConfirmAllDocs">Confirm All Uploaded Docs</button>
+            </div>
+            <div id="completionStatus" class="status-line">Belum dijalankan.</div>
           </div>
         </section>
       </div>
@@ -478,6 +678,10 @@
                 <strong>Vendor ID</strong>
                 <code id="stateVendorId">-</code>
               </div>
+              <div class="state-card">
+                <strong>Vendor Status</strong>
+                <code id="stateVendorStatus">-</code>
+              </div>
             </div>
           </div>
         </section>
@@ -513,6 +717,14 @@
   <script>
     const STORAGE_KEY = "vendor_register_multistep_manual_test";
 
+    const DOC_TYPES = ["store_photo", "bank_account_proof", "business_logo", "business_banner", "business_npwp"];
+
+    // Per-doc state — not persisted, lives only for the current session
+    const completionDocs = {};
+    DOC_TYPES.forEach(function(docType) {
+      completionDocs[docType] = { objectKey: "", uploadUrl: "", docState: "idle" };
+    });
+
     const state = {
       baseUrl: "http://localhost:8080",
       email: "",
@@ -525,11 +737,14 @@
       documentObjectKey: "",
       presignedUploadUrl: "",
       documentUploaded: false,
+      businessLegalType: "perorangan",
       authToken: "",
       vendorId: "",
       vendorStatus: "",
       lastResponse: "Belum ada request."
     };
+
+    // -- Corporate-only state (not persisted, derived from form inputs at submit time) --
 
     const els = {
       baseUrl: document.getElementById("baseUrl"),
@@ -538,14 +753,30 @@
       password: document.getElementById("password"),
       storeName: document.getElementById("storeName"),
       vendorType: document.getElementById("vendorType"),
+      // Step 5 shared
       businessLegalType: document.getElementById("businessLegalType"),
+      documentFile: document.getElementById("documentFile"),
+      documentObjectKey: document.getElementById("documentObjectKey"),
+      presignedUploadUrl: document.getElementById("presignedUploadUrl"),
+      legalEndpointHint: document.getElementById("legalEndpointHint"),
+      // Step 5 individual fields
+      individualFields: document.getElementById("individualFields"),
       documentIdType: document.getElementById("documentIdType"),
       nik: document.getElementById("nik"),
       ownerName: document.getElementById("ownerName"),
       birthDate: document.getElementById("birthDate"),
-      documentFile: document.getElementById("documentFile"),
-      documentObjectKey: document.getElementById("documentObjectKey"),
-      presignedUploadUrl: document.getElementById("presignedUploadUrl"),
+      // Step 5 corporate fields
+      corporateFields: document.getElementById("corporateFields"),
+      nib: document.getElementById("nib"),
+      companyName: document.getElementById("companyName"),
+      establishedDate: document.getElementById("establishedDate"),
+      registeredAddress: document.getElementById("registeredAddress"),
+      // Step 6
+      bankName: document.getElementById("bankName"),
+      bankAccountNumber: document.getElementById("bankAccountNumber"),
+      bankAccountHolderName: document.getElementById("bankAccountHolderName"),
+      bankAccountStatus: document.getElementById("bankAccountStatus"),
+      docProgress: document.getElementById("docProgress"),
       onboardingToken: document.getElementById("onboardingToken"),
       authToken: document.getElementById("authToken"),
       responseLog: document.getElementById("responseLog"),
@@ -557,11 +788,13 @@
       stateDocumentUploaded: document.getElementById("stateDocumentUploaded"),
       stateAuthToken: document.getElementById("stateAuthToken"),
       stateVendorId: document.getElementById("stateVendorId"),
+      stateVendorStatus: document.getElementById("stateVendorStatus"),
       requestOtpStatus: document.getElementById("requestOtpStatus"),
       verifyOtpStatus: document.getElementById("verifyOtpStatus"),
       passwordStatus: document.getElementById("passwordStatus"),
       storeStatus: document.getElementById("storeStatus"),
-      legalStatus: document.getElementById("legalStatus")
+      legalStatus: document.getElementById("legalStatus"),
+      completionStatus: document.getElementById("completionStatus")
     };
 
     function loadState() {
@@ -583,6 +816,7 @@
       els.baseUrl.value = state.baseUrl || "";
       els.email.value = state.email || "";
       els.otpCode.value = state.otpCode || "";
+      els.businessLegalType.value = state.businessLegalType || "perorangan";
       els.onboardingToken.value = state.onboardingToken || "";
       els.authToken.value = state.authToken || "";
       els.documentObjectKey.value = state.documentObjectKey || "";
@@ -605,6 +839,8 @@
       els.stateDocumentUploaded.textContent = String(Boolean(state.documentUploaded));
       els.stateAuthToken.textContent = truncate(state.authToken);
       els.stateVendorId.textContent = state.vendorId || "-";
+      els.stateVendorStatus.textContent = state.vendorStatus || "-";
+      showLegalTypeFields();
     }
 
     function setStatus(el, message, mode) {
@@ -616,6 +852,7 @@
       state.baseUrl = els.baseUrl.value.trim();
       state.email = els.email.value.trim();
       state.otpCode = els.otpCode.value.trim();
+      state.businessLegalType = els.businessLegalType.value;
       state.onboardingToken = els.onboardingToken.value.trim();
       state.authToken = els.authToken.value.trim();
       state.documentObjectKey = els.documentObjectKey.value.trim();
@@ -662,13 +899,16 @@
     }
 
     async function uploadFileToPresignedUrl() {
-      const uploadUrl = state.presignedUploadUrl;
-      const objectKey = state.documentObjectKey;
-      const file = els.documentFile.files[0];
+      return uploadSelectedFile(state.presignedUploadUrl, state.documentObjectKey, els.documentFile);
+    }
 
-      if (!state.onboardingToken) {
-        throw new Error("Onboarding token belum ada. Verify OTP dulu.");
-      }
+    async function uploadCompletionFileToPresignedUrl() {
+      return uploadSelectedFile(state.completionPresignedUploadUrl, state.completionDocumentObjectKey, els.completionDocumentFile);
+    }
+
+    async function uploadSelectedFile(uploadUrl, objectKey, fileInput) {
+      const file = fileInput.files[0];
+
       if (!uploadUrl || !objectKey) {
         throw new Error("Presigned URL belum dibuat.");
       }
@@ -691,9 +931,7 @@
         throw new Error("Upload ke presigned URL gagal (HTTP " + res.status + ")");
       }
 
-      state.documentUploaded = true;
-      saveState();
-      renderState();
+      return true;
     }
 
     function onboardingAuthHeaders() {
@@ -704,6 +942,32 @@
       return {
         Authorization: "Bearer " + state.onboardingToken
       };
+    }
+
+    function vendorAuthHeaders() {
+      updateLiveFieldsFromInputs();
+      if (!state.authToken) {
+        throw new Error("Vendor auth token kosong. Submit legal info dulu.");
+      }
+      return {
+        Authorization: "Bearer " + state.authToken
+      };
+    }
+
+    function showLegalTypeFields() {
+      const isIndividual = els.businessLegalType.value === "perorangan";
+      els.individualFields.style.display = isIndividual ? "" : "none";
+      els.corporateFields.style.display = isIndividual ? "none" : "";
+      els.documentFile.setAttribute("accept", isIndividual ? ".jpg,.jpeg,.pdf" : ".pdf");
+      const base = "/api/v1/vendors/register/souvenir-store";
+      const path = isIndividual ? "individual" : "corporate";
+      els.legalEndpointHint.textContent =
+        "Presign → " + base + "/" + path + "/presign" +
+        "  |  Submit → " + base + "/" + path;
+      // Show/hide business_npwp row in Step 6 based on legal type
+      const npwpRow = document.getElementById("docrow-business_npwp");
+      if (npwpRow) npwpRow.style.display = isIndividual ? "none" : "";
+      updateDocProgress();
     }
 
     function generateEmail() {
@@ -727,6 +991,7 @@
         documentObjectKey: "",
         presignedUploadUrl: "",
         documentUploaded: false,
+        businessLegalType: "perorangan",
         authToken: "",
         vendorId: "",
         vendorStatus: "",
@@ -740,7 +1005,15 @@
       setStatus(els.passwordStatus, "Belum dijalankan.", "");
       setStatus(els.storeStatus, "Belum dijalankan.", "");
       setStatus(els.legalStatus, "Belum dijalankan.", "");
+      setStatus(els.bankAccountStatus, "Belum dijalankan.", "");
+      setStatus(els.completionStatus, "Belum dijalankan.", "");
       els.documentFile.value = "";
+      // Reset all completion doc states
+      DOC_TYPES.forEach(function(docType) {
+        completionDocs[docType] = { objectKey: "", uploadUrl: "", docState: "idle" };
+        updateDocRow(docType);
+      });
+      updateDocProgress();
     }
 
     document.getElementById("btnGenerateEmail").addEventListener("click", generateEmail);
@@ -818,14 +1091,31 @@
       }
     });
 
+    document.getElementById("businessLegalType").addEventListener("change", function() {
+      state.businessLegalType = els.businessLegalType.value;
+      saveState();
+      renderState();
+    });
+
     document.getElementById("btnPresignDoc").addEventListener("click", async () => {
       try {
-        const res = await apiRequest("/api/v1/vendors/register/legal-document/presign", {
-          headers: onboardingAuthHeaders(),
-          body: {
-            document_id_type: els.documentIdType.value
+        const isIndividual = els.businessLegalType.value === "perorangan";
+        const path = isIndividual
+          ? "/api/v1/vendors/register/souvenir-store/individual/presign"
+          : "/api/v1/vendors/register/souvenir-store/corporate/presign";
+        // Individual presign needs a body; corporate presign has no body
+        const options = { headers: onboardingAuthHeaders() };
+        if (isIndividual) {
+          const file = els.documentFile.files[0];
+          if (!file) {
+            throw new Error("Pilih file dokumen individual dulu sebelum presign.");
           }
-        });
+          options.body = {
+            document_id_type: els.documentIdType.value,
+            content_type: file.type || "application/octet-stream"
+          };
+        }
+        const res = await apiRequest(path, options);
         state.documentObjectKey = res.data?.object_key || "";
         state.presignedUploadUrl = res.data?.upload_url || "";
         state.documentUploaded = false;
@@ -840,6 +1130,9 @@
     document.getElementById("btnUploadDoc").addEventListener("click", async () => {
       try {
         await uploadFileToPresignedUrl();
+        state.documentUploaded = true;
+        saveState();
+        renderState();
         setStatus(els.legalStatus, "Document uploaded to storage.", "ok");
       } catch (err) {
         setStatus(els.legalStatus, err.message, "error");
@@ -848,17 +1141,31 @@
 
     document.getElementById("btnSubmitLegal").addEventListener("click", async () => {
       try {
-        const res = await apiRequest("/api/v1/vendors/register/legal-document/submit", {
-          headers: onboardingAuthHeaders(),
-          body: {
-            business_legal_type: els.businessLegalType.value,
+        const isIndividual = els.businessLegalType.value === "perorangan";
+        const objectKey = state.documentObjectKey || els.documentObjectKey.value.trim();
+
+        let path, body;
+        if (isIndividual) {
+          path = "/api/v1/vendors/register/souvenir-store/individual";
+          body = {
             document_id_type: els.documentIdType.value,
             nik: els.nik.value.trim(),
             owner_name: els.ownerName.value.trim(),
             birth_date: els.birthDate.value,
-            document_id_object_key: state.documentObjectKey || els.documentObjectKey.value.trim()
-          }
-        });
+            document_id_object_key: objectKey
+          };
+        } else {
+          path = "/api/v1/vendors/register/souvenir-store/corporate";
+          body = {
+            nib: els.nib.value.trim(),
+            company_name: els.companyName.value.trim(),
+            established_date: els.establishedDate.value,
+            registered_address: els.registeredAddress.value.trim(),
+            nib_document_object_key: objectKey
+          };
+        }
+
+        const res = await apiRequest(path, { headers: onboardingAuthHeaders(), body });
         state.authToken = res.data?.token || "";
         state.vendorId = res.data?.vendor_id || "";
         state.vendorStatus = res.data?.vendor_status || "";
@@ -867,6 +1174,117 @@
         setStatus(els.legalStatus, "Vendor registration completed. Auth JWT received.", "ok");
       } catch (err) {
         setStatus(els.legalStatus, err.message, "error");
+      }
+    });
+
+    function updateDocRow(docType) {
+      const row = document.getElementById("docrow-" + docType);
+      if (!row) return;
+      const badge = row.querySelector(".doc-badge");
+      const doc = completionDocs[docType];
+      badge.textContent = doc.docState;
+      badge.className = "doc-badge " + doc.docState;
+    }
+
+    function updateDocProgress() {
+      const isCorporate = els.businessLegalType.value === "korporasi";
+      const required = ["store_photo", "bank_account_proof", "business_logo", "business_banner"];
+      if (isCorporate) required.push("business_npwp");
+      const uploaded = required.filter(function(d) {
+        const s = completionDocs[d].docState;
+        return s === "uploaded" || s === "confirmed";
+      }).length;
+      els.docProgress.textContent = uploaded + " / " + required.length + " uploaded";
+    }
+
+    document.getElementById("btnSaveBankAccount").addEventListener("click", async () => {
+      try {
+        const res = await apiRequest("/api/v1/vendors/bank-account", {
+          headers: vendorAuthHeaders(),
+          body: {
+            bank_name: els.bankName.value.trim(),
+            account_number: els.bankAccountNumber.value.trim(),
+            account_holder_name: els.bankAccountHolderName.value.trim()
+          }
+        });
+        state.vendorStatus = res.data?.vendor_status || state.vendorStatus;
+        saveState();
+        renderState();
+        setStatus(els.bankAccountStatus, "Bank account saved.", "ok");
+      } catch (err) {
+        setStatus(els.bankAccountStatus, err.message, "error");
+      }
+    });
+
+    // Per-row Presign buttons
+    document.querySelectorAll(".doc-btn-presign").forEach(function(btn) {
+      btn.addEventListener("click", async function() {
+        const docType = btn.getAttribute("data-doc");
+        try {
+          const res = await apiRequest("/api/v1/vendors/documents/presign", {
+            headers: vendorAuthHeaders(),
+            body: { doc_type: docType }
+          });
+          completionDocs[docType].objectKey = res.data?.object_key || "";
+          completionDocs[docType].uploadUrl = res.data?.upload_url || "";
+          completionDocs[docType].docState = "presigned";
+          updateDocRow(docType);
+          setStatus(els.completionStatus, docType + ": presigned URL ready. Select file and upload.", "ok");
+        } catch (err) {
+          setStatus(els.completionStatus, docType + ": " + err.message, "error");
+        }
+      });
+    });
+
+    // Per-row Upload buttons
+    document.querySelectorAll(".doc-btn-upload").forEach(function(btn) {
+      btn.addEventListener("click", async function() {
+        const docType = btn.getAttribute("data-doc");
+        const row = document.getElementById("docrow-" + docType);
+        const fileInput = row.querySelector(".doc-file");
+        const doc = completionDocs[docType];
+        try {
+          await uploadSelectedFile(doc.uploadUrl, doc.objectKey, fileInput);
+          doc.docState = "uploaded";
+          updateDocRow(docType);
+          updateDocProgress();
+          setStatus(els.completionStatus, docType + ": uploaded successfully.", "ok");
+        } catch (err) {
+          setStatus(els.completionStatus, docType + ": " + err.message, "error");
+        }
+      });
+    });
+
+    document.getElementById("btnConfirmAllDocs").addEventListener("click", async () => {
+      try {
+        const docs = DOC_TYPES
+          .filter(function(d) {
+            const docState = completionDocs[d].docState;
+            return docState === "uploaded" || docState === "confirmed";
+          })
+          .map(function(d) { return { doc_type: d, object_key: completionDocs[d].objectKey }; });
+
+        if (docs.length === 0) {
+          setStatus(els.completionStatus, "Tidak ada dokumen yang sudah di-upload. Upload dulu sebelum confirm.", "error");
+          return;
+        }
+
+        const res = await apiRequest("/api/v1/vendors/documents/confirm", {
+          headers: vendorAuthHeaders(),
+          body: { documents: docs }
+        });
+        state.vendorStatus = res.data?.vendor_status || state.vendorStatus;
+        saveState();
+        renderState();
+
+        docs.forEach(function(d) {
+          completionDocs[d.doc_type].docState = "confirmed";
+          updateDocRow(d.doc_type);
+        });
+        updateDocProgress();
+        setStatus(els.completionStatus, "Confirmed " + docs.length + " document(s). vendor_status: " + (state.vendorStatus || "–"), "ok");
+      } catch (err) {
+        setStatus(els.completionStatus, err.message, "error");
       }
     });
 
@@ -889,6 +1307,7 @@
     }
     saveState();
     renderState();
+    showLegalTypeFields();
   </script>
 </body>
 </html>

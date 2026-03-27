@@ -191,15 +191,18 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 	variantResponses := make([]domain.ProductVariantResponse, len(allVariants))
 	for i, v := range allVariants {
 		variantResponses[i] = domain.ProductVariantResponse{
-			ID:          v.ID,
-			SKU:         v.SKU,
-			VariantName: v.VariantName,
-			Price:       v.Price,
-			Currency:    v.Currency,
-			StockOnHand: v.StockOnHand,
-			WeightGram:  v.WeightGram,
-			IsDefault:   v.IsDefault,
-			IsActive:    v.IsActive,
+			ID:            v.ID,
+			SKU:           v.SKU,
+			VariantName:   v.VariantName,
+			Price:         v.Price,
+			OriginalPrice: v.Price,
+			PromoPrice:    nil,
+			HasPromo:      false,
+			Currency:      v.Currency,
+			StockOnHand:   v.StockOnHand,
+			WeightGram:    v.WeightGram,
+			IsDefault:     v.IsDefault,
+			IsActive:      v.IsActive,
 		}
 	}
 
@@ -396,3 +399,51 @@ func sanitizeFileName(name string) string {
 	}
 	return result
 }
+
+func (uc *productUseCase) ListProducts(ctx context.Context, vendorID uuid.UUID, params domain.VendorProductListParams) ([]domain.VendorProductListItem, *domain.PaginationMeta, error) {
+	// Normalize params.
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.Limit < 1 || params.Limit > 100 {
+		params.Limit = 10
+	}
+
+	params.Search = strings.TrimSpace(params.Search)
+
+	switch params.Status {
+	case domain.ProductStatusDraft, domain.ProductStatusPublished:
+		// valid
+	default:
+		params.Status = "" // all
+	}
+
+	switch params.SortBy {
+	case "name", "price", "stock":
+		// valid
+	default:
+		params.SortBy = "created_at"
+	}
+
+	switch strings.ToLower(params.SortOrder) {
+	case "asc":
+		params.SortOrder = "ASC"
+	default:
+		params.SortOrder = "DESC"
+	}
+
+	items, total, err := uc.productRepo.ListByVendor(ctx, vendorID, params)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list vendor products: %w", err)
+	}
+
+	meta := &domain.PaginationMeta{
+		Page:       params.Page,
+		Limit:      params.Limit,
+		TotalItems: total,
+		TotalPages: int(math.Ceil(float64(total) / float64(params.Limit))),
+	}
+
+	return items, meta, nil
+}
+

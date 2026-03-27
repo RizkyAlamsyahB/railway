@@ -113,31 +113,25 @@ func (h *VendorHandler) SetRegistrationPassword(c *gin.Context) {
 	response.OK(c, "vendor registration password saved", result)
 }
 
-// SaveRegistrationStore handles POST /api/v1/vendors/register/store
-func (h *VendorHandler) SaveRegistrationStore(c *gin.Context) {
-	var req domain.VendorRegistrationStoreRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "validation failed", err.Error())
-		return
-	}
-
+// GetRegistrationStatus handles GET /api/v1/vendors/register/status
+func (h *VendorHandler) GetRegistrationStatus(c *gin.Context) {
 	onboardingID, ok := extractVendorOnboardingID(c)
 	if !ok {
 		response.BadRequest(c, "invalid vendor onboarding ID in token", nil)
 		return
 	}
 
-	result, err := h.useCase.SaveRegistrationStore(c.Request.Context(), onboardingID, req)
+	result, err := h.useCase.GetRegistrationStatus(c.Request.Context(), onboardingID)
 	if err != nil {
 		HandleUsecaseError(c, err)
 		return
 	}
 
-	response.OK(c, "vendor registration store saved", result)
+	response.OK(c, "vendor registration status retrieved", result)
 }
 
-// PresignRegistrationLegalDocument handles POST /api/v1/vendors/register/legal-document/presign
-func (h *VendorHandler) PresignRegistrationLegalDocument(c *gin.Context) {
+// PresignRegistrationIndividualDocument handles POST /api/v1/vendors/register/souvenir-store/individual/presign
+func (h *VendorHandler) PresignRegistrationIndividualDocument(c *gin.Context) {
 	var req domain.VendorRegistrationPresignDocumentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "validation failed", err.Error())
@@ -150,18 +144,35 @@ func (h *VendorHandler) PresignRegistrationLegalDocument(c *gin.Context) {
 		return
 	}
 
-	result, err := h.useCase.PresignRegistrationLegalDocument(c.Request.Context(), onboardingID, req)
+	result, err := h.useCase.PresignRegistrationIndividualDocument(c.Request.Context(), onboardingID, req)
 	if err != nil {
 		HandleUsecaseError(c, err)
 		return
 	}
 
-	response.OK(c, "vendor registration legal document presigned", result)
+	response.OK(c, "vendor registration individual document presigned", result)
 }
 
-// SubmitRegistrationLegal handles POST /api/v1/vendors/register/legal-document/submit
-func (h *VendorHandler) SubmitRegistrationLegal(c *gin.Context) {
-	var req domain.VendorRegistrationLegalRequest
+// PresignRegistrationCorporateDocument handles POST /api/v1/vendors/register/souvenir-store/corporate/presign
+func (h *VendorHandler) PresignRegistrationCorporateDocument(c *gin.Context) {
+	onboardingID, ok := extractVendorOnboardingID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor onboarding ID in token", nil)
+		return
+	}
+
+	result, err := h.useCase.PresignRegistrationCorporateDocument(c.Request.Context(), onboardingID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "vendor registration corporate document presigned", result)
+}
+
+// SubmitRegistrationIndividual handles POST /api/v1/vendors/register/souvenir-store/individual
+func (h *VendorHandler) SubmitRegistrationIndividual(c *gin.Context) {
+	var req domain.VendorRegistrationIndividualLegalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "validation failed", err.Error())
 		return
@@ -173,7 +184,30 @@ func (h *VendorHandler) SubmitRegistrationLegal(c *gin.Context) {
 		return
 	}
 
-	result, err := h.useCase.SubmitRegistrationLegal(c.Request.Context(), onboardingID, req)
+	result, err := h.useCase.SubmitRegistrationIndividual(c.Request.Context(), onboardingID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "vendor registration completed", result)
+}
+
+// SubmitRegistrationCorporate handles POST /api/v1/vendors/register/souvenir-store/corporate
+func (h *VendorHandler) SubmitRegistrationCorporate(c *gin.Context) {
+	var req domain.VendorRegistrationCorporateLegalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	onboardingID, ok := extractVendorOnboardingID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor onboarding ID in token", nil)
+		return
+	}
+
+	result, err := h.useCase.SubmitRegistrationCorporate(c.Request.Context(), onboardingID, req)
 	if err != nil {
 		HandleUsecaseError(c, err)
 		return
@@ -214,6 +248,52 @@ func (h *VendorHandler) GetMe(c *gin.Context) {
 	}
 
 	response.OK(c, "vendor profile retrieved successfully", result)
+}
+
+// SaveBankAccount handles POST /api/v1/vendors/bank-account
+func (h *VendorHandler) SaveBankAccount(c *gin.Context) {
+	var req domain.VendorSaveBankAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	result, err := h.useCase.SaveBankAccount(c.Request.Context(), vendorID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "vendor bank account saved successfully", result)
+}
+
+// PresignDocument handles POST /api/v1/vendors/documents/presign
+func (h *VendorHandler) PresignDocument(c *gin.Context) {
+	var req domain.VendorDocumentPresignRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	result, err := h.useCase.PresignDocument(c.Request.Context(), vendorID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "vendor document presigned successfully", result)
 }
 
 // ConfirmDocuments handles POST /api/v1/vendors/documents/confirm

@@ -140,19 +140,25 @@ type WithdrawalConfig struct {
 	MinNetAmount     float64 `mapstructure:"WITHDRAWAL_MIN_NET_AMOUNT"`
 }
 
+// SensitiveDataConfig holds field-level protection settings for sensitive DB values.
+type SensitiveDataConfig struct {
+	EncryptionKey string `mapstructure:"SENSITIVE_DATA_ENCRYPTION_KEY"`
+}
+
 // Config is the root configuration struct containing all configuration sections.
 type Config struct {
-	App        AppConfig        `mapstructure:",squash"`
-	Database   DatabaseConfig   `mapstructure:",squash"`
-	JWT        JWTConfig        `mapstructure:",squash"`
-	OTP        OTPConfig        `mapstructure:",squash"`
-	Admin      AdminConfig      `mapstructure:",squash"`
-	Storage    StorageConfig    `mapstructure:",squash"`
-	SMTP       SMTPConfig       `mapstructure:",squash"`
-	IMAP       IMAPConfig       `mapstructure:",squash"`
-	Xendit     XenditConfig     `mapstructure:",squash"`
-	Withdrawal WithdrawalConfig `mapstructure:",squash"`
-	RajaOngkir RajaOngkirConfig `mapstructure:",squash"`
+	App        AppConfig           `mapstructure:",squash"`
+	Database   DatabaseConfig      `mapstructure:",squash"`
+	JWT        JWTConfig           `mapstructure:",squash"`
+	OTP        OTPConfig           `mapstructure:",squash"`
+	Admin      AdminConfig         `mapstructure:",squash"`
+	Storage    StorageConfig       `mapstructure:",squash"`
+	SMTP       SMTPConfig          `mapstructure:",squash"`
+	IMAP       IMAPConfig          `mapstructure:",squash"`
+	Xendit     XenditConfig        `mapstructure:",squash"`
+	Withdrawal WithdrawalConfig    `mapstructure:",squash"`
+	Sensitive  SensitiveDataConfig `mapstructure:",squash"`
+	RajaOngkir RajaOngkirConfig    `mapstructure:",squash"`
 }
 
 // Load reads configuration from the .env file and environment variables.
@@ -220,6 +226,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("XENDIT_BYPASS", false)
 	viper.SetDefault("WITHDRAWAL_FEE_ESTIMATE_FIXED", 0)
 	viper.SetDefault("WITHDRAWAL_MIN_NET_AMOUNT", 10000)
+	viper.SetDefault("SENSITIVE_DATA_ENCRYPTION_KEY", "")
 	viper.SetDefault("RAJAONGKIR_API_KEY", "")
 	viper.SetDefault("RAJAONGKIR_BASE_URL", "https://rajaongkir.komerce.id/api/v1")
 

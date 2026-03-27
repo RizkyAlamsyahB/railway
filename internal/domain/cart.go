@@ -51,6 +51,9 @@ type CartItemResponse struct {
 	ProductSlug      string    `json:"product_slug"`
 	ImageURL         *string   `json:"image_url"`
 	Price            float64   `json:"price"`
+	OriginalPrice    float64   `json:"original_price"`
+	PromoPrice       *float64  `json:"promo_price,omitempty"`
+	HasPromo         bool      `json:"has_promo"`
 	Currency         string    `json:"currency"`
 	Qty              int       `json:"qty"`
 	Subtotal         float64   `json:"subtotal"`

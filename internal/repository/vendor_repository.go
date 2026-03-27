@@ -3,11 +3,13 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/sensitivedata"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -18,10 +20,12 @@ type vendorModel struct {
 	ID                    string     `gorm:"column:id;primaryKey"`
 	OwnerUserID           string     `gorm:"column:owner_user_id"`
 	VendorType            string     `gorm:"column:vendor_type"`
+	BusinessLegalType     *string    `gorm:"column:business_legal_type"`
 	LegalName             *string    `gorm:"column:legal_name"`
 	DisplayName           string     `gorm:"column:display_name"`
 	ResponsiblePersonName string     `gorm:"column:responsible_person_name"`
 	Description           *string    `gorm:"column:description"`
+	RegisteredAddress     *string    `gorm:"column:registered_address"`
 	Status                string     `gorm:"column:status"`
 	ApprovedBy            *string    `gorm:"column:approved_by"`
 	ApprovedAt            *time.Time `gorm:"column:approved_at"`
@@ -69,12 +73,13 @@ type vendorDocumentModel struct {
 func (vendorDocumentModel) TableName() string { return "vendor_documents" }
 
 type vendorRepository struct {
-	db *gorm.DB
+	db          *gorm.DB
+	fieldCipher *sensitivedata.FieldCipher
 }
 
 // NewVendorRepository creates a new VendorRepository backed by GORM.
-func NewVendorRepository(db *gorm.DB) domain.VendorRepository {
-	return &vendorRepository{db: db}
+func NewVendorRepository(db *gorm.DB, fieldCipher *sensitivedata.FieldCipher) domain.VendorRepository {
+	return &vendorRepository{db: db, fieldCipher: fieldCipher}
 }
 
 func (r *vendorRepository) Create(ctx context.Context, vendor *domain.Vendor, bankAccount *domain.VendorBankAccount, documents []domain.VendorDocument) error {
@@ -84,7 +89,10 @@ func (r *vendorRepository) Create(ctx context.Context, vendor *domain.Vendor, ba
 			return err
 		}
 
-		bam := toVendorBankAccountModel(bankAccount)
+		bam, err := r.toVendorBankAccountModel(bankAccount)
+		if err != nil {
+			return err
+		}
 		if err := tx.Create(&bam).Error; err != nil {
 			return err
 		}
@@ -180,7 +188,27 @@ func (r *vendorRepository) FindBankAccountByVendorID(ctx context.Context, vendor
 		}
 		return nil, err
 	}
-	return toDomainVendorBankAccount(&model), nil
+	return r.toDomainVendorBankAccount(&model)
+}
+
+func (r *vendorRepository) UpsertBankAccount(ctx context.Context, bankAccount *domain.VendorBankAccount) error {
+	model, err := r.toVendorBankAccountModel(bankAccount)
+	if err != nil {
+		return err
+	}
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "vendor_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"bank_name":           model.BankName,
+			"account_number":      model.AccountNumber,
+			"account_holder_name": model.AccountHolderName,
+			"verification_status": model.VerificationStatus,
+			"rejection_reason":    model.RejectionReason,
+			"verified_by":         model.VerifiedBy,
+			"verified_at":         model.VerifiedAt,
+			"updated_at":          model.UpdatedAt,
+		}),
+	}).Create(&model).Error
 }
 
 func (r *vendorRepository) FindDocumentsByVendorID(ctx context.Context, vendorID uuid.UUID) ([]domain.VendorDocument, error) {
@@ -200,9 +228,16 @@ func (r *vendorRepository) ConfirmDocumentsAndUpdateStatus(ctx context.Context, 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for i := range documents {
 			dm := toVendorDocumentModel(&documents[i])
-			if err := tx.Model(&vendorDocumentModel{ID: dm.ID}).
-				Select("file_url", "mime_type", "file_size_bytes", "uploaded_by", "updated_at").
-				Updates(&dm).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "vendor_id"}, {Name: "doc_type"}},
+				DoUpdates: clause.Assignments(map[string]any{
+					"file_url":        dm.FileURL,
+					"mime_type":       dm.MimeType,
+					"file_size_bytes": dm.FileSizeBytes,
+					"uploaded_by":     dm.UploadedBy,
+					"updated_at":      dm.UpdatedAt,
+				}),
+			}).Create(&dm).Error; err != nil {
 				return err
 			}
 		}
@@ -626,10 +661,12 @@ func toVendorModel(v *domain.Vendor) vendorModel {
 		ID:                    v.ID.String(),
 		OwnerUserID:           v.OwnerUserID.String(),
 		VendorType:            v.VendorType,
+		BusinessLegalType:     v.BusinessLegalType,
 		LegalName:             v.LegalName,
 		DisplayName:           v.DisplayName,
 		ResponsiblePersonName: v.ResponsiblePersonName,
 		Description:           v.Description,
+		RegisteredAddress:     v.RegisteredAddress,
 		Status:                v.Status,
 		StatusReason:          v.StatusReason,
 		XenditAccountID:       v.XenditAccountID,
@@ -652,10 +689,12 @@ func toDomainVendor(m *vendorModel) *domain.Vendor {
 		ID:                    id,
 		OwnerUserID:           ownerID,
 		VendorType:            m.VendorType,
+		BusinessLegalType:     m.BusinessLegalType,
 		LegalName:             m.LegalName,
 		DisplayName:           m.DisplayName,
 		ResponsiblePersonName: m.ResponsiblePersonName,
 		Description:           m.Description,
+		RegisteredAddress:     m.RegisteredAddress,
 		Status:                m.Status,
 		StatusReason:          m.StatusReason,
 		XenditAccountID:       m.XenditAccountID,
@@ -670,7 +709,7 @@ func toDomainVendor(m *vendorModel) *domain.Vendor {
 	return v
 }
 
-func toVendorBankAccountModel(ba *domain.VendorBankAccount) vendorBankAccountModel {
+func (r *vendorRepository) toVendorBankAccountModel(ba *domain.VendorBankAccount) (vendorBankAccountModel, error) {
 	m := vendorBankAccountModel{
 		ID:                 ba.ID.String(),
 		VendorID:           ba.VendorID.String(),
@@ -687,10 +726,19 @@ func toVendorBankAccountModel(ba *domain.VendorBankAccount) vendorBankAccountMod
 		m.VerifiedBy = &s
 	}
 	m.VerifiedAt = ba.VerifiedAt
-	return m
+
+	if m.AccountNumber != "" {
+		encrypted, err := r.fieldCipher.EncryptString(m.AccountNumber)
+		if err != nil {
+			return vendorBankAccountModel{}, fmt.Errorf("failed to encrypt vendor bank account number: %w", err)
+		}
+		m.AccountNumber = encrypted
+	}
+
+	return m, nil
 }
 
-func toDomainVendorBankAccount(m *vendorBankAccountModel) *domain.VendorBankAccount {
+func (r *vendorRepository) toDomainVendorBankAccount(m *vendorBankAccountModel) (*domain.VendorBankAccount, error) {
 	id, _ := uuid.Parse(m.ID)
 	vendorID, _ := uuid.Parse(m.VendorID)
 
@@ -710,7 +758,16 @@ func toDomainVendorBankAccount(m *vendorBankAccountModel) *domain.VendorBankAcco
 		verifiedBy, _ := uuid.Parse(*m.VerifiedBy)
 		ba.VerifiedBy = &verifiedBy
 	}
-	return ba
+
+	if ba.AccountNumber != "" {
+		decrypted, err := r.fieldCipher.DecryptString(ba.AccountNumber)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt vendor bank account number: %w", err)
+		}
+		ba.AccountNumber = decrypted
+	}
+
+	return ba, nil
 }
 
 func toVendorDocumentModel(d *domain.VendorDocument) vendorDocumentModel {

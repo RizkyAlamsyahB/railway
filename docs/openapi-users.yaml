@@ -48,8 +48,10 @@ paths:
                 data:
                   - pending_payment
                   - paid
+                  - processing
                   - packed
                   - shipped
+                  - received
                   - completed
                   - canceled
                   - refunded
@@ -785,7 +787,7 @@ paths:
           description: Filter status order (single value).
           schema:
             type: string
-            enum: [pending_payment, paid, packed, shipped, completed, canceled, refunded]
+            enum: [pending_payment, paid, processing, packed, shipped, received, completed, canceled, refunded]
         - name: page
           in: query
           required: false
@@ -2178,7 +2180,7 @@ components:
       type: array
       items:
         type: string
-      example: [pending_payment, paid, packed, shipped, completed, canceled, refunded]
+      example: [pending_payment, paid, processing, packed, shipped, received, completed, canceled, refunded]
 
     PresignReviewImageResponseData:
       type: object

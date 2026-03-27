@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -304,6 +305,11 @@ func (h *FinanceHandler) UpdatePayoutStatus(c *gin.Context) {
 func (h *FinanceHandler) parseListParams(c *gin.Context) domain.FinanceListParams {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	search := strings.TrimSpace(c.Query("search"))
+	if strings.EqualFold(search, "string") {
+		// Ignore OpenAPI placeholder value so it doesn't unintentionally filter results.
+		search = ""
+	}
 
 	return domain.FinanceListParams{
 		Month:    c.Query("month"),
@@ -312,7 +318,7 @@ func (h *FinanceHandler) parseListParams(c *gin.Context) domain.FinanceListParam
 		Page:     page,
 		Limit:    limit,
 		Status:   c.Query("status"),
-		Search:   c.Query("search"),
+		Search:   search,
 	}
 }
 

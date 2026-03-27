@@ -17,6 +17,12 @@ var allowedDocumentContentTypes = map[string]struct{}{
 	"application/pdf": {},
 }
 
+// Allowed MIME types for individual onboarding documents.
+var allowedIndividualOnboardingContentTypes = map[string]struct{}{
+	"image/jpeg":      {},
+	"application/pdf": {},
+}
+
 // normalizeContentType strips parameters (e.g. charset) and normalizes
 // a Content-Type header value to its lowercase media type.
 func normalizeContentType(contentType string) string {
@@ -38,6 +44,25 @@ func isAllowedImageContentType(contentType string) bool {
 // type is an acceptable vendor document MIME type.
 func isAllowedDocumentContentType(contentType string) bool {
 	_, ok := allowedDocumentContentTypes[contentType]
+	return ok
+}
+
+// isAllowedIndividualOnboardingContentType reports whether the given
+// (normalized) content type is acceptable for individual onboarding uploads.
+func isAllowedIndividualOnboardingContentType(contentType string) bool {
+	_, ok := allowedIndividualOnboardingContentTypes[contentType]
+	return ok
+}
+
+// Allowed MIME types for NIB (corporate legal) documents: PDF only.
+var allowedNIBDocumentContentTypes = map[string]struct{}{
+	"application/pdf": {},
+}
+
+// isAllowedNIBDocumentContentType reports whether the given (normalized)
+// content type is acceptable for a corporate NIB document.
+func isAllowedNIBDocumentContentType(contentType string) bool {
+	_, ok := allowedNIBDocumentContentTypes[contentType]
 	return ok
 }
 

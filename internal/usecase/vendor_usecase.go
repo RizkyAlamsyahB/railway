@@ -13,13 +13,19 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/auth"
 )
 
-// Required document types for vendor registration (must be uploaded for draft→submitted).
-var requiredDocTypes = []string{
-	"owner_document_id",
-	"store_photo",
-	"bank_account_proof",
-	"business_logo",
-	"business_banner",
+var requiredCompletionUploadDocTypes = []string{
+	domain.VendorDocumentTypeStorePhoto,
+	domain.VendorDocumentTypeBankAccountProof,
+	domain.VendorDocumentTypeBusinessLogo,
+	domain.VendorDocumentTypeBusinessBanner,
+}
+
+var completionDocTypes = map[string]struct{}{
+	domain.VendorDocumentTypeStorePhoto:       {},
+	domain.VendorDocumentTypeBankAccountProof: {},
+	domain.VendorDocumentTypeBusinessLogo:     {},
+	domain.VendorDocumentTypeBusinessBanner:   {},
+	domain.VendorDocumentTypeBusinessNPWP:     {},
 }
 
 const (
@@ -91,6 +97,96 @@ func NewVendorUseCase(
 	}
 }
 
+func (uc *vendorUseCase) SaveBankAccount(ctx context.Context, vendorID uuid.UUID, req domain.VendorSaveBankAccountRequest) (*domain.VendorSaveBankAccountResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+	if vendor.Status != domain.VendorStatusDraft {
+		return nil, fmt.Errorf("%w: cannot update bank account for vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
+	}
+
+	now := time.Now()
+	bankAccount, err := uc.vendorRepo.FindBankAccountByVendorID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find bank account: %w", err)
+	}
+	if bankAccount == nil {
+		bankAccount = &domain.VendorBankAccount{
+			ID:        uuid.New(),
+			VendorID:  vendorID,
+			CreatedAt: now,
+		}
+	}
+
+	bankAccount.BankName = strings.TrimSpace(req.BankName)
+	bankAccount.AccountNumber = strings.TrimSpace(req.AccountNumber)
+	bankAccount.AccountHolderName = strings.TrimSpace(req.AccountHolderName)
+	bankAccount.VerificationStatus = domain.VerificationStatusPending
+	bankAccount.RejectionReason = nil
+	bankAccount.VerifiedBy = nil
+	bankAccount.VerifiedAt = nil
+	bankAccount.UpdatedAt = now
+
+	if err := uc.vendorRepo.UpsertBankAccount(ctx, bankAccount); err != nil {
+		return nil, fmt.Errorf("failed to save bank account: %w", err)
+	}
+
+	documents, err := uc.vendorRepo.FindDocumentsByVendorID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find documents: %w", err)
+	}
+
+	vendorStatus := vendor.Status
+	if isVendorCompletionReady(vendor, bankAccount, documents) {
+		if err := uc.vendorRepo.UpdateStatus(ctx, vendorID, map[string]any{
+			"status":     domain.VendorStatusSubmitted,
+			"updated_at": now,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update vendor status: %w", err)
+		}
+		vendorStatus = domain.VendorStatusSubmitted
+	}
+
+	return &domain.VendorSaveBankAccountResponse{
+		VendorID:     vendor.ID,
+		VendorStatus: vendorStatus,
+		BankAccount:  *bankAccount,
+	}, nil
+}
+
+func (uc *vendorUseCase) PresignDocument(ctx context.Context, vendorID uuid.UUID, req domain.VendorDocumentPresignRequest) (*domain.VendorDocumentPresignResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+	if vendor.Status != domain.VendorStatusDraft {
+		return nil, fmt.Errorf("%w: cannot upload documents for vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
+	}
+	if !isCompletionDocumentType(req.DocType) {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidVendorDocumentType, req.DocType)
+	}
+
+	objectKey := buildVendorDocumentObjectKey(vendorID, req.DocType)
+	uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, "", PresignedUploadExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate vendor document presigned URL: %w", err)
+	}
+
+	return &domain.VendorDocumentPresignResponse{
+		DocType:   req.DocType,
+		UploadURL: uploadURL,
+		ObjectKey: objectKey,
+		ExpiresAt: time.Now().Add(PresignedUploadExpiry),
+	}, nil
+}
+
 func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID, req domain.ConfirmDocumentsRequest) (*domain.ConfirmDocumentsResponse, error) {
 	// 1. Find vendor by owner_user_id.
 	vendor, err := uc.vendorRepo.FindByOwnerUserID(ctx, userID)
@@ -99,6 +195,9 @@ func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID,
 	}
 	if vendor == nil {
 		return nil, ErrVendorNotFound
+	}
+	if vendor.Status != domain.VendorStatusDraft {
+		return nil, fmt.Errorf("%w: cannot confirm documents for vendor with status %q", ErrInvalidStatusTransition, vendor.Status)
 	}
 
 	// 2. Load existing documents for this vendor.
@@ -118,9 +217,8 @@ func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID,
 	updatedDocs := make([]domain.VendorDocument, 0, len(req.Documents))
 
 	for _, item := range req.Documents {
-		doc, exists := docMap[item.DocType]
-		if !exists {
-			return nil, fmt.Errorf("%w: %s", ErrDocumentNotFound, item.DocType)
+		if !isCompletionDocumentType(item.DocType) {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidVendorDocumentType, item.DocType)
 		}
 
 		// Verify object actually exists in S3 via HeadObject.
@@ -139,6 +237,17 @@ func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID,
 			return nil, fmt.Errorf("%w: %s (%d bytes)", ErrDocumentSizeOverflow, item.DocType, info.ContentLength)
 		}
 
+		doc, exists := docMap[item.DocType]
+		if !exists {
+			doc = &domain.VendorDocument{
+				ID:                 uuid.New(),
+				VendorID:           vendor.ID,
+				DocType:            item.DocType,
+				VerificationStatus: domain.VerificationStatusPending,
+				CreatedAt:          now,
+			}
+		}
+
 		// Prepare update.
 		fileSize := int(info.ContentLength)
 		doc.FileURL = item.ObjectKey
@@ -155,18 +264,20 @@ func (uc *vendorUseCase) ConfirmDocuments(ctx context.Context, userID uuid.UUID,
 		docMap[updatedDocs[i].DocType] = &updatedDocs[i]
 	}
 
-	allUploaded := true
-	for _, docType := range requiredDocTypes {
-		doc, exists := docMap[docType]
-		if !exists || doc.UploadedBy == nil {
-			allUploaded = false
-			break
-		}
+	bankAccount, err := uc.vendorRepo.FindBankAccountByVendorID(ctx, vendor.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find bank account: %w", err)
 	}
+
+	allDocuments := make([]domain.VendorDocument, 0, len(docMap))
+	for _, doc := range docMap {
+		allDocuments = append(allDocuments, *doc)
+	}
+	allUploaded := isVendorCompletionReady(vendor, bankAccount, allDocuments)
 
 	// 5. Determine new status.
 	newStatus := ""
-	if allUploaded && vendor.Status == domain.VendorStatusDraft {
+	if allUploaded {
 		newStatus = domain.VendorStatusSubmitted
 	}
 
@@ -242,6 +353,56 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 		VendorStatus: vendor.Status,
 		DisplayName:  vendor.DisplayName,
 	}, nil
+}
+
+func isCompletionDocumentType(docType string) bool {
+	_, ok := completionDocTypes[docType]
+	return ok
+}
+
+func requiredCompletionDocTypes(vendor *domain.Vendor) []string {
+	docTypes := make([]string, 0, len(requiredCompletionUploadDocTypes)+2)
+	docTypes = append(docTypes, requiredLegalDocumentType(vendor))
+	docTypes = append(docTypes, requiredCompletionUploadDocTypes...)
+	if vendor != nil && vendor.BusinessLegalType != nil && *vendor.BusinessLegalType == domain.VendorBusinessLegalTypeCorporate {
+		docTypes = append(docTypes, domain.VendorDocumentTypeBusinessNPWP)
+	}
+	return docTypes
+}
+
+func requiredLegalDocumentType(vendor *domain.Vendor) string {
+	if vendor != nil && vendor.BusinessLegalType != nil && *vendor.BusinessLegalType == domain.VendorBusinessLegalTypeCorporate {
+		return domain.VendorDocumentTypeBusinessNIB
+	}
+	return domain.VendorDocumentTypeOwnerDocumentID
+}
+
+func isVendorCompletionReady(vendor *domain.Vendor, bankAccount *domain.VendorBankAccount, documents []domain.VendorDocument) bool {
+	if vendor == nil || vendor.Status != domain.VendorStatusDraft || bankAccount == nil {
+		return false
+	}
+
+	docMap := make(map[string]*domain.VendorDocument, len(documents))
+	for i := range documents {
+		docMap[documents[i].DocType] = &documents[i]
+	}
+
+	for _, docType := range requiredCompletionDocTypes(vendor) {
+		doc := docMap[docType]
+		if doc == nil || doc.UploadedBy == nil || strings.TrimSpace(doc.FileURL) == "" {
+			return false
+		}
+	}
+
+	return true
+}
+
+func buildVendorDocumentObjectKey(vendorID uuid.UUID, docType string) string {
+	return fmt.Sprintf("%s%s", vendorDocumentPrefix(vendorID, docType), uuid.New().String())
+}
+
+func vendorDocumentPrefix(vendorID uuid.UUID, docType string) string {
+	return fmt.Sprintf("vendors/%s/documents/%s/", vendorID.String(), docType)
 }
 
 func (uc *vendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain.VendorProfileResponse, error) {

@@ -56,6 +56,7 @@ func (uc *adminVendorUseCase) List(ctx context.Context, params domain.VendorList
 			Status:                v.Status,
 			StatusReason:          v.StatusReason,
 			XenditAccountID:       v.XenditAccountID,
+			RegisteredAddress:     v.RegisteredAddress,
 			CreatedAt:             v.CreatedAt,
 			UpdatedAt:             v.UpdatedAt,
 		}
@@ -167,6 +168,7 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 		LegalName:             vendor.LegalName,
 		ResponsiblePersonName: vendor.ResponsiblePersonName,
 		Description:           vendor.Description,
+		RegisteredAddress:     vendor.RegisteredAddress,
 		Status:                vendor.Status,
 		StatusReason:          vendor.StatusReason,
 		ApprovedAt:            vendor.ApprovedAt,

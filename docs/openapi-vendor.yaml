@@ -13,6 +13,8 @@ tags:
     description: Autentikasi vendor.
   - name: Vendor Documents
     description: Manajemen dokumen vendor.
+  - name: Vendor Completion
+    description: Penyelesaian data vendor setelah login pertama.
   - name: Vendor Products
     description: Manajemen produk vendor.
   - name: Vendor Balance
@@ -136,6 +138,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/register/status:
+    get:
+      tags:
+        - Vendor Registration
+      summary: Ambil status onboarding vendor
+      description: Mengambil status draft onboarding vendor berdasarkan onboarding JWT yang dikirim di header `Authorization`.
+      operationId: getVendorRegistrationStatus
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Status onboarding berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorOnboardingStatusEnvelope'
+        '401':
+          description: Onboarding JWT tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Draft onboarding tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/vendors/register/password:
     post:
       tags:
@@ -178,57 +217,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/v1/vendors/register/store:
+  /api/v1/vendors/register/souvenir-store/individual/presign:
     post:
       tags:
         - Vendor Registration
-      summary: Simpan data toko onboarding vendor
-      operationId: saveVendorRegistrationStore
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VendorRegistrationStoreRequest'
-            example:
-              store_name: Toko Oleh-Oleh Haji Mabrur
-              vendor_type: souvenir_store
-      responses:
-        '200':
-          description: Data toko berhasil disimpan.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessVendorOnboardingProgressEnvelope'
-        '400':
-          description: Step onboarding tidak valid atau payload tidak valid.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
-          description: Onboarding JWT tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/v1/vendors/register/legal-document/presign:
-    post:
-      tags:
-        - Vendor Registration
-      summary: Buat presigned upload URL dokumen identitas vendor
-      operationId: presignVendorRegistrationLegalDocument
+      summary: Buat presigned upload URL dokumen identitas perorangan (KTP/Paspor)
+      description: Membuat presigned URL untuk upload dokumen identitas pribadi (KTP atau paspor) dalam flow pendaftaran vendor perorangan (`souvenir_store`).
+      operationId: presignVendorRegistrationIndividualDocument
       security:
         - BearerAuth: []
       requestBody:
@@ -239,6 +234,7 @@ paths:
               $ref: '#/components/schemas/VendorRegistrationPresignDocumentRequest'
             example:
               document_id_type: ktp
+              content_type: image/jpeg
       responses:
         '200':
           description: Presigned URL berhasil dibuat.
@@ -248,7 +244,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorRegistrationPresignDocumentEnvelope'
+                $ref: '#/components/schemas/SuccessVendorRegistrationIndividualPresignEnvelope'
         '400':
           description: Step onboarding tidak valid atau payload tidak valid.
           headers:
@@ -267,12 +263,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-  /api/v1/vendors/register/legal-document/submit:
+  /api/v1/vendors/register/souvenir-store/individual:
     post:
       tags:
         - Vendor Registration
-      summary: Finalisasi registrasi vendor dan login otomatis
-      operationId: submitVendorRegistrationLegal
+      summary: Finalisasi registrasi vendor perorangan dan login otomatis
+      description: |
+        Menyelesaikan pendaftaran vendor tipe **perorangan** (`business_legal_type = perorangan`).
+        Menerima data toko (`store_name`) dan data identitas pribadi (NIK, nama pemilik, tanggal lahir, object key dokumen KTP/paspor).
+        Jika berhasil, mengembalikan auth token vendor langsung.
+      operationId: submitVendorRegistrationIndividual
       security:
         - BearerAuth: []
       requestBody:
@@ -280,9 +280,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorRegistrationLegalRequest'
+              $ref: '#/components/schemas/VendorRegistrationIndividualLegalRequest'
             example:
-              business_legal_type: perorangan
+              store_name: Toko Oleh-Oleh Haji Mabrur
               document_id_type: ktp
               nik: "3173000000000001"
               owner_name: Ahmad Subarkah
@@ -290,7 +290,115 @@ paths:
               document_id_object_key: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
       responses:
         '200':
-          description: Registrasi selesai dan auth token vendor diterbitkan.
+          description: Registrasi perorangan selesai dan auth token vendor diterbitkan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorLoginEnvelope'
+        '400':
+          description: Payload tidak valid, step tidak sesuai, atau file dokumen tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Onboarding JWT tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Email sudah dipakai akun lain.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/register/souvenir-store/corporate/presign:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Buat presigned upload URL dokumen NIB perusahaan
+      description: Membuat presigned URL untuk upload dokumen NIB dalam flow pendaftaran vendor korporasi (`souvenir_store`). Tidak memerlukan request body.
+      operationId: presignVendorRegistrationCorporateDocument
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Presigned URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorRegistrationCorporatePresignEnvelope'
+        '400':
+          description: Step onboarding tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Onboarding JWT tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/register/souvenir-store/corporate:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Finalisasi registrasi vendor korporasi dan login otomatis
+      description: |
+        Menyelesaikan pendaftaran vendor tipe **korporasi** (`business_legal_type = korporasi`).
+        Menerima data toko (`store_name`) dan data legalitas perusahaan (NIB, nama perusahaan, tanggal berdiri, alamat terdaftar, object key dokumen NIB).
+        Jika berhasil, mengembalikan auth token vendor langsung.
+      operationId: submitVendorRegistrationCorporate
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegistrationCorporateLegalRequest'
+            example:
+              store_name: Toko Oleh-Oleh Haji Mabrur
+              nib: "1234567890123"
+              company_name: PT Toko Oleh-Oleh Haji Mabrur
+              established_date: "2010-05-20"
+              registered_address: Jl. Sudirman No. 1, Jakarta Pusat
+              nib_document_object_key: vendor-onboardings/6c9f5.../documents/business_nib/f1e2d3...
+      responses:
+        '200':
+          description: Registrasi korporasi selesai dan auth token vendor diterbitkan.
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestIDHeader'
@@ -597,24 +705,221 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/vendors/bank-account:
+    post:
+      tags:
+        - Vendor Completion
+      summary: Simpan atau perbarui rekening bank vendor draft
+      description: |
+        Menyimpan data rekening bank vendor pada fase post-login completion.
+
+        **Aturan:**
+        - Memerlukan autentikasi JWT vendor dengan role `umkm`.
+        - Hanya vendor dengan status `draft` yang dapat menyimpan atau memperbarui rekening.
+        - Jika rekening sudah ada, data akan diperbarui dan status verifikasi rekening di-reset ke `pending`.
+        - Setelah rekening berhasil disimpan, backend akan mengevaluasi ulang kelengkapan completion. Jika seluruh dokumen wajib sudah lengkap, status vendor otomatis berubah menjadi `submitted`.
+      operationId: saveVendorBankAccount
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorSaveBankAccountRequest'
+            example:
+              bank_name: Bank Syariah Indonesia
+              account_number: "1234567890"
+              account_holder_name: Ahmad Subarkah
+      responses:
+        '200':
+          description: Rekening bank vendor berhasil disimpan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorSaveBankAccountEnvelope'
+              example:
+                success: true
+                message: vendor bank account saved successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  vendor_status: submitted
+                  bank_account:
+                    id: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
+                    vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    bank_name: Bank Syariah Indonesia
+                    account_number: "1234567890"
+                    account_holder_name: Ahmad Subarkah
+                    verification_status: pending
+                    rejection_reason: null
+                    verified_by: null
+                    verified_at: null
+                    created_at: "2026-03-13T08:00:00Z"
+                    updated_at: "2026-03-13T08:00:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: Payload tidak valid atau status vendor tidak mengizinkan perubahan rekening.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: User tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/documents/presign:
+    post:
+      tags:
+        - Vendor Completion
+      summary: Buat presigned upload URL untuk dokumen completion vendor
+      description: |
+        Membuat presigned URL untuk upload dokumen post-login completion vendor.
+
+        **Aturan:**
+        - Memerlukan autentikasi JWT vendor dengan role `umkm`.
+        - Hanya vendor dengan status `draft` yang dapat meminta presigned URL.
+        - `doc_type` yang diizinkan: `store_photo`, `bank_account_proof`, `business_logo`, `business_banner`, `business_npwp`.
+      operationId: presignVendorCompletionDocument
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorDocumentPresignRequest'
+            example:
+              doc_type: store_photo
+      responses:
+        '200':
+          description: Presigned URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorDocumentPresignEnvelope'
+              example:
+                success: true
+                message: vendor document presigned successfully
+                data:
+                  doc_type: store_photo
+                  upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/.../documents/store_photo/uuid?X-Amz-...
+                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                  expires_at: "2026-03-13T08:30:00Z"
+                errors: null
+                meta: null
+        '400':
+          description: Payload tidak valid atau status vendor tidak mengizinkan upload dokumen.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: User tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/vendors/documents/confirm:
     post:
       tags:
         - Vendor Documents
-      summary: Konfirmasi upload dokumen vendor
+      summary: Konfirmasi upload dokumen completion vendor
       description: |
-        Mengkonfirmasi bahwa dokumen-dokumen vendor telah berhasil diupload ke S3 storage.
+        Mengkonfirmasi bahwa dokumen completion vendor telah berhasil diupload ke storage.
         Endpoint ini memverifikasi bahwa file benar-benar ada di S3, memeriksa ukuran dan MIME type,
         lalu memperbarui status dokumen di database.
 
         **Aturan:**
         - Memerlukan autentikasi dengan JWT token (role `umkm`).
+        - Hanya vendor dengan status `draft` yang dapat memakai endpoint ini.
         - Setiap dokumen divalidasi: file harus ada di S3, MIME type harus `image/jpeg`, `image/png`, `image/webp`, atau `application/pdf`.
         - Ukuran file maksimum 5 MB per dokumen.
-        - Jika semua dokumen wajib (`owner_document_id`, `store_photo`, `bank_account_proof`, `business_logo`, `business_banner`) telah dikonfirmasi,
-          status vendor akan otomatis berubah dari `draft` menjadi `submitted`.
+        - Dokumen yang dapat dikonfirmasi melalui endpoint ini: `store_photo`, `bank_account_proof`, `business_logo`, `business_banner`, `business_npwp`.
+        - Status vendor akan berubah dari `draft` menjadi `submitted` jika:
+          - rekening bank vendor sudah tersimpan
+          - dokumen legal onboarding awal sudah lengkap:
+            - `owner_document_id` bila `business_legal_type = perorangan`
+            - `business_nib` bila `business_legal_type = korporasi`
+          - dokumen wajib `store_photo`, `bank_account_proof`, `business_logo`, dan `business_banner` sudah lengkap
+          - `business_npwp` juga sudah lengkap bila `business_legal_type = korporasi`
+        - Evaluasi status dilakukan setiap endpoint ini dipanggil, termasuk saat request hanya mengirim dokumen yang sudah pernah dikonfirmasi sebelumnya.
 
-        **Catatan:** `object_key` didapat dari response saat registrasi (`upload_urls[].object_key`).
+        **Catatan:** dokumen legal onboarding awal (`owner_document_id` atau `business_nib`) dibuat saat onboarding dan tidak dipresign ulang dari endpoint ini.
       operationId: confirmVendorDocuments
       security:
         - BearerAuth: []
@@ -626,8 +931,6 @@ paths:
               $ref: '#/components/schemas/ConfirmDocumentsRequest'
             example:
               documents:
-                - doc_type: owner_document_id
-                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/f1e2d3c4-b5a6-7890-abcd-ef1234567890
                 - doc_type: store_photo
                   object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/c4d5e6f7-a8b9-0123-def0-345678901234
                 - doc_type: bank_account_proof
@@ -652,11 +955,11 @@ paths:
                 data:
                   vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                   vendor_status: submitted
-                  documents_confirmed: 5
+                  documents_confirmed: 4
                 errors: null
                 meta: null
         '400':
-          description: Request tidak valid (validasi gagal, dokumen tidak ditemukan, file belum diupload, MIME type salah, atau file terlalu besar).
+          description: Request tidak valid (validasi gagal, tipe dokumen tidak didukung, file belum diupload, MIME type salah, ukuran file terlalu besar, atau status vendor tidak valid).
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestIDHeader'
@@ -673,11 +976,11 @@ paths:
                     data: null
                     errors: "Key: 'ConfirmDocumentsRequest.Documents' Error:Field validation for 'Documents' failed on the 'required' tag"
                     meta: null
-                documentNotFound:
-                  summary: Dokumen tidak ditemukan untuk vendor ini
+                invalidDocType:
+                  summary: Tipe dokumen tidak didukung endpoint completion
                   value:
                     success: false
-                    message: "document not found for this vendor: owner_document_id"
+                    message: "invalid vendor document type: owner_document_id"
                     data: null
                     errors: null
                     meta: null
@@ -685,7 +988,7 @@ paths:
                   summary: File belum diupload ke S3
                   value:
                     success: false
-                    message: "object not found in storage: vendors/a1b2c3d4/documents/owner_document_id/uuid"
+                    message: "object not found in storage: vendors/a1b2c3d4/documents/store_photo/uuid"
                     data: null
                     errors: null
                     meta: null
@@ -766,6 +1069,127 @@ paths:
                 errors: null
                 meta: null
   /api/v1/vendors/products:
+    get:
+      tags:
+        - Vendor Products
+      summary: Daftar produk vendor
+      description: |
+        Mengambil daftar paginasi dari semua produk milik vendor yang sedang login.
+        Mendukung pencarian nama, filter status, dan pengurutan (sorting) berdasarkan nama, harga, stok, atau tanggal pembuatan.
+      operationId: listVendorProducts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Halaman yang diminta (default 1).
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Jumlah item per halaman (default 10, max 100).
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          description: Pencarian berdasarkan nama produk (partial match, case-insensitive).
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter berdasarkan status produk. Kosongkan untuk menampilkan semua (draft & published).
+          schema:
+            type: string
+            enum:
+              - draft
+              - published
+        - name: sort_by
+          in: query
+          description: Field untuk pengurutan data (default created_at).
+          schema:
+            type: string
+            enum:
+              - name
+              - price
+              - stock
+              - created_at
+            default: created_at
+        - name: sort_order
+          in: query
+          description: Arah pengurutan (default desc).
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        '200':
+          description: Daftar produk berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VendorProductListItem'
+                      meta:
+                        $ref: '#/components/schemas/PaginationMeta'
+              example:
+                success: true
+                message: vendor products retrieved successfully
+                data:
+                  - id: "4354c494-d5a1-4f00-b120-abcdef123456"
+                    name: "Sajadah Premium"
+                    category_name: "Oleh-Oleh"
+                    price: 150000
+                    stock: 100
+                    status: "published"
+                    created_at: "2026-03-01T10:30:00Z"
+                  - id: "5a2b3c4d-e5f6-7890-abcd-ef1234567890"
+                    name: "Tasbih Kayu Cendana"
+                    category_name: "Aksesoris"
+                    price: 50000
+                    stock: 50
+                    status: "draft"
+                    created_at: "2026-03-02T11:15:00Z"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 2
+                  total_pages: 1
+        '401':
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
     post:
       tags:
         - Vendor Products
@@ -858,6 +1282,9 @@ paths:
                       sku: TOKOO-SAJAD000-00
                       variant_name: Default
                       price: 150000
+                      original_price: 150000
+                      promo_price: null
+                      has_promo: false
                       currency: IDR
                       stock_on_hand: 50
                       weight_gram: 500
@@ -867,6 +1294,9 @@ paths:
                       sku: TOKOO-SAJAD000-01
                       variant_name: Merah
                       price: 150000
+                      original_price: 150000
+                      promo_price: null
+                      has_promo: false
                       currency: IDR
                       stock_on_hand: 30
                       weight_gram: 500
@@ -876,6 +1306,9 @@ paths:
                       sku: TOKOO-SAJAD000-02
                       variant_name: Biru
                       price: 160000
+                      original_price: 160000
+                      promo_price: null
+                      has_promo: false
                       currency: IDR
                       stock_on_hand: 20
                       weight_gram: 500
@@ -1677,6 +2110,40 @@ components:
         type: string
         example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
   schemas:
+    # --- Envelope wrappers ---
+    SuccessEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          description: Response payload (varies per endpoint).
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          description: Metadata paginasi (jika ada).
+
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total_items:
+          type: integer
+          example: 25
+        total_pages:
+          type: integer
+          example: 3
+
     VendorRegisterOTPRequest:
       type: object
       required:
@@ -1731,7 +2198,6 @@ components:
           enum:
             - otp_verified
             - password_set
-            - store_info_completed
             - completed
           example: otp_verified
     VendorRegistrationPasswordRequest:
@@ -1743,27 +2209,11 @@ components:
           type: string
           minLength: 8
           example: SecurePass123!
-    VendorRegistrationStoreRequest:
-      type: object
-      required:
-        - store_name
-        - vendor_type
-      properties:
-        store_name:
-          type: string
-          maxLength: 120
-          example: Toko Oleh-Oleh Haji Mabrur
-        vendor_type:
-          type: string
-          enum:
-            - souvenir_store
-            - ppiu
-            - hajj_dormitory
-          example: souvenir_store
     VendorRegistrationPresignDocumentRequest:
       type: object
       required:
         - document_id_type
+        - content_type
       properties:
         document_id_type:
           type: string
@@ -1771,6 +2221,13 @@ components:
             - ktp
             - passport
           example: ktp
+        content_type:
+          type: string
+          description: MIME type dokumen yang akan di-upload.
+          enum:
+            - image/jpeg
+            - application/pdf
+          example: image/jpeg
     VendorRegistrationPresignDocumentResponse:
       type: object
       required:
@@ -1791,30 +2248,32 @@ components:
           format: date-time
         document_id_type:
           type: string
+          description: Jenis dokumen identitas. Kosong untuk pendaftaran korporasi.
           enum:
             - ktp
             - passport
+            - ""
+          example: ktp
         doc_type:
           type: string
           enum:
             - owner_document_id
+            - business_nib
           example: owner_document_id
-    VendorRegistrationLegalRequest:
+    VendorRegistrationIndividualLegalRequest:
       type: object
       required:
-        - business_legal_type
+        - store_name
         - document_id_type
         - nik
         - owner_name
         - birth_date
         - document_id_object_key
       properties:
-        business_legal_type:
+        store_name:
           type: string
-          enum:
-            - perorangan
-            - korporasi
-          example: perorangan
+          maxLength: 120
+          example: Toko Oleh-Oleh Haji Mabrur
         document_id_type:
           type: string
           enum:
@@ -1824,6 +2283,7 @@ components:
         nik:
           type: string
           maxLength: 32
+          description: Nomor Induk Kependudukan (KTP) atau nomor paspor.
           example: "3173000000000001"
         owner_name:
           type: string
@@ -1831,11 +2291,48 @@ components:
           example: Ahmad Subarkah
         birth_date:
           type: string
-          description: Format `YYYY-MM-DD`.
+          description: Tanggal lahir, format `YYYY-MM-DD`.
           example: "1990-01-02"
         document_id_object_key:
           type: string
+          description: Object key di S3 yang didapat dari endpoint presign individual.
           example: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
+    VendorRegistrationCorporateLegalRequest:
+      type: object
+      required:
+        - store_name
+        - nib
+        - company_name
+        - established_date
+        - registered_address
+        - nib_document_object_key
+      properties:
+        store_name:
+          type: string
+          maxLength: 120
+          example: Toko Oleh-Oleh Haji Mabrur
+        nib:
+          type: string
+          maxLength: 32
+          description: Nomor Induk Berusaha perusahaan.
+          example: "1234567890123"
+        company_name:
+          type: string
+          maxLength: 120
+          description: Nama resmi perusahaan sesuai akta.
+          example: PT Toko Oleh-Oleh Haji Mabrur
+        established_date:
+          type: string
+          description: Tanggal berdiri perusahaan, format `YYYY-MM-DD`.
+          example: "2010-05-20"
+        registered_address:
+          type: string
+          description: Alamat terdaftar perusahaan.
+          example: Jl. Sudirman No. 1, Jakarta Pusat
+        nib_document_object_key:
+          type: string
+          description: Object key di S3 yang didapat dari endpoint presign corporate.
+          example: vendor-onboardings/6c9f5.../documents/business_nib/f1e2d3...
     VendorOnboardingProgressResponse:
       type: object
       required:
@@ -1846,9 +2343,25 @@ components:
           enum:
             - otp_verified
             - password_set
-            - store_info_completed
             - completed
           example: password_set
+    VendorOnboardingStatusResponse:
+      type: object
+      required:
+        - status
+        - email
+      properties:
+        status:
+          type: string
+          enum:
+            - otp_verified
+            - password_set
+            - completed
+          example: password_set
+        email:
+          type: string
+          format: email
+          example: toko.mabrur@example.com
     VendorLoginRequest:
       type: object
       required:
@@ -1972,6 +2485,143 @@ components:
           type: string
           description: Nama toko yang ditampilkan.
           example: Toko Oleh-Oleh Haji Mabrur
+    VendorBankAccount:
+      type: object
+      required:
+        - id
+        - vendor_id
+        - bank_name
+        - account_number
+        - account_holder_name
+        - verification_status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
+        vendor_id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        bank_name:
+          type: string
+          example: Bank Syariah Indonesia
+        account_number:
+          type: string
+          example: "1234567890"
+        account_holder_name:
+          type: string
+          example: Ahmad Subarkah
+        verification_status:
+          type: string
+          enum:
+            - pending
+            - verified
+            - rejected
+          example: pending
+        rejection_reason:
+          type: string
+          nullable: true
+          example: null
+        verified_by:
+          type: string
+          format: uuid
+          nullable: true
+          example: null
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    VendorSaveBankAccountRequest:
+      type: object
+      required:
+        - bank_name
+        - account_number
+        - account_holder_name
+      properties:
+        bank_name:
+          type: string
+          maxLength: 120
+          example: Bank Syariah Indonesia
+        account_number:
+          type: string
+          maxLength: 64
+          example: "1234567890"
+        account_holder_name:
+          type: string
+          maxLength: 120
+          example: Ahmad Subarkah
+    VendorSaveBankAccountResponse:
+      type: object
+      required:
+        - vendor_id
+        - vendor_status
+        - bank_account
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        vendor_status:
+          type: string
+          enum:
+            - draft
+            - submitted
+            - active
+            - rejected
+            - blocked
+          example: draft
+        bank_account:
+          $ref: '#/components/schemas/VendorBankAccount'
+    VendorDocumentPresignRequest:
+      type: object
+      required:
+        - doc_type
+      properties:
+        doc_type:
+          type: string
+          enum:
+            - store_photo
+            - bank_account_proof
+            - business_logo
+            - business_banner
+            - business_npwp
+          example: store_photo
+    VendorDocumentPresignResponse:
+      type: object
+      required:
+        - doc_type
+        - upload_url
+        - object_key
+        - expires_at
+      properties:
+        doc_type:
+          type: string
+          enum:
+            - store_photo
+            - bank_account_proof
+            - business_logo
+            - business_banner
+            - business_npwp
+          example: store_photo
+        upload_url:
+          type: string
+          format: uri
+        object_key:
+          type: string
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+        expires_at:
+          type: string
+          format: date-time
     PresignedUploadInfo:
       type: object
       required:
@@ -2071,7 +2721,7 @@ components:
         meta:
           nullable: true
           example: null
-    SuccessVendorRegistrationPresignDocumentEnvelope:
+    SuccessVendorOnboardingStatusEnvelope:
       type: object
       required:
         - success
@@ -2085,7 +2735,53 @@ components:
           example: true
         message:
           type: string
-          example: vendor registration legal document presigned
+          example: vendor registration status retrieved
+        data:
+          $ref: '#/components/schemas/VendorOnboardingStatusResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorRegistrationIndividualPresignEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor registration individual document presigned
+        data:
+          $ref: '#/components/schemas/VendorRegistrationPresignDocumentResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorRegistrationCorporatePresignEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor registration corporate document presigned
         data:
           $ref: '#/components/schemas/VendorRegistrationPresignDocumentResponse'
         errors:
@@ -2140,6 +2836,52 @@ components:
         meta:
           nullable: true
           example: null
+    SuccessVendorSaveBankAccountEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor bank account saved successfully
+        data:
+          $ref: '#/components/schemas/VendorSaveBankAccountResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorDocumentPresignEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor document presigned successfully
+        data:
+          $ref: '#/components/schemas/VendorDocumentPresignResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
     ErrorEnvelope:
       type: object
       required:
@@ -2172,19 +2914,18 @@ components:
       properties:
         doc_type:
           type: string
-          description: Tipe dokumen yang dikonfirmasi.
+          description: Tipe dokumen completion yang dikonfirmasi.
           enum:
-            - owner_document_id
-            - business_npwp
             - store_photo
             - bank_account_proof
             - business_logo
             - business_banner
-          example: owner_document_id
+            - business_npwp
+          example: store_photo
         object_key:
           type: string
-          description: Object key di S3 yang didapat dari response registrasi (`upload_urls[].object_key`).
-          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/f1e2d3c4-b5a6-7890-abcd-ef1234567890
+          description: Object key di S3 yang didapat dari response `POST /api/v1/vendors/documents/presign`.
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/f1e2d3c4-b5a6-7890-abcd-ef1234567890
     ConfirmDocumentsRequest:
       type: object
       required:
@@ -2210,7 +2951,7 @@ components:
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         vendor_status:
           type: string
-          description: Status vendor setelah konfirmasi. Berubah ke `submitted` jika semua dokumen wajib telah dikonfirmasi.
+          description: Status vendor setelah konfirmasi. Berubah ke `submitted` jika rekening bank sudah ada dan semua dokumen wajib completion telah lengkap.
           enum:
             - draft
             - submitted
@@ -2418,6 +3159,8 @@ components:
         - sku
         - variant_name
         - price
+        - original_price
+        - has_promo
         - currency
         - stock_on_hand
         - is_default
@@ -2439,8 +3182,23 @@ components:
         price:
           type: number
           format: double
-          description: Harga varian dalam Rupiah (IDR).
+          description: Harga efektif varian dalam Rupiah (IDR).
           example: 150000
+        original_price:
+          type: number
+          format: double
+          description: Harga normal varian tanpa promo.
+          example: 150000
+        promo_price:
+          type: number
+          format: double
+          nullable: true
+          description: Harga promo aktif jika ada; `null` jika tidak ada promo.
+          example: null
+        has_promo:
+          type: boolean
+          description: Menandakan apakah varian sedang terpengaruh promo aktif.
+          example: false
         currency:
           type: string
           description: Mata uang.
@@ -2878,3 +3636,39 @@ components:
           type: string
           nullable: true
           example: failed to apply payout webhook update
+
+    VendorProductListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID produk.
+        name:
+          type: string
+          description: Nama produk.
+          example: "Sajadah Premium"
+        category_name:
+          type: string
+          description: Nama kategori produk.
+          example: "Oleh-Oleh"
+        price:
+          type: number
+          format: double
+          description: Harga terendah dari variant aktif (IDR).
+          example: 150000
+        stock:
+          type: integer
+          description: Total stok tersedia dari semua variant aktif.
+          example: 100
+        status:
+          type: string
+          description: Status produk saat ini.
+          enum:
+            - draft
+            - published
+          example: "published"
+        created_at:
+          type: string
+          format: date-time
+          description: Waktu produk dibuat.

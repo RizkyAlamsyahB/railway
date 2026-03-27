@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "UmrahMart - Vendor Kelola Order",
-    "description": "Postman collection untuk **Kelola Order** vendor (Vendor Order Management).\n\nBase URL: `http://localhost:8080/api/v1`\n\n## Endpoints\n1. **Login Vendor** — dapatkan token (otomatis disimpan)\n2. **List Orders** — `GET /vendors/orders` (daftar order vendor, filter by status)\n3. **Detail Order** — `GET /vendors/orders/:orderId`\n4. **Accept Order** — `POST /vendors/orders/:orderId/accept` (paid → processing)\n5. **Reject Order** — `POST /vendors/orders/:orderId/reject` (paid/processing → canceled)\n6. **Ship Order (Input Resi)** — `POST /vendors/orders/:orderId/ship` (processing → shipped)\n7. **Track Waybill (Lacak Resi)** — `GET /vendors/orders/:orderId/tracking`\n\n## Flow Normal\n```\nLogin → List Orders (status=paid) → Accept Order → Ship Order (input resi) → Track Waybill\n```\n\n## Flow Reject\n```\nLogin → List Orders (status=paid) → Reject Order\n```\n\n## Status Flow\n```\npaid ──accept──▶ processing ──ship──▶ shipped ──customer complete──▶ completed\n  │                  │\n  └──reject──▶ canceled ◀──reject──┘\n```\n\n## ETD & Estimasi Tiba\nSaat checkout, sistem menyimpan **shipment** record beserta `etd` (estimated time of delivery) dari RajaOngkir (contoh: `\"1-2 day\"`, `\"3 day\"`).\n\nSaat vendor input resi (Ship Order), response akan menyertakan:\n- `etd` — estimasi pengiriman dari RajaOngkir\n- `estimated_arrival` — tanggal estimasi tiba (`shipped_at + max ETD days`, format `YYYY-MM-DD`)\n\n## Auth\nSemua endpoint (kecuali login) membutuhkan **Bearer token** vendor (role: `umkm`).\n\n## Pre-requisite\n- Pastikan migration `000039_shipment_etd` sudah dijalankan (`make migrate-up`)\n- Pastikan sudah ada order dengan status `paid` (lakukan checkout dari sisi customer terlebih dahulu)",
+    "description": "Postman collection untuk **Kelola Order** vendor (Vendor Order Management).\n\nBase URL: `http://localhost:8080/api/v1`\n\n## Endpoints\n1. **Login Vendor** — dapatkan token (otomatis disimpan)\n2. **List Orders** — `GET /vendors/orders` (daftar order vendor)\n   - Filter: status, search, date_from, date_to\n   - Sorting: sort_by (order_date, customer_name, total_payment), sort_order (asc, desc)\n3. **Export Orders (CSV)** — `GET /vendors/orders/export` (download CSV)\n4. **Detail Order** — `GET /vendors/orders/:orderId`\n5. **Accept Order** — `POST /vendors/orders/:orderId/accept` (paid → processing)\n6. **Ship Order (Input Resi)** — `POST /vendors/orders/:orderId/ship` (processing → shipped)\n7. **Track Waybill (Lacak Resi)** — `GET /vendors/orders/:orderId/tracking`\n8. **Get Invoice (Nota Pesanan)** — `GET /vendors/orders/:orderId/invoice`\n9. **Download Invoice PDF** — `GET /vendors/orders/:orderId/invoice/download`\n10. **Get Shipping Info** — `GET /vendors/orders/:orderId/shipping`\n11. **Reject Order** — `POST /vendors/orders/:orderId/reject` (paid/processing → canceled)\n\n## Flow Normal\n```\nLogin → List Orders (status=paid) → Accept Order → Ship Order (input resi) → Track Waybill\n```\n\n## Flow Reject\n```\nLogin → List Orders (status=paid) → Reject Order\n```\n\n## New Features\n- **Search**: Cari berdasarkan nomor order atau nama pembeli\n- **Date Filter**: Filter berdasarkan tanggal order (date_from, date_to)\n- **Sorting**: Urutkan berdasarkan tanggal, nama, atau total pembayaran\n- **Export CSV**: Download data order dalam format CSV\n- **Invoice/Nota**: Lihat dan download nota pesanan (PDF)\n- **Shipping Info**: Lihat informasi pengiriman dengan timeline tracking\n\n## Auth\nSemua endpoint (kecuali login) membutuhkan **Bearer token** vendor (role: `umkm`).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -62,20 +62,7 @@
         },
         "description": "Login sebagai vendor (role: umkm) untuk mendapatkan JWT token.\n\nToken disimpan otomatis ke variable `vendor_token`."
       },
-      "response": [
-        {
-          "name": "200 - Login Berhasil",
-          "status": "OK",
-          "code": 200,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": true,\n  \"message\": \"login successful\",\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"display_name\": \"Dev UMKM Store\",\n    \"vendor_status\": \"active\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
-        }
-      ]
+      "response": []
     },
     {
       "name": "2. List Orders (Semua)",
@@ -100,9 +87,6 @@
               "    pm.collectionVariables.set('order_id', firstOrder.order_id);",
               "    console.log('📦 Total orders: ' + json.data.length);",
               "    console.log('✅ order_id saved: ' + firstOrder.order_id);",
-              "    json.data.forEach(function(o) {",
-              "        console.log('  ' + o.order_no + ' | ' + o.status + ' | ' + o.customer_name + ' | Rp ' + o.total_payment);",
-              "    });",
               "} else {",
               "    console.log('📭 No orders found');",
               "}"
@@ -138,50 +122,12 @@
             }
           ]
         },
-        "description": "Mengambil **semua order** milik vendor, diurutkan dari yang terbaru.\n\n**Query Params:**\n- `page` (int, default: 1) — halaman ke-n\n- `limit` (int, default: 10) — jumlah per halaman\n- `status` (string, optional) — filter status: `paid`, `processing`, `shipped`, `completed`, `canceled`\n\n**Response:**\nArray `VendorOrderListItem` beserta `meta` pagination."
+        "description": "Mengambil **semua order** milik vendor.\n\n**Query Params:**\n- `page` (int, default: 1) — halaman ke-n\n- `limit` (int, default: 10) — jumlah per halaman\n- `status` (string, optional) — filter status: `paid`, `processing`, `shipped`, `completed`, `canceled`\n- `search` (string, optional) — cari berdasarkan nomor order atau nama pembeli\n- `date_from` (string, optional) — filter dari tanggal (format: YYYY-MM-DD)\n- `date_to` (string, optional) — filter sampai tanggal (format: YYYY-MM-DD)\n- `sort_by` (string, optional) — urutkan berdasarkan: `order_date`, `customer_name`, `total_payment`\n- `sort_order` (string, optional) — urutan: `asc`, `desc` (default: desc)"
       },
-      "response": [
-        {
-          "name": "200 - Orders Loaded",
-          "status": "OK",
-          "code": 200,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": true,\n  \"message\": \"vendor orders retrieved successfully\",\n  \"data\": [\n    {\n      \"order_id\": \"a1b2c3d4-...\",\n      \"order_no\": \"ORD-20260311-XXXX\",\n      \"order_date\": \"2026-03-11T10:00:00Z\",\n      \"customer_name\": \"John Doe\",\n      \"items\": [\n        {\n          \"product_name\": \"Sajadah Premium\",\n          \"selected_variant\": \"Hijau - L\",\n          \"qty\": 2,\n          \"unit_price\": 150000,\n          \"line_total\": 300000\n        }\n      ],\n      \"total_payment\": 320000,\n      \"status\": \"paid\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
-        }
-      ]
+      "response": []
     },
     {
       "name": "2b. List Orders (Filter: paid)",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "",
-              "var json = pm.response.json();",
-              "pm.test('All orders are paid', function () {",
-              "    pm.expect(json.success).to.be.true;",
-              "    if (json.data && json.data.length > 0) {",
-              "        json.data.forEach(function(o) {",
-              "            pm.expect(o.status).to.eql('paid');",
-              "        });",
-              "        pm.collectionVariables.set('order_id', json.data[0].order_id);",
-              "        console.log('✅ order_id (paid) saved: ' + json.data[0].order_id);",
-              "    }",
-              "});"
-            ]
-          }
-        }
-      ],
       "request": {
         "method": "GET",
         "header": [
@@ -214,7 +160,164 @@
             }
           ]
         },
-        "description": "Filter order vendor hanya status `paid` (order yang menunggu untuk diterima/ditolak)."
+        "description": "Filter order vendor hanya status `paid`."
+      },
+      "response": []
+    },
+    {
+      "name": "2c. List Orders (Search)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{vendor_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/vendors/orders?search=ORD-2026&page=1&limit=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "vendors",
+            "orders"
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": "ORD-2026"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "description": "Cari order berdasarkan nomor order atau nama pembeli."
+      },
+      "response": []
+    },
+    {
+      "name": "2d. List Orders (Date Filter)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{vendor_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/vendors/orders?date_from=2026-03-01&date_to=2026-03-31&page=1&limit=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "vendors",
+            "orders"
+          ],
+          "query": [
+            {
+              "key": "date_from",
+              "value": "2026-03-01"
+            },
+            {
+              "key": "date_to",
+              "value": "2026-03-31"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "description": "Filter order berdasarkan rentang tanggal."
+      },
+      "response": []
+    },
+    {
+      "name": "2e. List Orders (Sorting)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{vendor_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/vendors/orders?sort_by=total_payment&sort_order=desc&page=1&limit=10",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "vendors",
+            "orders"
+          ],
+          "query": [
+            {
+              "key": "sort_by",
+              "value": "total_payment"
+            },
+            {
+              "key": "sort_order",
+              "value": "desc"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "description": "Urutkan order berdasarkan total pembayaran (tertinggi).\n\n**sort_by options:**\n- `order_date` — tanggal order\n- `customer_name` — nama pembeli\n- `total_payment` — total pembayaran\n\n**sort_order options:**\n- `asc` — ascending (naik)\n- `desc` — descending (turun)"
+      },
+      "response": []
+    },
+    {
+      "name": "2f. Export Orders (CSV)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{vendor_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/vendors/orders/export?date_from=2026-03-01&date_to=2026-03-31",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "vendors",
+            "orders",
+            "export"
+          ],
+          "query": [
+            {
+              "key": "date_from",
+              "value": "2026-03-01"
+            },
+            {
+              "key": "date_to",
+              "value": "2026-03-31"
+            }
+          ]
+        },
+        "description": "**Download data order dalam format CSV.**\n\nMendukung filter yang sama dengan List Orders:\n- `status` — filter status\n- `search` — cari nomor order/nama pembeli\n- `date_from`, `date_to` — filter rentang tanggal\n- `sort_by`, `sort_order` — pengurutan\n\n**Response:** File CSV dengan kolom:\n- No. Order, Tanggal Order, Nama Pembeli, Nama Produk, Varian\n- Qty, Harga Satuan, Total Harga Item, Subtotal, Ongkir\n- Biaya Platform, Total Pembayaran, Status"
       },
       "response": []
     },
@@ -233,19 +336,22 @@
               "var json = pm.response.json();",
               "pm.test('Has order detail', function () {",
               "    pm.expect(json.success).to.be.true;",
-              "    pm.expect(json.data.order_id).to.be.a('string');",
-              "    pm.expect(json.data.order_no).to.be.a('string');",
-              "    pm.expect(json.data.items).to.be.an('array');",
+              "    pm.expect(json.data).to.have.property('shipping');",
+              "    pm.expect(json.data).to.have.property('recipient');",
+              "    pm.expect(json.data).to.have.property('store');",
+              "    pm.expect(json.data).to.have.property('items');",
+              "    pm.expect(json.data).to.have.property('payment');",
+              "    pm.expect(json.data).to.have.property('order');",
+              "    pm.expect(json.data).to.have.property('summary');",
               "});",
               "",
               "if (json.data) {",
               "    var d = json.data;",
-              "    console.log('📋 Order: ' + d.order_no);",
-              "    console.log('   Status: ' + d.status);",
-              "    console.log('   Customer: ' + d.customer_name);",
-              "    console.log('   Grand Total: Rp ' + d.grand_total);",
-              "    console.log('   Shipment: ' + JSON.stringify(d.shipment));",
-              "    console.log('   Payment: ' + JSON.stringify(d.payment_info));",
+              "    console.log('📋 Order: ' + d.order.order_number);",
+              "    console.log('   Store: ' + d.store.name);",
+              "    console.log('   Recipient: ' + d.recipient.name);",
+              "    console.log('   Shipping Status: ' + d.shipping.status);",
+              "    console.log('   Grand Total: Rp ' + d.summary.grand_total);",
               "}"
             ]
           }
@@ -270,34 +376,9 @@
             "{{order_id}}"
           ]
         },
-        "description": "Mengambil **detail lengkap** satu order.\n\n**Response meliputi:**\n- Info order (no, tanggal, status, customer name)\n- Daftar item produk (nama, varian, qty, harga)\n- Breakdown harga (subtotal, shipping, platform fee, grand total)\n- Alamat pengiriman (snapshot)\n- Info pengiriman (shipment) — `null` jika belum dikirim\n- Info pembayaran (payment_info)"
+        "description": "Mengambil **detail lengkap** satu order.\n\n**Response Structure:**\n```json\n{\n  \"shipping\": {\n    \"courier\": \"jne\",\n    \"tracking_number\": \"JNE123456\",\n    \"status\": \"Paket dalam perjalanan...\",\n    \"delivered_at\": null\n  },\n  \"recipient\": {\n    \"name\": \"John Doe\",\n    \"phone\": \"08123456789\",\n    \"address\": {\n      \"street\": \"Jl. Merdeka No. 1\",\n      \"district\": \"Menteng\",\n      \"city\": \"Jakarta\",\n      \"province\": \"DKI Jakarta\",\n      \"postal_code\": \"10110\"\n    }\n  },\n  \"store\": {\n    \"name\": \"Toko Umroh\"\n  },\n  \"items\": [\n    {\n      \"name\": \"Sajadah Premium\",\n      \"variant\": \"Hijau - L\",\n      \"price\": 150000,\n      \"quantity\": 2,\n      \"subtotal\": 300000\n    }\n  ],\n  \"payment\": {\n    \"method\": \"QRIS\",\n    \"total_amount\": 320000\n  },\n  \"order\": {\n    \"order_number\": \"ORD-20260311-XXXX\",\n    \"order_time\": \"2026-03-11T10:00:00Z\",\n    \"payment_time\": \"2026-03-11T10:05:00Z\",\n    \"shipping_time\": \"2026-03-12T08:00:00Z\",\n    \"delivered_time\": null\n  },\n  \"summary\": {\n    \"items_total\": 300000,\n    \"shipping_fee\": 8000,\n    \"service_fee\": 12000,\n    \"grand_total\": 320000\n  }\n}\n```"
       },
-      "response": [
-        {
-          "name": "200 - Order Detail",
-          "status": "OK",
-          "code": 200,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": true,\n  \"message\": \"order detail retrieved successfully\",\n  \"data\": {\n    \"order_id\": \"a1b2c3d4-...\",\n    \"order_no\": \"ORD-20260311-XXXX\",\n    \"order_date\": \"2026-03-11T10:00:00Z\",\n    \"status\": \"paid\",\n    \"customer_name\": \"John Doe\",\n    \"items\": [\n      {\n        \"product_name\": \"Sajadah Premium\",\n        \"selected_variant\": \"Hijau - L\",\n        \"qty\": 2,\n        \"unit_price\": 150000,\n        \"line_total\": 300000\n      }\n    ],\n    \"subtotal\": 300000,\n    \"shipping_fee\": 15000,\n    \"platform_fee\": 5000,\n    \"grand_total\": 320000,\n    \"shipping_address\": {\n      \"recipient_name\": \"John Doe\",\n      \"phone\": \"081234567890\",\n      \"full_address\": \"Jl. Merdeka No. 1\",\n      \"city\": \"Jakarta Selatan\",\n      \"province\": \"DKI Jakarta\"\n    },\n    \"shipment\": {\n      \"courier_code\": \"jne\",\n      \"service_type\": \"REG\",\n      \"tracking_no\": \"\",\n      \"etd\": \"1-2 day\",\n      \"shipment_status\": \"waiting_pickup\"\n    },\n    \"payment_info\": {\n      \"status\": \"paid\",\n      \"payment_method\": \"BANK_TRANSFER\",\n      \"payment_channel\": \"BCA\",\n      \"paid_at\": \"2026-03-11T10:05:00Z\"\n    }\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
-        },
-        {
-          "name": "403 - Order Bukan Milik Vendor",
-          "status": "Forbidden",
-          "code": 403,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": false,\n  \"message\": \"order does not belong to this vendor\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
-        }
-      ]
+      "response": []
     },
     {
       "name": "4. Accept Order (Terima Pesanan)",
@@ -344,34 +425,9 @@
             "accept"
           ]
         },
-        "description": "**Menerima pesanan** — mengubah status order dari `paid` → `processing`.\n\n**Pre-condition:** Order harus berstatus `paid`.\n\n**Tidak membutuhkan body request.**"
+        "description": "**Menerima pesanan** — mengubah status order dari `paid` → `processing`.\n\n**Pre-condition:** Order harus berstatus `paid`."
       },
-      "response": [
-        {
-          "name": "200 - Order Accepted",
-          "status": "OK",
-          "code": 200,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": true,\n  \"message\": \"order accepted successfully\",\n  \"data\": {\n    \"order_id\": \"a1b2c3d4-...\",\n    \"order_status\": \"processing\",\n    \"updated_at\": \"2026-03-11T10:10:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
-        },
-        {
-          "name": "400 - Status Bukan Paid",
-          "status": "Bad Request",
-          "code": 400,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": false,\n  \"message\": \"order can only be accepted when status is paid\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
-        }
-      ]
+      "response": []
     },
     {
       "name": "5. Ship Order (Input Resi)",
@@ -389,14 +445,11 @@
               "pm.test('Order shipped', function () {",
               "    pm.expect(json.success).to.be.true;",
               "    pm.expect(json.data.order_status).to.eql('shipped');",
-              "    pm.expect(json.data.tracking_no).to.be.a('string');",
               "});",
               "",
               "if (json.data) {",
               "    console.log('🚚 Order shipped!');",
               "    console.log('   Tracking: ' + json.data.tracking_no);",
-              "    console.log('   Courier: ' + json.data.courier_code);",
-              "    console.log('   Shipped at: ' + json.data.shipped_at);",
               "    console.log('   ETD: ' + (json.data.etd || '-'));",
               "    console.log('   Estimated Arrival: ' + (json.data.estimated_arrival || '-'));",
               "}"
@@ -432,47 +485,9 @@
           "mode": "raw",
           "raw": "{\n  \"tracking_no\": \"JNE1234567890\"\n}"
         },
-        "description": "**Input nomor resi** dan kirim pesanan — mengubah status dari `processing` → `shipped`.\n\n**Pre-condition:** Order harus berstatus `processing` (sudah di-accept).\n\n**Body:**\n```json\n{\n  \"tracking_no\": \"JNE1234567890\"\n}\n```\n\n**Field:**\n- `tracking_no` (required) — nomor resi dari kurir\n\n**Catatan:** Informasi kurir (`courier_code`, `service_type`) dan estimasi pengiriman (`etd`) sudah tersimpan otomatis saat checkout. Vendor hanya perlu memasukkan nomor resi.\n\n**Response** akan menyertakan `etd` dan `estimated_arrival` (estimasi tanggal tiba, dihitung dari `shipped_at` + ETD)."
+        "description": "**Input nomor resi** dan kirim pesanan.\n\n**Pre-condition:** Order harus berstatus `processing`.\n\n**Body:**\n```json\n{\n  \"tracking_no\": \"JNE1234567890\"\n}\n```"
       },
-      "response": [
-        {
-          "name": "200 - Order Shipped",
-          "status": "OK",
-          "code": 200,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": true,\n  \"message\": \"order shipped successfully\",\n  \"data\": {\n    \"order_id\": \"a1b2c3d4-...\",\n    \"order_status\": \"shipped\",\n    \"tracking_no\": \"JNE1234567890\",\n    \"courier_code\": \"jne\",\n    \"shipped_at\": \"2026-03-11T10:15:00Z\",\n    \"etd\": \"1-2 day\",\n    \"estimated_arrival\": \"2026-03-13\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
-        },
-        {
-          "name": "400 - Status Bukan Processing",
-          "status": "Bad Request",
-          "code": 400,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": false,\n  \"message\": \"order can only be shipped when status is processing\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
-        },
-        {
-          "name": "400 - Missing Fields",
-          "status": "Bad Request",
-          "code": 400,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": false,\n  \"message\": \"invalid request body\",\n  \"data\": null,\n  \"errors\": \"Key: 'ShipOrderRequest.TrackingNo' Error:Field validation for 'TrackingNo' failed on the 'required' tag\",\n  \"meta\": null\n}",
-          "name": "400 - Tracking No Kosong"
-        }
-      ]
+      "response": []
     },
     {
       "name": "6. Track Waybill (Lacak Resi)",
@@ -494,14 +509,9 @@
               "});",
               "",
               "if (json.data) {",
-              "    var d = json.data;",
-              "    console.log('📍 Tracking: ' + d.summary.waybill_number);",
-              "    console.log('   Courier: ' + d.summary.courier_name);",
-              "    console.log('   Status: ' + d.summary.status);",
-              "    console.log('   Delivered: ' + d.delivered);",
-              "    if (d.manifest && d.manifest.length > 0) {",
-              "        console.log('   Last manifest: ' + d.manifest[0].manifest_description);",
-              "    }",
+              "    console.log('📍 Tracking: ' + json.data.summary.waybill_number);",
+              "    console.log('   Status: ' + json.data.summary.status);",
+              "    console.log('   Delivered: ' + json.data.delivered);",
               "}"
             ]
           }
@@ -527,37 +537,147 @@
             "tracking"
           ]
         },
-        "description": "**Lacak pengiriman** (tracking AWB) via RajaOngkir.\n\n**Pre-condition:** Order harus sudah memiliki shipment (sudah di-ship/input resi).\n\n**Response:**\n- `delivered` (bool) — apakah paket sudah sampai\n- `summary` — ringkasan pengiriman\n- `details` — detail pengirim & penerima\n- `delivery_status` — status akhir pengiriman\n- `manifest` — riwayat perjalanan paket\n\n**Catatan:**\n- Data tracking dari API RajaOngkir Komerce\n- Jika nomor resi belum terdaftar di kurir, response mungkin kosong"
+        "description": "**Lacak pengiriman** (tracking AWB) via RajaOngkir.\n\n**Pre-condition:** Order harus sudah memiliki shipment."
       },
-      "response": [
-        {
-          "name": "200 - Tracking Info",
-          "status": "OK",
-          "code": 200,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": true,\n  \"message\": \"tracking info retrieved successfully\",\n  \"data\": {\n    \"delivered\": false,\n    \"summary\": {\n      \"courier_code\": \"jne\",\n      \"courier_name\": \"JNE\",\n      \"waybill_number\": \"JNE1234567890\",\n      \"service_code\": \"REG\",\n      \"waybill_date\": \"2026-03-11\",\n      \"shipper_name\": \"Toko Umroh\",\n      \"receiver_name\": \"John Doe\",\n      \"origin\": \"JAKARTA\",\n      \"destination\": \"SURABAYA\",\n      \"status\": \"ON PROCESS\"\n    },\n    \"details\": {\n      \"waybill_number\": \"JNE1234567890\",\n      \"waybill_date\": \"2026-03-11\",\n      \"waybill_time\": \"10:15\",\n      \"weight\": \"1.0\",\n      \"origin\": \"JAKARTA\",\n      \"destination\": \"SURABAYA\",\n      \"shipper_name\": \"Toko Umroh\",\n      \"shipper_address1\": \"Jl. Vendor No. 1\",\n      \"shipper_address2\": \"\",\n      \"shipper_address3\": \"\",\n      \"shipper_city\": \"JAKARTA\",\n      \"receiver_name\": \"John Doe\",\n      \"receiver_address1\": \"Jl. Merdeka No. 1\",\n      \"receiver_address2\": \"\",\n      \"receiver_address3\": \"\",\n      \"receiver_city\": \"SURABAYA\"\n    },\n    \"delivery_status\": {\n      \"status\": \"ON PROCESS\",\n      \"pod_receiver\": \"\",\n      \"pod_date\": \"\",\n      \"pod_time\": \"\"\n    },\n    \"manifest\": [\n      {\n        \"manifest_code\": \"300\",\n        \"manifest_description\": \"SHIPMENT RECEIVED BY JNE COUNTER OFFICER AT [JAKARTA]\",\n        \"manifest_date\": \"2026-03-11\",\n        \"manifest_time\": \"10:20\",\n        \"city_name\": \"JAKARTA\"\n      }\n    ]\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
-        },
-        {
-          "name": "404 - Belum Ada Shipment",
-          "status": "Not Found",
-          "code": 404,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": false,\n  \"message\": \"shipment not found for this order\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
-        }
-      ]
+      "response": []
     },
     {
-      "name": "7. Reject Order (Tolak Pesanan)",
+      "name": "7. Get Invoice (Nota Pesanan)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "pm.test('Has invoice data', function () {",
+              "    pm.expect(json.success).to.be.true;",
+              "    pm.expect(json.data).to.have.property('invoice');",
+              "    pm.expect(json.data).to.have.property('customer');",
+              "    pm.expect(json.data).to.have.property('payment');",
+              "    pm.expect(json.data).to.have.property('items');",
+              "    pm.expect(json.data).to.have.property('summary');",
+              "});",
+              "",
+              "if (json.data) {",
+              "    console.log('🧾 Invoice: ' + json.data.invoice.invoice_number);",
+              "    console.log('   Customer: ' + json.data.customer.name);",
+              "    console.log('   Total: Rp ' + json.data.summary.total);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{vendor_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/vendors/orders/{{order_id}}/invoice",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "vendors",
+            "orders",
+            "{{order_id}}",
+            "invoice"
+          ]
+        },
+        "description": "**Mengambil nota pesanan** (invoice data).\n\n**Response Structure:**\n```json\n{\n  \"invoice\": {\n    \"invoice_number\": \"INV-ODR-242727\",\n    \"issued_at\": \"2025-01-04 15:36\",\n    \"actions\": {\n      \"can_copy\": true,\n      \"can_print\": true,\n      \"can_download\": true\n    }\n  },\n  \"customer\": {\n    \"name\": \"Safira Anaya\",\n    \"phone\": \"+6281234567890\",\n    \"address\": {\n      \"street\": \"Gg. Sanusi\",\n      \"district\": \"Kec. Cianjur\",\n      \"city\": \"Kabupaten Cianjur\",\n      \"province\": \"Jawa Barat\",\n      \"postal_code\": \"267281\"\n    }\n  },\n  \"payment\": {\n    \"method\": \"QRIS\",\n    \"paid_at\": \"2026-01-01 06:00\"\n  },\n  \"items\": [\n    {\n      \"name\": \"Paket Oleh-oleh Umrah Keluarga\",\n      \"variant\": \"Keluarga Besar\",\n      \"price\": 450000,\n      \"quantity\": 1,\n      \"subtotal\": 450000,\n      \"image_url\": null\n    }\n  ],\n  \"summary\": {\n    \"subtotal\": 450000,\n    \"shipping_fee\": 15000,\n    \"service_fee\": 2500,\n    \"total\": 467500,\n    \"currency\": \"IDR\"\n  }\n}\n```"
+      },
+      "response": []
+    },
+    {
+      "name": "8. Download Invoice PDF",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{vendor_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/vendors/orders/{{order_id}}/invoice/download",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "vendors",
+            "orders",
+            "{{order_id}}",
+            "invoice",
+            "download"
+          ]
+        },
+        "description": "**Download nota pesanan dalam format PDF.**\n\n**Response:** File PDF dengan nama `{invoice_number}.pdf`\n\n**Content-Type:** `application/pdf`"
+      },
+      "response": []
+    },
+    {
+      "name": "9. Get Shipping Info (Informasi Pengiriman)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "pm.test('Has shipping info', function () {",
+              "    pm.expect(json.success).to.be.true;",
+              "    pm.expect(json.data).to.have.property('stages');",
+              "    pm.expect(json.data).to.have.property('courier');",
+              "    pm.expect(json.data).to.have.property('events');",
+              "});",
+              "",
+              "if (json.data) {",
+              "    console.log('📦 Courier: ' + json.data.courier.name);",
+              "    console.log('   Tracking: ' + json.data.courier.tracking_no);",
+              "    console.log('   Events: ' + json.data.events.length);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{vendor_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/vendors/orders/{{order_id}}/shipping",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "vendors",
+            "orders",
+            "{{order_id}}",
+            "shipping"
+          ]
+        },
+        "description": "**Mengambil informasi pengiriman** dengan timeline tracking.\n\n**Response Structure:**\n```json\n{\n  \"estimated_arrival\": \"2026-03-15\",\n  \"stages\": [\n    {\"status\": \"processing\", \"label\": \"Diproses\", \"completed\": true, \"active\": false},\n    {\"status\": \"shipped\", \"label\": \"Dikirim\", \"completed\": true, \"active\": false},\n    {\"status\": \"in_transit\", \"label\": \"Dalam Perjalanan\", \"completed\": false, \"active\": true},\n    {\"status\": \"delivered\", \"label\": \"Tiba di Tujuan\", \"completed\": false, \"active\": false}\n  ],\n  \"courier\": {\n    \"name\": \"J&T Express\",\n    \"code\": \"jnt\",\n    \"tracking_no\": \"JT272936382\"\n  },\n  \"events\": [\n    {\n      \"date_time\": \"2026-03-12 10:30\",\n      \"description\": \"Paket diterima di gudang Cianjur\",\n      \"location\": \"CIANJUR\"\n    },\n    {\n      \"date_time\": \"2026-03-12 08:00\",\n      \"description\": \"Paket dalam perjalanan ke hub berikutnya\",\n      \"location\": \"BANDUNG\"\n    }\n  ]\n}\n```"
+      },
+      "response": []
+    },
+    {
+      "name": "10. Reject Order (Tolak Pesanan)",
       "event": [
         {
           "listen": "test",
@@ -575,7 +695,7 @@
               "});",
               "",
               "if (json.data) {",
-              "    console.log('❌ Order ' + json.data.order_id + ' rejected → ' + json.data.order_status);",
+              "    console.log('❌ Order rejected → ' + json.data.order_status);",
               "}"
             ]
           }
@@ -601,34 +721,9 @@
             "reject"
           ]
         },
-        "description": "**Menolak pesanan** — mengubah status order dari `paid` atau `processing` → `canceled`.\n\nStock produk akan di-restore otomatis.\n\n**Pre-condition:** Order harus berstatus `paid` atau `processing`.\n\n**Tidak membutuhkan body request.**\n\n**Catatan:** Reject tidak melakukan refund via Xendit (untuk saat ini)."
+        "description": "**Menolak pesanan** — mengubah status order dari `paid` atau `processing` → `canceled`.\n\n**Pre-condition:** Order harus berstatus `paid` atau `processing`."
       },
-      "response": [
-        {
-          "name": "200 - Order Rejected",
-          "status": "OK",
-          "code": 200,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": true,\n  \"message\": \"order rejected successfully\",\n  \"data\": {\n    \"order_id\": \"a1b2c3d4-...\",\n    \"order_status\": \"canceled\",\n    \"updated_at\": \"2026-03-11T10:12:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
-        },
-        {
-          "name": "400 - Status Tidak Bisa Di-reject",
-          "status": "Bad Request",
-          "code": 400,
-          "header": [
-            {
-              "key": "Content-Type",
-              "value": "application/json"
-            }
-          ],
-          "body": "{\n  \"success\": false,\n  \"message\": \"order can only be rejected when status is paid or processing\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
-        }
-      ]
+      "response": []
     }
   ]
 }

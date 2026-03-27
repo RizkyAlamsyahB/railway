@@ -42,11 +42,12 @@ func (s *stubOTPUseCase) VerifyProofToken(ctx context.Context, token string, exp
 }
 
 type stubVendorOnboardingRepo struct {
-	findByID      func(context.Context, uuid.UUID) (*domain.VendorOnboarding, error)
-	findByEmail   func(context.Context, string) (*domain.VendorOnboarding, error)
-	upsert        func(context.Context, *domain.VendorOnboarding) error
-	update        func(context.Context, *domain.VendorOnboarding, ...string) error
-	markCompleted func(context.Context, uuid.UUID, time.Time) error
+	findByID             func(context.Context, uuid.UUID) (*domain.VendorOnboarding, error)
+	findByEmail          func(context.Context, string) (*domain.VendorOnboarding, error)
+	upsert               func(context.Context, *domain.VendorOnboarding) error
+	update               func(context.Context, *domain.VendorOnboarding, ...string) error
+	markCompleted        func(context.Context, uuid.UUID, time.Time) error
+	finalizeRegistration func(context.Context, domain.VendorRegistrationFinalizeInput) error
 }
 
 func (s *stubVendorOnboardingRepo) FindByID(ctx context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
@@ -82,6 +83,13 @@ func (s *stubVendorOnboardingRepo) MarkCompleted(ctx context.Context, id uuid.UU
 		return nil
 	}
 	return s.markCompleted(ctx, id, completedAt)
+}
+
+func (s *stubVendorOnboardingRepo) FinalizeRegistration(ctx context.Context, input domain.VendorRegistrationFinalizeInput) error {
+	if s.finalizeRegistration == nil {
+		return nil
+	}
+	return s.finalizeRegistration(ctx, input)
 }
 
 func setupVendorUseCase(t *testing.T) (
@@ -188,6 +196,84 @@ func TestVerifyRegistrationOTP(t *testing.T) {
 	}
 }
 
+func TestGetRegistrationStatus(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		onboardingID := uuid.New()
+
+		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+			if id != onboardingID {
+				t.Fatalf("unexpected onboarding id: %s", id)
+			}
+			return &domain.VendorOnboarding{
+				ID:     onboardingID,
+				Email:  "vendor@example.com",
+				Status: domain.VendorOnboardingStatusPasswordSet,
+			}, nil
+		}
+
+		resp, err := uc.GetRegistrationStatus(ctx, onboardingID)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("expected response")
+		}
+		if resp.Email != "vendor@example.com" {
+			t.Fatalf("unexpected email: %s", resp.Email)
+		}
+		if resp.Status != domain.VendorOnboardingStatusPasswordSet {
+			t.Fatalf("unexpected status: %s", resp.Status)
+		}
+	})
+
+	t.Run("completed onboarding remains readable", func(t *testing.T) {
+		_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		onboardingID := uuid.New()
+		completedAt := time.Now()
+
+		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+			if id != onboardingID {
+				t.Fatalf("unexpected onboarding id: %s", id)
+			}
+			return &domain.VendorOnboarding{
+				ID:          onboardingID,
+				Email:       "vendor@example.com",
+				Status:      domain.VendorOnboardingStatusCompleted,
+				CompletedAt: &completedAt,
+			}, nil
+		}
+
+		resp, err := uc.GetRegistrationStatus(ctx, onboardingID)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.Status != domain.VendorOnboardingStatusCompleted {
+			t.Fatalf("unexpected response: %+v", resp)
+		}
+	})
+
+	t.Run("onboarding not found", func(t *testing.T) {
+		_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		onboardingID := uuid.New()
+
+		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+			if id != onboardingID {
+				t.Fatalf("unexpected onboarding id: %s", id)
+			}
+			return nil, nil
+		}
+
+		_, err := uc.GetRegistrationStatus(ctx, onboardingID)
+		if !errors.Is(err, ErrVendorOnboardingNotFound) {
+			t.Fatalf("expected ErrVendorOnboardingNotFound, got %v", err)
+		}
+	})
+}
+
 func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
 	_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
 	ctx := context.Background()
@@ -199,7 +285,7 @@ func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
 		return &domain.VendorOnboarding{
 			ID:     onboardingID,
 			Email:  "vendor@example.com",
-			Status: domain.VendorOnboardingStatusStoreInfoComplete,
+			Status: domain.VendorOnboardingStatusPasswordSet,
 		}, nil
 	}
 
@@ -209,8 +295,97 @@ func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
 	}
 }
 
-func TestSubmitRegistrationLegal_Success(t *testing.T) {
-	userRepo, vendorRepo, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
+func TestPresignRegistrationIndividualDocument_TableDriven(t *testing.T) {
+	t.Run("success jpeg", func(t *testing.T) {
+		_, _, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		onboardingID := uuid.New()
+
+		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+			if id != onboardingID {
+				t.Fatalf("unexpected onboarding id: %s", id)
+			}
+			return &domain.VendorOnboarding{
+				ID:     onboardingID,
+				Email:  "vendor@example.com",
+				Status: domain.VendorOnboardingStatusPasswordSet,
+			}, nil
+		}
+		storage.EXPECT().
+			GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).
+			Return("https://upload.example.com", nil)
+
+		resp, err := uc.PresignRegistrationIndividualDocument(ctx, onboardingID, domain.VendorRegistrationPresignDocumentRequest{
+			DocumentIDType: domain.VendorDocumentIDTypeKTP,
+			ContentType:    "image/jpeg",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.UploadURL == "" {
+			t.Fatal("expected upload url")
+		}
+	})
+
+	t.Run("success normalized pdf", func(t *testing.T) {
+		_, _, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		onboardingID := uuid.New()
+
+		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+			if id != onboardingID {
+				t.Fatalf("unexpected onboarding id: %s", id)
+			}
+			return &domain.VendorOnboarding{
+				ID:     onboardingID,
+				Email:  "vendor@example.com",
+				Status: domain.VendorOnboardingStatusPasswordSet,
+			}, nil
+		}
+		storage.EXPECT().
+			GeneratePresignedUploadURL(ctx, gomock.Any(), "application/pdf", PresignedUploadExpiry).
+			Return("https://upload.example.com", nil)
+
+		resp, err := uc.PresignRegistrationIndividualDocument(ctx, onboardingID, domain.VendorRegistrationPresignDocumentRequest{
+			DocumentIDType: domain.VendorDocumentIDTypePassport,
+			ContentType:    " APPLICATION/PDF ; charset=utf-8 ",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.UploadURL == "" {
+			t.Fatal("expected upload url")
+		}
+	})
+
+	t.Run("invalid content type", func(t *testing.T) {
+		_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		onboardingID := uuid.New()
+
+		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+			if id != onboardingID {
+				t.Fatalf("unexpected onboarding id: %s", id)
+			}
+			return &domain.VendorOnboarding{
+				ID:     onboardingID,
+				Email:  "vendor@example.com",
+				Status: domain.VendorOnboardingStatusPasswordSet,
+			}, nil
+		}
+
+		_, err := uc.PresignRegistrationIndividualDocument(ctx, onboardingID, domain.VendorRegistrationPresignDocumentRequest{
+			DocumentIDType: domain.VendorDocumentIDTypeKTP,
+			ContentType:    "image/png",
+		})
+		if !errors.Is(err, ErrInvalidDocumentContent) {
+			t.Fatalf("expected ErrInvalidDocumentContent, got %v", err)
+		}
+	})
+}
+
+func TestSubmitRegistrationIndividual_Success(t *testing.T) {
+	userRepo, _, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
 	ctx := context.Background()
 	onboardingID := uuid.New()
 	passwordHash, err := auth.HashPassword("password123")
@@ -222,15 +397,11 @@ func TestSubmitRegistrationLegal_Success(t *testing.T) {
 		if id != onboardingID {
 			t.Fatalf("unexpected onboarding id: %s", id)
 		}
-		storeName := "Toko Haji"
-		vendorType := domain.VendorTypeSouvenirStore
 		return &domain.VendorOnboarding{
 			ID:            onboardingID,
 			Email:         "vendor@example.com",
-			Status:        domain.VendorOnboardingStatusStoreInfoComplete,
+			Status:        domain.VendorOnboardingStatusPasswordSet,
 			PasswordHash:  &passwordHash,
-			StoreName:     &storeName,
-			VendorType:    &vendorType,
 			OTPVerifiedAt: time.Now(),
 		}, nil
 	}
@@ -243,9 +414,12 @@ func TestSubmitRegistrationLegal_Success(t *testing.T) {
 		}
 		return nil
 	}
-	onboardingRepo.markCompleted = func(_ context.Context, id uuid.UUID, _ time.Time) error {
-		if id != onboardingID {
-			t.Fatalf("unexpected completed onboarding id: %s", id)
+	onboardingRepo.finalizeRegistration = func(_ context.Context, input domain.VendorRegistrationFinalizeInput) error {
+		if input.OnboardingID != onboardingID {
+			t.Fatalf("unexpected onboarding id: %s", input.OnboardingID)
+		}
+		if input.UserRole != domain.RoleUMKM {
+			t.Fatalf("unexpected user role: %s", input.UserRole)
 		}
 		return nil
 	}
@@ -257,12 +431,9 @@ func TestSubmitRegistrationLegal_Success(t *testing.T) {
 		ContentLength: 1024,
 	}, nil)
 	userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(nil, nil)
-	userRepo.EXPECT().Create(ctx, gomock.Any(), domain.RoleUMKM).Return(nil)
-	vendorRepo.EXPECT().CreateMinimal(ctx, gomock.Any(), gomock.Any()).Return(nil)
-	vendorRepo.EXPECT().InitBalance(ctx, gomock.Any()).Return(nil)
 
-	resp, err := uc.SubmitRegistrationLegal(ctx, onboardingID, domain.VendorRegistrationLegalRequest{
-		BusinessLegalType:   domain.VendorBusinessLegalTypeIndividual,
+	resp, err := uc.SubmitRegistrationIndividual(ctx, onboardingID, domain.VendorRegistrationIndividualLegalRequest{
+		StoreName:           "Toko Haji",
 		DocumentIDType:      domain.VendorDocumentIDTypeKTP,
 		NIK:                 "3173000000000001",
 		OwnerName:           "Ahmad",
@@ -277,6 +448,48 @@ func TestSubmitRegistrationLegal_Success(t *testing.T) {
 	}
 	if resp.VendorStatus != domain.VendorStatusDraft {
 		t.Fatalf("unexpected vendor status: %s", resp.VendorStatus)
+	}
+}
+
+func TestSubmitRegistrationIndividual_InvalidContentType(t *testing.T) {
+	_, _, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
+	ctx := context.Background()
+	onboardingID := uuid.New()
+	passwordHash, err := auth.HashPassword("password123")
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
+		if id != onboardingID {
+			t.Fatalf("unexpected onboarding id: %s", id)
+		}
+		return &domain.VendorOnboarding{
+			ID:            onboardingID,
+			Email:         "vendor@example.com",
+			Status:        domain.VendorOnboardingStatusPasswordSet,
+			PasswordHash:  &passwordHash,
+			OTPVerifiedAt: time.Now(),
+		}, nil
+	}
+
+	objectKey := buildVendorOnboardingDocumentObjectKey(onboardingID)
+	storage.EXPECT().HeadObject(ctx, objectKey).Return(&domain.ObjectInfo{
+		Key:           objectKey,
+		ContentType:   "image/png",
+		ContentLength: 1024,
+	}, nil)
+
+	_, err = uc.SubmitRegistrationIndividual(ctx, onboardingID, domain.VendorRegistrationIndividualLegalRequest{
+		StoreName:           "Toko Haji",
+		DocumentIDType:      domain.VendorDocumentIDTypeKTP,
+		NIK:                 "3173000000000001",
+		OwnerName:           "Ahmad",
+		BirthDate:           "1990-01-02",
+		DocumentIDObjectKey: objectKey,
+	})
+	if !errors.Is(err, ErrInvalidDocumentContent) {
+		t.Fatalf("expected ErrInvalidDocumentContent, got %v", err)
 	}
 }
 
@@ -299,32 +512,44 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 		wantDocCnt int
 	}
 
-	buildAllRequiredDocs := func(vendorID uuid.UUID) ([]domain.VendorDocument, []domain.ConfirmDocumentItem) {
-		existingDocs := make([]domain.VendorDocument, 0, len(requiredDocTypes))
-		confirmItems := make([]domain.ConfirmDocumentItem, 0, len(requiredDocTypes))
-		for _, docType := range requiredDocTypes {
-			objKey := "vendors/" + vendorID.String() + "/documents/" + docType + "/file"
-			existingDocs = append(existingDocs, domain.VendorDocument{
+	buildOnboardingDocument := func(vendorID uuid.UUID, docType string) []domain.VendorDocument {
+		uploaderID := uuid.New()
+		return []domain.VendorDocument{
+			{
 				ID:                 uuid.New(),
 				VendorID:           vendorID,
 				DocType:            docType,
-				FileURL:            objKey,
+				FileURL:            "vendor-onboardings/onb/documents/" + docType + "/file",
+				UploadedBy:         &uploaderID,
 				VerificationStatus: domain.VerificationStatusPending,
-			})
-			confirmItems = append(confirmItems, domain.ConfirmDocumentItem{
+			},
+		}
+	}
+
+	buildCompletionItems := func(vendorID uuid.UUID, docTypes ...string) []domain.ConfirmDocumentItem {
+		items := make([]domain.ConfirmDocumentItem, 0, len(docTypes))
+		for _, docType := range docTypes {
+			items = append(items, domain.ConfirmDocumentItem{
 				DocType:   docType,
-				ObjectKey: objKey,
+				ObjectKey: "vendors/" + vendorID.String() + "/documents/" + docType + "/file",
 			})
 		}
-		return existingDocs, confirmItems
+		return items
 	}
 
 	tests := []testCase{
 		{
 			name: "success all required uploaded",
 			reqBuilder: func(vendorID uuid.UUID) domain.ConfirmDocumentsRequest {
-				_, items := buildAllRequiredDocs(vendorID)
-				return domain.ConfirmDocumentsRequest{Documents: items}
+				return domain.ConfirmDocumentsRequest{
+					Documents: buildCompletionItems(
+						vendorID,
+						domain.VendorDocumentTypeStorePhoto,
+						domain.VendorDocumentTypeBankAccountProof,
+						domain.VendorDocumentTypeBusinessLogo,
+						domain.VendorDocumentTypeBusinessBanner,
+					),
+				}
 			},
 			setupMocks: func(
 				ctx context.Context,
@@ -335,28 +560,28 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 				vendorRepo *mocks.MockVendorRepository,
 				storage *mocks.MockStorageProvider,
 			) {
-				existingDocs, _ := buildAllRequiredDocs(vendorID)
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
-				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(existingDocs, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeOwnerDocumentID), nil)
 				storage.EXPECT().
 					HeadObject(ctx, gomock.Any()).
 					Return(&domain.ObjectInfo{ContentType: "image/jpeg", ContentLength: 1024}, nil).
-					Times(len(requiredDocTypes))
+					Times(4)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(&domain.VendorBankAccount{
+					ID:       uuid.New(),
+					VendorID: vendorID,
+				}, nil)
 				vendorRepo.EXPECT().
 					ConfirmDocumentsAndUpdateStatus(ctx, vendorID, gomock.Any(), domain.VendorStatusSubmitted).
 					Return(nil)
 			},
 			wantStatus: domain.VendorStatusSubmitted,
-			wantDocCnt: len(requiredDocTypes),
+			wantDocCnt: 4,
 		},
 		{
 			name: "success partial upload",
 			reqBuilder: func(vendorID uuid.UUID) domain.ConfirmDocumentsRequest {
-				objectKey := "vendors/" + vendorID.String() + "/documents/owner_document_id/file"
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{
-						{DocType: "owner_document_id", ObjectKey: objectKey},
-					},
+					Documents: buildCompletionItems(vendorID, domain.VendorDocumentTypeStorePhoto),
 				}
 			},
 			setupMocks: func(
@@ -368,12 +593,12 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 				vendorRepo *mocks.MockVendorRepository,
 				storage *mocks.MockStorageProvider,
 			) {
-				existingDocs, _ := buildAllRequiredDocs(vendorID)
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
-				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(existingDocs, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeOwnerDocumentID), nil)
 				storage.EXPECT().
 					HeadObject(ctx, req.Documents[0].ObjectKey).
 					Return(&domain.ObjectInfo{ContentType: "image/png", ContentLength: 2048}, nil)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
 				vendorRepo.EXPECT().
 					ConfirmDocumentsAndUpdateStatus(ctx, vendorID, gomock.Any(), "").
 					Return(nil)
@@ -382,10 +607,135 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			wantDocCnt: 1,
 		},
 		{
+			name: "corporate requires npwp",
+			reqBuilder: func(vendorID uuid.UUID) domain.ConfirmDocumentsRequest {
+				return domain.ConfirmDocumentsRequest{
+					Documents: buildCompletionItems(
+						vendorID,
+						domain.VendorDocumentTypeStorePhoto,
+						domain.VendorDocumentTypeBankAccountProof,
+						domain.VendorDocumentTypeBusinessLogo,
+						domain.VendorDocumentTypeBusinessBanner,
+					),
+				}
+			},
+			setupMocks: func(
+				ctx context.Context,
+				userID uuid.UUID,
+				vendorID uuid.UUID,
+				vendor *domain.Vendor,
+				_ domain.ConfirmDocumentsRequest,
+				vendorRepo *mocks.MockVendorRepository,
+				storage *mocks.MockStorageProvider,
+			) {
+				legalType := domain.VendorBusinessLegalTypeCorporate
+				vendor.BusinessLegalType = &legalType
+				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeBusinessNIB), nil)
+				storage.EXPECT().
+					HeadObject(ctx, gomock.Any()).
+					Return(&domain.ObjectInfo{ContentType: "image/jpeg", ContentLength: 1024}, nil).
+					Times(4)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(&domain.VendorBankAccount{
+					ID:       uuid.New(),
+					VendorID: vendorID,
+				}, nil)
+				vendorRepo.EXPECT().
+					ConfirmDocumentsAndUpdateStatus(ctx, vendorID, gomock.Any(), "").
+					Return(nil)
+			},
+			wantStatus: domain.VendorStatusDraft,
+			wantDocCnt: 4,
+		},
+		{
+			name: "corporate submitted when nib and npwp complete",
+			reqBuilder: func(vendorID uuid.UUID) domain.ConfirmDocumentsRequest {
+				return domain.ConfirmDocumentsRequest{
+					Documents: buildCompletionItems(
+						vendorID,
+						domain.VendorDocumentTypeStorePhoto,
+						domain.VendorDocumentTypeBankAccountProof,
+						domain.VendorDocumentTypeBusinessLogo,
+						domain.VendorDocumentTypeBusinessBanner,
+						domain.VendorDocumentTypeBusinessNPWP,
+					),
+				}
+			},
+			setupMocks: func(
+				ctx context.Context,
+				userID uuid.UUID,
+				vendorID uuid.UUID,
+				vendor *domain.Vendor,
+				_ domain.ConfirmDocumentsRequest,
+				vendorRepo *mocks.MockVendorRepository,
+				storage *mocks.MockStorageProvider,
+			) {
+				legalType := domain.VendorBusinessLegalTypeCorporate
+				vendor.BusinessLegalType = &legalType
+				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeBusinessNIB), nil)
+				storage.EXPECT().
+					HeadObject(ctx, gomock.Any()).
+					Return(&domain.ObjectInfo{ContentType: "image/jpeg", ContentLength: 1024}, nil).
+					Times(5)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(&domain.VendorBankAccount{
+					ID:       uuid.New(),
+					VendorID: vendorID,
+				}, nil)
+				vendorRepo.EXPECT().
+					ConfirmDocumentsAndUpdateStatus(ctx, vendorID, gomock.Any(), domain.VendorStatusSubmitted).
+					Return(nil)
+			},
+			wantStatus: domain.VendorStatusSubmitted,
+			wantDocCnt: 5,
+		},
+		{
+			name: "corporate without business nib stays draft",
+			reqBuilder: func(vendorID uuid.UUID) domain.ConfirmDocumentsRequest {
+				return domain.ConfirmDocumentsRequest{
+					Documents: buildCompletionItems(
+						vendorID,
+						domain.VendorDocumentTypeStorePhoto,
+						domain.VendorDocumentTypeBankAccountProof,
+						domain.VendorDocumentTypeBusinessLogo,
+						domain.VendorDocumentTypeBusinessBanner,
+						domain.VendorDocumentTypeBusinessNPWP,
+					),
+				}
+			},
+			setupMocks: func(
+				ctx context.Context,
+				userID uuid.UUID,
+				vendorID uuid.UUID,
+				vendor *domain.Vendor,
+				_ domain.ConfirmDocumentsRequest,
+				vendorRepo *mocks.MockVendorRepository,
+				storage *mocks.MockStorageProvider,
+			) {
+				legalType := domain.VendorBusinessLegalTypeCorporate
+				vendor.BusinessLegalType = &legalType
+				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeOwnerDocumentID), nil)
+				storage.EXPECT().
+					HeadObject(ctx, gomock.Any()).
+					Return(&domain.ObjectInfo{ContentType: "image/jpeg", ContentLength: 1024}, nil).
+					Times(5)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(&domain.VendorBankAccount{
+					ID:       uuid.New(),
+					VendorID: vendorID,
+				}, nil)
+				vendorRepo.EXPECT().
+					ConfirmDocumentsAndUpdateStatus(ctx, vendorID, gomock.Any(), "").
+					Return(nil)
+			},
+			wantStatus: domain.VendorStatusDraft,
+			wantDocCnt: 5,
+		},
+		{
 			name: "vendor not found",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "key"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: domain.VendorDocumentTypeStorePhoto, ObjectKey: "key"}},
 				}
 			},
 			setupMocks: func(
@@ -405,7 +755,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "find vendor error",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "key"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: domain.VendorDocumentTypeStorePhoto, ObjectKey: "key"}},
 				}
 			},
 			setupMocks: func(
@@ -425,7 +775,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "find documents error",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "key"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: domain.VendorDocumentTypeStorePhoto, ObjectKey: "key"}},
 				}
 			},
 			setupMocks: func(
@@ -443,7 +793,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			wantAnyErr: true,
 		},
 		{
-			name: "document not found",
+			name: "invalid document type",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
 					Documents: []domain.ConfirmDocumentItem{{DocType: "nonexistent_type", ObjectKey: "key"}},
@@ -461,13 +811,13 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{}, nil)
 			},
-			wantErr: ErrDocumentNotFound,
+			wantErr: ErrInvalidVendorDocumentType,
 		},
 		{
 			name: "object not uploaded",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: domain.VendorDocumentTypeStorePhoto, ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -480,9 +830,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 				storage *mocks.MockStorageProvider,
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
-				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
-				}, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeOwnerDocumentID), nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(nil, nil)
 			},
 			wantErr: ErrObjectNotUploaded,
@@ -491,7 +839,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "head object error",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: domain.VendorDocumentTypeStorePhoto, ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -504,9 +852,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 				storage *mocks.MockStorageProvider,
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
-				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
-				}, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeOwnerDocumentID), nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(nil, errors.New("s3 error"))
 			},
 			wantAnyErr: true,
@@ -515,7 +861,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "invalid content type",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: domain.VendorDocumentTypeStorePhoto, ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -528,9 +874,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 				storage *mocks.MockStorageProvider,
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
-				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
-				}, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeOwnerDocumentID), nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(&domain.ObjectInfo{
 					ContentType:   "text/html",
 					ContentLength: 1024,
@@ -542,7 +886,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "document size overflow",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: domain.VendorDocumentTypeStorePhoto, ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -555,9 +899,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 				storage *mocks.MockStorageProvider,
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
-				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
-				}, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeOwnerDocumentID), nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(&domain.ObjectInfo{
 					ContentType:   "image/jpeg",
 					ContentLength: int64(math.MaxInt32) + 1,
@@ -569,7 +911,7 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			name: "confirm repo error",
 			reqBuilder: func(_ uuid.UUID) domain.ConfirmDocumentsRequest {
 				return domain.ConfirmDocumentsRequest{
-					Documents: []domain.ConfirmDocumentItem{{DocType: "owner_document_id", ObjectKey: "vendors/doc/file"}},
+					Documents: []domain.ConfirmDocumentItem{{DocType: domain.VendorDocumentTypeStorePhoto, ObjectKey: "vendors/doc/file"}},
 				}
 			},
 			setupMocks: func(
@@ -582,13 +924,12 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 				storage *mocks.MockStorageProvider,
 			) {
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(vendor, nil)
-				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{
-					{ID: uuid.New(), VendorID: vendorID, DocType: "owner_document_id", FileURL: req.Documents[0].ObjectKey, VerificationStatus: domain.VerificationStatusPending},
-				}, nil)
+				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(buildOnboardingDocument(vendorID, domain.VendorDocumentTypeOwnerDocumentID), nil)
 				storage.EXPECT().HeadObject(ctx, req.Documents[0].ObjectKey).Return(&domain.ObjectInfo{
 					ContentType:   "image/jpeg",
 					ContentLength: 1024,
 				}, nil)
+				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
 				vendorRepo.EXPECT().
 					ConfirmDocumentsAndUpdateStatus(ctx, vendorID, gomock.Any(), gomock.Any()).
 					Return(errors.New("db error"))
@@ -636,6 +977,306 @@ func TestConfirmDocuments_TableDriven(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSaveBankAccount_TableDriven(t *testing.T) {
+	buildDocuments := func(vendorID uuid.UUID, initialDocType string, docTypes ...string) []domain.VendorDocument {
+		userID := uuid.New()
+		documents := []domain.VendorDocument{
+			{
+				ID:                 uuid.New(),
+				VendorID:           vendorID,
+				DocType:            initialDocType,
+				FileURL:            "vendor-onboardings/onb/documents/" + initialDocType + "/file",
+				UploadedBy:         &userID,
+				VerificationStatus: domain.VerificationStatusPending,
+			},
+		}
+
+		for _, docType := range docTypes {
+			documents = append(documents, domain.VendorDocument{
+				ID:                 uuid.New(),
+				VendorID:           vendorID,
+				DocType:            docType,
+				FileURL:            "vendors/" + vendorID.String() + "/documents/" + docType + "/file",
+				UploadedBy:         &userID,
+				VerificationStatus: domain.VerificationStatusPending,
+			})
+		}
+
+		return documents
+	}
+
+	t.Run("create new bank account", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:     vendorID,
+			Status: domain.VendorStatusDraft,
+		}, nil)
+		vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
+		vendorRepo.EXPECT().UpsertBankAccount(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, bankAccount *domain.VendorBankAccount) error {
+			if bankAccount.VendorID != vendorID {
+				t.Fatalf("unexpected vendor id: %s", bankAccount.VendorID)
+			}
+			if bankAccount.VerificationStatus != domain.VerificationStatusPending {
+				t.Fatalf("unexpected verification status: %s", bankAccount.VerificationStatus)
+			}
+			return nil
+		})
+		vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(nil, nil)
+
+		resp, err := uc.SaveBankAccount(ctx, vendorID, domain.VendorSaveBankAccountRequest{
+			BankName:          "Bank Syariah Indonesia",
+			AccountNumber:     "1234567890",
+			AccountHolderName: "Ahmad",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.BankAccount.AccountNumber != "1234567890" {
+			t.Fatal("expected bank account response")
+		}
+		if resp.VendorStatus != domain.VendorStatusDraft {
+			t.Fatalf("expected draft status, got %s", resp.VendorStatus)
+		}
+	})
+
+	t.Run("individual submitted when completion already complete", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:     vendorID,
+			Status: domain.VendorStatusDraft,
+		}, nil)
+		vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
+		vendorRepo.EXPECT().UpsertBankAccount(ctx, gomock.Any()).Return(nil)
+		vendorRepo.EXPECT().
+			FindDocumentsByVendorID(ctx, vendorID).
+			Return(buildDocuments(
+				vendorID,
+				domain.VendorDocumentTypeOwnerDocumentID,
+				domain.VendorDocumentTypeStorePhoto,
+				domain.VendorDocumentTypeBankAccountProof,
+				domain.VendorDocumentTypeBusinessLogo,
+				domain.VendorDocumentTypeBusinessBanner,
+			), nil)
+		vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).DoAndReturn(func(_ context.Context, _ uuid.UUID, updates map[string]any) error {
+			if updates["status"] != domain.VendorStatusSubmitted {
+				t.Fatalf("unexpected status update: %+v", updates)
+			}
+			if _, ok := updates["updated_at"]; !ok {
+				t.Fatalf("missing updated_at in updates: %+v", updates)
+			}
+			return nil
+		})
+
+		resp, err := uc.SaveBankAccount(ctx, vendorID, domain.VendorSaveBankAccountRequest{
+			BankName:          "Bank Syariah Indonesia",
+			AccountNumber:     "1234567890",
+			AccountHolderName: "Ahmad",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("expected response")
+		}
+		if resp.VendorStatus != domain.VendorStatusSubmitted {
+			t.Fatalf("expected submitted status, got %s", resp.VendorStatus)
+		}
+	})
+
+	t.Run("corporate stays draft when npwp missing", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		legalType := domain.VendorBusinessLegalTypeCorporate
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:                vendorID,
+			Status:            domain.VendorStatusDraft,
+			BusinessLegalType: &legalType,
+		}, nil)
+		vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
+		vendorRepo.EXPECT().UpsertBankAccount(ctx, gomock.Any()).Return(nil)
+		vendorRepo.EXPECT().
+			FindDocumentsByVendorID(ctx, vendorID).
+			Return(buildDocuments(
+				vendorID,
+				domain.VendorDocumentTypeBusinessNIB,
+				domain.VendorDocumentTypeStorePhoto,
+				domain.VendorDocumentTypeBankAccountProof,
+				domain.VendorDocumentTypeBusinessLogo,
+				domain.VendorDocumentTypeBusinessBanner,
+			), nil)
+
+		resp, err := uc.SaveBankAccount(ctx, vendorID, domain.VendorSaveBankAccountRequest{
+			BankName:          "Bank Syariah Indonesia",
+			AccountNumber:     "1234567890",
+			AccountHolderName: "Ahmad",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("expected response")
+		}
+		if resp.VendorStatus != domain.VendorStatusDraft {
+			t.Fatalf("expected draft status, got %s", resp.VendorStatus)
+		}
+	})
+
+	t.Run("corporate submitted when npwp complete", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		legalType := domain.VendorBusinessLegalTypeCorporate
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:                vendorID,
+			Status:            domain.VendorStatusDraft,
+			BusinessLegalType: &legalType,
+		}, nil)
+		vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
+		vendorRepo.EXPECT().UpsertBankAccount(ctx, gomock.Any()).Return(nil)
+		vendorRepo.EXPECT().
+			FindDocumentsByVendorID(ctx, vendorID).
+			Return(buildDocuments(
+				vendorID,
+				domain.VendorDocumentTypeBusinessNIB,
+				domain.VendorDocumentTypeStorePhoto,
+				domain.VendorDocumentTypeBankAccountProof,
+				domain.VendorDocumentTypeBusinessLogo,
+				domain.VendorDocumentTypeBusinessBanner,
+				domain.VendorDocumentTypeBusinessNPWP,
+			), nil)
+		vendorRepo.EXPECT().UpdateStatus(ctx, vendorID, gomock.Any()).Return(nil)
+
+		resp, err := uc.SaveBankAccount(ctx, vendorID, domain.VendorSaveBankAccountRequest{
+			BankName:          "Bank Syariah Indonesia",
+			AccountNumber:     "1234567890",
+			AccountHolderName: "Ahmad",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("expected response")
+		}
+		if resp.VendorStatus != domain.VendorStatusSubmitted {
+			t.Fatalf("expected submitted status, got %s", resp.VendorStatus)
+		}
+	})
+
+	t.Run("corporate stays draft when only owner document exists", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		legalType := domain.VendorBusinessLegalTypeCorporate
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:                vendorID,
+			Status:            domain.VendorStatusDraft,
+			BusinessLegalType: &legalType,
+		}, nil)
+		vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
+		vendorRepo.EXPECT().UpsertBankAccount(ctx, gomock.Any()).Return(nil)
+		vendorRepo.EXPECT().
+			FindDocumentsByVendorID(ctx, vendorID).
+			Return(buildDocuments(
+				vendorID,
+				domain.VendorDocumentTypeOwnerDocumentID,
+				domain.VendorDocumentTypeStorePhoto,
+				domain.VendorDocumentTypeBankAccountProof,
+				domain.VendorDocumentTypeBusinessLogo,
+				domain.VendorDocumentTypeBusinessBanner,
+				domain.VendorDocumentTypeBusinessNPWP,
+			), nil)
+
+		resp, err := uc.SaveBankAccount(ctx, vendorID, domain.VendorSaveBankAccountRequest{
+			BankName:          "Bank Syariah Indonesia",
+			AccountNumber:     "1234567890",
+			AccountHolderName: "Ahmad",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("expected response")
+		}
+		if resp.VendorStatus != domain.VendorStatusDraft {
+			t.Fatalf("expected draft status, got %s", resp.VendorStatus)
+		}
+	})
+
+	t.Run("invalid status", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:     vendorID,
+			Status: domain.VendorStatusSubmitted,
+		}, nil)
+
+		_, err := uc.SaveBankAccount(ctx, vendorID, domain.VendorSaveBankAccountRequest{
+			BankName:          "BSI",
+			AccountNumber:     "123",
+			AccountHolderName: "Ahmad",
+		})
+		if !errors.Is(err, ErrInvalidStatusTransition) {
+			t.Fatalf("expected ErrInvalidStatusTransition, got %v", err)
+		}
+	})
+}
+
+func TestPresignDocument_TableDriven(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		_, vendorRepo, storage, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:     vendorID,
+			Status: domain.VendorStatusDraft,
+		}, nil)
+		storage.EXPECT().
+			GeneratePresignedUploadURL(ctx, gomock.Any(), "", PresignedUploadExpiry).
+			Return("https://upload.example.com", nil)
+
+		resp, err := uc.PresignDocument(ctx, vendorID, domain.VendorDocumentPresignRequest{
+			DocType: domain.VendorDocumentTypeStorePhoto,
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.UploadURL == "" {
+			t.Fatal("expected upload url")
+		}
+	})
+
+	t.Run("invalid doc type", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:     vendorID,
+			Status: domain.VendorStatusDraft,
+		}, nil)
+
+		_, err := uc.PresignDocument(ctx, vendorID, domain.VendorDocumentPresignRequest{
+			DocType: domain.VendorDocumentTypeOwnerDocumentID,
+		})
+		if !errors.Is(err, ErrInvalidVendorDocumentType) {
+			t.Fatalf("expected ErrInvalidVendorDocumentType, got %v", err)
+		}
+	})
 }
 
 func TestLogin_TableDriven(t *testing.T) {

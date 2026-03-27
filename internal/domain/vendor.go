@@ -12,10 +12,12 @@ type Vendor struct {
 	ID                    uuid.UUID  `json:"id"`
 	OwnerUserID           uuid.UUID  `json:"owner_user_id"`
 	VendorType            string     `json:"vendor_type"`
+	BusinessLegalType     *string    `json:"business_legal_type,omitempty"`
 	LegalName             *string    `json:"legal_name,omitempty"`
 	DisplayName           string     `json:"display_name"`
 	ResponsiblePersonName string     `json:"responsible_person_name"`
 	Description           *string    `json:"description,omitempty"`
+	RegisteredAddress     *string    `json:"registered_address,omitempty"`
 	Status                string     `json:"status"`
 	ApprovedBy            *uuid.UUID `json:"approved_by,omitempty"`
 	ApprovedAt            *time.Time `json:"approved_at,omitempty"`
@@ -63,6 +65,39 @@ type PresignedUploadInfo struct {
 	DocType   string `json:"doc_type"`
 	UploadURL string `json:"upload_url"`
 	ObjectKey string `json:"object_key"`
+}
+
+const (
+	VendorDocumentTypeOwnerDocumentID  = "owner_document_id"
+	VendorDocumentTypeBusinessNIB      = "business_nib"
+	VendorDocumentTypeBusinessNPWP     = "business_npwp"
+	VendorDocumentTypeStorePhoto       = "store_photo"
+	VendorDocumentTypeBankAccountProof = "bank_account_proof"
+	VendorDocumentTypeBusinessLogo     = "business_logo"
+	VendorDocumentTypeBusinessBanner   = "business_banner"
+)
+
+type VendorDocumentPresignRequest struct {
+	DocType string `json:"doc_type" binding:"required,oneof=store_photo bank_account_proof business_logo business_banner business_npwp"`
+}
+
+type VendorDocumentPresignResponse struct {
+	DocType   string    `json:"doc_type"`
+	UploadURL string    `json:"upload_url"`
+	ObjectKey string    `json:"object_key"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type VendorSaveBankAccountRequest struct {
+	BankName          string `json:"bank_name" binding:"required,max=120"`
+	AccountNumber     string `json:"account_number" binding:"required,max=64"`
+	AccountHolderName string `json:"account_holder_name" binding:"required,max=120"`
+}
+
+type VendorSaveBankAccountResponse struct {
+	VendorID     uuid.UUID         `json:"vendor_id"`
+	VendorStatus string            `json:"vendor_status"`
+	BankAccount  VendorBankAccount `json:"bank_account"`
 }
 
 // ConfirmDocumentItem represents a single document in the confirm-upload request.
@@ -133,6 +168,7 @@ type AdminVendorListItem struct {
 	XenditAccountID       *string   `json:"xendit_account_id,omitempty"`
 	OwnerName             string    `json:"owner_name"`
 	OwnerEmail            string    `json:"owner_email"`
+	RegisteredAddress     *string   `json:"registered_address,omitempty"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }
@@ -182,6 +218,7 @@ type AdminVendorDetailResponse struct {
 	LegalName             *string                         `json:"legal_name,omitempty"`
 	ResponsiblePersonName string                          `json:"responsible_person_name"`
 	Description           *string                         `json:"description,omitempty"`
+	RegisteredAddress     *string                         `json:"registered_address,omitempty"`
 	Status                string                          `json:"status"`
 	StatusReason          *string                         `json:"status_reason,omitempty"`
 	ApprovedAt            *time.Time                      `json:"approved_at,omitempty"`
@@ -216,12 +253,15 @@ type VendorRepository interface {
 	// FindBankAccountByVendorID returns the bank account for the given vendor, or nil if not found.
 	FindBankAccountByVendorID(ctx context.Context, vendorID uuid.UUID) (*VendorBankAccount, error)
 
+	// UpsertBankAccount creates or updates the vendor bank account for the given vendor.
+	UpsertBankAccount(ctx context.Context, bankAccount *VendorBankAccount) error
+
 	// ConfirmDocumentsAndUpdateStatus updates the given documents and optionally sets the vendor status, all in one transaction.
 	// If newStatus is empty, the vendor status is not changed.
 	ConfirmDocumentsAndUpdateStatus(ctx context.Context, vendorID uuid.UUID, documents []VendorDocument, newStatus string) error
 
 	// UpdateStatus updates the vendor's columns specified in the updates map.
-	UpdateStatus(ctx context.Context, vendorID uuid.UUID, updates map[string]interface{}) error
+	UpdateStatus(ctx context.Context, vendorID uuid.UUID, updates map[string]any) error
 
 	// FindPayoutBatchByID returns the payout batch with the given ID, or nil if not found.
 	FindPayoutBatchByID(ctx context.Context, id uuid.UUID) (*PayoutBatch, error)
@@ -389,10 +429,14 @@ type VendorPayoutChannelsResponse struct {
 type VendorUseCase interface {
 	RequestRegistrationOTP(ctx context.Context, req VendorRegisterOTPRequest) (*VendorRegisterOTPResponse, error)
 	VerifyRegistrationOTP(ctx context.Context, req VendorVerifyRegistrationOTPRequest) (*VendorVerifyRegistrationOTPResponse, error)
+	GetRegistrationStatus(ctx context.Context, onboardingID uuid.UUID) (*VendorOnboardingStatusResponse, error)
 	SetRegistrationPassword(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationPasswordRequest) (*VendorOnboardingProgressResponse, error)
-	SaveRegistrationStore(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationStoreRequest) (*VendorOnboardingProgressResponse, error)
-	PresignRegistrationLegalDocument(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationPresignDocumentRequest) (*VendorRegistrationPresignDocumentResponse, error)
-	SubmitRegistrationLegal(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationLegalRequest) (*VendorLoginResponse, error)
+	PresignRegistrationIndividualDocument(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationPresignDocumentRequest) (*VendorRegistrationPresignDocumentResponse, error)
+	PresignRegistrationCorporateDocument(ctx context.Context, onboardingID uuid.UUID) (*VendorRegistrationPresignDocumentResponse, error)
+	SubmitRegistrationIndividual(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationIndividualLegalRequest) (*VendorLoginResponse, error)
+	SubmitRegistrationCorporate(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationCorporateLegalRequest) (*VendorLoginResponse, error)
+	SaveBankAccount(ctx context.Context, vendorID uuid.UUID, req VendorSaveBankAccountRequest) (*VendorSaveBankAccountResponse, error)
+	PresignDocument(ctx context.Context, vendorID uuid.UUID, req VendorDocumentPresignRequest) (*VendorDocumentPresignResponse, error)
 
 	// ConfirmDocuments verifies that documents were uploaded to S3 and marks them as confirmed.
 	ConfirmDocuments(ctx context.Context, userID uuid.UUID, req ConfirmDocumentsRequest) (*ConfirmDocumentsResponse, error)

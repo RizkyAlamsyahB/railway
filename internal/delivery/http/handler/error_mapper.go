@@ -61,6 +61,7 @@ var errorRules = []errorRule{
 	{usecase.ErrVendorOnboardingStep, http.StatusBadRequest, ""},
 	{usecase.ErrVendorOnboardingDone, http.StatusConflict, ""},
 	{usecase.ErrDocumentNotFound, http.StatusBadRequest, ""},
+	{usecase.ErrInvalidVendorDocumentType, http.StatusBadRequest, ""},
 	{usecase.ErrObjectNotUploaded, http.StatusBadRequest, ""},
 	{usecase.ErrInvalidDocumentContent, http.StatusBadRequest, ""},
 	{usecase.ErrInvalidDocumentObjectKey, http.StatusBadRequest, ""},

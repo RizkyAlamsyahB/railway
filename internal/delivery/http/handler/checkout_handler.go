@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
@@ -12,13 +13,15 @@ import (
 type CheckoutHandler struct {
 	useCase                  domain.CheckoutUseCase
 	webhookVerificationToken string
+	xenditBypass             bool
 }
 
 // NewCheckoutHandler creates a new CheckoutHandler.
-func NewCheckoutHandler(useCase domain.CheckoutUseCase, webhookVerificationToken string) *CheckoutHandler {
+func NewCheckoutHandler(useCase domain.CheckoutUseCase, webhookVerificationToken string, xenditBypass bool) *CheckoutHandler {
 	return &CheckoutHandler{
 		useCase:                  useCase,
 		webhookVerificationToken: webhookVerificationToken,
+		xenditBypass:             xenditBypass,
 	}
 }
 
@@ -94,4 +97,26 @@ func (h *CheckoutHandler) Webhook(c *gin.Context) {
 
 	// 4. Return 200 OK per Xendit requirements.
 	c.JSON(http.StatusOK, gin.H{"message": "webhook processed"})
+}
+
+// SimulatePayment handles POST /api/v1/dev/simulate-payment/:orderId.
+// Only available when XENDIT_BYPASS=true.
+func (h *CheckoutHandler) SimulatePayment(c *gin.Context) {
+	if !h.xenditBypass {
+		response.Forbidden(c, "simulate payment is only available when XENDIT_BYPASS=true", nil)
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("orderId"))
+	if err != nil {
+		response.BadRequest(c, "invalid order ID", nil)
+		return
+	}
+
+	if err := h.useCase.SimulatePayment(c.Request.Context(), orderID); err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "payment simulated successfully", nil)
 }

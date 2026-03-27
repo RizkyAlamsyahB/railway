@@ -19,6 +19,7 @@ type vendorOrderUseCase struct {
 	shipmentRepo    domain.ShipmentRepository
 	paymentRepo     domain.PaymentRepository
 	userRepo        domain.UserRepository
+	vendorRepo      domain.VendorRepository
 	rajaOngkir      domain.RajaOngkirProvider
 }
 
@@ -29,6 +30,7 @@ func NewVendorOrderUseCase(
 	shipmentRepo domain.ShipmentRepository,
 	paymentRepo domain.PaymentRepository,
 	userRepo domain.UserRepository,
+	vendorRepo domain.VendorRepository,
 	rajaOngkir domain.RajaOngkirProvider,
 ) domain.VendorOrderUseCase {
 	return &vendorOrderUseCase{
@@ -37,6 +39,7 @@ func NewVendorOrderUseCase(
 		shipmentRepo:    shipmentRepo,
 		paymentRepo:     paymentRepo,
 		userRepo:        userRepo,
+		vendorRepo:      vendorRepo,
 		rajaOngkir:      rajaOngkir,
 	}
 }
@@ -108,6 +111,74 @@ func (uc *vendorOrderUseCase) ListOrders(ctx context.Context, vendorID uuid.UUID
 	return result, meta, nil
 }
 
+// ExportOrders returns all orders for CSV export (no pagination).
+func (uc *vendorOrderUseCase) ExportOrders(ctx context.Context, vendorID uuid.UUID, params domain.VendorOrderListParams) ([]domain.VendorOrderExportItem, error) {
+	// Remove pagination for export - get all matching records
+	params.Page = 1
+	params.Limit = 10000 // Max export limit
+
+	params = normalizeVendorOrderListParams(params)
+	if params.Status != "" && !isValidOrderStatus(params.Status) {
+		return nil, ErrInvalidOrderStatus
+	}
+
+	orders, _, err := uc.vendorOrderRepo.ListByVendor(ctx, vendorID, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list vendor orders for export: %w", err)
+	}
+
+	if len(orders) == 0 {
+		return []domain.VendorOrderExportItem{}, nil
+	}
+
+	// Fetch order items and customer names in bulk.
+	orderIDs := make([]uuid.UUID, 0, len(orders))
+	userIDs := make(map[uuid.UUID]bool)
+	for _, o := range orders {
+		orderIDs = append(orderIDs, o.ID)
+		userIDs[o.UserID] = true
+	}
+
+	itemsByOrderID, err := uc.orderRepo.FindItemsByOrderIDs(ctx, orderIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch order items: %w", err)
+	}
+
+	// Fetch customer names.
+	customerNames := make(map[uuid.UUID]string)
+	for uid := range userIDs {
+		user, err := uc.userRepo.FindByID(ctx, uid)
+		if err == nil && user != nil {
+			customerNames[uid] = user.FullName
+		}
+	}
+
+	// Build export items - one row per order item
+	result := make([]domain.VendorOrderExportItem, 0)
+	for _, order := range orders {
+		rawItems := itemsByOrderID[order.ID]
+		for _, it := range rawItems {
+			result = append(result, domain.VendorOrderExportItem{
+				OrderNo:      order.OrderNo,
+				OrderDate:    order.PlacedAt,
+				CustomerName: customerNames[order.UserID],
+				ProductName:  it.ProductNameSnapshot,
+				Variant:      it.SKUSnapshot,
+				Qty:          it.Qty,
+				UnitPrice:    it.UnitPrice,
+				LineTotal:    it.LineTotal,
+				Subtotal:     order.Subtotal,
+				ShippingFee:  order.ShippingFee,
+				PlatformFee:  order.PlatformFee,
+				GrandTotal:   order.GrandTotal,
+				Status:       order.OrderStatus,
+			})
+		}
+	}
+
+	return result, nil
+}
+
 // GetOrderDetail returns full order detail for a vendor.
 func (uc *vendorOrderUseCase) GetOrderDetail(ctx context.Context, vendorID, orderID uuid.UUID) (*domain.VendorOrderDetailResponse, error) {
 	order, err := uc.vendorOrderRepo.FindByIDAndVendor(ctx, orderID, vendorID)
@@ -124,70 +195,197 @@ func (uc *vendorOrderUseCase) GetOrderDetail(ctx context.Context, vendorID, orde
 		return nil, fmt.Errorf("failed to fetch order items: %w", err)
 	}
 
-	items := make([]domain.VendorOrderProductItem, 0, len(rawItems))
+	items := make([]domain.VendorOrderDetailItem, 0, len(rawItems))
 	for _, it := range rawItems {
-		items = append(items, domain.VendorOrderProductItem{
-			ProductName:     it.ProductNameSnapshot,
-			SelectedVariant: it.SKUSnapshot,
-			Qty:             it.Qty,
-			UnitPrice:       it.UnitPrice,
-			LineTotal:       it.LineTotal,
+		items = append(items, domain.VendorOrderDetailItem{
+			Name:     it.ProductNameSnapshot,
+			Variant:  it.SKUSnapshot,
+			Price:    it.UnitPrice,
+			Quantity: it.Qty,
+			Subtotal: it.LineTotal,
 		})
 	}
 
-	// Fetch customer name.
-	customerName := ""
-	user, err := uc.userRepo.FindByID(ctx, order.UserID)
-	if err == nil && user != nil {
-		customerName = user.FullName
+	// Fetch vendor/store name.
+	storeName := ""
+	vendor, err := uc.vendorRepo.FindByID(ctx, order.VendorID)
+	if err == nil && vendor != nil {
+		storeName = vendor.DisplayName
 	}
 
 	// Fetch shipment (may be nil if not shipped yet).
 	shipment, _ := uc.shipmentRepo.FindByOrderID(ctx, orderID)
-	var shipmentResp *domain.VendorOrderShipmentResponse
-	if shipment != nil {
-		resp := domain.VendorOrderShipmentResponse{
-			CourierCode:    shipment.CourierCode,
-			ServiceType:    shipment.ServiceType,
-			TrackingNo:     shipment.TrackingNo,
-			ETD:            shipment.ETD,
-			ShipmentStatus: shipment.ShipmentStatus,
-			ShippedAt:      shipment.ShippedAt,
-			DeliveredAt:    shipment.DeliveredAt,
-		}
-		if shipment.ShippedAt != nil {
-			resp.EstimatedArrival = calculateEstimatedArrival(*shipment.ShippedAt, shipment.ETD)
-		}
-		shipmentResp = &resp
-	}
+
+	// Build shipping info with tracking status.
+	shippingInfo := uc.buildShippingInfo(ctx, shipment, order.OrderStatus)
+
+	// Parse recipient from shipping address snapshot.
+	recipient := uc.buildRecipientInfo(order.ShippingAddressSnapshot)
 
 	// Fetch payment info.
-	var paymentInfo *domain.VendorOrderPaymentInfo
+	var paymentMethod string
+	var paidAt *time.Time
 	invoice, _ := uc.paymentRepo.FindInvoiceByOrderID(ctx, orderID)
 	if invoice != nil {
-		paymentInfo = &domain.VendorOrderPaymentInfo{
-			Status:         invoice.Status,
-			PaymentMethod:  invoice.PaymentMethod,
-			PaymentChannel: invoice.PaymentChannel,
-			PaidAt:         invoice.PaidAt,
-		}
+		paymentMethod = buildPaymentMethodDisplay(invoice.PaymentMethod)
+		paidAt = invoice.PaidAt
 	}
 
 	return &domain.VendorOrderDetailResponse{
-		OrderID:      order.ID,
-		OrderNo:      order.OrderNo,
-		OrderDate:    order.PlacedAt,
-		Status:       order.OrderStatus,
-		CustomerName: customerName,
-		Items:        items,
-		Subtotal:     order.Subtotal,
-		ShippingFee:  order.ShippingFee,
-		PlatformFee:  order.PlatformFee,
-		GrandTotal:   order.GrandTotal,
-		Address:      order.ShippingAddressSnapshot,
-		Shipment:     shipmentResp,
-		PaymentInfo:  paymentInfo,
+		Shipping:  shippingInfo.VendorOrderDetailShipping,
+		Recipient: recipient,
+		Store: domain.VendorOrderDetailStore{
+			Name: storeName,
+		},
+		Items: items,
+		Payment: domain.VendorOrderDetailPayment{
+			Method:      paymentMethod,
+			TotalAmount: order.GrandTotal,
+		},
+		Order: domain.VendorOrderDetailOrder{
+			OrderNumber:   order.OrderNo,
+			OrderTime:     order.PlacedAt,
+			PaymentTime:   paidAt,
+			ShippingTime:  shippingInfo.shippedAt,
+			DeliveredTime: shippingInfo.DeliveredAt,
+		},
+		Summary: domain.VendorOrderDetailSummary{
+			ItemsTotal:  order.Subtotal,
+			ShippingFee: order.ShippingFee,
+			ServiceFee:  order.PlatformFee,
+			GrandTotal:  order.GrandTotal,
+		},
 	}, nil
+}
+
+// shippingInfoInternal holds shipping info with internal shippedAt for order timestamps.
+type shippingInfoInternal struct {
+	domain.VendorOrderDetailShipping
+	shippedAt *time.Time
+}
+
+// buildShippingInfo builds shipping info by hitting tracking API if available.
+func (uc *vendorOrderUseCase) buildShippingInfo(ctx context.Context, shipment *domain.Shipment, orderStatus string) shippingInfoInternal {
+	result := shippingInfoInternal{
+		VendorOrderDetailShipping: domain.VendorOrderDetailShipping{
+			Courier:        "",
+			TrackingNumber: "",
+			Status:         orderStatusToShippingStatus(orderStatus),
+			DeliveredAt:    nil,
+		},
+		shippedAt: nil,
+	}
+
+	if shipment == nil {
+		return result
+	}
+
+	result.Courier = shipment.CourierCode
+	result.TrackingNumber = shipment.TrackingNo
+	result.DeliveredAt = shipment.DeliveredAt
+	result.shippedAt = shipment.ShippedAt
+
+	// Try to get real-time tracking status if tracking number exists.
+	if shipment.TrackingNo != "" {
+		trackResult, err := uc.rajaOngkir.TrackWaybill(ctx, shipment.TrackingNo, shipment.CourierCode)
+		if err == nil && trackResult != nil && len(trackResult.Manifest) > 0 {
+			// Get the latest manifest description as status.
+			result.Status = trackResult.Manifest[0].ManifestDescription
+
+			// Update delivered_at from tracking if delivered.
+			if trackResult.Delivered && trackResult.DeliveryStatus.PodDate != "" {
+				deliveredAt := parseTrackingDateTime(trackResult.DeliveryStatus.PodDate, trackResult.DeliveryStatus.PodTime)
+				if deliveredAt != nil {
+					result.DeliveredAt = deliveredAt
+				}
+			}
+		}
+	}
+
+	return result
+}
+
+// buildRecipientInfo parses shipping address snapshot into recipient info.
+func (uc *vendorOrderUseCase) buildRecipientInfo(snapshot map[string]interface{}) domain.VendorOrderDetailRecipient {
+	getString := func(key string) string {
+		if v, ok := snapshot[key]; ok {
+			if s, ok := v.(string); ok {
+				return s
+			}
+		}
+		return ""
+	}
+
+	return domain.VendorOrderDetailRecipient{
+		Name:  getString("recipient_name"),
+		Phone: getString("phone"),
+		Address: domain.VendorOrderDetailRecipientAddress{
+			Street:     getString("address_line"),
+			District:   getString("district_name"),
+			City:       getString("city_name"),
+			Province:   getString("province_name"),
+			PostalCode: getString("postal_code"),
+		},
+	}
+}
+
+// buildPaymentMethodDisplay returns the payment method from payment_invoices.
+func buildPaymentMethodDisplay(method *string) string {
+	if method == nil || *method == "" {
+		return ""
+	}
+	return *method
+}
+
+// orderStatusToShippingStatus converts order status to a default shipping status description.
+func orderStatusToShippingStatus(status string) string {
+	switch status {
+	case domain.OrderStatusPendingPayment:
+		return "Menunggu pembayaran"
+	case domain.OrderStatusPaid:
+		return "Pembayaran diterima, menunggu konfirmasi penjual"
+	case domain.OrderStatusProcessing:
+		return "Pesanan sedang diproses"
+	case domain.OrderStatusPacked:
+		return "Pesanan sudah dikemas"
+	case domain.OrderStatusShipped:
+		return "Pesanan dalam pengiriman"
+	case domain.OrderStatusReceived:
+		return "Pesanan diterima"
+	case domain.OrderStatusCompleted:
+		return "Pesanan selesai"
+	case domain.OrderStatusCanceled:
+		return "Pesanan dibatalkan"
+	case domain.OrderStatusRefunded:
+		return "Pesanan direfund"
+	default:
+		return status
+	}
+}
+
+// parseTrackingDateTime parses date and time strings from tracking API into time.Time.
+func parseTrackingDateTime(dateStr, timeStr string) *time.Time {
+	if dateStr == "" {
+		return nil
+	}
+	dateTimeStr := dateStr
+	if timeStr != "" {
+		dateTimeStr = dateStr + " " + timeStr
+	}
+
+	// Try common formats.
+	formats := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, dateTimeStr); err == nil {
+			return &t
+		}
+	}
+
+	return nil
 }
 
 // AcceptOrder transitions an order from paid → processing.
@@ -327,6 +525,195 @@ func (uc *vendorOrderUseCase) TrackWaybill(ctx context.Context, vendorID, orderI
 	}
 
 	return result, nil
+}
+
+// GetOrderInvoice returns invoice data for an order.
+func (uc *vendorOrderUseCase) GetOrderInvoice(ctx context.Context, vendorID, orderID uuid.UUID) (*domain.VendorOrderInvoiceResponse, error) {
+	order, err := uc.vendorOrderRepo.FindByIDAndVendor(ctx, orderID, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find order: %w", err)
+	}
+	if order == nil {
+		return nil, ErrOrderNotBelongToVendor
+	}
+
+	// Fetch order items.
+	rawItems, err := uc.orderRepo.FindItemsByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch order items: %w", err)
+	}
+
+	items := make([]domain.InvoiceItem, 0, len(rawItems))
+	for _, it := range rawItems {
+		items = append(items, domain.InvoiceItem{
+			Name:     it.ProductNameSnapshot,
+			Variant:  it.SKUSnapshot,
+			Price:    it.UnitPrice,
+			Quantity: it.Qty,
+			Subtotal: it.LineTotal,
+			ImageURL: nil, // Can be populated if image URL is stored
+		})
+	}
+
+	// Parse recipient from shipping address snapshot.
+	recipient := uc.buildRecipientInfo(order.ShippingAddressSnapshot)
+
+	// Fetch payment info.
+	var paymentMethod string
+	var paidAtStr string
+	invoice, _ := uc.paymentRepo.FindInvoiceByOrderID(ctx, orderID)
+	if invoice != nil {
+		paymentMethod = buildPaymentMethodDisplay(invoice.PaymentMethod)
+		if invoice.PaidAt != nil {
+			paidAtStr = invoice.PaidAt.Format("2006-01-02 15:04")
+		}
+	}
+
+	return &domain.VendorOrderInvoiceResponse{
+		Invoice: domain.InvoiceInfo{
+			InvoiceNumber: order.OrderNo,
+			IssuedAt:      order.PlacedAt.Format("2006-01-02 15:04"),
+			Actions: domain.InvoiceActions{
+				CanCopy:     true,
+				CanPrint:    true,
+				CanDownload: true,
+			},
+		},
+		Customer: domain.InvoiceCustomer{
+			Name:  recipient.Name,
+			Phone: recipient.Phone,
+			Address: domain.InvoiceCustomerAddress{
+				Street:     recipient.Address.Street,
+				District:   recipient.Address.District,
+				City:       recipient.Address.City,
+				Province:   recipient.Address.Province,
+				PostalCode: recipient.Address.PostalCode,
+			},
+		},
+		Payment: domain.InvoicePayment{
+			Method: paymentMethod,
+			PaidAt: paidAtStr,
+		},
+		Items: items,
+		Summary: domain.InvoiceSummary{
+			Subtotal:    order.Subtotal,
+			ShippingFee: order.ShippingFee,
+			ServiceFee:  order.PlatformFee,
+			Total:       order.GrandTotal,
+			Currency:    "IDR",
+		},
+	}, nil
+}
+
+// GetOrderShippingInfo returns shipping/tracking info for an order.
+func (uc *vendorOrderUseCase) GetOrderShippingInfo(ctx context.Context, vendorID, orderID uuid.UUID) (*domain.VendorOrderShippingInfoResponse, error) {
+	order, err := uc.vendorOrderRepo.FindByIDAndVendor(ctx, orderID, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find order: %w", err)
+	}
+	if order == nil {
+		return nil, ErrOrderNotBelongToVendor
+	}
+
+	// Fetch shipment.
+	shipment, _ := uc.shipmentRepo.FindByOrderID(ctx, orderID)
+
+	// Build response with default values.
+	resp := &domain.VendorOrderShippingInfoResponse{
+		EstimatedArrival: nil,
+		Stages:           uc.buildShippingStages(order.OrderStatus),
+		Courier: domain.ShippingInfoCourier{
+			Name:       "",
+			Code:       "",
+			TrackingNo: "",
+		},
+		Events: []domain.ShippingInfoEvent{},
+	}
+
+	if shipment == nil {
+		return resp, nil
+	}
+
+	// Set courier info.
+	resp.Courier = domain.ShippingInfoCourier{
+		Name:       courierCodeToName(shipment.CourierCode),
+		Code:       shipment.CourierCode,
+		TrackingNo: shipment.TrackingNo,
+	}
+
+	// Calculate estimated arrival if shipped.
+	if shipment.ShippedAt != nil && shipment.ETD != "" {
+		resp.EstimatedArrival = calculateEstimatedArrival(*shipment.ShippedAt, shipment.ETD)
+	}
+
+	// Try to get real-time tracking events if tracking number exists.
+	if shipment.TrackingNo != "" {
+		trackResult, err := uc.rajaOngkir.TrackWaybill(ctx, shipment.TrackingNo, shipment.CourierCode)
+		if err == nil && trackResult != nil {
+			// Build events from manifest (reversed to show newest first).
+			events := make([]domain.ShippingInfoEvent, 0, len(trackResult.Manifest))
+			for _, m := range trackResult.Manifest {
+				events = append(events, domain.ShippingInfoEvent{
+					DateTime:    fmt.Sprintf("%s %s", m.ManifestDate, m.ManifestTime),
+					Description: m.ManifestDescription,
+					Location:    m.CityName,
+				})
+			}
+			resp.Events = events
+
+			// Update stages based on delivery status.
+			if trackResult.Delivered {
+				resp.Stages = uc.buildShippingStages(domain.OrderStatusReceived)
+			}
+		}
+	}
+
+	return resp, nil
+}
+
+// buildShippingStages builds shipping stage indicators based on order status.
+func (uc *vendorOrderUseCase) buildShippingStages(orderStatus string) []domain.ShippingInfoStage {
+	stages := []domain.ShippingInfoStage{
+		{Status: "processing", Label: "Diproses", Completed: false, Active: false},
+		{Status: "shipped", Label: "Dikirim", Completed: false, Active: false},
+		{Status: "in_transit", Label: "Dalam Perjalanan", Completed: false, Active: false},
+		{Status: "delivered", Label: "Tiba di Tujuan", Completed: false, Active: false},
+	}
+
+	switch orderStatus {
+	case domain.OrderStatusProcessing, domain.OrderStatusPacked:
+		stages[0].Active = true
+	case domain.OrderStatusShipped:
+		stages[0].Completed = true
+		stages[1].Completed = true
+		stages[2].Active = true
+	case domain.OrderStatusReceived, domain.OrderStatusCompleted:
+		stages[0].Completed = true
+		stages[1].Completed = true
+		stages[2].Completed = true
+		stages[3].Completed = true
+	}
+
+	return stages
+}
+
+// courierCodeToName converts courier code to display name.
+func courierCodeToName(code string) string {
+	names := map[string]string{
+		"jne":      "JNE",
+		"jnt":      "J&T Express",
+		"sicepat":  "SiCepat",
+		"pos":      "Pos Indonesia",
+		"tiki":     "TIKI",
+		"anteraja": "AnterAja",
+		"ninja":    "Ninja Xpress",
+		"lion":     "Lion Parcel",
+		"idx":      "ID Express",
+	}
+	if name, ok := names[strings.ToLower(code)]; ok {
+		return name
+	}
+	return strings.ToUpper(code)
 }
 
 // --- helpers ---
