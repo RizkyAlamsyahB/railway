@@ -42,12 +42,15 @@ func NewRouter(
 	adminContactHandler *handler.AdminContactHandler,
 	adminFAQHandler *handler.AdminFAQHandler,
 	vendorBannerHandler *handler.VendorBannerHandler,
+	vendorVoucherHandler *handler.VendorVoucherHandler,
 	addressHandler *handler.AddressHandler,
 	shippingHandler *handler.ShippingHandler,
 	vendorCourierHandler *handler.VendorCourierHandler,
 	vendorOrderHandler *handler.VendorOrderHandler,
+	adminPaymentHandler *handler.AdminPaymentHandler,
 	wsHandler *ws.Handler,
 	jwtSecret string,
+	corsAllowedOrigins string,
 ) *gin.Engine {
 
 	gin.SetMode(gin.ReleaseMode)
@@ -56,7 +59,7 @@ func NewRouter(
 
 	// Global middleware
 	r.Use(middleware.Recovery())
-	r.Use(middleware.CORS())
+	r.Use(middleware.CORS(corsAllowedOrigins))
 	r.Use(middleware.RequestID())
 
 	// API v1 routes
@@ -126,7 +129,11 @@ func NewRouter(
 		userAuth.POST("/checkout/preview", checkoutHandler.Preview)
 		userAuth.POST("/checkout", checkoutHandler.Checkout)
 		userAuth.GET("/orders", orderActionHandler.ListOrders)
+		userAuth.GET("/orders/:orderId", orderActionHandler.GetOrderDetail)
+		userAuth.GET("/orders/:orderId/shipping", orderActionHandler.GetOrderShippingInfo)
+		userAuth.GET("/orders/:orderId/invoice", orderActionHandler.GetOrderInvoice)
 		userAuth.POST("/orders/:orderId/complete", orderActionHandler.Complete)
+		userAuth.POST("/orders/:orderId/cancel", orderActionHandler.Cancel)
 		userAuth.POST("/reviews/presign", reviewHandler.PresignImage)
 		userAuth.POST("/reviews", reviewHandler.Create)
 	}
@@ -181,11 +188,9 @@ func NewRouter(
 	vendorAuth.Use(middleware.RequireRoles("umkm"))
 	{
 		vendorAuth.GET("/me", vendorHandler.GetMe)
-		vendorAuth.POST("/bank-account", vendorHandler.SaveBankAccount)
-		vendorAuth.POST("/documents/presign", vendorHandler.PresignDocument)
-		vendorAuth.POST("/documents/confirm", vendorHandler.ConfirmDocuments)
 		vendorAuth.POST("/products", productHandler.CreateProduct)
 		vendorAuth.GET("/products", productHandler.ListProducts)
+		vendorAuth.PUT("/products/:id", productHandler.UpdateProduct)
 		vendorAuth.POST("/products/:id/images/confirm", productHandler.ConfirmImages)
 		vendorAuth.GET("/balance", vendorHandler.GetBalance)
 		vendorAuth.GET("/payout-channels", vendorHandler.ListPayoutChannels)
@@ -202,12 +207,19 @@ func NewRouter(
 		vendorAuth.GET("/banners/:id", vendorBannerHandler.GetBanner)
 		vendorAuth.POST("/banners/:id/confirm", vendorBannerHandler.ConfirmBanner)
 		vendorAuth.PATCH("/banners/:id", vendorBannerHandler.UpdateBanner)
+		vendorAuth.DELETE("/banners/:id", vendorBannerHandler.DeleteBanner)
+
+		// Vendor Voucher management
+		vendorAuth.POST("/vouchers", vendorVoucherHandler.CreateVoucher)
+		vendorAuth.GET("/vouchers", vendorVoucherHandler.ListVouchers)
+		vendorAuth.GET("/vouchers/:id", vendorVoucherHandler.GetVoucher)
+		vendorAuth.PATCH("/vouchers/:id", vendorVoucherHandler.UpdateVoucher)
+		vendorAuth.DELETE("/vouchers/:id", vendorVoucherHandler.DeleteVoucher)
 
 		// Vendor Courier management
 		vendorAuth.GET("/couriers", vendorCourierHandler.GetVendorCouriers)
 		vendorAuth.PUT("/couriers", vendorCourierHandler.SetVendorCouriers)
 		vendorAuth.DELETE("/couriers/:courierId", vendorCourierHandler.RemoveVendorCourier)
-		vendorAuth.DELETE("/banners/:id", vendorBannerHandler.DeleteBanner)
 
 		// Vendor Order management
 		vendorAuth.GET("/orders", vendorOrderHandler.ListOrders)
@@ -246,6 +258,9 @@ func NewRouter(
 		admin.PATCH("/vendors/:id/reject", adminVendorHandler.Reject)
 		admin.PATCH("/vendors/:id/block", adminVendorHandler.Block)
 		admin.PATCH("/vendors/:id/unblock", adminVendorHandler.Unblock)
+
+		// Payments
+		admin.GET("/payments", adminPaymentHandler.List)
 
 		// Chat (admin-specific management)
 		admin.GET("/chat", chatHandler.ListConversations)

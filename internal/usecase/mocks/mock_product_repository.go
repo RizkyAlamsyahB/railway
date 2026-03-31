@@ -208,6 +208,20 @@ func (mr *MockProductRepositoryMockRecorder) ListByVendor(ctx, vendorID, params 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByVendor", reflect.TypeOf((*MockProductRepository)(nil).ListByVendor), ctx, vendorID, params)
 }
 
+// UpdateProduct mocks base method.
+func (m *MockProductRepository) UpdateProduct(ctx context.Context, product *domain.Product, variantsToUpsert []domain.ProductVariant, variantIDsToDeactivate []uuid.UUID, imageIDsToDelete []uuid.UUID, newImages []domain.ProductImage) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateProduct", ctx, product, variantsToUpsert, variantIDsToDeactivate, imageIDsToDelete, newImages)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateProduct indicates an expected call of UpdateProduct.
+func (mr *MockProductRepositoryMockRecorder) UpdateProduct(ctx, product, variantsToUpsert, variantIDsToDeactivate, imageIDsToDelete, newImages any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProduct", reflect.TypeOf((*MockProductRepository)(nil).UpdateProduct), ctx, product, variantsToUpsert, variantIDsToDeactivate, imageIDsToDelete, newImages)
+}
+
 // UpdateImages mocks base method.
 func (m *MockProductRepository) UpdateImages(ctx context.Context, images []domain.ProductImage) error {
 	m.ctrl.T.Helper()

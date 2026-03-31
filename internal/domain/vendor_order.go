@@ -258,6 +258,8 @@ type ShipmentRepository interface {
 	FindByOrderID(ctx context.Context, orderID uuid.UUID) (*Shipment, error)
 	// UpdateTrackingAndShip sets tracking number, status to "shipped", and shipped_at on the existing shipment.
 	UpdateTrackingAndShip(ctx context.Context, orderID uuid.UUID, trackingNo string, shippedAt time.Time) error
+	// UpdateDeliveredAt sets delivered_at and shipment_status to "delivered" on the existing shipment.
+	UpdateDeliveredAt(ctx context.Context, orderID uuid.UUID, deliveredAt time.Time) error
 }
 
 // OrderRepository extensions for vendor order management.

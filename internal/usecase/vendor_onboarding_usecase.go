@@ -283,13 +283,12 @@ func (uc *vendorUseCase) SubmitRegistrationIndividual(ctx context.Context, onboa
 	}
 	vendorID := uuid.New()
 	vendor := &domain.Vendor{
-		ID:                    vendorID,
-		OwnerUserID:           userID,
-		VendorType:            vendorType,
-		BusinessLegalType:     &businessLegalType,
-		DisplayName:           storeName,
-		ResponsiblePersonName: ownerName,
-		Status:                domain.VendorStatusDraft,
+		ID:                vendorID,
+		OwnerUserID:       userID,
+		VendorType:        vendorType,
+		BusinessLegalType: &businessLegalType,
+		DisplayName:       storeName,
+		Status:            domain.VendorStatusSubmitted,
 		CreatedAt:             now,
 		UpdatedAt:             now,
 	}
@@ -303,7 +302,6 @@ func (uc *vendorUseCase) SubmitRegistrationIndividual(ctx context.Context, onboa
 		MimeType:           &contentType,
 		FileSizeBytes:      &fileSize,
 		UploadedBy:         &userID,
-		VerificationStatus: domain.VerificationStatusPending,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -330,7 +328,7 @@ func (uc *vendorUseCase) SubmitRegistrationIndividual(ctx context.Context, onboa
 		Email:        onboarding.Email,
 		Name:         ownerName,
 		VendorType:   vendorType,
-		VendorStatus: domain.VendorStatusDraft,
+		VendorStatus: domain.VendorStatusSubmitted,
 		DisplayName:  storeName,
 	}, nil
 }
@@ -422,14 +420,13 @@ func (uc *vendorUseCase) SubmitRegistrationCorporate(ctx context.Context, onboar
 	}
 	vendorID := uuid.New()
 	vendor := &domain.Vendor{
-		ID:                    vendorID,
-		OwnerUserID:           userID,
-		VendorType:            vendorType,
-		BusinessLegalType:     &businessLegalType,
-		DisplayName:           storeName,
-		ResponsiblePersonName: companyName,
-		RegisteredAddress:     &registeredAddress,
-		Status:                domain.VendorStatusDraft,
+		ID:                vendorID,
+		OwnerUserID:       userID,
+		VendorType:        vendorType,
+		BusinessLegalType: &businessLegalType,
+		DisplayName:       storeName,
+		RegisteredAddress: &registeredAddress,
+		Status:            domain.VendorStatusSubmitted,
 		CreatedAt:             now,
 		UpdatedAt:             now,
 	}
@@ -443,7 +440,6 @@ func (uc *vendorUseCase) SubmitRegistrationCorporate(ctx context.Context, onboar
 		MimeType:           &contentType,
 		FileSizeBytes:      &fileSize,
 		UploadedBy:         &userID,
-		VerificationStatus: domain.VerificationStatusPending,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -470,7 +466,7 @@ func (uc *vendorUseCase) SubmitRegistrationCorporate(ctx context.Context, onboar
 		Email:        onboarding.Email,
 		Name:         companyName,
 		VendorType:   vendorType,
-		VendorStatus: domain.VendorStatusDraft,
+		VendorStatus: domain.VendorStatusSubmitted,
 		DisplayName:  storeName,
 	}, nil
 }

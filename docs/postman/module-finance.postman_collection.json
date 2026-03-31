@@ -1,0 +1,1329 @@
+{
+  "info": {
+    "_postman_id": "3808f255-896f-4fcc-a09e-99fbc1e3e239",
+    "name": "UmrahMart - Module Finance",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "id": "ab590b83-d5c7-48bb-aa7f-82d912c4063b",
+      "name": "Authentication",
+      "item": [
+        {
+          "id": "0316f6a7-dc31-4cd6-858d-c450e3752d97",
+          "name": "Login Finance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.token) {",
+                  "    pm.collectionVariables.set('finance_token', json.data.token);",
+                  "    console.log('✅ finance_token saved');",
+                  "} else {",
+                  "    console.log('❌ Login failed, token not saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"finance@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "description": "Login sebagai finance untuk mendapatkan JWT token.\n\nToken disimpan otomatis ke variable `finance_token`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "id": "6ac861f5-d28e-46cc-b2e1-7bf2ab94d9fc",
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Finance Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/dashboard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "dashboard"
+              ]
+            },
+            "description": "Menampilkan ringkasan dashboard keuangan."
+          },
+          "response": [],
+          "id": "f0d58d6c-1164-48fb-a1bd-f991c4e4198a"
+        }
+      ]
+    },
+    {
+      "id": "d48999b9-ce7c-4126-935d-8eeafad54704",
+      "name": "Transaksi",
+      "item": [
+        {
+          "name": "List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/transactions?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Daftar semua transaksi."
+          },
+          "response": [],
+          "id": "d563c3f8-7647-4deb-823f-2e1ba37bda67"
+        },
+        {
+          "name": "Export Transactions (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/transactions/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "transactions",
+                "export"
+              ]
+            },
+            "description": "Download data transaksi dalam format CSV."
+          },
+          "response": [],
+          "id": "cc731341-b1d6-46f3-af6b-851f1b5e45e4"
+        }
+      ]
+    },
+    {
+      "id": "d2b4fff7-fbe7-468e-bedf-afe1d3ef85c2",
+      "name": "Payouts (Pencairan)",
+      "item": [
+        {
+          "name": "List Payouts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/payouts?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "payouts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Daftar semua payout/pencairan vendor."
+          },
+          "response": [],
+          "id": "34039c12-a83c-4f0b-9fb8-e3ad0fe4c377"
+        },
+        {
+          "name": "Export Payouts (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/payouts/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "payouts",
+                "export"
+              ]
+            },
+            "description": "Download data payout dalam format CSV."
+          },
+          "response": [],
+          "id": "35106ef3-26fc-42d0-a3da-df5bc493d5fa"
+        },
+        {
+          "name": "Update Payout Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/payouts/{{payout_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "payouts",
+                "{{payout_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}"
+            },
+            "description": "Update status payout."
+          },
+          "response": [],
+          "id": "21b21e48-9ce3-4cad-b55c-c5b8f01e6f10"
+        }
+      ]
+    },
+    {
+      "id": "211a05dd-633f-4617-a319-a2660d6d0e3c",
+      "name": "Refunds (Pengembalian Dana)",
+      "item": [
+        {
+          "name": "List Refunds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/refunds?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "refunds"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Daftar semua refund/pengembalian dana."
+          },
+          "response": [],
+          "id": "b9696d19-88b0-4351-a2e5-7f52604969e2"
+        },
+        {
+          "name": "Export Refunds (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/refunds/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "refunds",
+                "export"
+              ]
+            },
+            "description": "Download data refund dalam format CSV."
+          },
+          "response": [],
+          "id": "c0a1a8c9-e8be-496a-9082-d3181ac4f96a"
+        },
+        {
+          "name": "Update Refund Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/refunds/{{refund_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "refunds",
+                "{{refund_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}"
+            },
+            "description": "Update status refund."
+          },
+          "response": [],
+          "id": "34030ce4-53ce-4580-a059-0984aa7a4a57"
+        }
+      ]
+    },
+    {
+      "id": "782512de-cdb6-46e3-8474-076f6b0b4d62",
+      "name": "Laporan Keuangan",
+      "item": [
+        {
+          "name": "Financial Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/reports",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "reports"
+              ]
+            },
+            "description": "Laporan keuangan keseluruhan."
+          },
+          "response": [],
+          "id": "503174a3-daf0-482e-bbb8-9051f09686c3"
+        },
+        {
+          "name": "Export Financial Report (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/reports/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "reports",
+                "export"
+              ]
+            },
+            "description": "Download laporan keuangan dalam format CSV."
+          },
+          "response": [],
+          "id": "ddb22946-460e-4050-ac8a-6173b445a104"
+        }
+      ]
+    },
+    {
+      "id": "0bb6f429-9a2d-4501-be8a-5733db94b381",
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Search Chatable Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/users?q=&roles=&page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "description": "Keyword pencarian (nama/email)"
+                },
+                {
+                  "key": "roles",
+                  "value": "",
+                  "description": "Filter role: umkm, admin, cs, finance. Kosongkan untuk semua yang diizinkan."
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Jumlah per halaman (default: 10)"
+                }
+              ]
+            },
+            "description": "Cari user yang dapat diajak chat.\n\nRole yang diizinkan: **UMKM, Admin, CS, Finance**.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Users Retrieved",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"users retrieved\",\n  \"data\": [\n    {\n      \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"full_name\": \"Toko Umrah Jaya\",\n      \"email\": \"user@dev.local\",\n      \"role\": \"umkm\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 1,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "200 - Empty",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"users retrieved\",\n  \"data\": [],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 0,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "401 - Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"missing or invalid token\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ],
+          "id": "e0d68f26-6fe8-494c-b509-d73bd8727bc9"
+        },
+        {
+          "name": "Presign Chat Attachment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data) {",
+                  "    pm.collectionVariables.set('chat_attachment_key', json.data.object_key);",
+                  "    pm.collectionVariables.set('chat_upload_url', json.data.upload_url);",
+                  "    console.log('✅ chat_attachment_key saved: ' + json.data.object_key);",
+                  "    console.log('✅ chat_upload_url saved: ' + json.data.upload_url);",
+                  "} else {",
+                  "    console.log('❌ Presign failed');",
+                  "}",
+                  "pm.test('presign success', function() {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data.upload_url).to.be.a('string');",
+                  "    pm.expect(json.data.object_key).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content_type\": \"image/jpeg\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/chat/attachment/presign",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "attachment",
+                "presign"
+              ]
+            },
+            "description": "Generate presigned URL untuk upload chat attachment ke S3.\n\n**Content type valid:** `image/jpeg`, `image/png`, `video/mp4`\n**Max file size:** 10 MB\n\n**Flow:**\n1. Panggil endpoint ini → dapat `upload_url` + `object_key`\n2. Upload file ke `upload_url` (PUT request langsung ke S3)\n3. Gunakan `object_key` sebagai `attachment_key` saat Send Message\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 — Presigned URL Generated",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/chat/attachment/presign"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"presigned upload URL generated\",\n  \"data\": {\n    \"upload_url\": \"https://s3.amazonaws.com/bucket/chat-attachments/2026/03/02/abc123?X-Amz-Signature=...\",\n    \"object_key\": \"chat-attachments/2026/03/02/abc123\",\n    \"content_type\": \"image/jpeg\",\n    \"expires_in\": 1800\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "422 — Invalid Content Type",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/chat/attachment/presign"
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid chat attachment content type; allowed: image/png, image/jpeg, video/mp4\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ],
+          "id": "b87f1cd0-d4dc-4346-99b1-7f3af515ac8d"
+        },
+        {
+          "name": "Upload Chat Attachment ke S3",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "var uploadUrl = pm.collectionVariables.get('chat_upload_url');",
+                  "if (!uploadUrl) {",
+                  "    console.log('⚠️ chat_upload_url belum ada. Jalankan Presign Chat Attachment dulu!');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/jpeg"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "url": {
+              "raw": "{{chat_upload_url}}",
+              "host": [
+                "{{chat_upload_url}}"
+              ]
+            },
+            "description": "Upload file langsung ke S3 menggunakan presigned URL.\n\n**Langkah:**\n1. Pastikan sudah menjalankan **Presign Chat Attachment** → `chat_upload_url` tersimpan otomatis\n2. Di tab **Body** → pilih **binary** → pilih file (JPG/PNG/MP4, maks 10 MB)\n3. Pastikan **Content-Type** di Header sesuai (misal: `image/jpeg`)\n4. Klik **Send** → 200 OK dari S3\n\n**Catatan:** URL ini langsung ke S3, bukan ke API backend. Tidak perlu Authorization header."
+          },
+          "response": [],
+          "id": "737a025e-be7e-4ca8-8c84-598a6605c11f"
+        },
+        {
+          "name": "Start or Get Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('conversation_id', json.data.id);",
+                  "    console.log('✅ conversation_id saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participant_id\": \"{{participant_id}}\"\n}"
+            },
+            "description": "Mulai conversation baru atau ambil yang sudah ada.\n\nJika sudah ada conversation antara kedua user, akan dikembalikan conversation yang ada.\n\nRole yang diizinkan: **UMKM, Admin, CS, Finance**.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "201 - Conversation Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversation ready\",\n  \"data\": {\n    \"id\": \"c4d5e6f7-a8b9-0123-c456-789012defabc\",\n    \"initiator_id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"participant_id\": \"f6a7b8c9-d0e1-2345-fa67-890bcdef1234\",\n    \"last_message_at\": \"2026-03-02T09:00:00Z\",\n    \"created_at\": \"2026-03-01T14:00:00Z\",\n    \"updated_at\": \"2026-03-02T09:00:00Z\",\n    \"user_name\": \"Toko Umrah Jaya\",\n    \"user_role\": \"umkm\",\n    \"last_message\": \"Mohon proses pencairan dana penjualan\",\n    \"last_message_time\": \"2026-03-02T09:00:00Z\",\n    \"unread_count\": 0\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "201 - Existing Conversation Returned",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversation ready\",\n  \"data\": {\n    \"id\": \"d5e6f7a8-b9c0-1234-d567-890123efabcd\",\n    \"initiator_id\": \"d4e5f6a7-b8c9-0123-def4-567890abcdef\",\n    \"participant_id\": \"f6a7b8c9-d0e1-2345-fa67-890bcdef1234\",\n    \"last_message_at\": \"2026-03-02T09:00:00Z\",\n    \"created_at\": \"2026-03-01T14:00:00Z\",\n    \"updated_at\": \"2026-03-02T09:00:00Z\",\n    \"user_name\": \"Admin Dev\",\n    \"user_role\": \"admin\",\n    \"last_message\": \"Tolong cek refund order #12345\",\n    \"last_message_time\": \"2026-03-02T09:00:00Z\",\n    \"unread_count\": 2\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Validation Failed",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"participant_id is required\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Role Not Allowed",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"chat between these roles is not allowed\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "401 - Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"missing or invalid token\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ],
+          "id": "b1ecf458-55df-4361-8195-d961f7b42cc2"
+        },
+        {
+          "name": "List Conversations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/chat?page=1&limit=10&search=&role=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "chat"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Jumlah per halaman (default: 10)"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Cari berdasarkan nama participant."
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "description": "Filter role participant: umkm, admin, cs, finance."
+                }
+              ]
+            },
+            "description": "Daftar semua conversation.\n\nSetiap conversation dilengkapi:\n- `user_name` & `user_role` — info participant lawan bicara\n- `last_message` & `last_message_time` — pesan terakhir\n- `unread_count` — jumlah pesan belum dibaca\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Conversations Retrieved",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversations retrieved\",\n  \"data\": [\n    {\n      \"id\": \"c4d5e6f7-a8b9-0123-c456-789012defabc\",\n      \"initiator_id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n      \"participant_id\": \"f6a7b8c9-d0e1-2345-fa67-890bcdef1234\",\n      \"last_message_at\": \"2026-03-02T09:00:00Z\",\n      \"created_at\": \"2026-03-01T14:00:00Z\",\n      \"updated_at\": \"2026-03-02T09:00:00Z\",\n      \"user_name\": \"Toko Umrah Jaya\",\n      \"user_role\": \"umkm\",\n      \"last_message\": \"Mohon proses pencairan dana penjualan\",\n      \"last_message_time\": \"2026-03-02T09:00:00Z\",\n      \"unread_count\": 1\n    },\n    {\n      \"id\": \"d5e6f7a8-b9c0-1234-d567-890123efabcd\",\n      \"initiator_id\": \"d4e5f6a7-b8c9-0123-def4-567890abcdef\",\n      \"participant_id\": \"f6a7b8c9-d0e1-2345-fa67-890bcdef1234\",\n      \"last_message_at\": \"2026-03-02T09:00:00Z\",\n      \"created_at\": \"2026-03-01T14:00:00Z\",\n      \"updated_at\": \"2026-03-02T09:00:00Z\",\n      \"user_name\": \"Admin Dev\",\n      \"user_role\": \"admin\",\n      \"last_message\": \"Tolong cek refund order #12345\",\n      \"last_message_time\": \"2026-03-02T09:00:00Z\",\n      \"unread_count\": 0\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 2,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "200 - Empty",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversations retrieved\",\n  \"data\": [],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 10,\n    \"total_items\": 0,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "401 - Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"missing or invalid token\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ],
+          "id": "7ae8847e-54a5-4490-84e1-fcec54a1cac0"
+        },
+        {
+          "name": "Get Conversation Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.success && json.data && json.data.id) {",
+                  "    pm.collectionVariables.set('conversation_id', json.data.id);",
+                  "    console.log('✅ conversation_id saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/chat/{{conversation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "chat",
+                "{{conversation_id}}"
+              ]
+            },
+            "description": "Detail satu conversation. Hanya bisa diakses oleh participant.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Conversation Retrieved",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"conversation retrieved\",\n  \"data\": {\n    \"id\": \"c4d5e6f7-a8b9-0123-c456-789012defabc\",\n    \"initiator_id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"participant_id\": \"f6a7b8c9-d0e1-2345-fa67-890bcdef1234\",\n    \"last_message_at\": \"2026-03-02T09:00:00Z\",\n    \"created_at\": \"2026-03-01T14:00:00Z\",\n    \"updated_at\": \"2026-03-02T09:00:00Z\",\n    \"user_name\": \"Toko Umrah Jaya\",\n    \"user_role\": \"umkm\",\n    \"last_message\": \"Mohon proses pencairan dana penjualan\",\n    \"last_message_time\": \"2026-03-02T09:00:00Z\",\n    \"unread_count\": 1\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Invalid Conversation ID",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid conversation id\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Not a Participant",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"you are not a participant of this conversation\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Conversation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"conversation not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ],
+          "id": "9205d4e1-0dc2-473d-b0c2-b2eaf4e7c1cb"
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/{{conversation_id}}/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "{{conversation_id}}",
+                "messages"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Halo, ini pesan dari saya\",\n  \"attachment_url\": \"\"\n}"
+            },
+            "description": "Kirim pesan dalam conversation.\n\n**Body:**\n- `message` (string, required) — isi pesan\n- `attachment_url` (string, optional) — URL lampiran\n\nSetelah pesan disimpan, backend push notifikasi ke participant lawan via WebSocket.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "201 - Message Sent",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"message sent\",\n  \"data\": {\n    \"id\": \"e5f6a7b8-c9d0-1234-e567-890123456789\",\n    \"conversation_id\": \"c4d5e6f7-a8b9-0123-c456-789012defabc\",\n    \"sender_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n    \"sender_name\": \"Sender Name\",\n    \"sender_role\": \"finance\",\n    \"message\": \"Halo, ini pesan dari saya\",\n    \"attachment_url\": null,\n    \"is_read\": false,\n    \"read_at\": null,\n    \"created_at\": \"2026-03-02T10:16:00Z\"\n  },\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Validation Failed",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"message is required\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Not a Participant",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"you are not a participant of this conversation\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Conversation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"conversation not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ],
+          "id": "5df3099e-e548-4b6d-a969-f6f3173b3eba"
+        },
+        {
+          "name": "List Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/chat/{{conversation_id}}/messages?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "chat",
+                "{{conversation_id}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Halaman (default: 1)"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Jumlah per halaman (default: 20)"
+                }
+              ]
+            },
+            "description": "Daftar pesan dalam satu conversation.\n\nDiurutkan dari terbaru.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Messages Retrieved",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"messages retrieved\",\n  \"data\": [\n    {\n      \"id\": \"e5f6a7b8-c9d0-1234-e567-890123456789\",\n      \"conversation_id\": \"c4d5e6f7-a8b9-0123-c456-789012defabc\",\n      \"sender_id\": \"f6a7b8c9-d0e1-2345-fa67-890bcdef1234\",\n      \"sender_name\": \"Toko Umrah Jaya\",\n      \"sender_role\": \"umkm\",\n      \"message\": \"Mohon proses pencairan dana penjualan\",\n      \"attachment_url\": null,\n      \"is_read\": true,\n      \"read_at\": \"2026-03-02T09:05:00Z\",\n      \"created_at\": \"2026-03-02T09:00:00Z\"\n    },\n    {\n      \"id\": \"d4e5f6a7-b8c9-0123-d456-789012345678\",\n      \"conversation_id\": \"c4d5e6f7-a8b9-0123-c456-789012defabc\",\n      \"sender_id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"sender_name\": \"Current User\",\n      \"sender_role\": \"finance\",\n      \"message\": \"Halo, ini pesan dari saya\",\n      \"attachment_url\": null,\n      \"is_read\": false,\n      \"read_at\": null,\n      \"created_at\": \"2026-03-02T08:55:00Z\"\n    }\n  ],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total_items\": 2,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "200 - Empty",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"messages retrieved\",\n  \"data\": [],\n  \"errors\": null,\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total_items\": 0,\n    \"total_pages\": 1\n  }\n}"
+            },
+            {
+              "name": "403 - Not a Participant",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"you are not a participant of this conversation\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Conversation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"conversation not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ],
+          "id": "4d342132-1612-4c88-bdd2-bb2c659f6d81"
+        },
+        {
+          "name": "Mark Messages as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/finance/chat/{{conversation_id}}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "finance",
+                "chat",
+                "{{conversation_id}}",
+                "read"
+              ]
+            },
+            "description": "Tandai semua pesan dari lawan bicara sebagai sudah dibaca. Tidak perlu body.\n\n**Auth:** Bearer Token"
+          },
+          "response": [
+            {
+              "name": "200 - Messages Marked as Read",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": true,\n  \"message\": \"messages marked as read\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "400 - Invalid Conversation ID",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"invalid conversation id\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "403 - Not a Participant",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"you are not a participant of this conversation\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            },
+            {
+              "name": "404 - Conversation Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"success\": false,\n  \"message\": \"conversation not found\",\n  \"data\": null,\n  \"errors\": null,\n  \"meta\": null\n}"
+            }
+          ],
+          "id": "c5724a12-f29b-408b-adef-8d6c2d5977fb"
+        }
+      ]
+    },
+    {
+      "id": "e2aeabd7-5f0a-4129-b157-1b3240c52227",
+      "name": "Notifikasi",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ]
+            },
+            "description": "Daftar semua notifikasi."
+          },
+          "response": [],
+          "id": "4a74ed57-9089-4c86-a8d0-2928ab4f300b"
+        },
+        {
+          "name": "Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/unread-count",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "unread-count"
+              ]
+            },
+            "description": "Jumlah notifikasi yang belum dibaca."
+          },
+          "response": [],
+          "id": "fdd65299-6e2c-45c4-9e83-e310a78758bc"
+        },
+        {
+          "name": "Mark All Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/read-all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ]
+            },
+            "description": "Tandai semua notifikasi sebagai sudah dibaca."
+          },
+          "response": [],
+          "id": "fd23a1e9-a3d0-4c1d-bace-61121ea11174"
+        },
+        {
+          "name": "Mark One Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{finance_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/{{notification_id}}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notification_id}}",
+                "read"
+              ]
+            },
+            "description": "Tandai satu notifikasi sebagai sudah dibaca."
+          },
+          "response": [],
+          "id": "2d8d9efc-f291-4a51-aec7-53f4d5296831"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "finance_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "participant_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "chat_attachment_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "chat_upload_url",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payout_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refund_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

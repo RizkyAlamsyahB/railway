@@ -201,6 +201,11 @@ func Initialize() (*App, error) {
 	vendorBannerUseCase := usecase.NewVendorBannerUseCase(vendorBannerRepo, storageProvider)
 	vendorBannerHandler := handler.NewVendorBannerHandler(vendorBannerUseCase)
 
+	// Vendor Voucher management
+	vendorVoucherRepo := repository.NewVendorVoucherRepository(db)
+	vendorVoucherUseCase := usecase.NewVendorVoucherUseCase(vendorVoucherRepo, productRepo)
+	vendorVoucherHandler := handler.NewVendorVoucherHandler(vendorVoucherUseCase)
+
 	// Address management (shared by customer + vendor)
 	addressRepo := repository.NewAddressRepository(db)
 	addressUseCase := usecase.NewAddressUseCase(addressRepo)
@@ -243,6 +248,10 @@ func Initialize() (*App, error) {
 
 	orderRepo := repository.NewOrderRepository(db)
 	paymentRepo := repository.NewPaymentRepository(db)
+
+	// Admin payment listing
+	adminPaymentUseCase := usecase.NewAdminPaymentUseCase(paymentRepo)
+	adminPaymentHandler := handler.NewAdminPaymentHandler(adminPaymentUseCase)
 	ticketUseCase := usecase.NewTicketUseCase(ticketRepo, subjectRepo, userRepo, orderRepo, paymentRepo, emailProvider, storageProvider, cfg.SMTP.FromEmail)
 	csReportUseCase := usecase.NewCSReportUseCase(ticketRepo)
 	ticketSubjectUseCase := usecase.NewTicketSubjectUseCase(subjectRepo)
@@ -268,7 +277,7 @@ func Initialize() (*App, error) {
 	shipmentRepo := repository.NewShipmentRepository(db)
 	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, shipmentRepo, rajaOngkirProvider, storageProvider, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
 	checkoutHandler := handler.NewCheckoutHandler(checkoutUseCase, cfg.Xendit.WebhookVerificationToken, cfg.Xendit.Bypass)
-	orderActionUseCase := usecase.NewOrderActionUseCase(orderRepo)
+	orderActionUseCase := usecase.NewOrderActionUseCase(orderRepo, shipmentRepo, paymentRepo, vendorRepo, productRepo, rajaOngkirProvider)
 	orderActionHandler := handler.NewOrderActionHandler(orderActionUseCase)
 	orderSettlementScheduler := usecase.NewOrderSettlementScheduler(orderRepo)
 
@@ -332,12 +341,15 @@ func Initialize() (*App, error) {
 		adminContactHandler,
 		adminFAQHandler,
 		vendorBannerHandler,
+		vendorVoucherHandler,
 		addressHandler,
 		shippingHandler,
 		vendorCourierHandler,
 		vendorOrderHandler,
+		adminPaymentHandler,
 		wsHandler,
 		cfg.JWT.Secret,
+		cfg.App.CORSAllowedOrigins,
 	)
 
 	return &App{
@@ -368,7 +380,11 @@ func newEmailProvider(cfg config.SMTPConfig) (domain.EmailProvider, error) {
 }
 
 // newXenPlatformProvider creates the Xendit-backed XenPlatformProvider from config.
+// When cfg.Bypass is true, a no-op provider is returned for local development.
 func newXenPlatformProvider(cfg config.XenditConfig) (domain.XenPlatformProvider, error) {
+	if cfg.Bypass {
+		return payment.NewNoopXenPlatformClient(), nil
+	}
 	return payment.NewXenditClient(cfg)
 }
 

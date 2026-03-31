@@ -400,6 +400,272 @@ func sanitizeFileName(name string) string {
 	return result
 }
 
+func (uc *productUseCase) UpdateProduct(ctx context.Context, vendorID uuid.UUID, productID uuid.UUID, req domain.UpdateProductRequest) (*domain.UpdateProductResponse, error) {
+	// 1. Validate vendor is active.
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+	if vendor.Status != domain.VendorStatusActive {
+		return nil, ErrVendorNotActive
+	}
+
+	// 2. Load and authorize product.
+	product, err := uc.productRepo.FindByID(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find product: %w", err)
+	}
+	if product == nil {
+		return nil, ErrProductNotFound
+	}
+	if product.VendorID != vendorID {
+		return nil, ErrProductNotOwned
+	}
+
+	// 3. Validate category.
+	categoryID, err := uuid.Parse(req.CategoryID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid category_id: %w", err)
+	}
+	category, err := uc.categoryRepo.FindByID(ctx, categoryID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find category: %w", err)
+	}
+	if category == nil || !category.IsActive {
+		return nil, ErrCategoryNotFound
+	}
+
+	// 4. Determine new status.
+	status := domain.ProductStatusDraft
+	if req.IsActive {
+		status = domain.ProductStatusPublished
+	}
+
+	// 5. Conditional slug regeneration.
+	slug := product.Slug
+	if req.Name != product.Name {
+		newSlug, err := uc.generateSlug(ctx, req.Name)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate slug: %w", err)
+		}
+		slug = newSlug
+	}
+
+	// 6. Load existing variants.
+	existingVariants, err := uc.productRepo.FindVariantsByProductID(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load variants: %w", err)
+	}
+	existingVariantMap := make(map[uuid.UUID]*domain.ProductVariant, len(existingVariants))
+	var defaultVariant domain.ProductVariant
+	for i := range existingVariants {
+		existingVariantMap[existingVariants[i].ID] = &existingVariants[i]
+		if existingVariants[i].IsDefault {
+			defaultVariant = existingVariants[i]
+		}
+	}
+
+	// 7. Process variants.
+	productCount, err := uc.productRepo.CountByVendorID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count vendor products: %w", err)
+	}
+
+	// Always update default variant from top-level fields.
+	defaultVariant.Price = req.Price
+	defaultVariant.StockOnHand = req.Stock
+	defaultVariant.WeightGram = req.WeightGram
+	defaultVariant.IsActive = true
+
+	variantsToUpsert := []domain.ProductVariant{defaultVariant}
+	requestedVariantIDs := make(map[uuid.UUID]bool)
+
+	for i, v := range req.Variants {
+		if v.ID == nil {
+			// New variant.
+			sku := generateSKU(vendor.DisplayName, req.Name, int(productCount), len(existingVariants)+i)
+			variantsToUpsert = append(variantsToUpsert, domain.ProductVariant{
+				ID:          uuid.New(),
+				ProductID:   productID,
+				SKU:         sku,
+				VariantName: v.VariantName,
+				Price:       v.Price,
+				Currency:    "IDR",
+				StockOnHand: v.Stock,
+				WeightGram:  v.WeightGram,
+				IsDefault:   false,
+				IsActive:    v.IsActive,
+			})
+		} else {
+			// Existing variant.
+			variantID, err := uuid.Parse(*v.ID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid variant id: %w", err)
+			}
+			existing, found := existingVariantMap[variantID]
+			if !found {
+				return nil, ErrVariantNotFound
+			}
+			requestedVariantIDs[variantID] = true
+			existing.VariantName = v.VariantName
+			existing.Price = v.Price
+			existing.StockOnHand = v.Stock
+			existing.WeightGram = v.WeightGram
+			existing.IsActive = v.IsActive
+			variantsToUpsert = append(variantsToUpsert, *existing)
+		}
+	}
+
+	// Deactivate non-default variants not present in the request.
+	var variantIDsToDeactivate []uuid.UUID
+	for id, v := range existingVariantMap {
+		if !v.IsDefault && !requestedVariantIDs[id] {
+			variantIDsToDeactivate = append(variantIDsToDeactivate, id)
+		}
+	}
+
+	// 8. Process images.
+	existingImages, err := uc.productRepo.FindImagesByProductID(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load images: %w", err)
+	}
+	existingImageMap := make(map[uuid.UUID]*domain.ProductImage, len(existingImages))
+	for i := range existingImages {
+		existingImageMap[existingImages[i].ID] = &existingImages[i]
+	}
+
+	keepSet := make(map[uuid.UUID]bool, len(req.KeepImageIDs))
+	for _, rawID := range req.KeepImageIDs {
+		id, err := uuid.Parse(rawID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid keep_image_id: %w", err)
+		}
+		if _, exists := existingImageMap[id]; !exists {
+			return nil, ErrImageNotFound
+		}
+		keepSet[id] = true
+	}
+
+	if len(keepSet)+len(req.NewImages) > 10 {
+		return nil, ErrTooManyImages
+	}
+
+	// Validate primary image rules on new images.
+	if len(req.NewImages) > 0 {
+		newPrimaryCount := 0
+		for _, img := range req.NewImages {
+			if img.IsPrimary {
+				newPrimaryCount++
+			}
+		}
+		if newPrimaryCount > 1 {
+			return nil, ErrDuplicatePrimaryImage
+		}
+		keptPrimaryCount := 0
+		for id := range keepSet {
+			if existingImageMap[id].IsPrimary {
+				keptPrimaryCount++
+			}
+		}
+		if keptPrimaryCount+newPrimaryCount == 0 {
+			return nil, ErrNoPrimaryImage
+		}
+	}
+
+	// Build list of image IDs to delete.
+	var imageIDsToDelete []uuid.UUID
+	for id := range existingImageMap {
+		if !keepSet[id] {
+			imageIDsToDelete = append(imageIDsToDelete, id)
+		}
+	}
+
+	// Generate presigned URLs for new images.
+	now := time.Now()
+	newImageEntities := make([]domain.ProductImage, 0, len(req.NewImages))
+	newUploadInfos := make([]domain.ProductImageUploadInfo, 0, len(req.NewImages))
+
+	for i, img := range req.NewImages {
+		imageID := uuid.New()
+		objectKey := fmt.Sprintf("products/%s/images/%s/%s",
+			productID.String(), imageID.String(), sanitizeFileName(img.FileName))
+
+		uploadURL, err := uc.storage.GeneratePresignedUploadURL(
+			ctx, objectKey, img.ContentType, PresignedUploadExpiry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate presigned URL for image %d: %w", i, err)
+		}
+
+		sortOrder := len(keepSet) + i
+		newImageEntities = append(newImageEntities, domain.ProductImage{
+			ID:        imageID,
+			ProductID: productID,
+			ImageURL:  objectKey,
+			IsPrimary: img.IsPrimary,
+			SortOrder: sortOrder,
+			CreatedAt: now,
+		})
+		newUploadInfos = append(newUploadInfos, domain.ProductImageUploadInfo{
+			ImageID:   imageID,
+			UploadURL: uploadURL,
+			ObjectKey: objectKey,
+			SortOrder: sortOrder,
+			IsPrimary: img.IsPrimary,
+		})
+	}
+
+	// 9. Mutate product entity.
+	product.Name = req.Name
+	product.Slug = slug
+	product.Description = req.Description
+	product.CategoryID = categoryID
+	product.Status = status
+	product.UpdatedAt = now
+
+	// 10. Persist in one transaction.
+	if err := uc.productRepo.UpdateProduct(
+		ctx, product, variantsToUpsert, variantIDsToDeactivate, imageIDsToDelete, newImageEntities,
+	); err != nil {
+		return nil, fmt.Errorf("failed to update product: %w", err)
+	}
+
+	// 11. Build response.
+	variantResponses := make([]domain.ProductVariantResponse, len(variantsToUpsert))
+	for i, v := range variantsToUpsert {
+		variantResponses[i] = domain.ProductVariantResponse{
+			ID:            v.ID,
+			SKU:           v.SKU,
+			VariantName:   v.VariantName,
+			Price:         v.Price,
+			OriginalPrice: v.Price,
+			PromoPrice:    nil,
+			HasPromo:      false,
+			Currency:      v.Currency,
+			StockOnHand:   v.StockOnHand,
+			WeightGram:    v.WeightGram,
+			IsDefault:     v.IsDefault,
+			IsActive:      v.IsActive,
+		}
+	}
+
+	return &domain.UpdateProductResponse{
+		ID:            productID,
+		VendorID:      vendorID,
+		CategoryID:    categoryID,
+		Name:          req.Name,
+		Slug:          slug,
+		Description:   req.Description,
+		Status:        status,
+		HalalAIStatus: product.HalalAIStatus,
+		Variants:      variantResponses,
+		NewUploadURLs: newUploadInfos,
+		UpdatedAt:     now,
+	}, nil
+}
+
 func (uc *productUseCase) ListProducts(ctx context.Context, vendorID uuid.UUID, params domain.VendorProductListParams) ([]domain.VendorProductListItem, *domain.PaginationMeta, error) {
 	// Normalize params.
 	if params.Page < 1 {

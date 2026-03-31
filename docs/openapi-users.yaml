@@ -1,14 +1,12 @@
 openapi: 3.0.3
 info:
-  title: Haji Umroh Store BE - Users API
+  title: UmrahMart - Users API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint user/customer, termasuk pendaftaran, verifikasi email, login, profil user, checkout cart, complete order, dan review produk.
 servers:
   - url: http://localhost:8080
     description: Local development server
 tags:
-  - name: OTP
-    description: Operasi request dan verifikasi OTP modular.
   - name: User Registration
     description: Operasi pendaftaran customer baru dan verifikasi email.
   - name: User Authentication
@@ -26,22 +24,22 @@ paths:
     get:
       tags:
         - Orders
-      summary: Ambil daftar status order yang didukung sistem
+      summary: Daftar Status Order
       description: |
         Mengembalikan daftar status order yang valid untuk kebutuhan filter di client.
         Endpoint ini bersifat public (tanpa autentikasi).
       operationId: listOrderStatuses
       security: []
       responses:
-        '200':
+        "200":
           description: Daftar status order berhasil dimuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessOrderStatusesEnvelope'
+                $ref: "#/components/schemas/SuccessOrderStatusesEnvelope"
               example:
                 success: true
                 message: "order statuses loaded"
@@ -57,15 +55,15 @@ paths:
                   - refunded
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "internal server error"
@@ -76,8 +74,8 @@ paths:
   /api/v1/otp/request:
     post:
       tags:
-        - OTP
-      summary: Membuat dan mengirim OTP ke email
+        - User Registration
+      summary: 1. Request OTP
       description: |
         Membuat OTP baru untuk `purpose` tertentu dan mengirimkannya ke email tujuan.
         Endpoint ini berdiri sendiri dan belum terhubung ke flow registrasi atau reset password existing.
@@ -88,53 +86,53 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RequestOTPRequest'
+              $ref: "#/components/schemas/RequestOTPRequest"
             example:
               email: ahmad.fauzi@example.com
               purpose: email_verification
       responses:
-        '201':
+        "201":
           description: OTP berhasil dibuat dan dikirim.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessRequestOTPEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessRequestOTPEnvelope"
+        "400":
           description: Request tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '429':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
           description: Request OTP terlalu cepat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
 
   /api/v1/otp/verify:
     post:
       tags:
-        - OTP
-      summary: Verifikasi OTP dan keluarkan proof token
+        - User Registration
+      summary: 2. Verify OTP
       description: |
         Memverifikasi OTP berdasarkan kombinasi `email`, `purpose`, dan `code`.
         Jika sukses, endpoint mengembalikan proof token khusus OTP untuk dipakai di flow lanjutan.
@@ -145,54 +143,54 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VerifyOTPRequest'
+              $ref: "#/components/schemas/VerifyOTPRequest"
             example:
               email: ahmad.fauzi@example.com
               purpose: forgot_password
               code: "123456"
       responses:
-        '200':
+        "200":
           description: OTP valid dan proof token berhasil diterbitkan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVerifyOTPEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVerifyOTPEnvelope"
+        "400":
           description: OTP invalid, expired, atau request tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '429':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
           description: Jumlah percobaan OTP melebihi batas.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
 
   /api/v1/users/register:
     post:
       tags:
         - User Registration
-      summary: Mendaftarkan customer baru
+      summary: 3. Register User (Customer)
       description: |
         Membuat akun user baru dengan role `customer` dan status `pending`.
         Setelah registrasi berhasil, sistem akan mengirimkan email berisi link verifikasi
@@ -217,22 +215,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterCustomerRequest'
+              $ref: "#/components/schemas/RegisterCustomerRequest"
             example:
               full_name: Ahmad Fauzi
               phone: "081234567890"
               email: ahmad.fauzi@example.com
               password: SecurePass123!
       responses:
-        '201':
+        "201":
           description: Customer berhasil didaftarkan. Email verifikasi telah dikirim.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessRegisterEnvelope'
+                $ref: "#/components/schemas/SuccessRegisterEnvelope"
               example:
                 success: true
                 message: "Registration successful. Please check your email to verify your account."
@@ -242,15 +240,15 @@ paths:
                   message: "Registration successful. Please check your email to verify your account."
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (validasi gagal).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 missingFullName:
                   summary: Nama lengkap wajib diisi
@@ -292,15 +290,15 @@ paths:
                     data: null
                     errors: "Key: 'RegisterCustomerRequest.Phone' Error:Field validation for 'Phone' failed on the 'required' tag"
                     meta: null
-        '409':
+        "409":
           description: Konflik — email atau nomor telepon sudah terdaftar.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 emailAlreadyRegistered:
                   summary: Email sudah terdaftar
@@ -318,15 +316,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "An unexpected error occurred"
@@ -338,7 +336,7 @@ paths:
     get:
       tags:
         - User Registration
-      summary: Verifikasi email customer
+      summary: 4. Verify Email User (Customer)
       description: |
         Memverifikasi alamat email customer menggunakan token yang dikirim via email.
         Endpoint ini dipanggil ketika user mengklik link verifikasi di email.
@@ -368,7 +366,7 @@ paths:
             type: string
           example: dGhpcyBpcyBhIHNhbXBsZSB0b2tlbiB2YWx1ZQ==
       responses:
-        '302':
+        "302":
           description: |
             Redirect ke halaman frontend. Lokasi redirect tergantung hasil verifikasi:
             - **Sukses** → `{FRONTEND_URL}/verify-email?status=success`
@@ -386,7 +384,7 @@ paths:
     post:
       tags:
         - User Registration
-      summary: Kirim ulang email verifikasi
+      summary: Resend Email Verifikasi
       description: |
         Mengirim ulang email verifikasi ke alamat email yang didaftarkan.
         Endpoint ini dirancang untuk keamanan — response selalu sukses meskipun email tidak ditemukan
@@ -410,34 +408,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ResendVerificationRequest'
+              $ref: "#/components/schemas/ResendVerificationRequest"
             example:
               email: ahmad.fauzi@example.com
       responses:
-        '200':
+        "200":
           description: Permintaan kirim ulang diterima. Jika email terdaftar dan masih pending, email verifikasi baru telah dikirim.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResendVerificationEnvelope'
+                $ref: "#/components/schemas/SuccessResendVerificationEnvelope"
               example:
                 success: true
                 message: "If your email is registered and pending verification, a new verification email has been sent."
                 data: null
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (validasi gagal atau user bukan status pending).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 missingEmail:
                   summary: Email wajib diisi
@@ -463,45 +461,45 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '409':
+        "409":
           description: Konflik — user sudah aktif (sudah diverifikasi).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "user is already active"
                 data: null
                 errors: null
                 meta: null
-        '429':
+        "429":
           description: Terlalu banyak permintaan — silakan tunggu sebelum meminta email verifikasi lagi.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "please wait before requesting another verification email"
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "An unexpected error occurred"
@@ -532,20 +530,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
             example:
               email: ahmad.fauzi@example.com
               password: SecurePass123!
       responses:
-        '200':
+        "200":
           description: Login berhasil. Mengembalikan JWT token dan data user.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessLoginEnvelope'
+                $ref: "#/components/schemas/SuccessLoginEnvelope"
               example:
                 success: true
                 message: "login successful"
@@ -564,15 +562,15 @@ paths:
                     updated_at: "2026-02-17T07:00:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (validasi gagal).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 missingEmail:
                   summary: Email wajib diisi
@@ -590,15 +588,15 @@ paths:
                     data: null
                     errors: "Key: 'LoginRequest.Password' Error:Field validation for 'Password' failed on the 'required' tag"
                     meta: null
-        '401':
+        "401":
           description: Autentikasi gagal — kredensial salah, akun belum aktif, atau email belum diverifikasi.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidCredentials:
                   summary: Email atau password salah
@@ -624,30 +622,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '403':
+        "403":
           description: Akun diblokir.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "account is blocked"
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "An unexpected error occurred"
@@ -659,7 +657,7 @@ paths:
     get:
       tags:
         - User Profile
-      summary: Ambil data profil user yang sedang login
+      summary: Get My Profile
       description: |
         Mengembalikan data profil user berdasarkan JWT token yang diberikan.
         Endpoint ini hanya bisa diakses oleh user dengan role `customer`.
@@ -672,15 +670,15 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Data profil user berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessGetMeEnvelope'
+                $ref: "#/components/schemas/SuccessGetMeEnvelope"
               example:
                 success: true
                 message: "user profile retrieved successfully"
@@ -697,15 +695,15 @@ paths:
                   updated_at: "2026-02-17T07:00:00Z"
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak diberikan, tidak valid, atau sudah expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 missingHeader:
                   summary: Header Authorization tidak ada
@@ -723,45 +721,45 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '403':
+        "403":
           description: User tidak memiliki role yang diizinkan (bukan customer).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "insufficient permissions"
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Data user tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "user not found"
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "An unexpected error occurred"
@@ -773,7 +771,7 @@ paths:
     get:
       tags:
         - Orders
-      summary: Ambil daftar order milik customer
+      summary: Get My Orders
       description: |
         Mengembalikan daftar pesanan milik customer yang sedang login.
         Mendukung filter berdasarkan status order dan pagination.
@@ -787,7 +785,18 @@ paths:
           description: Filter status order (single value).
           schema:
             type: string
-            enum: [pending_payment, paid, processing, packed, shipped, received, completed, canceled, refunded]
+            enum:
+              [
+                pending_payment,
+                paid,
+                processing,
+                packed,
+                shipped,
+                received,
+                completed,
+                canceled,
+                refunded,
+              ]
         - name: page
           in: query
           required: false
@@ -806,15 +815,15 @@ paths:
             maximum: 100
             default: 10
       responses:
-        '200':
+        "200":
           description: Daftar order berhasil dimuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessCustomerOrderListEnvelope'
+                $ref: "#/components/schemas/SuccessCustomerOrderListEnvelope"
               example:
                 success: true
                 message: "orders retrieved successfully"
@@ -833,60 +842,60 @@ paths:
                   limit: 10
                   total_items: 1
                   total_pages: 1
-        '400':
+        "400":
           description: Request tidak valid (misalnya filter status tidak valid).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "invalid order status"
                 data: null
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak diberikan, tidak valid, atau sudah expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "invalid or expired token"
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki role yang diizinkan (bukan customer).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "insufficient permissions"
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "internal server error"
@@ -898,7 +907,7 @@ paths:
     post:
       tags:
         - Checkout
-      summary: Checkout cart customer dan buat invoice pembayaran
+      summary: Checkout Cart
       description: |
         Melakukan checkout untuk seluruh item pada cart aktif customer yang sedang login.
         Endpoint ini akan membuat order per vendor, lalu membuat invoice Xendit untuk setiap order.
@@ -927,7 +936,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CheckoutRequest'
+              $ref: "#/components/schemas/CheckoutRequest"
             example:
               address_id: "7d2e9f31-09af-4d49-adf3-47bb2b9e2010"
               shipping_choices:
@@ -936,15 +945,15 @@ paths:
                   service: "REG"
               notes: "Tolong kirim di jam kerja."
       responses:
-        '201':
+        "201":
           description: Checkout berhasil. Order dan invoice pembayaran berhasil dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessCheckoutEnvelope'
+                $ref: "#/components/schemas/SuccessCheckoutEnvelope"
               example:
                 success: true
                 message: "checkout successful"
@@ -962,15 +971,15 @@ paths:
                       expires_at: "2026-02-26T10:30:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (misalnya body tidak lengkap, cart kosong, atau user ID tidak valid pada context auth).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 cartEmpty:
                   summary: Cart kosong
@@ -996,15 +1005,15 @@ paths:
                     data: null
                     errors: "Key: 'CheckoutRequest.AddressID' Error:Field validation for 'AddressID' failed on the 'required' tag\nKey: 'CheckoutRequest.ShippingChoices' Error:Field validation for 'ShippingChoices' failed on the 'required' tag"
                     meta: null
-        '401':
+        "401":
           description: Token tidak diberikan, tidak valid, atau sudah expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 missingHeader:
                   summary: Header Authorization tidak ada
@@ -1022,30 +1031,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '403':
+        "403":
           description: User tidak memiliki role yang diizinkan (bukan customer).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "insufficient permissions"
                 data: null
                 errors: null
                 meta: null
-        '409':
+        "409":
           description: Checkout gagal karena konflik data cart/item (item unavailable atau stok tidak mencukupi).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 unavailableItems:
                   summary: Ada item unavailable dalam cart
@@ -1063,15 +1072,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '502':
+        "502":
           description: Integrasi payment gateway gagal (akun vendor belum siap Xendit atau gagal create invoice).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 vendorNoXenditAccount:
                   summary: Vendor belum memiliki akun Xendit
@@ -1089,15 +1098,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "internal server error"
@@ -1109,7 +1118,7 @@ paths:
     post:
       tags:
         - Orders
-      summary: Tandai order selesai oleh customer
+      summary: Complete Order
       description: |
         Menandai order customer menjadi `completed`.
 
@@ -1128,15 +1137,15 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Order berhasil ditandai selesai.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessCompleteOrderEnvelope'
+                $ref: "#/components/schemas/SuccessCompleteOrderEnvelope"
               example:
                 success: true
                 message: "order marked as completed"
@@ -1147,15 +1156,15 @@ paths:
                   completed_at: "2026-03-04T10:20:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidOrderID:
                   summary: orderId bukan UUID valid
@@ -1173,30 +1182,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak diberikan, tidak valid, atau sudah expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "invalid or expired token"
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: Tidak diizinkan (bukan role customer atau order bukan milik user).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 insufficientPermissions:
                   summary: Role tidak diizinkan
@@ -1214,30 +1223,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '404':
+        "404":
           description: Order tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "order not found"
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "internal server error"
@@ -1249,7 +1258,7 @@ paths:
     post:
       tags:
         - Reviews
-      summary: Generate presigned upload URL gambar review
+      summary: Generate Presigned Upload URL untuk Gambar Review
       description: |
         Menghasilkan presigned upload URL untuk gambar review produk.
         Endpoint menggunakan storage provider internal (`GeneratePresignedUploadURL`).
@@ -1264,19 +1273,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PresignReviewImageRequest'
+              $ref: "#/components/schemas/PresignReviewImageRequest"
             example:
               content_type: image/jpeg
       responses:
-        '200':
+        "200":
           description: Presigned upload URL berhasil dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessPresignReviewImageEnvelope'
+                $ref: "#/components/schemas/SuccessPresignReviewImageEnvelope"
               example:
                 success: true
                 message: "review image upload URL generated"
@@ -1287,15 +1296,15 @@ paths:
                   expires_in: 1800
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 validationFailed:
                   summary: Body tidak valid
@@ -1313,45 +1322,45 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak diberikan, tidak valid, atau sudah expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "invalid or expired token"
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki role yang diizinkan (bukan customer).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "insufficient permissions"
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "internal server error"
@@ -1363,7 +1372,7 @@ paths:
     post:
       tags:
         - Reviews
-      summary: Buat review produk dari item pembelian
+      summary: Create Product Review
       description: |
         Membuat review produk berdasarkan item order yang sudah dibeli customer.
 
@@ -1381,7 +1390,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateProductReviewRequest'
+              $ref: "#/components/schemas/CreateProductReviewRequest"
             example:
               order_id: "11111111-2222-3333-4444-555555555555"
               order_item_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -1390,15 +1399,15 @@ paths:
               images:
                 - object_key: "reviews/2026/03/04/abc"
       responses:
-        '201':
+        "201":
           description: Review berhasil dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessCreateProductReviewEnvelope'
+                $ref: "#/components/schemas/SuccessCreateProductReviewEnvelope"
               example:
                 success: true
                 message: "review created successfully"
@@ -1414,15 +1423,15 @@ paths:
                   created_at: "2026-03-04T10:30:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 validationFailed:
                   summary: Body tidak valid
@@ -1456,30 +1465,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak diberikan, tidak valid, atau sudah expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "invalid or expired token"
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: Tidak diizinkan (bukan role customer atau order bukan milik user).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 insufficientPermissions:
                   summary: Role tidak diizinkan
@@ -1497,15 +1506,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '404':
+        "404":
           description: Resource terkait tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 orderNotFound:
                   summary: Order tidak ditemukan
@@ -1523,30 +1532,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '409':
+        "409":
           description: Review untuk item ini sudah pernah dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "review for this purchased item already exists"
                 data: null
                 errors: null
                 meta: null
-        '422':
+        "422":
           description: Request tidak dapat diproses karena syarat bisnis/upload belum terpenuhi.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 notEligible:
                   summary: Order belum eligible untuk review
@@ -1580,15 +1589,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "internal server error"
@@ -1771,7 +1780,7 @@ components:
           maxItems: 5
           description: Daftar object key gambar review (opsional).
           items:
-            $ref: '#/components/schemas/ReviewImageInput'
+            $ref: "#/components/schemas/ReviewImageInput"
 
     CheckoutShippingChoiceRequest:
       type: object
@@ -1812,7 +1821,7 @@ components:
             Daftar pilihan kurir per vendor. Setiap vendor yang muncul di hasil preview harus memiliki satu entri.
             Biaya kirim tidak dikirim dari client; backend menghitung ulang berdasarkan kurir dan service.
           items:
-            $ref: '#/components/schemas/CheckoutShippingChoiceRequest'
+            $ref: "#/components/schemas/CheckoutShippingChoiceRequest"
         notes:
           type: string
           nullable: true
@@ -1886,7 +1895,7 @@ components:
           type: string
           example: "Registration successful. Please check your email to verify your account."
         data:
-          $ref: '#/components/schemas/RegisterCustomerResponseData'
+          $ref: "#/components/schemas/RegisterCustomerResponseData"
         errors:
           nullable: true
           example: null
@@ -1904,7 +1913,7 @@ components:
           type: string
           example: "OTP generated successfully"
         data:
-          $ref: '#/components/schemas/RequestOTPResponseData'
+          $ref: "#/components/schemas/RequestOTPResponseData"
         errors:
           nullable: true
           example: null
@@ -1922,7 +1931,7 @@ components:
           type: string
           example: "OTP verified successfully"
         data:
-          $ref: '#/components/schemas/VerifyOTPResponseData'
+          $ref: "#/components/schemas/VerifyOTPResponseData"
         errors:
           nullable: true
           example: null
@@ -2031,7 +2040,7 @@ components:
           description: JWT token untuk autentikasi.
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         user:
-          $ref: '#/components/schemas/UserResponseData'
+          $ref: "#/components/schemas/UserResponseData"
 
     CheckoutOrderResult:
       type: object
@@ -2092,7 +2101,7 @@ components:
           type: array
           description: Daftar order hasil checkout (satu order per vendor).
           items:
-            $ref: '#/components/schemas/CheckoutOrderResult'
+            $ref: "#/components/schemas/CheckoutOrderResult"
 
     CompleteOrderResponseData:
       type: object
@@ -2144,7 +2153,7 @@ components:
           type: array
           description: Daftar item produk dalam order.
           items:
-            $ref: '#/components/schemas/CustomerOrderProductItem'
+            $ref: "#/components/schemas/CustomerOrderProductItem"
         total_payment:
           type: number
           format: double
@@ -2180,7 +2189,18 @@ components:
       type: array
       items:
         type: string
-      example: [pending_payment, paid, processing, packed, shipped, received, completed, canceled, refunded]
+      example:
+        [
+          pending_payment,
+          paid,
+          processing,
+          packed,
+          shipped,
+          received,
+          completed,
+          canceled,
+          refunded,
+        ]
 
     PresignReviewImageResponseData:
       type: object
@@ -2260,7 +2280,7 @@ components:
           type: string
           example: "login successful"
         data:
-          $ref: '#/components/schemas/LoginResponseData'
+          $ref: "#/components/schemas/LoginResponseData"
         errors:
           nullable: true
           example: null
@@ -2278,7 +2298,7 @@ components:
           type: string
           example: "user profile retrieved successfully"
         data:
-          $ref: '#/components/schemas/UserResponseData'
+          $ref: "#/components/schemas/UserResponseData"
         errors:
           nullable: true
           example: null
@@ -2296,7 +2316,7 @@ components:
           type: string
           example: "checkout successful"
         data:
-          $ref: '#/components/schemas/CheckoutResponseData'
+          $ref: "#/components/schemas/CheckoutResponseData"
         errors:
           nullable: true
           example: null
@@ -2314,7 +2334,7 @@ components:
           type: string
           example: "order marked as completed"
         data:
-          $ref: '#/components/schemas/CompleteOrderResponseData'
+          $ref: "#/components/schemas/CompleteOrderResponseData"
         errors:
           nullable: true
           example: null
@@ -2334,12 +2354,12 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/CustomerOrderListItem'
+            $ref: "#/components/schemas/CustomerOrderListItem"
         errors:
           nullable: true
           example: null
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
 
     SuccessOrderStatusesEnvelope:
       type: object
@@ -2351,7 +2371,7 @@ components:
           type: string
           example: "order statuses loaded"
         data:
-          $ref: '#/components/schemas/OrderStatusesResponseData'
+          $ref: "#/components/schemas/OrderStatusesResponseData"
         errors:
           nullable: true
           example: null
@@ -2369,7 +2389,7 @@ components:
           type: string
           example: "review image upload URL generated"
         data:
-          $ref: '#/components/schemas/PresignReviewImageResponseData'
+          $ref: "#/components/schemas/PresignReviewImageResponseData"
         errors:
           nullable: true
           example: null
@@ -2387,7 +2407,7 @@ components:
           type: string
           example: "review created successfully"
         data:
-          $ref: '#/components/schemas/CreateProductReviewResponseData'
+          $ref: "#/components/schemas/CreateProductReviewResponseData"
         errors:
           nullable: true
           example: null

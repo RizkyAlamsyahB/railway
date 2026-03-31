@@ -251,6 +251,30 @@
       .tracking-summary { grid-template-columns: 1fr; }
       td, th { padding: 8px 10px; font-size: .78rem; }
     }
+
+    /* ===== ADDRESS PAGE ===== */
+    .addr-select, .addr-input {
+      width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: .82rem; font-family: inherit; outline: none; background: #fff;
+    }
+    .addr-select:focus, .addr-input:focus { border-color: var(--gold); }
+    .addr-item {
+      background: #fafafa; border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px; position: relative; margin-bottom: 10px;
+    }
+    .addr-item.is-default { border-color: var(--gold); }
+    .addr-item .default-badge {
+      position: absolute; top: 8px; right: 10px; font-size: .65rem;
+      background: var(--gold); color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 600;
+    }
+    .addr-item h4 { font-size: .88rem; margin-bottom: 4px; }
+    .addr-item p { font-size: .78rem; color: var(--text-muted); margin-bottom: 2px; }
+    .addr-item .addr-actions { margin-top: 10px; display: flex; gap: 6px; }
+    .courier-label {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      background: #fafafa; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+    }
+    .courier-label:hover { border-color: var(--gold-light); }
   </style>
 </head>
 <body>
@@ -264,7 +288,8 @@
   <nav>
     <a href="#"><span class="nav-icon">📊</span> Dashboard</a>
     <a href="#"><span class="nav-icon">📦</span> Kelola Produk</a>
-    <a href="#" class="active"><span class="nav-icon">📋</span> Kelola Order</a>
+    <a href="#" class="active" data-page="orders"><span class="nav-icon">📋</span> Kelola Order</a>
+    <a href="#" data-page="address"><span class="nav-icon">🏠</span> Alamat &amp; Kurir</a>
     <a href="#"><span class="nav-icon">🚚</span> Pengiriman &amp; Resi</a>
     <a href="#"><span class="nav-icon">🏷️</span> Promo</a>
     <a href="#"><span class="nav-icon">📈</span> Laporan Penjualan</a>
@@ -303,6 +328,9 @@
         <button class="btn btn-gold" onclick="doLogin()">🔑 Login</button>
       </div>
     </div>
+
+    <!-- ====== PAGE: ORDERS ====== -->
+    <div id="page-orders" class="page-section">
 
     <!-- Filter -->
     <div class="filter-bar">
@@ -367,6 +395,125 @@
     <span class="toggle-json" onclick="toggleJson('listJson')">📄 Lihat Raw JSON Response</span>
     <pre class="json-output" id="listJson"></pre>
 
+    </div><!-- /page-orders -->
+
+    <!-- ====== PAGE: ADDRESS & COURIER ====== -->
+    <div id="page-address" class="page-section" style="display:none;">
+
+      <!-- Location Lookup -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin-bottom:18px;">
+        <h3 style="font-size:.88rem;font-weight:700;margin-bottom:14px;">📍 Pilih Lokasi Warehouse (RajaOngkir)</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Provinsi</label>
+            <select id="selProvince" onchange="onProvinceChange()" class="addr-select"><option value="">— Pilih Provinsi —</option></select>
+          </div>
+          <div>
+            <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Kota / Kabupaten</label>
+            <select id="selCity" onchange="onCityChange()" class="addr-select"><option value="">— Pilih Kota —</option></select>
+          </div>
+          <div>
+            <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Kecamatan</label>
+            <select id="selDistrict" onchange="onDistrictChange()" class="addr-select"><option value="">— Pilih Kecamatan —</option></select>
+          </div>
+          <div>
+            <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Kelurahan <small>(opsional)</small></label>
+            <select id="selSubdistrict" class="addr-select"><option value="">— Pilih Kelurahan —</option></select>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-sm btn-outline" onclick="loadProvinces()">🔄 Muat Provinsi</button>
+        </div>
+      </div>
+
+      <!-- Create Address + Address List -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
+        <!-- Create Address -->
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;">
+          <h3 style="font-size:.88rem;font-weight:700;margin-bottom:14px;">➕ Tambah Alamat Warehouse</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Label</label>
+              <input id="addrLabel" placeholder="Warehouse Utama" class="addr-input" />
+            </div>
+            <div>
+              <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Nama Penerima</label>
+              <input id="addrName" placeholder="Budi Vendor" class="addr-input" />
+            </div>
+            <div>
+              <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">No HP</label>
+              <input id="addrPhone" placeholder="081234567890" class="addr-input" />
+            </div>
+            <div>
+              <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Kode Pos</label>
+              <input id="addrPostal" placeholder="12190" class="addr-input" />
+            </div>
+          </div>
+          <label style="font-size:.78rem;color:var(--text-muted);margin:10px 0 4px;display:block;">Alamat Lengkap <span style="color:#dc2626;">*</span></label>
+          <textarea id="addrLine" placeholder="Jl. Asia Afrika No. 8, Gelora" class="addr-input" style="min-height:60px;resize:vertical;"></textarea>
+          <label style="font-size:.78rem;color:var(--text-muted);margin:10px 0 4px;display:block;">Catatan</label>
+          <input id="addrNotes" placeholder="Sebelah minimarket, lantai 2" class="addr-input" />
+          <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+            <input type="checkbox" id="addrDefault" checked style="width:auto;" />
+            <label for="addrDefault" style="font-size:.82rem;margin:0;">Jadikan alamat default</label>
+          </div>
+          <div style="margin-top:12px;">
+            <button class="btn btn-gold" onclick="createAddress()">💾 Simpan Alamat</button>
+          </div>
+        </div>
+
+        <!-- Address List -->
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;">
+          <h3 style="font-size:.88rem;font-weight:700;margin-bottom:14px;">📋 Daftar Alamat Warehouse</h3>
+          <button class="btn btn-sm btn-outline" onclick="loadAddresses()">🔄 Muat Daftar Alamat</button>
+          <div id="addrList" style="margin-top:12px;">
+            <p style="color:var(--text-muted);font-size:.8rem;">Klik tombol di atas untuk memuat alamat.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Update Address (hidden) -->
+      <div id="updateAddrCard" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;margin-bottom:18px;">
+        <h3 style="font-size:.88rem;font-weight:700;margin-bottom:14px;">✏️ Edit Alamat — <small id="editAddrId" style="color:var(--text-muted);"></small></h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div><label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Label</label><input id="editLabel" class="addr-input" /></div>
+          <div><label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Nama Penerima</label><input id="editName" class="addr-input" /></div>
+          <div><label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">No HP</label><input id="editPhone" class="addr-input" /></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px;">
+          <div><label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Provinsi</label><input id="editProvince" readonly class="addr-input" style="opacity:0.6;" /></div>
+          <div><label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Kota</label><input id="editCity" readonly class="addr-input" style="opacity:0.6;" /></div>
+          <div><label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Kecamatan</label><input id="editDistrict" readonly class="addr-input" style="opacity:0.6;" /></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+          <div><label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Kode Pos</label><input id="editPostal" class="addr-input" /></div>
+          <div><label style="font-size:.78rem;color:var(--text-muted);margin-bottom:4px;display:block;">Catatan</label><input id="editNotes" class="addr-input" /></div>
+        </div>
+        <label style="font-size:.78rem;color:var(--text-muted);margin:10px 0 4px;display:block;">Alamat Lengkap</label>
+        <textarea id="editLine" class="addr-input" style="min-height:60px;resize:vertical;"></textarea>
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button class="btn btn-gold" onclick="updateAddress()">💾 Update</button>
+          <button class="btn btn-sm btn-danger" onclick="document.getElementById('updateAddrCard').style.display='none'">Batal</button>
+        </div>
+      </div>
+
+      <!-- Courier Management -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 22px;">
+        <h3 style="font-size:.88rem;font-weight:700;margin-bottom:10px;">🚚 Pilih Kurir / Ekspedisi</h3>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px;">Centang kurir yang didukung toko Anda.</p>
+        <button class="btn btn-sm btn-outline" onclick="loadCouriers()" style="margin-bottom:12px;">🔄 Muat Daftar Kurir</button>
+        <div id="courierGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;"></div>
+        <div style="margin-top:12px;">
+          <button class="btn btn-gold" onclick="saveCouriers()">💾 Simpan Pilihan Kurir</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;background:#fafafa;border-radius:8px;border:1px solid var(--border);">
+          <span id="courierStatusIcon" style="font-size:.8rem;">⏳</span>
+          <span id="courierStatus" style="font-size:.82rem;color:var(--text-muted);">Klik tombol Muat untuk memuat daftar kurir.</span>
+        </div>
+      </div>
+
+    </div><!-- /page-address -->
+
   </div>
 
   <div class="footer">© 2026 — Haji &amp; Umrah Store · Manual Test Console</div>
@@ -427,22 +574,6 @@
       <button class="btn btn-outline" onclick="closeModal('modalConfirm')">Batal</button>
       <button class="btn" id="confirmBtn" onclick="doConfirmAction()">Ya</button>
     </div>
-  </div>
-</div>
-
-<!-- MODAL: TRACKING -->
-<div class="modal-overlay" id="modalTrack" onclick="if(event.target===this)closeModal('modalTrack')">
-  <div class="modal" style="max-width:540px;">
-    <div class="modal-header">
-      <h3>📍 Lacak Pengiriman</h3>
-      <button class="modal-close" onclick="closeModal('modalTrack')">✕</button>
-    </div>
-    <div class="modal-body" id="trackBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
-    <div class="modal-footer">
-      <span class="toggle-json" onclick="toggleJson('trackJson')" style="margin-right:auto;">📄 Raw JSON</span>
-      <button class="btn btn-outline" onclick="closeModal('modalTrack')">Tutup</button>
-    </div>
-    <pre class="json-output" id="trackJson" style="margin:0 22px 16px;"></pre>
   </div>
 </div>
 
@@ -529,7 +660,7 @@ function updateUI() {
 }
 
 async function api(method, path, body) {
-  const opts = { method, headers: {} };
+  const opts = { method, headers: { 'ngrok-skip-browser-warning': 'true' } };
   if (vendorToken) opts.headers['Authorization'] = 'Bearer ' + vendorToken;
   if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const res = await fetch(baseUrl() + path, opts);
@@ -607,7 +738,7 @@ function exportOrders() {
   a.href = url;
   a.download = 'orders.csv';
   // Add authorization header via fetch
-  fetch(url, { headers: { 'Authorization': 'Bearer ' + vendorToken } })
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + vendorToken, 'ngrok-skip-browser-warning': 'true' } })
     .then(res => res.blob())
     .then(blob => {
       const blobUrl = URL.createObjectURL(blob);
@@ -674,7 +805,6 @@ function buildActions(o) {
   }
   if (s === 'shipped' || s === 'received' || s === 'completed') {
     b += '<button class="action-btn" title="Info Pengiriman" onclick="showShippingInfo(\'' + o.order_id + '\')" style="border-color:#0ea5e9;color:#0ea5e9;">📦</button>';
-    b += '<button class="action-btn track" title="Lacak Resi" onclick="showTracking(\'' + o.order_id + '\')">📍</button>';
   }
   return b;
 }
@@ -824,34 +954,6 @@ async function doShip() {
 }
 
 // ═══════ TRACKING ═══════
-async function showTracking(id) {
-  openModal('modalTrack');
-  $('trackBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat tracking...</p>';
-  $('trackJson').innerHTML = ''; $('trackJson').classList.remove('show');
-  try {
-    const res = await api('GET', '/vendors/orders/' + id + '/tracking');
-    $('trackJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
-    if (res.status === 200 && res.json?.success) renderTracking(res.json.data);
-    else $('trackBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
-  } catch (e) { $('trackBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
-}
-
-function renderTracking(d) {
-  const s = d.summary||{}, ds = d.delivery_status||{}, mf = d.manifest||[];
-  let html = '<div class="tracking-summary">' +
-    '<div class="tracking-card"><div class="label">Kurir</div><div class="value">' + (s.courier_name||s.courier_code||'-') + '</div></div>' +
-    '<div class="tracking-card"><div class="label">No. Resi</div><div class="value" style="font-family:monospace;">' + (s.waybill_number||'-') + '</div></div>' +
-    '<div class="tracking-card"><div class="label">Status</div><div class="value">' + (d.delivered?'✅ Terkirim':'🔄 '+(ds.status||s.status||'Proses')) + '</div></div>' +
-    '<div class="tracking-card"><div class="label">Rute</div><div class="value">' + (s.origin||'?') + ' → ' + (s.destination||'?') + '</div></div>' +
-    '</div>';
-  if (mf.length) {
-    html += '<h4 style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:12px;">📦 Riwayat Pengiriman</h4><div class="timeline">';
-    mf.forEach(m => html += '<div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-desc">' + m.manifest_description + '</div><div class="timeline-meta">' + m.manifest_date + ' ' + m.manifest_time + ' — ' + m.city_name + '</div></div>');
-    html += '</div>';
-  }
-  $('trackBody').innerHTML = html;
-}
-
 // ═══════ INVOICE (NOTA PESANAN) ═══════
 let currentInvoiceOrderId = '';
 async function showInvoice(id) {
@@ -942,7 +1044,7 @@ function printInvoice() {
 function downloadInvoice() {
   if (!currentInvoiceOrderId) { toast('Order ID tidak ditemukan', 'error'); return; }
   const url = baseUrl() + '/vendors/orders/' + currentInvoiceOrderId + '/invoice/download';
-  fetch(url, { headers: { 'Authorization': 'Bearer ' + vendorToken } })
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + vendorToken, 'ngrok-skip-browser-warning': 'true' } })
     .then(res => {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.blob();
@@ -1027,6 +1129,273 @@ function renderShippingInfo(d) {
 }
 
 updateUI();
+
+// ═══════ PAGE NAVIGATION ═══════
+document.querySelectorAll('.sidebar nav a[data-page]').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const page = link.dataset.page;
+    // Toggle active class on sidebar
+    document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.remove('active'));
+    link.classList.add('active');
+    // Toggle page sections
+    document.querySelectorAll('.page-section').forEach(s => s.style.display = 'none');
+    const target = document.getElementById('page-' + page);
+    if (target) target.style.display = 'block';
+    // Update topbar title
+    const titles = { orders: 'Kelola Order', address: 'Alamat & Kurir' };
+    document.querySelector('.topbar h1').textContent = titles[page] || 'Kelola Order';
+    // Auto-load data when switching to address page
+    if (page === 'address' && vendorToken) {
+      loadProvinces();
+      loadAddresses();
+      loadCouriers();
+    }
+  });
+});
+
+// ═══════ ADDRESS & COURIER FUNCTIONS ═══════
+let currentEditId = '';
+let allCouriers = [];
+
+function escAddr(s) { return s ? String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+
+// ── Location lookup ──
+async function loadProvinces() {
+  if (!vendorToken) { toast('Login dulu!', 'error'); return; }
+  const res = await api('GET', '/shipping/provinces');
+  const sel = $('selProvince');
+  sel.innerHTML = '<option value="">— Pilih Provinsi —</option>';
+  if (res.json?.data) {
+    res.json.data.forEach(p => {
+      sel.innerHTML += '<option value="' + p.id + '" data-name="' + escAddr(p.name) + '">' + p.name + '</option>';
+    });
+  }
+  $('selCity').innerHTML = '<option value="">— Pilih Kota —</option>';
+  $('selDistrict').innerHTML = '<option value="">— Pilih Kecamatan —</option>';
+  $('selSubdistrict').innerHTML = '<option value="">— Pilih Kelurahan —</option>';
+}
+
+async function onProvinceChange() {
+  const pid = $('selProvince').value;
+  $('selCity').innerHTML = '<option value="">— Memuat... —</option>';
+  $('selDistrict').innerHTML = '<option value="">— Pilih Kecamatan —</option>';
+  $('selSubdistrict').innerHTML = '<option value="">— Pilih Kelurahan —</option>';
+  if (!pid) return;
+  const res = await api('GET', '/shipping/cities?province_id=' + pid);
+  const sel = $('selCity');
+  sel.innerHTML = '<option value="">— Pilih Kota —</option>';
+  if (res.json?.data) {
+    res.json.data.forEach(c => {
+      sel.innerHTML += '<option value="' + c.id + '" data-name="' + escAddr(c.type + ' ' + c.name) + '" data-postal="' + c.postal_code + '">' + c.type + ' ' + c.name + '</option>';
+    });
+  }
+}
+
+async function onCityChange() {
+  const cid = $('selCity').value;
+  $('selDistrict').innerHTML = '<option value="">— Memuat... —</option>';
+  $('selSubdistrict').innerHTML = '<option value="">— Pilih Kelurahan —</option>';
+  if (!cid) return;
+  const res = await api('GET', '/shipping/districts?city_id=' + cid);
+  const sel = $('selDistrict');
+  sel.innerHTML = '<option value="">— Pilih Kecamatan —</option>';
+  if (res.json?.data) {
+    res.json.data.forEach(d => {
+      sel.innerHTML += '<option value="' + d.id + '" data-name="' + escAddr(d.name) + '">' + d.name + '</option>';
+    });
+  }
+}
+
+async function onDistrictChange() {
+  const did = $('selDistrict').value;
+  $('selSubdistrict').innerHTML = '<option value="">— Memuat... —</option>';
+  if (!did) return;
+  const res = await api('GET', '/shipping/subdistricts?district_id=' + did);
+  const sel = $('selSubdistrict');
+  sel.innerHTML = '<option value="">— Pilih Kelurahan —</option>';
+  if (res.json?.data) {
+    res.json.data.forEach(s => {
+      sel.innerHTML += '<option value="' + s.id + '" data-name="' + escAddr(s.name) + '" data-zip="' + (s.zip_code||'') + '">' + s.name + (s.zip_code ? ' (' + s.zip_code + ')' : '') + '</option>';
+    });
+    sel.addEventListener('change', function() {
+      const opt = this.selectedOptions[0];
+      if (opt?.dataset?.zip) $('addrPostal').value = opt.dataset.zip;
+    });
+  }
+}
+
+function getSelectedLocation() {
+  const provOpt = $('selProvince').selectedOptions[0];
+  const cityOpt = $('selCity').selectedOptions[0];
+  const distOpt = $('selDistrict').selectedOptions[0];
+  const subOpt  = $('selSubdistrict').selectedOptions[0];
+  return {
+    province_id: provOpt?.value || null,
+    province_name: provOpt?.dataset?.name || null,
+    city_id: cityOpt?.value || null,
+    city_name: cityOpt?.dataset?.name || null,
+    district_id: distOpt?.value || null,
+    district_name: distOpt?.dataset?.name || null,
+    subdistrict_id: subOpt?.value || null,
+    subdistrict_name: subOpt?.dataset?.name || null,
+  };
+}
+
+// ── Address CRUD ──
+async function createAddress() {
+  if (!vendorToken) { toast('Login dulu!', 'error'); return; }
+  const loc = getSelectedLocation();
+  const body = {
+    label: $('addrLabel').value || undefined,
+    recipient_name: $('addrName').value || undefined,
+    phone: $('addrPhone').value || undefined,
+    province_id: loc.province_id || undefined,
+    province_name: loc.province_name || undefined,
+    city_id: loc.city_id || undefined,
+    city_name: loc.city_name || undefined,
+    district_id: loc.district_id || undefined,
+    district_name: loc.district_name || undefined,
+    subdistrict_id: loc.subdistrict_id || undefined,
+    subdistrict_name: loc.subdistrict_name || undefined,
+    postal_code: $('addrPostal').value || undefined,
+    address_line: $('addrLine').value,
+    notes: $('addrNotes').value || undefined,
+    is_default: $('addrDefault').checked,
+  };
+  if (!body.address_line) { toast('Alamat lengkap wajib diisi!', 'error'); return; }
+
+  const res = await api('POST', '/addresses', body);
+  if (res.json?.success) {
+    toast('Alamat berhasil ditambahkan!', 'success');
+    loadAddresses();
+  } else {
+    toast('Gagal: ' + (res.json?.message || 'Error'), 'error');
+  }
+}
+
+async function loadAddresses() {
+  if (!vendorToken) { toast('Login dulu!', 'error'); return; }
+  const res = await api('GET', '/addresses');
+  const container = $('addrList');
+
+  if (!res.json?.data || res.json.data.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted);font-size:.8rem;">Belum ada alamat.</p>';
+    return;
+  }
+
+  container.innerHTML = res.json.data.map(a =>
+    '<div class="addr-item ' + (a.is_default ? 'is-default' : '') + '">' +
+    (a.is_default ? '<span class="default-badge">DEFAULT</span>' : '') +
+    '<h4>' + escAddr(a.label || 'Tanpa Label') + '</h4>' +
+    '<p><strong>' + escAddr(a.recipient_name || '-') + '</strong> · ' + escAddr(a.phone || '-') + '</p>' +
+    '<p>' + escAddr(a.address_line) + '</p>' +
+    '<p>' + [a.subdistrict_name, a.district_name, a.city_name, a.province_name].filter(Boolean).join(', ') + ' ' + (a.postal_code||'') + '</p>' +
+    (a.notes ? '<p style="color:var(--gold);font-style:italic;">' + escAddr(a.notes) + '</p>' : '') +
+    '<div class="addr-actions">' +
+    '<button class="btn btn-sm btn-outline" onclick=\'startEditAddr(' + JSON.stringify(a) + ')\'>✏️ Edit</button>' +
+    (!a.is_default ? '<button class="btn btn-sm btn-gold" onclick="setDefaultAddr(\'' + a.id + '\')">⭐ Set Default</button>' : '') +
+    '<button class="btn btn-sm btn-danger" onclick="deleteAddr(\'' + a.id + '\')">🗑️ Hapus</button>' +
+    '</div></div>'
+  ).join('');
+}
+
+function startEditAddr(a) {
+  currentEditId = a.id;
+  $('updateAddrCard').style.display = 'block';
+  $('editAddrId').textContent = a.id;
+  $('editLabel').value = a.label || '';
+  $('editName').value = a.recipient_name || '';
+  $('editPhone').value = a.phone || '';
+  $('editProvince').value = a.province_name || '';
+  $('editCity').value = a.city_name || '';
+  $('editDistrict').value = a.district_name || '';
+  $('editPostal').value = a.postal_code || '';
+  $('editNotes').value = a.notes || '';
+  $('editLine').value = a.address_line || '';
+  $('updateAddrCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function updateAddress() {
+  if (!currentEditId) return;
+  const body = {};
+  const v = (id, key) => { const val = $(id).value; if (val !== '') body[key] = val; };
+  v('editLabel', 'label');
+  v('editName', 'recipient_name');
+  v('editPhone', 'phone');
+  v('editPostal', 'postal_code');
+  v('editNotes', 'notes');
+  v('editLine', 'address_line');
+
+  const res = await api('PATCH', '/addresses/' + currentEditId, body);
+  if (res.json?.success) {
+    toast('Alamat berhasil diupdate!', 'success');
+    $('updateAddrCard').style.display = 'none';
+    loadAddresses();
+  } else {
+    toast('Gagal: ' + (res.json?.message || 'Error'), 'error');
+  }
+}
+
+async function setDefaultAddr(id) {
+  const res = await api('PATCH', '/addresses/' + id + '/default');
+  if (res.json?.success) { toast('Default address diubah!', 'success'); loadAddresses(); }
+  else toast('Gagal: ' + (res.json?.message || 'Error'), 'error');
+}
+
+async function deleteAddr(id) {
+  if (!confirm('Yakin hapus alamat ini?')) return;
+  const res = await api('DELETE', '/addresses/' + id);
+  if (res.json?.success) { toast('Alamat dihapus!', 'success'); loadAddresses(); }
+  else toast('Gagal: ' + (res.json?.message || 'Error'), 'error');
+}
+
+// ── Courier Management ──
+async function loadCouriers() {
+  if (!vendorToken) { toast('Login dulu!', 'error'); return; }
+  const masterRes = await api('GET', '/shipping/couriers');
+  if (!masterRes.json?.data) return;
+  allCouriers = masterRes.json.data;
+
+  const vendorRes = await api('GET', '/vendors/couriers');
+  const selectedIds = new Set();
+  if (vendorRes.json?.data) {
+    vendorRes.json.data.forEach(vc => selectedIds.add(vc.courier_id));
+  }
+
+  const grid = $('courierGrid');
+  grid.innerHTML = allCouriers.map(c =>
+    '<label class="courier-label">' +
+    '<input type="checkbox" value="' + c.id + '" ' + (selectedIds.has(c.id) ? 'checked' : '') + ' style="width:auto;accent-color:var(--gold);">' +
+    '<div><strong style="font-size:.85rem;">' + escAddr(c.name) + '</strong>' +
+    '<div style="font-size:.7rem;color:var(--text-muted);">Kode: ' + escAddr(c.code) + '</div></div></label>'
+  ).join('');
+
+  $('courierStatusIcon').textContent = '✅';
+  $('courierStatus').textContent = allCouriers.length + ' kurir dimuat, ' + selectedIds.size + ' dipilih';
+}
+
+async function saveCouriers() {
+  if (!vendorToken) { toast('Login dulu!', 'error'); return; }
+  const checkboxes = document.querySelectorAll('#courierGrid input[type="checkbox"]');
+  const courierIds = [];
+  checkboxes.forEach(cb => { if (cb.checked) courierIds.push(parseInt(cb.value)); });
+
+  if (courierIds.length === 0) {
+    if (!confirm('Tidak ada kurir yang dipilih. Lanjutkan untuk menghapus semua?')) return;
+  }
+
+  const res = await api('PUT', '/vendors/couriers', { courier_ids: courierIds });
+  if (res.json?.success) {
+    $('courierStatusIcon').textContent = '✅';
+    $('courierStatus').textContent = 'Berhasil! ' + courierIds.length + ' kurir disimpan.';
+    toast(courierIds.length + ' kurir berhasil disimpan!', 'success');
+  } else {
+    $('courierStatusIcon').textContent = '❌';
+    $('courierStatus').textContent = res.json?.message || 'Gagal menyimpan kurir';
+    toast('Gagal: ' + (res.json?.message || 'Error'), 'error');
+  }
+}
 </script>
 </body>
 </html>

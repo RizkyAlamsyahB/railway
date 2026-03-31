@@ -33,12 +33,11 @@ func setupProductUseCase(t *testing.T) (
 
 func activeVendor(id uuid.UUID) *domain.Vendor {
 	return &domain.Vendor{
-		ID:                    id,
-		OwnerUserID:           uuid.New(),
-		VendorType:            domain.VendorTypeSouvenirStore,
-		DisplayName:           "Toko Haji",
-		ResponsiblePersonName: "Ahmad",
-		Status:                "active",
+		ID:          id,
+		OwnerUserID: uuid.New(),
+		VendorType:  domain.VendorTypeSouvenirStore,
+		DisplayName: "Toko Haji",
+		Status:      "active",
 	}
 }
 

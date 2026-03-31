@@ -10,11 +10,12 @@ import (
 
 // AppConfig holds application-level configuration.
 type AppConfig struct {
-	Name        string `mapstructure:"APP_NAME"`
-	Port        int    `mapstructure:"APP_PORT"`
-	Env         string `mapstructure:"APP_ENV"`
-	BaseURL     string `mapstructure:"APP_BASE_URL"`
-	FrontendURL string `mapstructure:"APP_FRONTEND_URL"`
+	Name               string `mapstructure:"APP_NAME"`
+	Port               int    `mapstructure:"APP_PORT"`
+	Env                string `mapstructure:"APP_ENV"`
+	BaseURL            string `mapstructure:"APP_BASE_URL"`
+	FrontendURL        string `mapstructure:"APP_FRONTEND_URL"`
+	CORSAllowedOrigins string `mapstructure:"CORS_ALLOWED_ORIGINS"`
 }
 
 // DatabaseConfig holds database connection configuration.
@@ -175,6 +176,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("APP_ENV", "development")
 	viper.SetDefault("APP_BASE_URL", "http://localhost:8080")
 	viper.SetDefault("APP_FRONTEND_URL", "http://localhost:3000")
+	viper.SetDefault("CORS_ALLOWED_ORIGINS", "*")
 	viper.SetDefault("DB_HOST", "localhost")
 	viper.SetDefault("DB_PORT", 5432)
 	viper.SetDefault("DB_USER", "postgres")

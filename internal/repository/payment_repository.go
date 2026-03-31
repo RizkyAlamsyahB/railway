@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -156,6 +159,115 @@ func (r *paymentRepository) EventExistsByExternalID(ctx context.Context, externa
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *paymentRepository) ListForAdmin(ctx context.Context, params domain.AdminPaymentListParams) ([]domain.AdminPaymentListItem, int64, error) {
+	base := r.adminPaymentBaseQuery(ctx, params)
+
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	type row struct {
+		InvoiceID     string         `gorm:"column:invoice_id"`
+		OrderID       string         `gorm:"column:order_id"`
+		OrderNo       string         `gorm:"column:order_no"`
+		CustomerName  string         `gorm:"column:customer_name"`
+		VendorName    string         `gorm:"column:vendor_name"`
+		PaymentMethod sql.NullString `gorm:"column:payment_method"`
+		Amount        float64        `gorm:"column:amount"`
+		Status        string         `gorm:"column:status"`
+		CreatedAt     time.Time      `gorm:"column:created_at"`
+	}
+
+	query := base.Select(`
+		pi.id AS invoice_id,
+		pi.order_id AS order_id,
+		o.order_no AS order_no,
+		u.full_name AS customer_name,
+		v.display_name AS vendor_name,
+		pi.payment_method AS payment_method,
+		pi.amount AS amount,
+		pi.status AS status,
+		pi.created_at AS created_at
+	`)
+
+	orderClause := r.buildAdminPaymentOrderClause(params.SortBy, params.SortOrder)
+	query = query.Order(orderClause)
+
+	offset := (params.Page - 1) * params.Limit
+	query = query.Offset(offset).Limit(params.Limit)
+
+	var rows []row
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]domain.AdminPaymentListItem, len(rows))
+	for i, r := range rows {
+		invoiceID, _ := uuid.Parse(r.InvoiceID)
+		orderID, _ := uuid.Parse(r.OrderID)
+		var method *string
+		if r.PaymentMethod.Valid {
+			method = &r.PaymentMethod.String
+		}
+		items[i] = domain.AdminPaymentListItem{
+			InvoiceID:     invoiceID,
+			OrderID:       orderID,
+			OrderNo:       r.OrderNo,
+			CustomerName:  r.CustomerName,
+			VendorName:    r.VendorName,
+			PaymentMethod: method,
+			Amount:        r.Amount,
+			Status:        r.Status,
+			CreatedAt:     r.CreatedAt,
+		}
+	}
+
+	return items, total, nil
+}
+
+func (r *paymentRepository) adminPaymentBaseQuery(ctx context.Context, params domain.AdminPaymentListParams) *gorm.DB {
+	query := r.db.WithContext(ctx).
+		Table("payment_invoices pi").
+		Joins("JOIN orders o ON o.id = pi.order_id").
+		Joins("JOIN users u ON u.id = o.user_id").
+		Joins("JOIN vendors v ON v.id = o.vendor_id")
+
+	if params.Status != "" {
+		query = query.Where("pi.status = ?", params.Status)
+	}
+
+	if params.Search != "" {
+		search := "%" + strings.ToLower(params.Search) + "%"
+		query = query.Where(
+			"(LOWER(u.full_name) LIKE ? OR LOWER(o.order_no) LIKE ?)",
+			search, search,
+		)
+	}
+
+	return query
+}
+
+func (r *paymentRepository) buildAdminPaymentOrderClause(sortBy, sortOrder string) string {
+	column := "pi.created_at"
+	direction := "DESC"
+
+	switch sortBy {
+	case "amount":
+		column = "pi.amount"
+	case "customer_name":
+		column = "u.full_name"
+	case "status":
+		column = "pi.status"
+	}
+
+	if strings.ToLower(sortOrder) == "asc" {
+		direction = "ASC"
+	}
+
+	return fmt.Sprintf("%s %s", column, direction)
 }
 
 // Mapper helpers.

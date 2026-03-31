@@ -48,12 +48,11 @@ func (uc *adminVendorUseCase) List(ctx context.Context, params domain.VendorList
 	items := make([]domain.AdminVendorListItem, len(vendors))
 	for i, v := range vendors {
 		item := domain.AdminVendorListItem{
-			ID:                    v.ID,
-			DisplayName:           v.DisplayName,
-			LegalName:             v.LegalName,
-			VendorType:            v.VendorType,
-			ResponsiblePersonName: v.ResponsiblePersonName,
-			Status:                v.Status,
+			ID:          v.ID,
+			DisplayName: v.DisplayName,
+			LegalName:   v.LegalName,
+			VendorType:  v.VendorType,
+			Status:      v.Status,
 			StatusReason:          v.StatusReason,
 			XenditAccountID:       v.XenditAccountID,
 			RegisteredAddress:     v.RegisteredAddress,
@@ -142,8 +141,6 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 			FileURL:            doc.FileURL,
 			MimeType:           doc.MimeType,
 			FileSizeBytes:      doc.FileSizeBytes,
-			VerificationStatus: doc.VerificationStatus,
-			RejectionReason:    doc.RejectionReason,
 			VerifiedAt:         doc.VerifiedAt,
 			CreatedAt:          doc.CreatedAt,
 			UpdatedAt:          doc.UpdatedAt,
@@ -162,12 +159,11 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	}
 
 	return &domain.AdminVendorDetailResponse{
-		ID:                    vendor.ID,
-		VendorType:            vendor.VendorType,
-		DisplayName:           vendor.DisplayName,
-		LegalName:             vendor.LegalName,
-		ResponsiblePersonName: vendor.ResponsiblePersonName,
-		Description:           vendor.Description,
+		ID:          vendor.ID,
+		VendorType:  vendor.VendorType,
+		DisplayName: vendor.DisplayName,
+		LegalName:   vendor.LegalName,
+		Description: vendor.Description,
 		RegisteredAddress:     vendor.RegisteredAddress,
 		Status:                vendor.Status,
 		StatusReason:          vendor.StatusReason,

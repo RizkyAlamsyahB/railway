@@ -261,6 +261,44 @@ Table "product_promotions" {
   }
 }
 
+Table "vendor_vouchers" {
+  "id" UUID [pk, not null]
+  "vendor_id" UUID [not null]
+  "code" VARCHAR(50) [not null]
+  "name" VARCHAR(120) [not null]
+  "description" TEXT
+  "discount_amount" NUMERIC(18,2) [not null]
+  "quota_total" INT [not null]
+  "quota_used" INT [not null, default: 0]
+  "starts_at" TIMESTAMPTZ [not null]
+  "ends_at" TIMESTAMPTZ [not null]
+  "is_active" BOOLEAN [not null, default: true]
+  "created_at" TIMESTAMPTZ [not null, default: `now()`]
+  "updated_at" TIMESTAMPTZ [not null, default: `now()`]
+
+  Checks {
+    `discount_amount > 0` [name: 'ck_vendor_vouchers_discount_positive']
+    `quota_total > 0 AND quota_used >= 0 AND quota_used <= quota_total` [name: 'ck_vendor_vouchers_quota_valid']
+    `ends_at >= starts_at` [name: 'ck_vendor_vouchers_period_valid']
+  }
+
+  Indexes {
+    (vendor_id, lower(code)) [unique, name: "uq_vendor_vouchers_vendor_code"]
+    (vendor_id, is_active, starts_at, ends_at) [name: "idx_vendor_vouchers_vendor_period_active"]
+  }
+}
+
+Table "vendor_voucher_products" {
+  "voucher_id" UUID [not null]
+  "product_id" UUID [not null]
+  "created_at" TIMESTAMPTZ [not null, default: `now()`]
+
+  Indexes {
+    (voucher_id, product_id) [pk, name: "pk_vendor_voucher_products"]
+    (product_id) [name: "idx_vendor_voucher_products_product"]
+  }
+}
+
 Table "carts" {
   "id" UUID [pk, not null]
   "user_id" UUID [unique, not null]
@@ -517,6 +555,9 @@ Ref "fk_product_shipping_services_shipping_service":"shipping_services"."id" < "
 Ref "fk_product_images_product":"products"."id" < "product_images"."product_id"
 Ref "fk_product_variants_product":"products"."id" < "product_variants"."product_id"
 Ref "fk_product_promotions_product":"products"."id" < "product_promotions"."product_id"
+Ref "fk_vendor_vouchers_vendor":"vendors"."id" < "vendor_vouchers"."vendor_id"
+Ref "fk_vendor_voucher_products_voucher":"vendor_vouchers"."id" < "vendor_voucher_products"."voucher_id"
+Ref "fk_vendor_voucher_products_product":"products"."id" < "vendor_voucher_products"."product_id"
 
 Ref "fk_carts_user":"users"."id" < "carts"."user_id"
 Ref "fk_cart_items_cart":"carts"."id" < "cart_items"."cart_id"

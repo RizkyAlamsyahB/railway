@@ -23,7 +23,6 @@ type vendorModel struct {
 	BusinessLegalType     *string    `gorm:"column:business_legal_type"`
 	LegalName             *string    `gorm:"column:legal_name"`
 	DisplayName           string     `gorm:"column:display_name"`
-	ResponsiblePersonName string     `gorm:"column:responsible_person_name"`
 	Description           *string    `gorm:"column:description"`
 	RegisteredAddress     *string    `gorm:"column:registered_address"`
 	Status                string     `gorm:"column:status"`
@@ -62,8 +61,6 @@ type vendorDocumentModel struct {
 	FileSizeBytes      *int       `gorm:"column:file_size_bytes"`
 	FileChecksum       *string    `gorm:"column:file_checksum"`
 	UploadedBy         *string    `gorm:"column:uploaded_by"`
-	VerificationStatus string     `gorm:"column:verification_status"`
-	RejectionReason    *string    `gorm:"column:rejection_reason"`
 	VerifiedBy         *string    `gorm:"column:verified_by"`
 	VerifiedAt         *time.Time `gorm:"column:verified_at"`
 	CreatedAt          time.Time  `gorm:"column:created_at"`
@@ -664,7 +661,6 @@ func toVendorModel(v *domain.Vendor) vendorModel {
 		BusinessLegalType:     v.BusinessLegalType,
 		LegalName:             v.LegalName,
 		DisplayName:           v.DisplayName,
-		ResponsiblePersonName: v.ResponsiblePersonName,
 		Description:           v.Description,
 		RegisteredAddress:     v.RegisteredAddress,
 		Status:                v.Status,
@@ -692,7 +688,6 @@ func toDomainVendor(m *vendorModel) *domain.Vendor {
 		BusinessLegalType:     m.BusinessLegalType,
 		LegalName:             m.LegalName,
 		DisplayName:           m.DisplayName,
-		ResponsiblePersonName: m.ResponsiblePersonName,
 		Description:           m.Description,
 		RegisteredAddress:     m.RegisteredAddress,
 		Status:                m.Status,
@@ -779,8 +774,6 @@ func toVendorDocumentModel(d *domain.VendorDocument) vendorDocumentModel {
 		MimeType:           d.MimeType,
 		FileSizeBytes:      d.FileSizeBytes,
 		FileChecksum:       d.FileChecksum,
-		VerificationStatus: d.VerificationStatus,
-		RejectionReason:    d.RejectionReason,
 		VerifiedAt:         d.VerifiedAt,
 		CreatedAt:          d.CreatedAt,
 		UpdatedAt:          d.UpdatedAt,
@@ -808,8 +801,6 @@ func toDomainVendorDocument(m *vendorDocumentModel) *domain.VendorDocument {
 		MimeType:           m.MimeType,
 		FileSizeBytes:      m.FileSizeBytes,
 		FileChecksum:       m.FileChecksum,
-		VerificationStatus: m.VerificationStatus,
-		RejectionReason:    m.RejectionReason,
 		VerifiedAt:         m.VerifiedAt,
 		CreatedAt:          m.CreatedAt,
 		UpdatedAt:          m.UpdatedAt,

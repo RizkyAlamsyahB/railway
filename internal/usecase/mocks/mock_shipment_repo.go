@@ -72,6 +72,20 @@ func (mr *MockShipmentRepositoryMockRecorder) FindByOrderID(ctx, orderID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByOrderID", reflect.TypeOf((*MockShipmentRepository)(nil).FindByOrderID), ctx, orderID)
 }
 
+// UpdateDeliveredAt mocks base method.
+func (m *MockShipmentRepository) UpdateDeliveredAt(ctx context.Context, orderID uuid.UUID, deliveredAt time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateDeliveredAt", ctx, orderID, deliveredAt)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateDeliveredAt indicates an expected call of UpdateDeliveredAt.
+func (mr *MockShipmentRepositoryMockRecorder) UpdateDeliveredAt(ctx, orderID, deliveredAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDeliveredAt", reflect.TypeOf((*MockShipmentRepository)(nil).UpdateDeliveredAt), ctx, orderID, deliveredAt)
+}
+
 // UpdateTrackingAndShip mocks base method.
 func (m *MockShipmentRepository) UpdateTrackingAndShip(ctx context.Context, orderID uuid.UUID, trackingNo string, shippedAt time.Time) error {
 	m.ctrl.T.Helper()

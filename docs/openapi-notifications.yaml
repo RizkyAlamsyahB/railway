@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Haji Umroh Store BE - Notifications API
+  title: UmrahMart - Notifications API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint notifikasi (admin/finance/cs).
 servers:
@@ -19,24 +19,24 @@ paths:
       summary: Daftar notifikasi
       operationId: listNotifications
       parameters:
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
       responses:
-        '200':
+        "200":
           description: Notifikasi berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessNotificationListEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessNotificationListEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/notifications/unread-count:
     get:
       tags:
@@ -44,21 +44,21 @@ paths:
       summary: Jumlah notifikasi belum dibaca
       operationId: getUnreadCount
       responses:
-        '200':
+        "200":
           description: Unread count berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessNotificationUnreadEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessNotificationUnreadEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/notifications/read-all:
     patch:
       tags:
@@ -66,21 +66,21 @@ paths:
       summary: Tandai semua notifikasi sebagai dibaca
       operationId: markAllNotificationsRead
       responses:
-        '200':
+        "200":
           description: Notifikasi berhasil ditandai sebagai dibaca.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessNotificationBulkReadEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessNotificationBulkReadEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/notifications/{id}/read:
     patch:
       tags:
@@ -96,23 +96,23 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Notifikasi berhasil ditandai sebagai dibaca.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessNotificationReadEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '404':
-          $ref: '#/components/responses/NotFoundResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessNotificationReadEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
 components:
   securitySchemes:
     BearerAuth:
@@ -152,11 +152,11 @@ components:
       description: Token tidak valid atau tidak ada.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: invalid or expired token
@@ -167,11 +167,11 @@ components:
       description: User tidak memiliki izin role admin/finance/cs.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: insufficient permissions
@@ -182,11 +182,11 @@ components:
       description: Data tidak ditemukan.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: not found
@@ -197,11 +197,11 @@ components:
       description: Internal server error.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: internal server error
@@ -282,11 +282,11 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/NotificationItem'
+            $ref: "#/components/schemas/NotificationItem"
         errors:
           nullable: true
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessNotificationUnreadEnvelope:
       type: object
       required:
@@ -303,7 +303,7 @@ components:
           type: string
           example: unread notifications retrieved successfully
         data:
-          $ref: '#/components/schemas/NotificationUnreadCount'
+          $ref: "#/components/schemas/NotificationUnreadCount"
         errors:
           nullable: true
         meta:
@@ -324,7 +324,7 @@ components:
           type: string
           example: notification marked as read
         data:
-          $ref: '#/components/schemas/NotificationItem'
+          $ref: "#/components/schemas/NotificationItem"
         errors:
           nullable: true
         meta:
@@ -345,7 +345,7 @@ components:
           type: string
           example: notifications marked as read
         data:
-          $ref: '#/components/schemas/NotificationBulkReadResponse'
+          $ref: "#/components/schemas/NotificationBulkReadResponse"
         errors:
           nullable: true
         meta:

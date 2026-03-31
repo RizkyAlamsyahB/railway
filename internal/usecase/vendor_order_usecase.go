@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -219,6 +220,15 @@ func (uc *vendorOrderUseCase) GetOrderDetail(ctx context.Context, vendorID, orde
 	// Build shipping info with tracking status.
 	shippingInfo := uc.buildShippingInfo(ctx, shipment, order.OrderStatus)
 
+	// Auto-update order status to "received" if courier confirms delivery.
+	if shippingInfo.deliveryDetected && order.OrderStatus == domain.OrderStatusShipped {
+		notes := "Auto-updated: courier confirmed delivery"
+		uc.orderRepo.MarkOrderReceived(ctx, orderID, nil, &notes)
+		if shippingInfo.DeliveredAt != nil {
+			uc.shipmentRepo.UpdateDeliveredAt(ctx, orderID, *shippingInfo.DeliveredAt)
+		}
+	}
+
 	// Parse recipient from shipping address snapshot.
 	recipient := uc.buildRecipientInfo(order.ShippingAddressSnapshot)
 
@@ -261,7 +271,8 @@ func (uc *vendorOrderUseCase) GetOrderDetail(ctx context.Context, vendorID, orde
 // shippingInfoInternal holds shipping info with internal shippedAt for order timestamps.
 type shippingInfoInternal struct {
 	domain.VendorOrderDetailShipping
-	shippedAt *time.Time
+	shippedAt        *time.Time
+	deliveryDetected bool
 }
 
 // buildShippingInfo builds shipping info by hitting tracking API if available.
@@ -289,11 +300,19 @@ func (uc *vendorOrderUseCase) buildShippingInfo(ctx context.Context, shipment *d
 	if shipment.TrackingNo != "" {
 		trackResult, err := uc.rajaOngkir.TrackWaybill(ctx, shipment.TrackingNo, shipment.CourierCode)
 		if err == nil && trackResult != nil && len(trackResult.Manifest) > 0 {
+			// Sort manifest newest-first by date+time so index 0 is the latest event.
+			sort.Slice(trackResult.Manifest, func(i, j int) bool {
+				di := trackResult.Manifest[i].ManifestDate + " " + trackResult.Manifest[i].ManifestTime
+				dj := trackResult.Manifest[j].ManifestDate + " " + trackResult.Manifest[j].ManifestTime
+				return di > dj
+			})
+
 			// Get the latest manifest description as status.
 			result.Status = trackResult.Manifest[0].ManifestDescription
 
 			// Update delivered_at from tracking if delivered.
 			if trackResult.Delivered && trackResult.DeliveryStatus.PodDate != "" {
+				result.deliveryDetected = true
 				deliveredAt := parseTrackingDateTime(trackResult.DeliveryStatus.PodDate, trackResult.DeliveryStatus.PodTime)
 				if deliveredAt != nil {
 					result.DeliveredAt = deliveredAt
@@ -569,9 +588,15 @@ func (uc *vendorOrderUseCase) GetOrderInvoice(ctx context.Context, vendorID, ord
 		}
 	}
 
+	// Use external_invoice_id from payment_invoices when available.
+	invoiceNumber := order.OrderNo
+	if invoice != nil && invoice.ExternalInvoiceID != "" {
+		invoiceNumber = invoice.ExternalInvoiceID
+	}
+
 	return &domain.VendorOrderInvoiceResponse{
 		Invoice: domain.InvoiceInfo{
-			InvoiceNumber: order.OrderNo,
+			InvoiceNumber: invoiceNumber,
 			IssuedAt:      order.PlacedAt.Format("2006-01-02 15:04"),
 			Actions: domain.InvoiceActions{
 				CanCopy:     true,
@@ -650,7 +675,7 @@ func (uc *vendorOrderUseCase) GetOrderShippingInfo(ctx context.Context, vendorID
 	if shipment.TrackingNo != "" {
 		trackResult, err := uc.rajaOngkir.TrackWaybill(ctx, shipment.TrackingNo, shipment.CourierCode)
 		if err == nil && trackResult != nil {
-			// Build events from manifest (reversed to show newest first).
+			// Build events from manifest.
 			events := make([]domain.ShippingInfoEvent, 0, len(trackResult.Manifest))
 			for _, m := range trackResult.Manifest {
 				events = append(events, domain.ShippingInfoEvent{
@@ -659,11 +684,31 @@ func (uc *vendorOrderUseCase) GetOrderShippingInfo(ctx context.Context, vendorID
 					Location:    m.CityName,
 				})
 			}
+
+			// Sort events newest-first by datetime.
+			sort.Slice(events, func(i, j int) bool {
+				return events[i].DateTime > events[j].DateTime
+			})
 			resp.Events = events
 
-			// Update stages based on delivery status.
+			// Determine stages from real-time tracking status.
 			if trackResult.Delivered {
 				resp.Stages = uc.buildShippingStages(domain.OrderStatusReceived)
+
+				// Auto-update order status to "received" if courier confirms delivery.
+				if order.OrderStatus == domain.OrderStatusShipped {
+					notes := "Auto-updated: courier confirmed delivery"
+					uc.orderRepo.MarkOrderReceived(ctx, orderID, nil, &notes)
+					if trackResult.DeliveryStatus.PodDate != "" {
+						deliveredAt := parseTrackingDateTime(trackResult.DeliveryStatus.PodDate, trackResult.DeliveryStatus.PodTime)
+						if deliveredAt != nil {
+							uc.shipmentRepo.UpdateDeliveredAt(ctx, orderID, *deliveredAt)
+						}
+					}
+				}
+			} else if len(events) > 0 {
+				// Infer stage from the newest manifest event description.
+				resp.Stages = uc.buildShippingStagesFromEvent(events[0].Description)
 			}
 		}
 	}
@@ -695,6 +740,31 @@ func (uc *vendorOrderUseCase) buildShippingStages(orderStatus string) []domain.S
 	}
 
 	return stages
+}
+
+// buildShippingStagesFromEvent infers shipping stages from the latest tracking event description.
+func (uc *vendorOrderUseCase) buildShippingStagesFromEvent(description string) []domain.ShippingInfoStage {
+	desc := strings.ToLower(description)
+
+	switch {
+	case strings.Contains(desc, "diterima") || strings.Contains(desc, "delivered") || strings.Contains(desc, "received"):
+		return uc.buildShippingStages(domain.OrderStatusReceived)
+	case strings.Contains(desc, "dikirim ke alamat") || strings.Contains(desc, "out for delivery") || strings.Contains(desc, "akan dikirim ke alamat penerima"):
+		// Last-mile delivery — in transit, almost delivered.
+		stages := uc.buildShippingStages(domain.OrderStatusShipped)
+		stages[2].Completed = true
+		stages[3].Active = true
+		return stages
+	case strings.Contains(desc, "dikirimkan ke") || strings.Contains(desc, "transit") || strings.Contains(desc, "sampai di") || strings.Contains(desc, "gateway"):
+		return uc.buildShippingStages(domain.OrderStatusShipped)
+	default:
+		// Manifes / picked up — shipped stage.
+		stages := uc.buildShippingStages(domain.OrderStatusShipped)
+		stages[1].Active = true
+		stages[2].Active = false
+		stages[2].Completed = false
+		return stages
+	}
 }
 
 // courierCodeToName converts courier code to display name.

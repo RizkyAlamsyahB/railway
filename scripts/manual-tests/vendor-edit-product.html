@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vendor Edit Product Manual Test</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #d1d5db;
+      --primary: #0f766e;
+      --danger: #b91c1c;
+      --warning: #b45309;
+      --ok: #166534;
+      --info: #1d4ed8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, #fff5ee 0%, #eef4ff 100%);
+    }
+
+    .container {
+      max-width: 1260px;
+      margin: 24px auto;
+      padding: 0 16px 32px;
+    }
+
+    h1 { margin: 0 0 16px; font-size: 28px; }
+    h2 { margin: 0 0 12px; font-size: 20px; }
+    h3 { margin: 16px 0 8px; font-size: 16px; }
+    p { margin: 8px 0; }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+
+    label { font-size: 13px; color: var(--muted); }
+
+    input, select, textarea, button { font: inherit; }
+
+    input, select, textarea {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      width: 100%;
+      background: #fff;
+    }
+
+    textarea { min-height: 100px; resize: vertical; }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: var(--primary);
+      color: #fff;
+      cursor: pointer;
+    }
+
+    button.secondary { background: var(--info); }
+    button.danger    { background: var(--danger); }
+    button.warning   { background: var(--warning); }
+
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .row-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: #f3f4f6; }
+
+    .hint  { color: var(--muted); font-size: 13px; }
+    .warn  { color: var(--warning); font-weight: 600; }
+    .badge-new   { color: var(--ok); font-weight: 600; font-size: 12px; }
+    .badge-exist { color: var(--info); font-weight: 600; font-size: 12px; }
+
+    .status {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      display: inline-block;
+      color: #fff;
+    }
+
+    .s-pending   { background: #6b7280; }
+    .s-selected  { background: #2563eb; }
+    .s-uploading { background: var(--warning); }
+    .s-uploaded  { background: var(--ok); }
+    .s-failed    { background: var(--danger); }
+
+    pre {
+      margin: 0;
+      background: #0b1020;
+      color: #dbe3ff;
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      max-height: 420px;
+      font-size: 12px;
+    }
+
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .img-thumb {
+      max-width: 60px;
+      max-height: 60px;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+      object-fit: cover;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .container { margin-top: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Vendor Edit Product E2E Manual Test</h1>
+    <p class="hint">
+      Alur: <strong>Login</strong> → <strong>Load Categories</strong> →
+      <strong>Masukkan Product ID</strong> → <em>(opsional: Load Product Detail)</em> →
+      <strong>Edit &amp; Submit</strong> → <em>(opsional: Upload &amp; Confirm gambar baru)</em>
+    </p>
+
+    <!-- ─── Config ─── -->
+    <div class="panel">
+      <h2>Config</h2>
+      <div class="grid">
+        <div class="field full">
+          <label for="baseUrl">Base URL API</label>
+          <input id="baseUrl" type="text" value="https://rizkyalamsyah.my.id" />
+        </div>
+      </div>
+      <p class="hint" id="endpointInfo"></p>
+      <div class="row-actions">
+        <button id="btnLoadCategories" class="secondary">Load Categories</button>
+      </div>
+    </div>
+
+    <!-- ─── Login ─── -->
+    <div class="panel">
+      <h2>Vendor Login</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="loginEmail">email *</label>
+          <input id="loginEmail" type="email" placeholder="vendor@example.com" />
+        </div>
+        <div class="field">
+          <label for="loginPassword">password *</label>
+          <input id="loginPassword" type="text" placeholder="Password123!" />
+        </div>
+        <div class="field full">
+          <label for="token">JWT Token (auto dari login, bisa edit manual)</label>
+          <textarea id="token" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnLogin">Login Vendor</button>
+      </div>
+      <p class="hint" id="vendorInfo">Vendor: -</p>
+    </div>
+
+    <!-- ─── Product Target ─── -->
+    <div class="panel">
+      <h2>Target Product</h2>
+      <p class="hint">
+        Masukkan ID produk yang ingin diedit. Gunakan tombol <em>Load Product Detail</em> untuk
+        pre-fill form dari API (hanya bekerja untuk produk <strong>published</strong>). Untuk produk
+        <strong>draft</strong>, isi form secara manual.
+      </p>
+      <div class="grid">
+        <div class="field full">
+          <label for="productID">product_id (UUID) *</label>
+          <input id="productID" placeholder="f1a2b3c4-d5e6-7890-abcd-ef1234567890" />
+        </div>
+      </div>
+      <div class="row-actions">
+        <button id="btnLoadProduct" class="secondary">Load Product Detail (published only)</button>
+      </div>
+      <p class="hint" id="loadedProductInfo">Status: -</p>
+    </div>
+
+    <!-- ─── Edit Form ─── -->
+    <div class="panel">
+      <h2>Edit Product</h2>
+      <p class="hint warn">
+        Ini adalah PUT (full-replace). Semua field wajib diisi ulang meskipun tidak berubah.
+      </p>
+
+      <div class="grid">
+        <div class="field">
+          <label for="productName">name *</label>
+          <input id="productName" placeholder="Nama produk" />
+        </div>
+        <div class="field">
+          <label for="categorySelect">category_id * (auto-load)</label>
+          <select id="categorySelect">
+            <option value="">-- load categories dulu --</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="categoryManual">Manual category_id (override jika diisi)</label>
+          <input id="categoryManual" placeholder="uuid" />
+        </div>
+        <div class="field full">
+          <label for="description">description *</label>
+          <textarea id="description" placeholder="Deskripsi lengkap produk."></textarea>
+        </div>
+        <div class="field">
+          <label for="price">price * (&gt;0) — Default Variant</label>
+          <input id="price" type="number" step="0.01" value="150000" />
+        </div>
+        <div class="field">
+          <label for="stock">stock — Default Variant</label>
+          <input id="stock" type="number" value="10" />
+        </div>
+        <div class="field">
+          <label for="weightGram">weight_gram — Default Variant (opsional)</label>
+          <input id="weightGram" type="number" value="" />
+        </div>
+        <div class="field">
+          <label for="isActive">is_active</label>
+          <select id="isActive">
+            <option value="false" selected>false (draft)</option>
+            <option value="true">true (published)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Variants -->
+      <h3>Variants (Non-Default)</h3>
+      <p class="hint">
+        Default variant diperbarui dari field <code>price</code> / <code>stock</code> / <code>weight_gram</code> di atas.
+        <br>
+        <span class="badge-exist">● EXISTING</span> = varian lama (punya ID) → diperbarui.
+        <span class="badge-new">● NEW</span> = varian baru (tanpa ID) → dibuat baru.
+        <br>
+        Varian lama yang <em>tidak</em> ada di tabel ini akan <strong>dinonaktifkan</strong>.
+      </p>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>type</th>
+              <th>id (existing)</th>
+              <th>variant_name *</th>
+              <th>price *</th>
+              <th>stock</th>
+              <th>weight_gram</th>
+              <th>is_active</th>
+              <th>action</th>
+            </tr>
+          </thead>
+          <tbody id="variantsBody"></tbody>
+        </table>
+      </div>
+      <div class="row-actions">
+        <button id="btnAddVariant" class="secondary" type="button">Add New Variant</button>
+      </div>
+
+      <!-- Existing Images -->
+      <h3>Existing Images (keep_image_ids)</h3>
+      <p class="hint">
+        Centang gambar yang ingin <strong>dipertahankan</strong>. Gambar yang tidak dicentang akan
+        <strong>dihapus</strong>. Jika belum load product detail, tambah ID manual di bawah.
+      </p>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>keep</th>
+              <th>image_id</th>
+              <th>object_key / url</th>
+              <th>primary</th>
+            </tr>
+          </thead>
+          <tbody id="existingImagesBody"></tbody>
+        </table>
+      </div>
+      <div class="grid" style="margin-top:8px;">
+        <div class="field full">
+          <label for="keepIDsManual">Manual keep_image_ids (comma separated UUID, override tabel jika diisi)</label>
+          <input id="keepIDsManual" placeholder="uuid-1,uuid-2" />
+        </div>
+      </div>
+
+      <!-- New Images -->
+      <h3>New Images (new_images)</h3>
+      <p class="hint warn">
+        Total gambar setelah update (dipertahankan + baru) maksimal 10.
+        Jika ada gambar, tepat 1 harus primary.
+      </p>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>file_name *</th>
+              <th>content_type</th>
+              <th>is_primary</th>
+              <th>file</th>
+              <th>action</th>
+            </tr>
+          </thead>
+          <tbody id="newImagesBody"></tbody>
+        </table>
+      </div>
+      <div class="row-actions">
+        <button id="btnAddNewImage" class="secondary" type="button">Add New Image Row</button>
+      </div>
+
+      <!-- Payload Preview -->
+      <div class="grid" style="margin-top:16px;">
+        <div class="field full">
+          <label for="editPayloadPreview">Edit Payload Preview (auto-generated)</label>
+          <textarea id="editPayloadPreview" readonly></textarea>
+        </div>
+      </div>
+
+      <div class="row-actions">
+        <button id="btnEditProduct">Submit Edit Product (PUT)</button>
+      </div>
+      <p class="hint" id="editInfo">Result: -</p>
+    </div>
+
+    <!-- ─── Upload New Images ─── -->
+    <div class="panel">
+      <h2>Upload New Images (Presigned)</h2>
+      <p class="hint">
+        Muncul setelah submit edit jika terdapat <code>new_upload_urls</code> dalam response.
+        Upload via HTTP PUT ke presigned URL <strong>tanpa bearer token</strong>.
+      </p>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>image_id</th>
+              <th>object_key</th>
+              <th>upload_url</th>
+              <th>mapped_file</th>
+              <th>replace_file</th>
+              <th>status</th>
+              <th>action</th>
+            </tr>
+          </thead>
+          <tbody id="uploadBody"></tbody>
+        </table>
+      </div>
+      <div class="row-actions">
+        <button id="btnUploadSelected">Upload All with File</button>
+      </div>
+    </div>
+
+    <!-- ─── Confirm New Images ─── -->
+    <div class="panel">
+      <h2>Confirm New Images</h2>
+      <p class="hint">
+        Konfirmasi hanya untuk gambar baru dengan status <code>uploaded</code>.
+        Menggunakan endpoint <code>POST /api/v1/vendors/products/{id}/images/confirm</code>
+        (endpoint yang sama dengan flow create product).
+      </p>
+      <div class="row-actions">
+        <button id="btnConfirmImages">Confirm Uploaded Images</button>
+      </div>
+    </div>
+
+    <!-- ─── Log ─── -->
+    <div class="panel">
+      <h2>Log &amp; Debug</h2>
+      <div class="row-actions" style="margin-top:0; margin-bottom:8px;">
+        <button id="btnClearLog" class="warning">Clear Log</button>
+      </div>
+      <pre id="logBox"></pre>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      categories: [],
+      existingVariantRows: [], // {id, variant_name, price, stock, weight_gram, is_active, is_default}
+      editVariantRows:     [], // {existingID|null, variant_name, price, stock, weight_gram, is_active}
+      existingImages:      [], // {image_id, image_url, is_primary, sort_order}
+      newImageRows:        [], // {file_name, content_type, is_primary, file}
+      uploadRows:          [], // {image_id, object_key, upload_url, file, status, error}
+      productID:           "",
+      vendorInfo:          null
+    };
+
+    /* ─────────────── helpers ─────────────── */
+
+    function nowISO() { return new Date().toISOString(); }
+
+    function log(obj) {
+      const box = document.getElementById("logBox");
+      const text = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+      box.textContent += "[" + nowISO() + "] " + text + "\n\n";
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function endpoint(path) {
+      return document.getElementById("baseUrl").value.trim().replace(/\/+$/, "") + path;
+    }
+
+    function shortUrl(url) {
+      if (!url || url.length <= 72) return url || "";
+      return url.slice(0, 62) + "...";
+    }
+
+    async function parseBody(res) {
+      const text = await res.text();
+      try { return text ? JSON.parse(text) : {}; }
+      catch (e) { return { raw: text }; }
+    }
+
+    function parseNumber(value, fallback) {
+      if (value === "" || value == null) return fallback;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function statusBadge(status) {
+      const cls = {
+        pending: "s-pending", selected: "s-selected",
+        uploading: "s-uploading", uploaded: "s-uploaded", failed: "s-failed"
+      }[status] || "s-pending";
+      return '<span class="status ' + cls + '">' + status + '</span>';
+    }
+
+    function escAttr(str) {
+      return String(str || "").replace(/"/g, "&quot;");
+    }
+
+    function refreshEndpointInfo() {
+      document.getElementById("endpointInfo").textContent =
+        "Login: " + endpoint("/api/v1/vendors/login") +
+        " | Edit: PUT " + endpoint("/api/v1/vendors/products/{id}") +
+        " | Confirm: " + endpoint("/api/v1/vendors/products/{id}/images/confirm") +
+        " | Catalog: " + endpoint("/api/v1/products/{id}");
+    }
+
+    /* ─────────────── categories ─────────────── */
+
+    function renderCategoryOptions() {
+      const sel = document.getElementById("categorySelect");
+      sel.innerHTML = '<option value="">-- pilih category --</option>';
+      state.categories.forEach(function(c) {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = c.name + " (" + c.slug + ")";
+        sel.appendChild(opt);
+      });
+    }
+
+    async function loadCategories() {
+      const url = endpoint("/api/v1/categories");
+      log({ request: "load_categories", url: url });
+      try {
+        const res = await fetch(url);
+        const body = await parseBody(res);
+        log({ response: "load_categories", status: res.status, body: body });
+        if (!res.ok) { alert("Load categories gagal. Cek Log."); return; }
+        state.categories = Array.isArray(body && body.data) ? body.data : [];
+        renderCategoryOptions();
+        refreshEditPayloadPreview();
+        alert("Categories berhasil dimuat (" + state.categories.length + " item).");
+      } catch (err) {
+        log({ response: "load_categories", error: String(err) });
+        alert("Load categories error. Cek Log.");
+      }
+    }
+
+    /* ─────────────── vendor login ─────────────── */
+
+    async function loginVendor() {
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value.trim();
+      if (!email || !password) { alert("email dan password wajib diisi."); return; }
+
+      const url = endpoint("/api/v1/vendors/login");
+      const payload = { email: email, password: password };
+      log({ request: "vendor_login", url: url, payload: payload });
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const body = await parseBody(res);
+        log({ response: "vendor_login", status: res.status, request_id: res.headers.get("X-Request-ID"), body: body });
+
+        if (!res.ok) { alert("Login gagal. Cek Log."); return; }
+
+        const data = body && body.data ? body.data : {};
+        document.getElementById("token").value = data.token || "";
+        state.vendorInfo = { vendor_id: data.vendor_id || "", display_name: data.display_name || "", vendor_status: data.vendor_status || "" };
+        document.getElementById("vendorInfo").textContent =
+          "Vendor: " + (state.vendorInfo.display_name || "-") +
+          " | vendor_id: " + (state.vendorInfo.vendor_id || "-") +
+          " | status: " + (state.vendorInfo.vendor_status || "-");
+        alert("Login sukses.");
+      } catch (err) {
+        log({ response: "vendor_login", error: String(err) });
+        alert("Login error. Cek Log.");
+      }
+    }
+
+    /* ─────────────── load product detail ─────────────── */
+
+    async function loadProductDetail() {
+      const id = document.getElementById("productID").value.trim();
+      if (!id) { alert("Masukkan product_id dulu."); return; }
+
+      const url = endpoint("/api/v1/products/" + id);
+      log({ request: "load_product_detail", url: url });
+
+      try {
+        const res = await fetch(url);
+        const body = await parseBody(res);
+        log({ response: "load_product_detail", status: res.status, request_id: res.headers.get("X-Request-ID"), body: body });
+
+        if (!res.ok) {
+          document.getElementById("loadedProductInfo").textContent = "Gagal load (" + res.status + "). Isi form secara manual.";
+          alert("Load product detail gagal (mungkin produk draft). Isi form manual. Cek Log.");
+          return;
+        }
+
+        const d = body.data || {};
+        state.productID = id;
+
+        // Fill basic fields.
+        document.getElementById("productName").value = d.name || "";
+        document.getElementById("description").value = d.description || "";
+        document.getElementById("isActive").value = d.status === "published" ? "true" : "false";
+
+        // Set category dropdown.
+        if (d.category && d.category.id) {
+          const sel = document.getElementById("categorySelect");
+          let found = false;
+          for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === d.category.id) { sel.selectedIndex = i; found = true; break; }
+          }
+          if (!found) document.getElementById("categoryManual").value = d.category.id;
+        }
+
+        // Fill variants.
+        state.existingVariantRows = Array.isArray(d.variants) ? d.variants.map(function(v) {
+          return { id: v.id, sku: v.sku || "", variant_name: v.variant_name || "", price: v.price || 0, stock: v.stock_on_hand != null ? v.stock_on_hand : 0, weight_gram: v.weight_gram != null ? v.weight_gram : "", is_active: !!v.is_active, is_default: !!v.is_default };
+        }) : [];
+
+        // Pre-fill default variant fields.
+        const def = state.existingVariantRows.find(function(v) { return v.is_default; });
+        if (def) {
+          document.getElementById("price").value = def.price;
+          document.getElementById("stock").value = def.stock;
+          document.getElementById("weightGram").value = def.weight_gram != null ? def.weight_gram : "";
+        }
+
+        // Pre-fill non-default variants into editVariantRows.
+        state.editVariantRows = state.existingVariantRows
+          .filter(function(v) { return !v.is_default; })
+          .map(function(v) {
+            return { existingID: v.id, variant_name: v.variant_name, price: v.price, stock: v.stock, weight_gram: v.weight_gram, is_active: v.is_active };
+          });
+        renderVariantRows();
+
+        // Fill existing images.
+        state.existingImages = Array.isArray(d.images) ? d.images.map(function(img) {
+          return { image_id: img.id, image_url: img.url || "", is_primary: !!img.is_primary, sort_order: img.sort_order || 0 };
+        }) : [];
+        renderExistingImages(true); // check all by default
+
+        document.getElementById("loadedProductInfo").textContent =
+          "Loaded: " + (d.name || "") + " | status: " + (d.status || "") +
+          " | " + state.existingVariantRows.length + " variant(s), " + state.existingImages.length + " image(s)";
+
+        refreshEditPayloadPreview();
+        alert("Product detail berhasil dimuat dan form telah di-prefill.");
+      } catch (err) {
+        log({ response: "load_product_detail", error: String(err) });
+        alert("Load product detail error. Cek Log.");
+      }
+    }
+
+    /* ─────────────── variant rows ─────────────── */
+
+    function renderVariantRows() {
+      const body = document.getElementById("variantsBody");
+      body.innerHTML = "";
+
+      state.editVariantRows.forEach(function(row, idx) {
+        const isExisting = !!row.existingID;
+        const typeLabel = isExisting
+          ? '<span class="badge-exist">● EXISTING</span>'
+          : '<span class="badge-new">● NEW</span>';
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = [
+          "<td>" + typeLabel + "</td>",
+          "<td>" + (isExisting ? '<code>' + row.existingID + '</code>' : '<span class="hint">-</span>') + "</td>",
+          '<td><input id="vn_' + idx + '" value="' + escAttr(row.variant_name) + '" placeholder="Merah"></td>',
+          '<td><input id="vp_' + idx + '" type="number" step="0.01" value="' + (row.price || "") + '"></td>',
+          '<td><input id="vs_' + idx + '" type="number" value="' + (row.stock != null ? row.stock : 0) + '"></td>',
+          '<td><input id="vw_' + idx + '" type="number" value="' + (row.weight_gram != null ? row.weight_gram : "") + '"></td>',
+          '<td><input id="va_' + idx + '" type="checkbox" ' + (row.is_active ? "checked" : "") + '></td>',
+          '<td><button type="button" class="danger" id="btn_rmv_' + idx + '">Remove</button></td>'
+        ].join("");
+        body.appendChild(tr);
+
+        document.getElementById("vn_" + idx).addEventListener("input", function(e) { row.variant_name = e.target.value; refreshEditPayloadPreview(); });
+        document.getElementById("vp_" + idx).addEventListener("input", function(e) { row.price = e.target.value; refreshEditPayloadPreview(); });
+        document.getElementById("vs_" + idx).addEventListener("input", function(e) { row.stock = e.target.value; refreshEditPayloadPreview(); });
+        document.getElementById("vw_" + idx).addEventListener("input", function(e) { row.weight_gram = e.target.value; refreshEditPayloadPreview(); });
+        document.getElementById("va_" + idx).addEventListener("change", function(e) { row.is_active = e.target.checked; refreshEditPayloadPreview(); });
+        document.getElementById("btn_rmv_" + idx).addEventListener("click", function() {
+          state.editVariantRows.splice(idx, 1);
+          renderVariantRows();
+          refreshEditPayloadPreview();
+        });
+      });
+    }
+
+    /* ─────────────── existing images ─────────────── */
+
+    function renderExistingImages(checkAll) {
+      const body = document.getElementById("existingImagesBody");
+      body.innerHTML = "";
+
+      if (state.existingImages.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = '<td colspan="4" class="hint">Tidak ada data gambar lama. Tambah UUID manual di field di bawah atau load product detail.</td>';
+        body.appendChild(tr);
+        return;
+      }
+
+      state.existingImages.forEach(function(img, idx) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = [
+          '<td style="text-align:center;"><input id="imgkeep_' + idx + '" type="checkbox" ' + (checkAll !== false ? "checked" : "") + '></td>',
+          '<td><code>' + img.image_id + '</code></td>',
+          '<td class="hint" style="max-width:320px; word-break:break-all;">' + (img.image_url || "-") + '</td>',
+          '<td>' + (img.is_primary ? "✅ primary" : "-") + '</td>'
+        ].join("");
+        body.appendChild(tr);
+
+        document.getElementById("imgkeep_" + idx).addEventListener("change", refreshEditPayloadPreview);
+      });
+
+      refreshEditPayloadPreview();
+    }
+
+    function collectKeepImageIDs() {
+      const manual = document.getElementById("keepIDsManual").value.trim();
+      if (manual) {
+        return manual.split(",").map(function(v) { return v.trim(); }).filter(Boolean);
+      }
+
+      const ids = [];
+      state.existingImages.forEach(function(img, idx) {
+        const cb = document.getElementById("imgkeep_" + idx);
+        if (cb && cb.checked) ids.push(img.image_id);
+      });
+      return ids;
+    }
+
+    /* ─────────────── new image rows ─────────────── */
+
+    function renderNewImageRows() {
+      const body = document.getElementById("newImagesBody");
+      body.innerHTML = "";
+
+      state.newImageRows.forEach(function(row, idx) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = [
+          '<td><input id="ni_name_' + idx + '" value="' + escAttr(row.file_name) + '" placeholder="foto-baru.jpg"></td>',
+          '<td><select id="ni_type_' + idx + '">' +
+            ['image/jpeg','image/png','image/webp'].map(function(t) {
+              return '<option value="' + t + '"' + (row.content_type === t ? ' selected' : '') + '>' + t + '</option>';
+            }).join('') +
+          '</select></td>',
+          '<td><input id="ni_primary_' + idx + '" type="checkbox" ' + (row.is_primary ? "checked" : "") + '></td>',
+          '<td><input id="ni_file_' + idx + '" type="file" accept=".jpg,.jpeg,.png,.webp">' +
+            '<div class="hint">selected: ' + (row.file ? row.file.name : "-") + '</div></td>',
+          '<td><button type="button" class="danger" id="ni_rm_' + idx + '">Remove</button></td>'
+        ].join("");
+        body.appendChild(tr);
+
+        document.getElementById("ni_name_" + idx).addEventListener("input", function(e) { row.file_name = e.target.value; refreshEditPayloadPreview(); });
+        document.getElementById("ni_type_" + idx).addEventListener("change", function(e) { row.content_type = e.target.value; refreshEditPayloadPreview(); });
+        document.getElementById("ni_primary_" + idx).addEventListener("change", function(e) { row.is_primary = e.target.checked; refreshEditPayloadPreview(); });
+        document.getElementById("ni_file_" + idx).addEventListener("change", function(e) {
+          row.file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+          if (row.file && !row.file_name) { row.file_name = row.file.name; }
+          renderNewImageRows();
+          refreshEditPayloadPreview();
+        });
+        document.getElementById("ni_rm_" + idx).addEventListener("click", function() {
+          state.newImageRows.splice(idx, 1);
+          renderNewImageRows();
+          refreshEditPayloadPreview();
+        });
+      });
+    }
+
+    /* ─────────────── payload collection & preview ─────────────── */
+
+    function collectEditPayload() {
+      const categoryManual = document.getElementById("categoryManual").value.trim();
+      const categoryFromSelect = document.getElementById("categorySelect").value.trim();
+      const categoryID = categoryManual || categoryFromSelect;
+
+      const weightRaw = document.getElementById("weightGram").value.trim();
+      const weight = weightRaw === "" ? null : Math.trunc(parseNumber(weightRaw, 0));
+
+      const variants = state.editVariantRows
+        .map(function(v) {
+          const obj = {
+            variant_name: String(v.variant_name || "").trim(),
+            price: parseNumber(v.price, NaN),
+            stock: Math.trunc(parseNumber(v.stock, 0)),
+            weight_gram: String(v.weight_gram == null || v.weight_gram === "" ? "" : v.weight_gram).trim() === ""
+              ? null : Math.trunc(parseNumber(v.weight_gram, 0)),
+            is_active: !!v.is_active
+          };
+          if (v.existingID) obj.id = v.existingID;
+          if (obj.weight_gram == null) delete obj.weight_gram;
+          return obj;
+        })
+        .filter(function(v) { return v.variant_name !== ""; });
+
+      const keepImageIDs = collectKeepImageIDs();
+
+      const newImages = state.newImageRows
+        .map(function(img) { return { file_name: String(img.file_name || "").trim(), content_type: img.content_type, is_primary: !!img.is_primary }; })
+        .filter(function(img) { return img.file_name !== ""; });
+
+      const payload = {
+        name: document.getElementById("productName").value.trim(),
+        category_id: categoryID,
+        description: document.getElementById("description").value.trim(),
+        price: parseNumber(document.getElementById("price").value.trim(), NaN),
+        stock: Math.trunc(parseNumber(document.getElementById("stock").value.trim(), 0)),
+        weight_gram: weight,
+        is_active: document.getElementById("isActive").value === "true",
+        variants: variants,
+        keep_image_ids: keepImageIDs,
+        new_images: newImages
+      };
+
+      if (payload.weight_gram == null) delete payload.weight_gram;
+      if (payload.variants.length === 0) delete payload.variants;
+      if (payload.keep_image_ids.length === 0) delete payload.keep_image_ids;
+      if (payload.new_images.length === 0) delete payload.new_images;
+
+      return { payload: payload, newImageRowsIncluded: state.newImageRows.filter(function(img) { return String(img.file_name || "").trim() !== ""; }) };
+    }
+
+    function validateEditPayload(collected) {
+      const p = collected.payload;
+      if (!p.name)        return "name wajib diisi";
+      if (!p.category_id) return "category_id wajib diisi";
+      if (!p.description) return "description wajib diisi";
+      if (!Number.isFinite(p.price) || p.price <= 0) return "price harus > 0";
+
+      const keepCount = (p.keep_image_ids || []).length;
+      const newCount  = (p.new_images     || []).length;
+      if (keepCount + newCount > 10) return "total gambar (keep + new) maksimal 10";
+
+      if (newCount > 0) {
+        let newPrimary = 0;
+        for (const img of p.new_images) { if (img.is_primary) newPrimary++; }
+        if (newPrimary > 1) return "hanya 1 gambar baru boleh ditandai primary";
+
+        let keptPrimary = 0;
+        if (p.keep_image_ids) {
+          p.keep_image_ids.forEach(function(id) {
+            const found = state.existingImages.find(function(img) { return img.image_id === id; });
+            if (found && found.is_primary) keptPrimary++;
+          });
+        }
+        if (keptPrimary + newPrimary === 0) return "minimal 1 gambar harus primary setelah update";
+
+        for (let i = 0; i < collected.newImageRowsIncluded.length; i++) {
+          if (!collected.newImageRowsIncluded[i].file) {
+            return "file wajib dipilih untuk new image: " + (p.new_images[i] ? p.new_images[i].file_name : i);
+          }
+        }
+      }
+
+      if (p.variants) {
+        for (const v of p.variants) {
+          if (!v.variant_name) return "variant_name wajib diisi untuk semua variant";
+          if (!Number.isFinite(v.price) || v.price <= 0) return "price variant harus > 0";
+        }
+      }
+
+      return null;
+    }
+
+    function refreshEditPayloadPreview() {
+      const collected = collectEditPayload();
+      document.getElementById("editPayloadPreview").value = JSON.stringify(collected.payload, null, 2);
+    }
+
+    /* ─────────────── submit edit ─────────────── */
+
+    async function submitEditProduct() {
+      const token = document.getElementById("token").value.trim();
+      if (!token) { alert("Token kosong. Login dulu."); return; }
+
+      const id = document.getElementById("productID").value.trim();
+      if (!id) { alert("product_id kosong."); return; }
+
+      const collected = collectEditPayload();
+      const invalid = validateEditPayload(collected);
+      if (invalid) { alert(invalid); return; }
+
+      refreshEditPayloadPreview();
+      state.productID = id;
+
+      const url = endpoint("/api/v1/vendors/products/" + id);
+      log({ request: "edit_product", url: url, payload: collected.payload });
+
+      try {
+        const res = await fetch(url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+          body: JSON.stringify(collected.payload)
+        });
+
+        const body = await parseBody(res);
+        log({ response: "edit_product", status: res.status, request_id: res.headers.get("X-Request-ID"), body: body });
+
+        if (!res.ok) {
+          document.getElementById("editInfo").textContent = "Gagal (" + res.status + "): " + (body.message || JSON.stringify(body));
+          alert("Edit product gagal. Cek Log.");
+          return;
+        }
+
+        const data = body.data || {};
+        document.getElementById("editInfo").textContent =
+          "✅ Sukses | slug: " + (data.slug || "-") +
+          " | status: " + (data.status || "-") +
+          " | " + (data.variants ? data.variants.length : 0) + " variant(s)" +
+          " | new_upload_urls: " + ((data.new_upload_urls || []).length);
+
+        const newUploadURLs = Array.isArray(data.new_upload_urls) ? data.new_upload_urls : [];
+        setUploadRows(newUploadURLs, collected.newImageRowsIncluded);
+
+        alert("Edit product sukses." + (newUploadURLs.length > 0 ? " Lanjutkan upload " + newUploadURLs.length + " gambar baru." : " Tidak ada gambar baru untuk diupload."));
+      } catch (err) {
+        log({ response: "edit_product", error: String(err) });
+        alert("Edit product error. Cek Log.");
+      }
+    }
+
+    /* ─────────────── upload new images ─────────────── */
+
+    function setUploadRows(uploadURLs, newImageRowsIncluded) {
+      const bySort = {};
+      newImageRowsIncluded.forEach(function(img, idx) { bySort[idx] = img.file || null; });
+
+      state.uploadRows = uploadURLs.map(function(item) {
+        return {
+          image_id: item.image_id,
+          object_key: item.object_key,
+          upload_url: item.upload_url,
+          sort_order: item.sort_order,
+          is_primary: !!item.is_primary,
+          file: bySort[item.sort_order] != null ? bySort[item.sort_order] : null,
+          status: "pending",
+          error: ""
+        };
+      });
+
+      renderUploadRows();
+    }
+
+    function renderUploadRows() {
+      const body = document.getElementById("uploadBody");
+      body.innerHTML = "";
+
+      if (state.uploadRows.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = '<td colspan="7" class="hint">Tidak ada gambar baru untuk diupload.</td>';
+        body.appendChild(tr);
+        return;
+      }
+
+      state.uploadRows.forEach(function(row, idx) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = [
+          '<td><code>' + row.image_id + '</code></td>',
+          '<td class="hint" style="max-width:200px; word-break:break-all;"><code>' + row.object_key + '</code></td>',
+          '<td title="' + escAttr(row.upload_url) + '">' + shortUrl(row.upload_url) + '</td>',
+          '<td>' + (row.file ? row.file.name : "-") + '<br><span class="hint">sort: ' + row.sort_order + ', primary: ' + row.is_primary + '</span></td>',
+          '<td><input type="file" id="up_file_' + idx + '" accept=".jpg,.jpeg,.png,.webp"></td>',
+          '<td>' + statusBadge(row.status) + (row.error ? '<br><small>' + row.error + '</small>' : '') + '</td>',
+          '<td><button type="button" id="btn_up_' + idx + '">Upload</button></td>'
+        ].join("");
+        body.appendChild(tr);
+
+        document.getElementById("up_file_" + idx).addEventListener("change", function(e) {
+          row.file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+          row.status = row.file ? "selected" : "pending";
+          row.error = "";
+          renderUploadRows();
+        });
+        document.getElementById("btn_up_" + idx).addEventListener("click", function() { uploadOne(idx); });
+      });
+    }
+
+    async function uploadOne(idx) {
+      const row = state.uploadRows[idx];
+      if (!row) return;
+      if (!row.file) { alert("Pilih file dulu untuk image_id: " + row.image_id); return; }
+
+      row.status = "uploading";
+      row.error = "";
+      renderUploadRows();
+
+      try {
+        const res = await fetch(row.upload_url, {
+          method: "PUT",
+          headers: { "Content-Type": row.file.type || "application/octet-stream" },
+          body: row.file
+        });
+
+        if (!res.ok) {
+          const txt = await res.text();
+          row.status = "failed";
+          row.error = "HTTP " + res.status;
+          renderUploadRows();
+          log({ response: "upload_image", status: res.status, image_id: row.image_id, body: txt });
+          return;
+        }
+
+        row.status = "uploaded";
+        row.error = "";
+        renderUploadRows();
+        log({ response: "upload_image", status: res.status, image_id: row.image_id, object_key: row.object_key });
+      } catch (err) {
+        row.status = "failed";
+        row.error = String(err);
+        renderUploadRows();
+        log({ response: "upload_image", image_id: row.image_id, error: String(err) });
+      }
+    }
+
+    async function uploadSelected() {
+      const toUpload = [];
+      state.uploadRows.forEach(function(row, idx) { if (row.file) toUpload.push(idx); });
+      if (toUpload.length === 0) { alert("Belum ada file terpilih di tabel upload."); return; }
+      for (const idx of toUpload) { await uploadOne(idx); }
+      alert("Upload selesai.");
+    }
+
+    /* ─────────────── confirm new images ─────────────── */
+
+    async function confirmImages() {
+      const token = document.getElementById("token").value.trim();
+      if (!token) { alert("Token kosong."); return; }
+
+      const pid = state.productID || document.getElementById("productID").value.trim();
+      if (!pid) { alert("product_id kosong."); return; }
+
+      const uploaded = state.uploadRows
+        .filter(function(r) { return r.status === "uploaded"; })
+        .map(function(r) { return { image_id: r.image_id, object_key: r.object_key }; });
+
+      if (uploaded.length === 0) { alert("Belum ada gambar berstatus uploaded."); return; }
+
+      const url = endpoint("/api/v1/vendors/products/" + pid + "/images/confirm");
+      const payload = { images: uploaded };
+      log({ request: "confirm_product_images", url: url, payload: payload });
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+          body: JSON.stringify(payload)
+        });
+        const body = await parseBody(res);
+        log({ response: "confirm_product_images", status: res.status, request_id: res.headers.get("X-Request-ID"), body: body });
+
+        if (!res.ok) { alert("Confirm images gagal. Cek Log."); return; }
+        alert("Confirm images sukses. " + (body.data ? body.data.images_confirmed || 0 : 0) + " gambar dikonfirmasi.");
+      } catch (err) {
+        log({ response: "confirm_product_images", error: String(err) });
+        alert("Confirm images error. Cek Log.");
+      }
+    }
+
+    /* ─────────────── wire up ─────────────── */
+
+    function wireAutoPreviewUpdates() {
+      ["productName","categorySelect","categoryManual","description","price","stock","weightGram","isActive","keepIDsManual"].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener("input", refreshEditPayloadPreview);
+        el.addEventListener("change", refreshEditPayloadPreview);
+      });
+      document.getElementById("existingImagesBody").addEventListener("change", refreshEditPayloadPreview);
+    }
+
+    document.getElementById("baseUrl").addEventListener("input", refreshEndpointInfo);
+    document.getElementById("btnLoadCategories").addEventListener("click", loadCategories);
+    document.getElementById("btnLogin").addEventListener("click", loginVendor);
+    document.getElementById("btnLoadProduct").addEventListener("click", loadProductDetail);
+    document.getElementById("productID").addEventListener("input", refreshEndpointInfo);
+    document.getElementById("btnAddVariant").addEventListener("click", function() {
+      state.editVariantRows.push({ existingID: null, variant_name: "", price: "", stock: 0, weight_gram: "", is_active: true });
+      renderVariantRows();
+      refreshEditPayloadPreview();
+    });
+    document.getElementById("btnAddNewImage").addEventListener("click", function() {
+      const keepCount = collectKeepImageIDs().length;
+      if (keepCount + state.newImageRows.length >= 10) { alert("Batas 10 gambar tercapai."); return; }
+      state.newImageRows.push({ file_name: "", content_type: "image/jpeg", is_primary: false, file: null });
+      renderNewImageRows();
+      refreshEditPayloadPreview();
+    });
+    document.getElementById("btnEditProduct").addEventListener("click", submitEditProduct);
+    document.getElementById("btnUploadSelected").addEventListener("click", uploadSelected);
+    document.getElementById("btnConfirmImages").addEventListener("click", confirmImages);
+    document.getElementById("btnClearLog").addEventListener("click", function() { document.getElementById("logBox").textContent = ""; });
+
+    // Init.
+    wireAutoPreviewUpdates();
+    renderExistingImages();
+    renderUploadRows();
+    refreshEndpointInfo();
+    refreshEditPayloadPreview();
+    log("Page ready. Alur: Login → Load Categories → Masukkan Product ID → (Load Detail) → Edit → Submit → Upload & Confirm.");
+  </script>
+</body>
+</html>

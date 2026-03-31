@@ -74,6 +74,16 @@ func (r *shipmentRepository) UpdateTrackingAndShip(ctx context.Context, orderID 
 		}).Error
 }
 
+func (r *shipmentRepository) UpdateDeliveredAt(ctx context.Context, orderID uuid.UUID, deliveredAt time.Time) error {
+	return r.db.WithContext(ctx).
+		Model(&shipmentModel{}).
+		Where("order_id = ?", orderID.String()).
+		Updates(map[string]interface{}{
+			"shipment_status": "delivered",
+			"delivered_at":    deliveredAt,
+		}).Error
+}
+
 func toDomainShipment(m *shipmentModel) *domain.Shipment {
 	id, _ := uuid.Parse(m.ID)
 	orderID, _ := uuid.Parse(m.OrderID)

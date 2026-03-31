@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Haji Umroh Store BE - Finance API
+  title: UmrahMart - Finance API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint finance (dashboard, transaksi, payout, refund).
 servers:
@@ -37,20 +37,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserLoginRequest'
+              $ref: "#/components/schemas/UserLoginRequest"
             example:
               email: finance@dev.local
               password: Password123!
       responses:
-        '200':
+        "200":
           description: Login berhasil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessUserLoginEnvelope'
+                $ref: "#/components/schemas/SuccessUserLoginEnvelope"
               example:
                 success: true
                 message: login successful
@@ -69,14 +69,14 @@ paths:
                     updated_at: "2026-02-10T10:20:30Z"
                 errors: null
                 meta: null
-        '400':
-          $ref: '#/components/responses/BadRequestResponse'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/dashboard:
     get:
       tags:
@@ -92,21 +92,21 @@ paths:
             type: string
             example: "2026-01"
       responses:
-        '200':
+        "200":
           description: Dashboard keuangan berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessFinanceDashboardEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessFinanceDashboardEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/transactions:
     get:
       tags:
@@ -114,12 +114,12 @@ paths:
       summary: Daftar transaksi & pembayaran
       operationId: listFinanceTransactions
       parameters:
-        - $ref: '#/components/parameters/MonthParam'
-        - $ref: '#/components/parameters/DateFromParam'
-        - $ref: '#/components/parameters/DateToParam'
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - $ref: "#/components/parameters/MonthParam"
+        - $ref: "#/components/parameters/DateFromParam"
+        - $ref: "#/components/parameters/DateToParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
         - name: status
           in: query
           description: Filter status pembayaran.
@@ -133,21 +133,21 @@ paths:
               - expired
               - refunded
       responses:
-        '200':
+        "200":
           description: Transaksi berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessFinanceTransactionListEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessFinanceTransactionListEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/transactions/export:
     get:
       tags:
@@ -155,10 +155,10 @@ paths:
       summary: Export transaksi & pembayaran (CSV)
       operationId: exportFinanceTransactions
       parameters:
-        - $ref: '#/components/parameters/MonthParam'
-        - $ref: '#/components/parameters/DateFromParam'
-        - $ref: '#/components/parameters/DateToParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - $ref: "#/components/parameters/MonthParam"
+        - $ref: "#/components/parameters/DateFromParam"
+        - $ref: "#/components/parameters/DateToParam"
+        - $ref: "#/components/parameters/SearchParam"
         - name: status
           in: query
           description: Filter status pembayaran.
@@ -172,19 +172,19 @@ paths:
               - expired
               - refunded
       responses:
-        '200':
+        "200":
           description: CSV berhasil dibuat.
           content:
             text/csv:
               schema:
                 type: string
                 format: binary
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/payouts:
     get:
       tags:
@@ -192,12 +192,12 @@ paths:
       summary: Daftar settlement & payout
       operationId: listFinancePayouts
       parameters:
-        - $ref: '#/components/parameters/MonthParam'
-        - $ref: '#/components/parameters/DateFromParam'
-        - $ref: '#/components/parameters/DateToParam'
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - $ref: "#/components/parameters/MonthParam"
+        - $ref: "#/components/parameters/DateFromParam"
+        - $ref: "#/components/parameters/DateToParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
         - name: status
           in: query
           description: Filter status payout.
@@ -210,21 +210,21 @@ paths:
               - failed
               - on_hold
       responses:
-        '200':
+        "200":
           description: Payout berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessFinancePayoutListEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessFinancePayoutListEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/payouts/export:
     get:
       tags:
@@ -232,10 +232,10 @@ paths:
       summary: Export settlement & payout (CSV)
       operationId: exportFinancePayouts
       parameters:
-        - $ref: '#/components/parameters/MonthParam'
-        - $ref: '#/components/parameters/DateFromParam'
-        - $ref: '#/components/parameters/DateToParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - $ref: "#/components/parameters/MonthParam"
+        - $ref: "#/components/parameters/DateFromParam"
+        - $ref: "#/components/parameters/DateToParam"
+        - $ref: "#/components/parameters/SearchParam"
         - name: status
           in: query
           description: Filter status payout.
@@ -248,19 +248,19 @@ paths:
               - failed
               - on_hold
       responses:
-        '200':
+        "200":
           description: CSV berhasil dibuat.
           content:
             text/csv:
               schema:
                 type: string
                 format: binary
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/refunds:
     get:
       tags:
@@ -268,12 +268,12 @@ paths:
       summary: Daftar refund & dispute
       operationId: listFinanceRefunds
       parameters:
-        - $ref: '#/components/parameters/MonthParam'
-        - $ref: '#/components/parameters/DateFromParam'
-        - $ref: '#/components/parameters/DateToParam'
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/LimitParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - $ref: "#/components/parameters/MonthParam"
+        - $ref: "#/components/parameters/DateFromParam"
+        - $ref: "#/components/parameters/DateToParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - $ref: "#/components/parameters/SearchParam"
         - name: status
           in: query
           description: Filter status refund.
@@ -286,21 +286,21 @@ paths:
               - rejected
               - processed
       responses:
-        '200':
+        "200":
           description: Refund berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessFinanceRefundListEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessFinanceRefundListEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/refunds/export:
     get:
       tags:
@@ -308,10 +308,10 @@ paths:
       summary: Export refund & dispute (CSV)
       operationId: exportFinanceRefunds
       parameters:
-        - $ref: '#/components/parameters/MonthParam'
-        - $ref: '#/components/parameters/DateFromParam'
-        - $ref: '#/components/parameters/DateToParam'
-        - $ref: '#/components/parameters/SearchParam'
+        - $ref: "#/components/parameters/MonthParam"
+        - $ref: "#/components/parameters/DateFromParam"
+        - $ref: "#/components/parameters/DateToParam"
+        - $ref: "#/components/parameters/SearchParam"
         - name: status
           in: query
           description: Filter status refund.
@@ -324,19 +324,19 @@ paths:
               - rejected
               - processed
       responses:
-        '200':
+        "200":
           description: CSV berhasil dibuat.
           content:
             text/csv:
               schema:
                 type: string
                 format: binary
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/reports:
     get:
       tags:
@@ -344,23 +344,23 @@ paths:
       summary: Laporan keuangan
       operationId: financeReport
       parameters:
-        - $ref: '#/components/parameters/MonthParam'
+        - $ref: "#/components/parameters/MonthParam"
       responses:
-        '200':
+        "200":
           description: Laporan keuangan berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessFinanceReportEnvelope'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessFinanceReportEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/reports/export:
     get:
       tags:
@@ -368,21 +368,21 @@ paths:
       summary: Export laporan keuangan (CSV)
       operationId: exportFinanceReport
       parameters:
-        - $ref: '#/components/parameters/MonthParam'
+        - $ref: "#/components/parameters/MonthParam"
       responses:
-        '200':
+        "200":
           description: CSV berhasil dibuat.
           content:
             text/csv:
               schema:
                 type: string
                 format: binary
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/refunds/{id}/status:
     patch:
       tags:
@@ -402,27 +402,27 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateRefundStatusRequest'
+              $ref: "#/components/schemas/UpdateRefundStatusRequest"
       responses:
-        '200':
+        "200":
           description: Status refund berhasil diperbarui.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessStatusActionEnvelope'
-        '400':
-          $ref: '#/components/responses/BadRequestResponse'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '404':
-          $ref: '#/components/responses/NotFoundResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessStatusActionEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/payouts/{id}/status:
     patch:
       tags:
@@ -442,27 +442,27 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdatePayoutStatusRequest'
+              $ref: "#/components/schemas/UpdatePayoutStatusRequest"
       responses:
-        '200':
+        "200":
           description: Status payout berhasil diperbarui.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessStatusActionEnvelope'
-        '400':
-          $ref: '#/components/responses/BadRequestResponse'
-        '401':
-          $ref: '#/components/responses/UnauthorizedResponse'
-        '403':
-          $ref: '#/components/responses/ForbiddenResponse'
-        '404':
-          $ref: '#/components/responses/NotFoundResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerErrorResponse'
+                $ref: "#/components/schemas/SuccessStatusActionEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
 components:
   securitySchemes:
     BearerAuth:
@@ -535,11 +535,11 @@ components:
       description: Request tidak valid.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: validation failed
@@ -550,11 +550,11 @@ components:
       description: Token tidak valid atau tidak ada.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: invalid or expired token
@@ -565,11 +565,11 @@ components:
       description: User tidak memiliki izin role finance.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: insufficient permissions
@@ -580,11 +580,11 @@ components:
       description: Data tidak ditemukan.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: not found
@@ -595,11 +595,11 @@ components:
       description: Internal server error.
       headers:
         X-Request-ID:
-          $ref: '#/components/headers/RequestIDHeader'
+          $ref: "#/components/headers/RequestIDHeader"
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: internal server error
@@ -677,11 +677,11 @@ components:
           type: string
           example: "2026-01"
         summary:
-          $ref: '#/components/schemas/FinanceDashboardSummary'
+          $ref: "#/components/schemas/FinanceDashboardSummary"
         today_transactions:
           type: array
           items:
-            $ref: '#/components/schemas/FinanceTodayTransactionItem'
+            $ref: "#/components/schemas/FinanceTodayTransactionItem"
     FinanceTransactionItem:
       type: object
       required:
@@ -744,7 +744,7 @@ components:
           type: string
           example: <JWT_TOKEN>
         user:
-          $ref: '#/components/schemas/UserResponse'
+          $ref: "#/components/schemas/UserResponse"
     UserResponse:
       type: object
       required:
@@ -884,11 +884,11 @@ components:
         - items
       properties:
         summary:
-          $ref: '#/components/schemas/FinancePayoutSummary'
+          $ref: "#/components/schemas/FinancePayoutSummary"
         items:
           type: array
           items:
-            $ref: '#/components/schemas/FinancePayoutItem'
+            $ref: "#/components/schemas/FinancePayoutItem"
     FinanceRefundItem:
       type: object
       required:
@@ -957,11 +957,11 @@ components:
         - items
       properties:
         summary:
-          $ref: '#/components/schemas/FinanceRefundSummary'
+          $ref: "#/components/schemas/FinanceRefundSummary"
         items:
           type: array
           items:
-            $ref: '#/components/schemas/FinanceRefundItem'
+            $ref: "#/components/schemas/FinanceRefundItem"
     FinanceReportSummary:
       type: object
       required:
@@ -1011,11 +1011,11 @@ components:
           type: string
           example: "2026-01"
         summary:
-          $ref: '#/components/schemas/FinanceReportSummary'
+          $ref: "#/components/schemas/FinanceReportSummary"
         daily_income:
           type: array
           items:
-            $ref: '#/components/schemas/FinanceReportDailyItem'
+            $ref: "#/components/schemas/FinanceReportDailyItem"
     UpdateRefundStatusRequest:
       type: object
       required:
@@ -1106,13 +1106,13 @@ components:
           example: 2000000
     FinanceTransactionMeta:
       allOf:
-        - $ref: '#/components/schemas/PaginationMeta'
+        - $ref: "#/components/schemas/PaginationMeta"
         - type: object
           required:
             - summary
           properties:
             summary:
-              $ref: '#/components/schemas/FinanceTransactionSummary'
+              $ref: "#/components/schemas/FinanceTransactionSummary"
     FinanceTransactionListData:
       type: object
       required:
@@ -1120,11 +1120,11 @@ components:
         - items
       properties:
         summary:
-          $ref: '#/components/schemas/FinanceTransactionSummary'
+          $ref: "#/components/schemas/FinanceTransactionSummary"
         items:
           type: array
           items:
-            $ref: '#/components/schemas/FinanceTransactionItem'
+            $ref: "#/components/schemas/FinanceTransactionItem"
     SuccessFinanceDashboardEnvelope:
       type: object
       required:
@@ -1141,7 +1141,7 @@ components:
           type: string
           example: finance dashboard retrieved successfully
         data:
-          $ref: '#/components/schemas/FinanceDashboardResponse'
+          $ref: "#/components/schemas/FinanceDashboardResponse"
         errors:
           nullable: true
         meta:
@@ -1162,7 +1162,7 @@ components:
           type: string
           example: login successful
         data:
-          $ref: '#/components/schemas/UserLoginResponse'
+          $ref: "#/components/schemas/UserLoginResponse"
         errors:
           nullable: true
           example: null
@@ -1185,11 +1185,11 @@ components:
           type: string
           example: transactions retrieved successfully
         data:
-          $ref: '#/components/schemas/FinanceTransactionListData'
+          $ref: "#/components/schemas/FinanceTransactionListData"
         errors:
           nullable: true
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessFinancePayoutListEnvelope:
       type: object
       required:
@@ -1206,11 +1206,11 @@ components:
           type: string
           example: payouts retrieved successfully
         data:
-          $ref: '#/components/schemas/FinancePayoutListData'
+          $ref: "#/components/schemas/FinancePayoutListData"
         errors:
           nullable: true
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessFinanceRefundListEnvelope:
       type: object
       required:
@@ -1227,11 +1227,11 @@ components:
           type: string
           example: refunds retrieved successfully
         data:
-          $ref: '#/components/schemas/FinanceRefundListData'
+          $ref: "#/components/schemas/FinanceRefundListData"
         errors:
           nullable: true
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessFinanceReportEnvelope:
       type: object
       required:
@@ -1248,7 +1248,7 @@ components:
           type: string
           example: financial report retrieved successfully
         data:
-          $ref: '#/components/schemas/FinanceReportResponse'
+          $ref: "#/components/schemas/FinanceReportResponse"
         errors:
           nullable: true
         meta:
@@ -1269,7 +1269,7 @@ components:
           type: string
           example: status updated successfully
         data:
-          $ref: '#/components/schemas/StatusActionResponse'
+          $ref: "#/components/schemas/StatusActionResponse"
         errors:
           nullable: true
         meta:

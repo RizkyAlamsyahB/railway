@@ -12,46 +12,62 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func setupOrderActionUseCase(t *testing.T) (*mocks.MockOrderRepository, domain.OrderActionUseCase) {
+type orderActionMocks struct {
+	orderRepo    *mocks.MockOrderRepository
+	shipmentRepo *mocks.MockShipmentRepository
+	paymentRepo  *mocks.MockPaymentRepository
+	vendorRepo   *mocks.MockVendorRepository
+	productRepo  *mocks.MockProductRepository
+	rajaOngkir   *mocks.MockRajaOngkirProvider
+}
+
+func setupOrderActionUseCase(t *testing.T) (*orderActionMocks, domain.OrderActionUseCase) {
 	t.Helper()
 	ctrl := gomock.NewController(t)
-	orderRepo := mocks.NewMockOrderRepository(ctrl)
-	uc := NewOrderActionUseCase(orderRepo)
-	return orderRepo, uc
+	m := &orderActionMocks{
+		orderRepo:    mocks.NewMockOrderRepository(ctrl),
+		shipmentRepo: mocks.NewMockShipmentRepository(ctrl),
+		paymentRepo:  mocks.NewMockPaymentRepository(ctrl),
+		vendorRepo:   mocks.NewMockVendorRepository(ctrl),
+		productRepo:  mocks.NewMockProductRepository(ctrl),
+		rajaOngkir:   mocks.NewMockRajaOngkirProvider(ctrl),
+	}
+	uc := NewOrderActionUseCase(m.orderRepo, m.shipmentRepo, m.paymentRepo, m.vendorRepo, m.productRepo, m.rajaOngkir)
+	return m, uc
 }
 
 func TestOrderActionUseCase_CompleteByCustomer(t *testing.T) {
-	orderRepo, uc := setupOrderActionUseCase(t)
+	m, uc := setupOrderActionUseCase(t)
 	ctx := context.Background()
 
 	orderID := uuid.New()
 	userID := uuid.New()
 
-	orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
+	m.orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
 		ID:            orderID,
 		UserID:        userID,
-		OrderStatus:   domain.OrderStatusShipped,
+		OrderStatus:   domain.OrderStatusReceived,
 		PaymentStatus: domain.PaymentStatusPaid,
 	}, nil)
-	orderRepo.EXPECT().MarkOrderReceived(ctx, orderID, &userID, gomock.Any()).Return(true, nil)
+	m.orderRepo.EXPECT().MarkOrderCompleted(ctx, orderID, &userID, gomock.Any()).Return(true, nil)
 
 	res, err := uc.CompleteByCustomer(ctx, userID, orderID)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if res.OrderStatus != domain.OrderStatusReceived {
-		t.Fatalf("expected received status, got %s", res.OrderStatus)
+	if res.OrderStatus != domain.OrderStatusCompleted {
+		t.Fatalf("expected completed status, got %s", res.OrderStatus)
 	}
 }
 
 func TestOrderActionUseCase_CompleteByCustomer_InvalidTransition(t *testing.T) {
-	orderRepo, uc := setupOrderActionUseCase(t)
+	m, uc := setupOrderActionUseCase(t)
 	ctx := context.Background()
 
 	orderID := uuid.New()
 	userID := uuid.New()
 
-	orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
+	m.orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
 		ID:            orderID,
 		UserID:        userID,
 		OrderStatus:   domain.OrderStatusPendingPayment,
@@ -64,15 +80,61 @@ func TestOrderActionUseCase_CompleteByCustomer_InvalidTransition(t *testing.T) {
 	}
 }
 
+func TestOrderActionUseCase_CancelByCustomer(t *testing.T) {
+	m, uc := setupOrderActionUseCase(t)
+	ctx := context.Background()
+
+	orderID := uuid.New()
+	userID := uuid.New()
+
+	m.orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
+		ID:            orderID,
+		UserID:        userID,
+		OrderStatus:   domain.OrderStatusProcessing,
+		PaymentStatus: domain.PaymentStatusPaid,
+	}, nil)
+	m.orderRepo.EXPECT().UpdateOrderStatus(ctx, orderID, domain.OrderStatusCanceled, domain.PaymentStatusPaid, &userID, gomock.Any()).Return(nil)
+	m.orderRepo.EXPECT().RestoreStock(ctx, orderID).Return(nil)
+
+	res, err := uc.CancelByCustomer(ctx, userID, orderID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if res.OrderStatus != domain.OrderStatusCanceled {
+		t.Fatalf("expected canceled status, got %s", res.OrderStatus)
+	}
+}
+
+func TestOrderActionUseCase_CancelByCustomer_InvalidTransition(t *testing.T) {
+	m, uc := setupOrderActionUseCase(t)
+	ctx := context.Background()
+
+	orderID := uuid.New()
+	userID := uuid.New()
+
+	m.orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
+		ID:            orderID,
+		UserID:        userID,
+		OrderStatus:   domain.OrderStatusShipped,
+		PaymentStatus: domain.PaymentStatusPaid,
+	}, nil)
+
+	_, err := uc.CancelByCustomer(ctx, userID, orderID)
+	if !errors.Is(err, ErrInvalidOrderCancelTransition) {
+		t.Fatalf("expected ErrInvalidOrderCancelTransition, got %v", err)
+	}
+}
+
 func TestOrderActionUseCase_ListByCustomer(t *testing.T) {
-	orderRepo, uc := setupOrderActionUseCase(t)
+	m, uc := setupOrderActionUseCase(t)
 	ctx := context.Background()
 
 	userID := uuid.New()
 	orderID := uuid.New()
+	variantID := uuid.New()
 	orderDate := time.Date(2026, 3, 1, 8, 30, 0, 0, time.UTC)
 
-	orderRepo.EXPECT().
+	m.orderRepo.EXPECT().
 		ListByUser(ctx, userID, domain.CustomerOrderListParams{Page: 1, Limit: 10, Status: domain.OrderStatusPaid}).
 		Return([]domain.Order{
 			{
@@ -83,17 +145,29 @@ func TestOrderActionUseCase_ListByCustomer(t *testing.T) {
 			},
 		}, int64(1), nil)
 
-	orderRepo.EXPECT().
+	m.orderRepo.EXPECT().
 		FindItemsByOrderIDs(ctx, []uuid.UUID{orderID}).
 		Return(map[uuid.UUID][]domain.OrderItem{
 			orderID: {
 				{
+					ProductVariantID:    variantID,
 					ProductNameSnapshot: "Kurma Ajwa",
 					SKUSnapshot:         "500gr",
 					Qty:                 2,
+					UnitPrice:           103000,
 				},
 			},
 		}, nil)
+
+	// Product image resolution
+	productID := uuid.New()
+	m.productRepo.EXPECT().FindVariantByID(ctx, variantID).Return(&domain.ProductVariant{
+		ID:        variantID,
+		ProductID: productID,
+	}, nil)
+	m.productRepo.EXPECT().FindImagesByProductID(ctx, productID).Return([]domain.ProductImage{
+		{IsPrimary: true, ImageURL: "https://example.com/img.jpg"},
+	}, nil)
 
 	items, meta, err := uc.ListByCustomer(ctx, userID, domain.CustomerOrderListParams{
 		Page:   0, // should normalize to 1
@@ -115,6 +189,9 @@ func TestOrderActionUseCase_ListByCustomer(t *testing.T) {
 	if items[0].Items[0].SelectedVariant != "500gr" {
 		t.Fatalf("expected selected_variant 500gr, got %s", items[0].Items[0].SelectedVariant)
 	}
+	if items[0].Items[0].ImageURL == nil || *items[0].Items[0].ImageURL != "https://example.com/img.jpg" {
+		t.Fatalf("expected image_url, got %v", items[0].Items[0].ImageURL)
+	}
 	if meta.Page != 1 || meta.Limit != 10 || meta.TotalItems != 1 || meta.TotalPages != 1 {
 		t.Fatalf("unexpected meta: %+v", meta)
 	}
@@ -135,11 +212,11 @@ func TestOrderActionUseCase_ListByCustomer_InvalidStatus(t *testing.T) {
 }
 
 func TestOrderActionUseCase_ListByCustomer_Empty(t *testing.T) {
-	orderRepo, uc := setupOrderActionUseCase(t)
+	m, uc := setupOrderActionUseCase(t)
 	ctx := context.Background()
 	userID := uuid.New()
 
-	orderRepo.EXPECT().
+	m.orderRepo.EXPECT().
 		ListByUser(ctx, userID, domain.CustomerOrderListParams{Page: 2, Limit: 10, Status: ""}).
 		Return([]domain.Order{}, int64(0), nil)
 

@@ -60,18 +60,6 @@ func (s stubVendorUseCase) SubmitRegistrationCorporate(context.Context, uuid.UUI
 	return nil, nil
 }
 
-func (s stubVendorUseCase) SaveBankAccount(context.Context, uuid.UUID, domain.VendorSaveBankAccountRequest) (*domain.VendorSaveBankAccountResponse, error) {
-	return nil, nil
-}
-
-func (s stubVendorUseCase) PresignDocument(context.Context, uuid.UUID, domain.VendorDocumentPresignRequest) (*domain.VendorDocumentPresignResponse, error) {
-	return nil, nil
-}
-
-func (s stubVendorUseCase) ConfirmDocuments(context.Context, uuid.UUID, domain.ConfirmDocumentsRequest) (*domain.ConfirmDocumentsResponse, error) {
-	return nil, nil
-}
-
 func (s stubVendorUseCase) Login(context.Context, domain.VendorLoginRequest) (*domain.VendorLoginResponse, error) {
 	return nil, nil
 }

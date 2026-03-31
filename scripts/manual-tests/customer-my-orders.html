@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Haji &amp; Umrah Store — Pesanan Saya</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    :root {
+      --gold: #C5A46C;
+      --gold-light: #d4b88a;
+      --gold-dark: #a8894e;
+      --gold-bg: #f9f3ea;
+      --sidebar-bg: #1a1a1a;
+      --sidebar-text: #ccc;
+      --sidebar-active: #C5A46C;
+      --bg: #f5f5f5;
+      --card: #fff;
+      --border: #e5e5e5;
+      --text: #333;
+      --text-muted: #888;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: 240px; background: var(--sidebar-bg); color: var(--sidebar-text);
+      display: flex; flex-direction: column; position: fixed; top: 0; left: 0;
+      height: 100vh; z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 20px 18px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid #333; font-weight: 700; color: #fff; font-size: .95rem;
+    }
+    .sidebar-brand .icon { width: 32px; height: 32px; background: var(--gold); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .sidebar nav { flex: 1; padding: 12px 0; display: flex; flex-direction: column; }
+    .sidebar nav a {
+      display: flex; align-items: center; gap: 12px; padding: 11px 20px;
+      color: var(--sidebar-text); text-decoration: none; font-size: .85rem;
+      transition: all .15s; border-left: 3px solid transparent;
+    }
+    .sidebar nav a:hover { background: #2a2a2a; color: #fff; }
+    .sidebar nav a.active { background: #2a2a2a; color: var(--sidebar-active); border-left-color: var(--sidebar-active); font-weight: 600; }
+    .sidebar nav .spacer { flex: 1; }
+
+    /* ===== MAIN ===== */
+    .main { flex: 1; margin-left: 240px; padding: 0; min-height: 100vh; display: flex; flex-direction: column; }
+    .topbar {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 14px 28px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar h1 { font-size: 1.1rem; font-weight: 700; }
+    .content { padding: 24px 28px; flex: 1; }
+    .footer { text-align: center; padding: 16px; font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border); background: var(--card); }
+
+    /* ===== LOGIN PANEL ===== */
+    .login-panel {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 22px; margin-bottom: 20px;
+    }
+    .login-panel h3 { font-size: .82rem; font-weight: 600; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+    .config-row { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+    .config-row label { min-width: 80px; font-size: .82rem; color: var(--text-muted); font-weight: 500; }
+    .config-row input {
+      flex: 1; min-width: 160px; padding: 8px 12px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: .82rem; font-family: inherit; outline: none;
+    }
+    .config-row input:focus { border-color: var(--gold); }
+    .token-badge { font-size: .75rem; padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+    .token-badge.active { background: #dcfce7; color: #166534; }
+    .token-badge.inactive { background: #fee2e2; color: #991b1b; }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border: none; border-radius: 6px;
+      font-size: .82rem; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: all .15s; white-space: nowrap;
+    }
+    .btn-gold { background: var(--gold); color: #fff; }
+    .btn-gold:hover { background: var(--gold-dark); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: #f5f5f5; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-sm { padding: 5px 12px; font-size: .78rem; }
+
+    /* ===== TABS ===== */
+    .tab-bar { display: flex; gap: 2px; margin-bottom: 18px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .tab-btn {
+      flex: 1; padding: 12px 8px; text-align: center; font-size: .8rem; font-weight: 500;
+      cursor: pointer; border: none; background: transparent; color: var(--text-muted);
+      transition: all .15s; font-family: inherit; position: relative;
+    }
+    .tab-btn:hover { background: #fafafa; color: var(--text); }
+    .tab-btn.active { color: var(--gold-dark); font-weight: 700; background: var(--gold-bg); }
+    .tab-btn.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--gold); }
+    .tab-btn .tab-count { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 10px; font-size: .68rem; font-weight: 700; margin-left: 4px; background: #f0f0f0; color: var(--text-muted); }
+    .tab-btn.active .tab-count { background: var(--gold); color: #fff; }
+
+    /* ===== ORDER CARDS ===== */
+    .order-list { display: flex; flex-direction: column; gap: 12px; }
+    .order-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px 20px; transition: box-shadow .15s; cursor: pointer;
+    }
+    .order-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+    .order-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .order-card-date { font-size: .78rem; color: var(--text-muted); }
+    .order-card-items { display: flex; flex-direction: column; gap: 10px; }
+    .order-item { display: flex; gap: 12px; align-items: center; }
+    .order-item-img { width: 48px; height: 48px; background: #f0f0f0; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; overflow: hidden; }
+    .order-item-img img { width: 100%; height: 100%; object-fit: cover; }
+    .order-item-info { flex: 1; }
+    .order-item-name { font-weight: 600; font-size: .84rem; }
+    .order-item-variant { font-size: .76rem; color: var(--text-muted); }
+    .order-item-qty { font-size: .76rem; color: var(--text-muted); }
+    .order-card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
+    .order-card-total { font-weight: 700; color: var(--gold-dark); }
+    .order-card-actions { display: flex; gap: 6px; }
+
+    /* ===== STATUS BADGES ===== */
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: .72rem; font-weight: 600; text-transform: capitalize; white-space: nowrap; }
+    .status-pending_payment { background: #f3f4f6; color: #6b7280; }
+    .status-paid { background: #fef3c7; color: #92400e; }
+    .status-processing { background: #dbeafe; color: #1e40af; }
+    .status-shipped { background: #cffafe; color: #155e75; }
+    .status-received { background: #e0e7ff; color: #3730a3; }
+    .status-completed { background: #dcfce7; color: #166534; }
+    .status-canceled { background: #fee2e2; color: #991b1b; }
+
+    /* ===== PAGINATION ===== */
+    .pagination-bar { padding: 14px 0; display: flex; align-items: center; justify-content: space-between; font-size: .82rem; }
+    .pagination-info { color: var(--text-muted); }
+    .pagination-btns { display: flex; gap: 4px; align-items: center; }
+    .page-btn {
+      min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); border-radius: 6px; background: #fff;
+      cursor: pointer; font-size: .82rem; font-weight: 500; transition: all .15s; padding: 0 8px;
+    }
+    .page-btn:hover { border-color: var(--gold); color: var(--gold-dark); }
+    .page-btn.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ===== MODAL ===== */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; display: none; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #fff; border-radius: 12px; max-width: 640px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .modal-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h3 { font-size: 1rem; font-weight: 700; }
+    .modal-close { width: 30px; height: 30px; border: none; background: #f5f5f5; border-radius: 50%; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; }
+    .modal-close:hover { background: #e5e5e5; }
+    .modal-body { padding: 22px; }
+    .modal-footer { padding: 16px 22px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ===== DETAIL ===== */
+    .detail-section { margin-bottom: 20px; }
+    .detail-section h4 { font-size: .82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .detail-grid { display: grid; grid-template-columns: 130px 1fr; gap: 6px 12px; font-size: .84rem; }
+    .detail-label { color: var(--text-muted); font-weight: 500; }
+    .detail-value { font-weight: 500; word-break: break-word; }
+    .product-card { display: flex; gap: 14px; padding: 12px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0; margin-bottom: 8px; }
+    .product-card .product-img { width: 56px; height: 56px; background: #e5e5e5; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; overflow: hidden; }
+    .product-card .product-img img { width: 100%; height: 100%; object-fit: cover; }
+    .product-card .product-info { flex: 1; }
+    .product-card .product-name { font-weight: 600; font-size: .85rem; margin-bottom: 2px; }
+    .product-card .product-variant { font-size: .78rem; color: var(--text-muted); }
+    .product-card .product-price { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: .84rem; }
+    .product-card .product-price .qty { color: var(--text-muted); }
+    .product-card .product-price .total { font-weight: 700; color: var(--gold-dark); }
+    .price-summary { background: #fafafa; border-radius: 8px; padding: 14px; border: 1px solid #f0f0f0; }
+    .price-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: .84rem; }
+    .price-row.total { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 10px; font-weight: 700; font-size: .92rem; }
+    .price-row.total .val { color: var(--gold-dark); }
+
+    /* ===== TRACKING ===== */
+    .timeline { position: relative; padding-left: 24px; }
+    .timeline::before { content: ''; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 2px; background: #e5e5e5; }
+    .timeline-item { position: relative; padding-bottom: 16px; }
+    .timeline-item:last-child { padding-bottom: 0; }
+    .timeline-dot { position: absolute; left: -20px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--gold); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--gold); }
+    .timeline-item:not(:first-child) .timeline-dot { background: #d1d5db; box-shadow: 0 0 0 2px #d1d5db; }
+    .timeline-desc { font-size: .82rem; font-weight: 500; }
+    .timeline-meta { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ===== CONFIRM ===== */
+    .confirm-body { text-align: center; padding: 10px 0; }
+    .confirm-body .confirm-icon { font-size: 3rem; margin-bottom: 10px; }
+    .confirm-body p { font-size: .92rem; margin-bottom: 4px; }
+    .confirm-body .sub { color: var(--text-muted); font-size: .82rem; }
+
+    /* ===== TOAST ===== */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 20px; border-radius: 8px; font-size: .84rem; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,.15); transform: translateX(120%); transition: transform .3s; max-width: 360px; }
+    .toast.show { transform: translateX(0); }
+    .toast.success { background: #16a34a; color: #fff; }
+    .toast.error { background: #dc2626; color: #fff; }
+    .toast.info { background: #0891b2; color: #fff; }
+
+    /* ===== EMPTY ===== */
+    .empty-state { text-align: center; padding: 50px 20px; }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .empty-state p { color: var(--text-muted); font-size: .88rem; }
+
+    /* ===== JSON ===== */
+    .json-output { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 8px; font-family: 'Fira Code','Cascadia Code',monospace; font-size: .76rem; max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin-top: 12px; display: none; }
+    .json-output.show { display: block; }
+    .json-output .k { color: #7dd3fc; }
+    .json-output .s { color: #86efac; }
+    .json-output .n { color: #fdba74; }
+    .json-output .b { color: #c4b5fd; }
+    .json-output .nl { color: #94a3b8; }
+    .toggle-json { font-size: .75rem; color: var(--text-muted); cursor: pointer; text-decoration: underline; display: inline-block; margin-top: 8px; }
+    .toggle-json:hover { color: var(--text); }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; }
+      .content { padding: 16px; }
+      .topbar { padding: 14px 16px; }
+      .tab-btn { font-size: .72rem; padding: 10px 4px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="icon">🕋</div>
+    <span>Haji &amp; Umrah Store</span>
+  </div>
+  <nav>
+    <a href="#"><span class="nav-icon">🏠</span> Beranda</a>
+    <a href="#"><span class="nav-icon">🔍</span> Katalog</a>
+    <a href="#"><span class="nav-icon">🛒</span> Keranjang</a>
+    <a href="#" class="active"><span class="nav-icon">📋</span> Pesanan Saya</a>
+    <a href="#"><span class="nav-icon">❤️</span> Wishlist</a>
+    <a href="#"><span class="nav-icon">💬</span> Chat</a>
+    <a href="#"><span class="nav-icon">🔔</span> Notifikasi</a>
+    <a href="#"><span class="nav-icon">👤</span> Profil</a>
+    <div class="spacer"></div>
+    <a href="#" style="border-top: 1px solid #333;"><span class="nav-icon">🚪</span> Log Out</a>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+
+  <div class="topbar">
+    <h1>Pesanan Saya</h1>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="userName" style="font-size:.84rem;color:var(--text-muted);"></span>
+      <span id="tokenBadge" class="token-badge inactive">● Belum Login</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Login -->
+    <div class="login-panel" id="loginPanel">
+      <h3>⚙️ Konfigurasi &amp; Login</h3>
+      <div class="config-row">
+        <label>Base URL</label>
+        <input type="text" id="baseUrl" value="https://a02a-111-94-138-203.ngrok-free.app/api/v1" />
+      </div>
+      <div class="config-row">
+        <label>Email</label>
+        <input type="text" id="loginEmail" value="customer@dev.local" />
+        <label style="min-width:auto;">Password</label>
+        <input type="password" id="loginPassword" value="Password123!" style="max-width:180px;" />
+        <button class="btn btn-gold" onclick="doLogin()">🔑 Login</button>
+      </div>
+    </div>
+
+    <!-- Status Tabs -->
+    <div class="tab-bar" id="tabBar">
+      <button class="tab-btn active" data-status="" onclick="switchTab(this)">Semua</button>
+      <button class="tab-btn" data-status="pending_payment" onclick="switchTab(this)">Belum Dibayar</button>
+      <button class="tab-btn" data-status="paid" onclick="switchTab(this)">Menunggu Diproses</button>
+      <button class="tab-btn" data-status="processing" onclick="switchTab(this)">Dikemas</button>
+      <button class="tab-btn" data-status="shipped" onclick="switchTab(this)">Dikirim</button>
+      <button class="tab-btn" data-status="received" onclick="switchTab(this)">Diterima</button>
+      <button class="tab-btn" data-status="completed" onclick="switchTab(this)">Selesai</button>
+      <button class="tab-btn" data-status="canceled" onclick="switchTab(this)">Dibatalkan</button>
+    </div>
+
+    <!-- Order List -->
+    <div class="order-list" id="orderList">
+      <div class="empty-state"><div class="icon">🔑</div><p>Silakan login terlebih dahulu.</p></div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-bar">
+      <span class="pagination-info" id="paginationInfo">—</span>
+      <div class="pagination-btns" id="paginationBtns"></div>
+    </div>
+
+    <span class="toggle-json" onclick="toggleJson('listJson')">📄 Lihat Raw JSON Response</span>
+    <pre class="json-output" id="listJson"></pre>
+
+  </div>
+
+  <div class="footer">© 2026 — Haji &amp; Umrah Store · Customer Manual Test Console</div>
+</div>
+
+<!-- MODAL: DETAIL -->
+<div class="modal-overlay" id="modalDetail" onclick="if(event.target===this)closeModal('modalDetail')">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">
+      <h3>📋 Detail Pesanan</h3>
+      <button class="modal-close" onclick="closeModal('modalDetail')">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+    <div class="modal-footer" id="detailFooter">
+      <span class="toggle-json" onclick="toggleJson('detailJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalDetail')">Tutup</button>
+    </div>
+    <pre class="json-output" id="detailJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: SHIPPING INFO -->
+<div class="modal-overlay" id="modalShipInfo" onclick="if(event.target===this)closeModal('modalShipInfo')">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <h3>📦 Informasi Pengiriman</h3>
+      <button class="modal-close" onclick="closeModal('modalShipInfo')">✕</button>
+    </div>
+    <div class="modal-body" id="shipInfoBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('shipInfoJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalShipInfo')">Tutup</button>
+    </div>
+    <pre class="json-output" id="shipInfoJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: INVOICE -->
+<div class="modal-overlay" id="modalInvoice" onclick="if(event.target===this)closeModal('modalInvoice')">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <h3>🧾 Nota Pesanan</h3>
+      <button class="modal-close" onclick="closeModal('modalInvoice')">✕</button>
+    </div>
+    <div class="modal-body" id="invoiceBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('invoiceJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="copyInvoice()">📋 Copy</button>
+      <button class="btn btn-outline" onclick="printInvoice()">🖨️ Print</button>
+      <button class="btn btn-outline" onclick="closeModal('modalInvoice')">Tutup</button>
+    </div>
+    <pre class="json-output" id="invoiceJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRM -->
+<div class="modal-overlay" id="modalConfirm" onclick="if(event.target===this)closeModal('modalConfirm')">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <h3 id="confirmTitle">Konfirmasi</h3>
+      <button class="modal-close" onclick="closeModal('modalConfirm')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="confirm-body">
+        <div class="confirm-icon" id="confirmIcon">✅</div>
+        <p id="confirmMsg">Apakah Anda yakin?</p>
+        <p class="sub" id="confirmSub"></p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalConfirm')">Batal</button>
+      <button class="btn" id="confirmBtn" onclick="doConfirmAction()">Ya</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════ State ═══════
+let customerToken = '';
+let currentPage = 1;
+let currentStatus = '';
+let pendingAction = null;
+let currentDetailOrderId = '';
+let currentDetailData = null;
+
+const $ = id => document.getElementById(id);
+const baseUrl = () => $('baseUrl').value.replace(/\/+$/, '');
+
+function fmt(num) { return 'Rp ' + Number(num || 0).toLocaleString('id-ID'); }
+function fmtDate(s) {
+  if (!s) return '-';
+  const d = new Date(s);
+  return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
+}
+function statusLabel(s) {
+  const map = { pending_payment:'Belum Dibayar', paid:'Dibayar', processing:'Dikemas', shipped:'Dikirim', received:'Diterima', completed:'Selesai', canceled:'Dibatalkan' };
+  return map[s] || s || '-';
+}
+function statusBadge(s) { return '<span class="status-badge status-' + (s||'') + '">' + statusLabel(s) + '</span>'; }
+
+function toast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type||'info');
+  t.textContent = msg;
+  $('toastContainer').appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+}
+function openModal(id) { $(id).classList.add('show'); }
+function closeModal(id) { $(id).classList.remove('show'); }
+function toggleJson(id) { $(id).classList.toggle('show'); }
+
+function hl(obj) {
+  return JSON.stringify(obj, null, 2)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    m => { let c='n'; if(/^"/.test(m)) c=/:$/.test(m)?'k':'s'; else if(/true|false/.test(m)) c='b'; else if(/null/.test(m)) c='nl'; return '<span class="'+c+'">'+m+'</span>'; });
+}
+
+function updateUI() {
+  const b = $('tokenBadge');
+  if (customerToken) { b.className='token-badge active'; b.textContent='● Login Aktif'; }
+  else { b.className='token-badge inactive'; b.textContent='● Belum Login'; }
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'ngrok-skip-browser-warning': 'true' } };
+  if (customerToken) opts.headers['Authorization'] = 'Bearer ' + customerToken;
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const res = await fetch(baseUrl() + path, opts);
+  const text = await res.text();
+  let json; try { json = JSON.parse(text); } catch { json = null; }
+  return { status: res.status, json, text };
+}
+
+// ═══════ LOGIN ═══════
+async function doLogin() {
+  try {
+    const res = await api('POST', '/users/login', { email: $('loginEmail').value, password: $('loginPassword').value });
+    if (res.json?.success && res.json.data?.token) {
+      customerToken = res.json.data.token;
+      $('userName').textContent = res.json.data.display_name || res.json.data.name || '';
+      updateUI();
+      toast('Login berhasil!', 'success');
+      loadOrders();
+    } else {
+      toast('Login gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Network error: ' + e.message, 'error'); }
+}
+
+// ═══════ TAB SWITCH ═══════
+function switchTab(el) {
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentStatus = el.dataset.status;
+  currentPage = 1;
+  loadOrders();
+}
+
+// ═══════ LIST ORDERS ═══════
+async function loadOrders(page) {
+  if (!customerToken) { toast('Login dulu!', 'error'); return; }
+  if (page) currentPage = page;
+
+  let path = '/users/orders?page=' + currentPage + '&limit=10';
+  if (currentStatus) path += '&status=' + currentStatus;
+
+  $('orderList').innerHTML = '<div class="empty-state"><div class="icon">⏳</div><p>Memuat pesanan...</p></div>';
+
+  try {
+    const res = await api('GET', path);
+    $('listJson').innerHTML = res.json ? hl(res.json) : (res.text || '');
+
+    if (res.status === 200 && res.json?.success) {
+      renderOrderList(res.json.data || [], res.json.meta || {});
+    } else {
+      $('orderList').innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>' + (res.json?.message || 'Error ' + res.status) + '</p></div>';
+      $('paginationInfo').textContent = '—';
+      $('paginationBtns').innerHTML = '';
+    }
+  } catch (e) {
+    $('orderList').innerHTML = '<div class="empty-state"><div class="icon">❌</div><p>' + e.message + '</p></div>';
+  }
+}
+
+function renderOrderList(orders, meta) {
+  if (!orders.length) {
+    $('orderList').innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Tidak ada pesanan' + (currentStatus ? ' dengan status "' + statusLabel(currentStatus) + '"' : '') + '.</p></div>';
+    $('paginationInfo').textContent = '0 pesanan';
+    $('paginationBtns').innerHTML = '';
+    return;
+  }
+
+  const html = orders.map(o => {
+    const items = (o.items||[]).map(it =>
+      '<div class="order-item">' +
+      '<div class="order-item-img">' + (it.image_url ? '<img src="' + esc(it.image_url) + '" alt="">' : '📦') + '</div>' +
+      '<div class="order-item-info">' +
+      '<div class="order-item-name">' + esc(it.product_name) + '</div>' +
+      '<div class="order-item-variant">' + esc(it.selected_variant || '-') + '</div>' +
+      '<div class="order-item-qty">' + it.qty + 'x ' + fmt(it.unit_price) + '</div>' +
+      '</div></div>'
+    ).join('');
+
+    const actions = buildOrderCardActions(o);
+
+    return '<div class="order-card" onclick="showDetail(\'' + o.order_id + '\')">' +
+      '<div class="order-card-header">' +
+      '<span class="order-card-date">' + fmtDate(o.order_date) + '</span>' +
+      statusBadge(o.status) +
+      '</div>' +
+      '<div class="order-card-items">' + items + '</div>' +
+      '<div class="order-card-footer">' +
+      '<span class="order-card-total">' + fmt(o.total_payment) + '</span>' +
+      '<div class="order-card-actions" onclick="event.stopPropagation()">' + actions + '</div>' +
+      '</div></div>';
+  }).join('');
+
+  $('orderList').innerHTML = html;
+
+  // Pagination
+  const total = meta.total_items || orders.length;
+  const totalPages = meta.total_pages || 1;
+  const offset = ((meta.page||1)-1) * (meta.limit||10);
+  $('paginationInfo').textContent = 'Showing ' + (offset+1) + '-' + Math.min(offset+orders.length, total) + ' of ' + total;
+
+  let pg = '<button class="page-btn" onclick="loadOrders(' + Math.max(1,currentPage-1) + ')" ' + (currentPage<=1?'disabled':'') + '>&laquo;</button>';
+  for (let p = 1; p <= totalPages; p++) {
+    pg += '<button class="page-btn ' + (p===currentPage?'active':'') + '" onclick="loadOrders(' + p + ')">' + p + '</button>';
+  }
+  pg += '<button class="page-btn" onclick="loadOrders(' + Math.min(totalPages,currentPage+1) + ')" ' + (currentPage>=totalPages?'disabled':'') + '>&raquo;</button>';
+  $('paginationBtns').innerHTML = pg;
+}
+
+function buildOrderCardActions(o) {
+  const s = (o.status||'').toLowerCase();
+  let b = '';
+  if (s === 'pending_payment' || s === 'paid' || s === 'processing') {
+    b += '<button class="btn btn-sm btn-danger" onclick="confirmCancel(\'' + o.order_id + '\')">Batalkan</button>';
+  }
+  if (s === 'shipped' || s === 'received' || s === 'completed') {
+    b += '<button class="btn btn-sm btn-outline" onclick="showShippingInfo(\'' + o.order_id + '\')">📦 Lacak</button>';
+  }
+  if (s === 'received') {
+    b += '<button class="btn btn-sm btn-success" onclick="confirmComplete(\'' + o.order_id + '\')">✅ Pesanan Diterima</button>';
+  }
+  return b;
+}
+
+function esc(s) { return s ? String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+
+// ═══════ DETAIL ═══════
+async function showDetail(id) {
+  currentDetailOrderId = id;
+  currentDetailData = null;
+  openModal('modalDetail');
+  $('detailBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat detail...</p>';
+  $('detailJson').innerHTML = ''; $('detailJson').classList.remove('show');
+
+  try {
+    const res = await api('GET', '/users/orders/' + id);
+    $('detailJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.status === 200 && res.json?.success) {
+      currentDetailData = res.json.data;
+      renderDetail(res.json.data);
+    }
+    else $('detailBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+  } catch (e) { $('detailBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+function renderDetail(d) {
+  // Order meta
+  let html = '<div class="detail-section"><h4>📋 Informasi Order</h4><div class="detail-grid">' +
+    '<span class="detail-label">No. Order</span><span class="detail-value" style="font-weight:700;color:var(--gold-dark);">' + esc(d.order?.order_no) + '</span>' +
+    '<span class="detail-label">Waktu Order</span><span class="detail-value">' + fmtDate(d.order?.order_time) + '</span>' +
+    (d.order?.payment_time ? '<span class="detail-label">Waktu Bayar</span><span class="detail-value">' + fmtDate(d.order.payment_time) + '</span>' : '') +
+    (d.order?.shipping_time ? '<span class="detail-label">Waktu Kirim</span><span class="detail-value">' + fmtDate(d.order.shipping_time) + '</span>' : '') +
+    (d.order?.delivered_time ? '<span class="detail-label">Waktu Terima</span><span class="detail-value">' + fmtDate(d.order.delivered_time) + '</span>' : '') +
+    '</div></div>';
+
+  // Store
+  html += '<div class="detail-section"><h4>🏪 Toko</h4><div class="detail-grid">' +
+    '<span class="detail-label">Nama Toko</span><span class="detail-value">' + esc(d.store?.name) + '</span>' +
+    '</div></div>';
+
+  // Shipping
+  if (d.shipping) {
+    html += '<div class="detail-section"><h4>🚚 Pengiriman</h4><div class="detail-grid">' +
+      '<span class="detail-label">Kurir</span><span class="detail-value">' + esc(d.shipping.courier) + '</span>' +
+      '<span class="detail-label">No. Resi</span><span class="detail-value" style="font-family:monospace;color:var(--gold-dark);font-weight:700;">' + esc(d.shipping.tracking_number) + '</span>' +
+      '<span class="detail-label">Status</span><span class="detail-value">' + esc(d.shipping.status) + '</span>' +
+      (d.shipping.status_date ? '<span class="detail-label">Tanggal Status</span><span class="detail-value">' + esc(d.shipping.status_date) + '</span>' : '') +
+      '</div></div>';
+  }
+
+  // Address
+  if (d.address) {
+    html += '<div class="detail-section"><h4>📍 Alamat Penerima</h4><div class="detail-grid">' +
+      '<span class="detail-label">Nama</span><span class="detail-value">' + esc(d.address.name) + '</span>' +
+      '<span class="detail-label">Telepon</span><span class="detail-value">' + esc(d.address.phone) + '</span>' +
+      '<span class="detail-label">Alamat</span><span class="detail-value">' + esc(d.address.street) + '</span>' +
+      '<span class="detail-label">Kecamatan</span><span class="detail-value">' + esc(d.address.district) + '</span>' +
+      '<span class="detail-label">Kota</span><span class="detail-value">' + esc(d.address.city) + ', ' + esc(d.address.province) + '</span>' +
+      '<span class="detail-label">Kode Pos</span><span class="detail-value">' + esc(d.address.postal_code) + '</span>' +
+      '</div></div>';
+  }
+
+  // Items
+  const items = (d.items||[]).map(it =>
+    '<div class="product-card">' +
+    '<div class="product-img">' + (it.image_url ? '<img src="' + esc(it.image_url) + '" alt="">' : '📦') + '</div>' +
+    '<div class="product-info">' +
+    '<div class="product-name">' + esc(it.name) + '</div>' +
+    '<div class="product-variant">' + esc(it.variant) + '</div>' +
+    '<div class="product-price"><span class="qty">' + (it.qty||0) + 'x ' + fmt(it.price) + '</span><span class="total">' + fmt(it.subtotal) + '</span></div>' +
+    '</div></div>'
+  ).join('');
+  html += '<div class="detail-section"><h4>📦 Produk</h4>' + items + '</div>';
+
+  // Summary
+  if (d.summary) {
+    html += '<div class="detail-section"><div class="price-summary">' +
+      '<div class="price-row"><span>Subtotal Produk</span><span>' + fmt(d.summary.subtotal) + '</span></div>' +
+      '<div class="price-row"><span>Ongkos Kirim</span><span>' + fmt(d.summary.shipping_fee) + '</span></div>' +
+      '<div class="price-row"><span>Biaya Layanan</span><span>' + fmt(d.summary.service_fee) + '</span></div>' +
+      '<div class="price-row total"><span>Grand Total</span><span class="val">' + fmt(d.summary.grand_total) + '</span></div>' +
+      '</div></div>';
+  }
+
+  // Payment
+  if (d.payment) {
+    html += '<div class="detail-section"><h4>💳 Pembayaran</h4><div class="detail-grid">' +
+      '<span class="detail-label">Metode</span><span class="detail-value">' + esc(d.payment.method) + '</span>' +
+      (d.payment.invoice_id ? '<span class="detail-label">Invoice ID</span><span class="detail-value" style="font-family:monospace;">' + esc(d.payment.invoice_id) + '</span>' : '') +
+      '</div></div>';
+  }
+
+  // Actions
+  if (d.actions) {
+    html += '<div class="detail-section"><h4>⚡ Aksi</h4><div style="display:flex;gap:8px;flex-wrap:wrap;">';
+    if (d.actions.can_cancel) html += '<button class="btn btn-danger" onclick="closeModal(\'modalDetail\');confirmCancel(\'' + currentDetailOrderId + '\')">❌ Batalkan Pesanan</button>';
+    if (d.actions.can_complete) html += '<button class="btn btn-success" onclick="closeModal(\'modalDetail\');confirmComplete(\'' + currentDetailOrderId + '\')">✅ Pesanan Diterima</button>';
+    if (d.actions.can_contact) html += '<button class="btn btn-outline">💬 Hubungi Penjual</button>';
+    html += '<button class="btn btn-outline" onclick="closeModal(\'modalDetail\');showShippingInfo(\'' + currentDetailOrderId + '\')">📦 Info Pengiriman</button>';
+    html += '<button class="btn btn-outline" onclick="closeModal(\'modalDetail\');showInvoice(\'' + currentDetailOrderId + '\')">🧾 Nota Pesanan</button>';
+    html += '</div></div>';
+  }
+
+  $('detailBody').innerHTML = html;
+}
+
+// ═══════ SHIPPING INFO ═══════
+async function showShippingInfo(id) {
+  openModal('modalShipInfo');
+  $('shipInfoBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat info pengiriman...</p>';
+  $('shipInfoJson').innerHTML = ''; $('shipInfoJson').classList.remove('show');
+  try {
+    const res = await api('GET', '/users/orders/' + id + '/shipping');
+    $('shipInfoJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.status === 200 && res.json?.success) renderShippingInfo(res.json.data);
+    else $('shipInfoBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+  } catch (e) { $('shipInfoBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+function renderShippingInfo(d) {
+  const stages = d.stages||[], courier = d.courier||{}, events = d.events||[];
+  let html = '';
+
+  // Estimated arrival
+  if (d.estimated_arrival) {
+    html += '<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">';
+    html += '<span style="font-size:1.5rem;">📅</span>';
+    html += '<div><p style="margin:0;font-size:.82rem;color:#92400e;">Estimasi Tiba</p><p style="margin:0;font-weight:700;font-size:1rem;">' + esc(d.estimated_arrival) + '</p></div>';
+    html += '</div>';
+  }
+
+  // Stages timeline
+  if (stages.length) {
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:20px;padding:16px;background:#f9f9f9;border-radius:8px;">';
+    stages.forEach((s, i) => {
+      const color = s.completed ? '#16a34a' : (s.active ? 'var(--gold)' : '#d1d5db');
+      html += '<div style="text-align:center;flex:1;">';
+      html += '<div style="width:32px;height:32px;border-radius:50%;background:' + color + ';margin:0 auto 6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;">';
+      html += s.completed ? '✓' : (i+1);
+      html += '</div>';
+      html += '<p style="margin:0;font-size:.75rem;font-weight:' + (s.active?'700':'500') + ';color:' + (s.completed||s.active?'#333':'#9ca3af') + ';">' + esc(s.label||s.status) + '</p>';
+      html += '</div>';
+      if (i < stages.length-1) {
+        html += '<div style="flex:0.5;display:flex;align-items:center;"><div style="height:2px;width:100%;background:' + (s.completed?'#16a34a':'#e5e5e5') + ';"></div></div>';
+      }
+    });
+    html += '</div>';
+  }
+
+  // Courier info
+  if (courier.name || courier.tracking_no) {
+    html += '<div style="display:flex;gap:16px;margin-bottom:16px;">';
+    html += '<div style="flex:1;background:#f5f5f5;padding:12px;border-radius:8px;"><p style="margin:0;font-size:.72rem;color:var(--text-muted);text-transform:uppercase;">Kurir</p><p style="margin:4px 0 0;font-weight:700;">' + esc(courier.name||courier.code||'-') + '</p></div>';
+    html += '<div style="flex:1;background:#f5f5f5;padding:12px;border-radius:8px;"><p style="margin:0;font-size:.72rem;color:var(--text-muted);text-transform:uppercase;">No. Resi</p><p style="margin:4px 0 0;font-weight:700;font-family:monospace;color:var(--gold-dark);">' + esc(courier.tracking_no||'-') + '</p></div>';
+    html += '</div>';
+  }
+
+  // Events timeline
+  if (events.length) {
+    html += '<h4 style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin:16px 0 12px;">📦 Riwayat Pengiriman</h4>';
+    html += '<div class="timeline">';
+    events.forEach(e => {
+      html += '<div class="timeline-item"><div class="timeline-dot"></div>';
+      html += '<div class="timeline-desc">' + esc(e.description) + '</div>';
+      html += '<div class="timeline-meta">' + esc(e.date_time||'') + (e.location ? ' — ' + esc(e.location) : '') + '</div></div>';
+    });
+    html += '</div>';
+  } else {
+    html += '<p style="text-align:center;color:var(--text-muted);padding:20px;">Belum ada riwayat pengiriman.</p>';
+  }
+
+  $('shipInfoBody').innerHTML = html;
+}
+
+// ═══════ INVOICE ═══════
+async function showInvoice(id) {
+  openModal('modalInvoice');
+  $('invoiceBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat invoice...</p>';
+  $('invoiceJson').innerHTML = ''; $('invoiceJson').classList.remove('show');
+  try {
+    const res = await api('GET', '/users/orders/' + id + '/invoice');
+    $('invoiceJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.status === 200 && res.json?.success) renderInvoice(res.json.data);
+    else $('invoiceBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+  } catch (e) { $('invoiceBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+function renderInvoice(d) {
+  const inv = d.invoice||{}, cust = d.customer||{}, pay = d.payment||{}, items = d.items||[], sum = d.summary||{};
+
+  let html = '<div style="background:#f9f9f9;border:1px solid #e5e5e5;border-radius:8px;padding:20px;">';
+
+  // Header
+  html += '<div style="display:flex;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--gold);">';
+  html += '<div><h2 style="margin:0;font-size:1.2rem;color:var(--gold-dark);">NOTA PESANAN</h2><p style="margin:4px 0 0;font-size:.8rem;color:var(--text-muted);">Haji & Umrah Store</p></div>';
+  html += '<div style="text-align:right;"><p style="margin:0;font-weight:700;font-size:.95rem;">' + esc(inv.invoice_number) + '</p><p style="margin:4px 0 0;font-size:.78rem;color:var(--text-muted);">' + esc(inv.issued_at) + '</p></div>';
+  html += '</div>';
+
+  // Customer & Payment
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">';
+  html += '<div><h4 style="font-size:.75rem;color:var(--text-muted);margin:0 0 6px;">PELANGGAN</h4>';
+  html += '<p style="margin:0;font-weight:600;">' + esc(cust.name) + '</p>';
+  html += '<p style="margin:2px 0;font-size:.82rem;">' + esc(cust.phone) + '</p>';
+  const addr = cust.address||{};
+  html += '<p style="margin:2px 0;font-size:.82rem;color:var(--text-muted);">' + [addr.street, addr.district, addr.city, addr.province, addr.postal_code].filter(x=>x).join(', ') + '</p></div>';
+  html += '<div><h4 style="font-size:.75rem;color:var(--text-muted);margin:0 0 6px;">PEMBAYARAN</h4>';
+  html += '<p style="margin:0;font-weight:500;">' + esc(pay.method) + '</p>';
+  html += '<p style="margin:2px 0;font-size:.82rem;color:var(--text-muted);">Dibayar: ' + esc(pay.paid_at) + '</p></div>';
+  html += '</div>';
+
+  // Items
+  html += '<table style="width:100%;border-collapse:collapse;margin-bottom:12px;">';
+  html += '<thead><tr style="background:#f0f0f0;"><th style="padding:8px;text-align:left;font-size:.75rem;">Produk</th><th style="padding:8px;text-align:center;font-size:.75rem;">Qty</th><th style="padding:8px;text-align:right;font-size:.75rem;">Harga</th><th style="padding:8px;text-align:right;font-size:.75rem;">Subtotal</th></tr></thead>';
+  html += '<tbody>';
+  items.forEach(it => {
+    html += '<tr style="border-bottom:1px solid #f0f0f0;">';
+    html += '<td style="padding:8px;font-size:.82rem;">' + esc(it.name) + (it.variant ? '<br><span style="color:var(--text-muted);font-size:.75rem;">' + esc(it.variant) + '</span>' : '') + '</td>';
+    html += '<td style="padding:8px;text-align:center;font-size:.82rem;">' + (it.quantity||0) + '</td>';
+    html += '<td style="padding:8px;text-align:right;font-size:.82rem;">' + fmt(it.price) + '</td>';
+    html += '<td style="padding:8px;text-align:right;font-size:.82rem;font-weight:600;">' + fmt(it.subtotal) + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  // Summary
+  html += '<div style="text-align:right;padding-top:8px;border-top:1px solid #e5e5e5;">';
+  html += '<div style="display:flex;justify-content:flex-end;gap:40px;margin-bottom:4px;font-size:.84rem;"><span>Subtotal</span><span>' + fmt(sum.subtotal) + '</span></div>';
+  html += '<div style="display:flex;justify-content:flex-end;gap:40px;margin-bottom:4px;font-size:.84rem;"><span>Ongkos Kirim</span><span>' + fmt(sum.shipping_fee) + '</span></div>';
+  html += '<div style="display:flex;justify-content:flex-end;gap:40px;margin-bottom:4px;font-size:.84rem;"><span>Biaya Layanan</span><span>' + fmt(sum.service_fee) + '</span></div>';
+  html += '<div style="display:flex;justify-content:flex-end;gap:40px;font-size:1rem;font-weight:700;color:var(--gold-dark);padding-top:6px;border-top:2px solid #333;"><span>TOTAL</span><span>' + fmt(sum.total) + '</span></div>';
+  html += '</div></div>';
+
+  $('invoiceBody').innerHTML = html;
+}
+
+function copyInvoice() {
+  const el = $('invoiceBody');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(el.innerText).then(() => toast('Invoice disalin ke clipboard!', 'success'));
+  } else {
+    toast('Clipboard tidak didukung browser ini', 'error');
+  }
+}
+
+function printInvoice() {
+  const content = $('invoiceBody').innerHTML;
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up diblokir browser.', 'error'); return; }
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Nota Pesanan<\/title><style>body{font-family:Arial,sans-serif;padding:20px;}<\/style><\/head><body>' + content + '<\/body><\/html>');
+  w.document.close();
+  w.print();
+}
+
+// ═══════ COMPLETE / CANCEL ═══════
+function confirmComplete(id) {
+  pendingAction = { type: 'complete', id };
+  $('confirmTitle').textContent = 'Pesanan Diterima';
+  $('confirmIcon').textContent = '✅';
+  $('confirmMsg').textContent = 'Konfirmasi barang sudah diterima?';
+  $('confirmSub').textContent = 'Status akan berubah menjadi "Selesai" dan dana diteruskan ke penjual.';
+  $('confirmBtn').className = 'btn btn-success'; $('confirmBtn').textContent = '✅ Ya, Sudah Diterima';
+  openModal('modalConfirm');
+}
+
+function confirmCancel(id) {
+  pendingAction = { type: 'cancel', id };
+  $('confirmTitle').textContent = 'Batalkan Pesanan';
+  $('confirmIcon').textContent = '❌';
+  $('confirmMsg').textContent = 'Yakin batalkan pesanan ini?';
+  $('confirmSub').textContent = 'Pesanan akan dibatalkan dan stok produk dikembalikan.';
+  $('confirmBtn').className = 'btn btn-danger'; $('confirmBtn').textContent = '❌ Ya, Batalkan';
+  openModal('modalConfirm');
+}
+
+async function doConfirmAction() {
+  if (!pendingAction) return;
+  closeModal('modalConfirm');
+  const { type, id } = pendingAction;
+  pendingAction = null;
+
+  try {
+    const res = await api('POST', '/users/orders/' + id + '/' + type);
+    if (res.json?.success) {
+      if (type === 'complete') {
+        toast('Pesanan selesai! Terima kasih telah berbelanja.', 'success');
+      } else {
+        toast('Pesanan berhasil dibatalkan.', 'success');
+      }
+      loadOrders();
+    } else {
+      toast('Gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+updateUI();
+</script>
+</body>
+</html>

@@ -15,7 +15,6 @@ type Vendor struct {
 	BusinessLegalType     *string    `json:"business_legal_type,omitempty"`
 	LegalName             *string    `json:"legal_name,omitempty"`
 	DisplayName           string     `json:"display_name"`
-	ResponsiblePersonName string     `json:"responsible_person_name"`
 	Description           *string    `json:"description,omitempty"`
 	RegisteredAddress     *string    `json:"registered_address,omitempty"`
 	Status                string     `json:"status"`
@@ -37,8 +36,6 @@ type VendorDocument struct {
 	FileSizeBytes      *int       `json:"file_size_bytes,omitempty"`
 	FileChecksum       *string    `json:"file_checksum,omitempty"`
 	UploadedBy         *uuid.UUID `json:"uploaded_by,omitempty"`
-	VerificationStatus string     `json:"verification_status"`
-	RejectionReason    *string    `json:"rejection_reason,omitempty"`
 	VerifiedBy         *uuid.UUID `json:"verified_by,omitempty"`
 	VerifiedAt         *time.Time `json:"verified_at,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
@@ -76,47 +73,6 @@ const (
 	VendorDocumentTypeBusinessLogo     = "business_logo"
 	VendorDocumentTypeBusinessBanner   = "business_banner"
 )
-
-type VendorDocumentPresignRequest struct {
-	DocType string `json:"doc_type" binding:"required,oneof=store_photo bank_account_proof business_logo business_banner business_npwp"`
-}
-
-type VendorDocumentPresignResponse struct {
-	DocType   string    `json:"doc_type"`
-	UploadURL string    `json:"upload_url"`
-	ObjectKey string    `json:"object_key"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-type VendorSaveBankAccountRequest struct {
-	BankName          string `json:"bank_name" binding:"required,max=120"`
-	AccountNumber     string `json:"account_number" binding:"required,max=64"`
-	AccountHolderName string `json:"account_holder_name" binding:"required,max=120"`
-}
-
-type VendorSaveBankAccountResponse struct {
-	VendorID     uuid.UUID         `json:"vendor_id"`
-	VendorStatus string            `json:"vendor_status"`
-	BankAccount  VendorBankAccount `json:"bank_account"`
-}
-
-// ConfirmDocumentItem represents a single document in the confirm-upload request.
-type ConfirmDocumentItem struct {
-	DocType   string `json:"doc_type" binding:"required"`
-	ObjectKey string `json:"object_key" binding:"required"`
-}
-
-// ConfirmDocumentsRequest is the input DTO for confirming document uploads.
-type ConfirmDocumentsRequest struct {
-	Documents []ConfirmDocumentItem `json:"documents" binding:"required,min=1,dive"`
-}
-
-// ConfirmDocumentsResponse is the output DTO for a successful document confirmation.
-type ConfirmDocumentsResponse struct {
-	VendorID       uuid.UUID `json:"vendor_id"`
-	VendorStatus   string    `json:"vendor_status"`
-	DocumentsCount int       `json:"documents_confirmed"`
-}
 
 // VendorLoginRequest is the input DTO for vendor authentication.
 type VendorLoginRequest struct {
@@ -162,7 +118,6 @@ type AdminVendorListItem struct {
 	DisplayName           string    `json:"display_name"`
 	LegalName             *string   `json:"legal_name,omitempty"`
 	VendorType            string    `json:"vendor_type"`
-	ResponsiblePersonName string    `json:"responsible_person_name"`
 	Status                string    `json:"status"`
 	StatusReason          *string   `json:"status_reason,omitempty"`
 	XenditAccountID       *string   `json:"xendit_account_id,omitempty"`
@@ -203,8 +158,6 @@ type AdminVendorDocumentResponse struct {
 	DownloadURL        string     `json:"download_url"`
 	MimeType           *string    `json:"mime_type,omitempty"`
 	FileSizeBytes      *int       `json:"file_size_bytes,omitempty"`
-	VerificationStatus string     `json:"verification_status"`
-	RejectionReason    *string    `json:"rejection_reason,omitempty"`
 	VerifiedAt         *time.Time `json:"verified_at,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
@@ -216,7 +169,6 @@ type AdminVendorDetailResponse struct {
 	VendorType            string                          `json:"vendor_type"`
 	DisplayName           string                          `json:"display_name"`
 	LegalName             *string                         `json:"legal_name,omitempty"`
-	ResponsiblePersonName string                          `json:"responsible_person_name"`
 	Description           *string                         `json:"description,omitempty"`
 	RegisteredAddress     *string                         `json:"registered_address,omitempty"`
 	Status                string                          `json:"status"`
@@ -435,11 +387,6 @@ type VendorUseCase interface {
 	PresignRegistrationCorporateDocument(ctx context.Context, onboardingID uuid.UUID) (*VendorRegistrationPresignDocumentResponse, error)
 	SubmitRegistrationIndividual(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationIndividualLegalRequest) (*VendorLoginResponse, error)
 	SubmitRegistrationCorporate(ctx context.Context, onboardingID uuid.UUID, req VendorRegistrationCorporateLegalRequest) (*VendorLoginResponse, error)
-	SaveBankAccount(ctx context.Context, vendorID uuid.UUID, req VendorSaveBankAccountRequest) (*VendorSaveBankAccountResponse, error)
-	PresignDocument(ctx context.Context, vendorID uuid.UUID, req VendorDocumentPresignRequest) (*VendorDocumentPresignResponse, error)
-
-	// ConfirmDocuments verifies that documents were uploaded to S3 and marks them as confirmed.
-	ConfirmDocuments(ctx context.Context, userID uuid.UUID, req ConfirmDocumentsRequest) (*ConfirmDocumentsResponse, error)
 
 	// Login authenticates a vendor user and returns a JWT token with vendor claims.
 	Login(ctx context.Context, req VendorLoginRequest) (*VendorLoginResponse, error)

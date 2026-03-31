@@ -42,7 +42,8 @@ delivery/http  →  usecase  →  domain  ←  repository
 - **`internal/usecase/`** — Business logic. Each feature has its own file (e.g., `user_usecase.go`, `product_usecase.go`). Returns sentinel errors defined in `usecase/errors.go`.
 - **`internal/repository/`** — GORM-based data access implementing domain repository interfaces. Uses internal GORM models (not domain entities) for DB mapping.
 - **`internal/delivery/http/`** — Gin handlers, middleware, router. `handler/error_mapper.go` maps usecase sentinel errors to HTTP status codes.
-- **`internal/infrastructure/`** — External service implementations: PostgreSQL (GORM), S3 storage (presigned URLs), SMTP email.
+- **`internal/infrastructure/`** — External service implementations: PostgreSQL (GORM), S3 storage (presigned URLs), SMTP/IMAP email, Xendit payment, RajaOngkir shipping.
+- **`pkg/utils/sensitivedata/`** — AES-256-GCM field cipher for encrypting sensitive DB columns.
 - **`internal/app/app.go`** — Wires all dependencies via constructor injection in `Initialize()`.
 
 ### Key patterns
@@ -57,9 +58,27 @@ delivery/http  →  usecase  →  domain  ←  repository
 
 **Mocks:** Generated with `go.uber.org/mock` (mockgen) into `internal/usecase/mocks/`. Tests use table-driven patterns with `gomock.Controller` and setup helper functions.
 
+## Sensitive Data Encryption
+
+Field-level AES-256-GCM encryption for sensitive vendor data, implemented transparently in the repository layer.
+
+**Implementation:** `pkg/utils/sensitivedata/field_cipher.go`
+- Ciphertext format: `enc:v1:{base64(nonce+ciphertext)}` with a random 12-byte nonce per value
+- Plaintext values without the `enc:v1:` prefix are passed through unchanged (backward compatibility)
+
+**Encrypted fields:**
+- `vendor_bank_accounts.account_number` — via `vendor_repository.go`
+- `vendor_onboardings.nik` and `vendor_onboardings.nib` — via `vendor_onboarding_repository.go`
+
+**Flow:** `toXxxModel()` encrypts before DB write; `toDomainXxx()` decrypts after DB read. Use cases operate on plaintext domain objects — encryption is invisible above the repository layer.
+
+**Configuration:** `SENSITIVE_DATA_ENCRYPTION_KEY` must be exactly 32 bytes (AES-256). Set in `.env`. The app fails fast at startup if this key is missing or wrong length (see `app.go` → `newSensitiveDataCipher()`).
+
+**Adding a new encrypted field:** encrypt in `toXxxModel()`, decrypt in `toDomainXxx()`, and change the column type to `TEXT` in a migration if the original type is too short for the ciphertext.
+
 ## Configuration
 
-Viper-based, loads from `.env` file with environment variable overrides. Config struct in `internal/config/config.go`. Key prefixes: `APP_`, `DB_`, `JWT_`, `STORAGE_`, `SMTP_`, `ADMIN_`.
+Viper-based, loads from `.env` file with environment variable overrides. Config struct in `internal/config/config.go`. Key prefixes: `APP_`, `DB_`, `JWT_`, `STORAGE_`, `SMTP_`, `ADMIN_`, `SENSITIVE_DATA_`.
 
 ## Migrations
 
@@ -84,5 +103,6 @@ Follow Conventional Commit style: `feat(scope): ...`, `fix(scope): ...`, `test(s
 ## Security & Configuration Tips
 
 - Copy `.env.example` to `.env`; never commit secrets.
-- Validate DB, JWT, SMTP, and storage variables before running locally.
+- Validate DB, JWT, SMTP, storage, and `SENSITIVE_DATA_ENCRYPTION_KEY` variables before running locally.
+- `SENSITIVE_DATA_ENCRYPTION_KEY` must be exactly 32 bytes; generate one with `openssl rand -hex 16` (produces 32 hex chars = 32 bytes).
 - Run migrations before starting the API to avoid schema drift.

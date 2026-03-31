@@ -116,6 +116,22 @@ func (mr *MockPaymentRepositoryMockRecorder) FindInvoiceByOrderID(ctx, orderID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindInvoiceByOrderID", reflect.TypeOf((*MockPaymentRepository)(nil).FindInvoiceByOrderID), ctx, orderID)
 }
 
+// ListForAdmin mocks base method.
+func (m *MockPaymentRepository) ListForAdmin(ctx context.Context, params domain.AdminPaymentListParams) ([]domain.AdminPaymentListItem, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListForAdmin", ctx, params)
+	ret0, _ := ret[0].([]domain.AdminPaymentListItem)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListForAdmin indicates an expected call of ListForAdmin.
+func (mr *MockPaymentRepositoryMockRecorder) ListForAdmin(ctx, params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListForAdmin", reflect.TypeOf((*MockPaymentRepository)(nil).ListForAdmin), ctx, params)
+}
+
 // UpdateInvoiceStatus mocks base method.
 func (m *MockPaymentRepository) UpdateInvoiceStatus(ctx context.Context, invoiceID uuid.UUID, status string, paidAt *time.Time, paymentMethod, paymentChannel *string, rawPayload map[string]any) error {
 	m.ctrl.T.Helper()

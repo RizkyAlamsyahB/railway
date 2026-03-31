@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Haji Umroh Store BE - Admin API
+  title: UmrahMart - Admin API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint admin (autentikasi admin, manajemen user, dan review vendor).
 servers:
@@ -13,6 +13,8 @@ tags:
     description: Operasi manajemen user untuk role admin.
   - name: Admin Vendors
     description: Operasi review dan manajemen vendor untuk role admin.
+  - name: Admin Payments
+    description: Operasi listing dan monitoring pembayaran untuk role admin.
 security:
   - BearerAuth: []
 paths:
@@ -20,7 +22,7 @@ paths:
     post:
       tags:
         - Admin Auth
-      summary: Login admin
+      summary: Login
       description: Endpoint login untuk admin. Tidak membutuhkan token.
       operationId: adminLogin
       security: []
@@ -29,20 +31,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdminLoginRequest'
+              $ref: "#/components/schemas/AdminLoginRequest"
             example:
               email: admin@example.com
               password: supersecret123
       responses:
-        '200':
+        "200":
           description: Login berhasil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessAdminLoginEnvelope'
+                $ref: "#/components/schemas/SuccessAdminLoginEnvelope"
               example:
                 success: true
                 message: login successful
@@ -54,30 +56,30 @@ paths:
                   name: Admin Ops
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (payload/validasi gagal).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: validation failed
                 data: null
                 errors: "Key: 'AdminLoginRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag"
                 meta: null
-        '401':
+        "401":
           description: Kredensial salah atau akun tidak aktif.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidCredentials:
                   summary: Email atau password salah
@@ -95,30 +97,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '403':
+        "403":
           description: User bukan admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: admin access required
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -128,22 +130,22 @@ paths:
   /api/v1/admin/me:
     get:
       tags:
-        - Admin Users
-      summary: Mengambil profil admin yang sedang login
+        - Admin Auth
+      summary: Get My Profile
       description: Mengembalikan profil admin berdasarkan JWT pada header Authorization.
       operationId: getAdminMe
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Profil admin berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessAdminMeEnvelope'
+                $ref: "#/components/schemas/SuccessAdminMeEnvelope"
               example:
                 success: true
                 message: admin profile retrieved successfully
@@ -154,75 +156,75 @@ paths:
                   name: System Administrator
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Data user ID dari token tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid user ID in token
                 data: null
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: User admin tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: user not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -233,7 +235,7 @@ paths:
     post:
       tags:
         - Admin Users
-      summary: Membuat user baru
+      summary: Create User
       description: |
         Endpoint untuk membuat user baru oleh admin.
 
@@ -259,7 +261,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateUserRequest'
+              $ref: "#/components/schemas/CreateUserRequest"
             example:
               email: admin.ops@example.com
               full_name: Admin Operations
@@ -268,15 +270,15 @@ paths:
               birth_date: "1990-05-12"
               role: admin
       responses:
-        '201':
+        "201":
           description: User berhasil dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessUserEnvelope'
+                $ref: "#/components/schemas/SuccessUserEnvelope"
               example:
                 success: true
                 message: user created successfully
@@ -293,15 +295,15 @@ paths:
                   updated_at: "2026-02-10T10:20:30Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (validasi payload gagal atau format birth_date tidak valid).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 validationFailed:
                   summary: Validasi payload gagal
@@ -344,15 +346,15 @@ paths:
                       request:
                         - request body must be valid JSON
                     meta: null
-        '409':
+        "409":
           description: Terjadi konflik data unik pada user.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 emailExists:
                   summary: Email sudah terdaftar
@@ -378,15 +380,15 @@ paths:
                           - phone number is already registered
                       request: []
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidToken:
                   summary: Token invalid atau expired
@@ -396,15 +398,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 insufficientPermissions:
                   summary: Akses role tidak cukup
@@ -414,15 +416,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 internalServerError:
                   summary: Kesalahan server
@@ -437,7 +439,7 @@ paths:
     get:
       tags:
         - Admin Users
-      summary: Mengambil daftar user dengan pagination, filter, dan sorting
+      summary: Get User List
       description: |
         Endpoint untuk mengambil daftar semua user dengan fitur pagination, filter, pencarian, dan sorting.
 
@@ -535,15 +537,15 @@ paths:
               - desc
             default: desc
       responses:
-        '200':
+        "200":
           description: Daftar user berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessUserListEnvelope'
+                $ref: "#/components/schemas/SuccessUserListEnvelope"
               example:
                 success: true
                 message: users retrieved successfully
@@ -574,45 +576,45 @@ paths:
                   limit: 10
                   total_items: 2
                   total_pages: 1
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: missing authorization header
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to list users
@@ -623,7 +625,8 @@ paths:
     get:
       tags:
         - Admin Users
-      summary: Mengambil detail user berdasarkan ID
+      summary: Get User By ID
+      description: Mengambil detail user berdasarkan ID. ID harus dalam format UUID.
       operationId: getAdminUserById
       security:
         - BearerAuth: []
@@ -636,15 +639,15 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Detail user berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessUserEnvelope'
+                $ref: "#/components/schemas/SuccessUserEnvelope"
               example:
                 success: true
                 message: user retrieved successfully
@@ -661,60 +664,60 @@ paths:
                   updated_at: "2026-02-10T10:20:30Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: ID user bukan UUID yang valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid user ID
                 data: null
                 errors: id must be a valid UUID
                 meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: User tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 userNotFound:
                   summary: User tidak ditemukan
@@ -724,15 +727,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -742,7 +745,7 @@ paths:
     put:
       tags:
         - Admin Users
-      summary: Memperbarui data user berdasarkan ID
+      summary: Update User By ID
       operationId: updateAdminUserById
       security:
         - BearerAuth: []
@@ -759,22 +762,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateUserRequest'
+              $ref: "#/components/schemas/UpdateUserRequest"
             example:
               full_name: Admin Ops Updated
               phone: "+628111111111"
               status: active
               role: finance
       responses:
-        '200':
+        "200":
           description: User berhasil diperbarui.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessUserEnvelope'
+                $ref: "#/components/schemas/SuccessUserEnvelope"
               example:
                 success: true
                 message: user updated successfully
@@ -791,15 +794,15 @@ paths:
                   updated_at: "2026-02-10T11:00:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (ID UUID salah, validasi payload gagal, atau birth_date tidak valid).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidUserID:
                   summary: Format UUID tidak valid
@@ -825,60 +828,60 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: User tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: user not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -888,7 +891,7 @@ paths:
     delete:
       tags:
         - Admin Users
-      summary: Menghapus user berdasarkan ID
+      summary: Delete User By ID
       operationId: deleteAdminUserById
       security:
         - BearerAuth: []
@@ -901,30 +904,30 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: User berhasil dihapus.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessNoDataEnvelope'
+                $ref: "#/components/schemas/SuccessNoDataEnvelope"
               example:
                 success: true
                 message: user deleted successfully
                 data: null
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (ID UUID salah atau mencoba menghapus akun sendiri).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidUserID:
                   summary: Format UUID tidak valid
@@ -942,60 +945,60 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: User tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: user not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -1006,7 +1009,7 @@ paths:
     get:
       tags:
         - Admin Vendors
-      summary: Mengambil daftar vendor dengan pagination dan filter
+      summary: Get Vendor List
       description: >
         Menampilkan daftar vendor yang terdaftar beserta informasi pemilik. Gunakan parameter `status=submitted`
         untuk melihat vendor yang menunggu persetujuan admin.
@@ -1062,15 +1065,15 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Daftar vendor berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorListEnvelope'
+                $ref: "#/components/schemas/SuccessVendorListEnvelope"
               example:
                 success: true
                 message: vendors retrieved successfully
@@ -1079,7 +1082,6 @@ paths:
                     display_name: Toko Oleh-Oleh Haji Mabrur
                     legal_name: PT Mabrur Sejahtera
                     vendor_type: souvenir_store
-                    responsible_person_name: Ahmad Fauzi
                     status: submitted
                     status_reason: null
                     xendit_account_id: null
@@ -1092,7 +1094,6 @@ paths:
                     display_name: Umrah Store Jakarta
                     legal_name: null
                     vendor_type: ppiu
-                    responsible_person_name: Siti Aminah
                     status: rejected
                     status_reason: Dokumen KTP tidak jelas
                     xendit_account_id: null
@@ -1107,45 +1108,45 @@ paths:
                   limit: 10
                   total_items: 2
                   total_pages: 1
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: missing authorization header
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to list vendors
@@ -1156,10 +1157,8 @@ paths:
     get:
       tags:
         - Admin Vendors
-      summary: Mengambil detail vendor berdasarkan ID
-      description: >
-        Menampilkan seluruh data vendor termasuk informasi pemilik, rekening bank,
-        dan dokumen-dokumen pendukung beserta presigned download URL (berlaku 30 menit).
+      summary: Get Vendor By ID
+      description: Mengambil detail vendor berdasarkan ID. ID harus dalam format UUID. Informasi detail termasuk data pemilik, akun bank, dan dokumen yang diunggah.
       operationId: getAdminVendorById
       security:
         - BearerAuth: []
@@ -1172,15 +1171,15 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Detail vendor berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorDetailEnvelope'
+                $ref: "#/components/schemas/SuccessVendorDetailEnvelope"
               example:
                 success: true
                 message: vendor retrieved successfully
@@ -1189,7 +1188,6 @@ paths:
                   vendor_type: souvenir_store
                   display_name: Toko Oleh-Oleh Haji Mabrur
                   legal_name: PT Mabrur Sejahtera
-                  responsible_person_name: Ahmad Fauzi
                   description: Toko oleh-oleh haji terlengkap di Jakarta
                   registered_address: "Jl. Raya Bogor No. 123, Jakarta Timur"
                   status: submitted
@@ -1239,75 +1237,75 @@ paths:
                       updated_at: "2026-02-10T09:30:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: ID vendor bukan UUID yang valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid vendor ID
                 data: null
                 errors: id must be a valid UUID
                 meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Vendor tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: vendor not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to get vendor
@@ -1318,7 +1316,7 @@ paths:
     patch:
       tags:
         - Admin Vendors
-      summary: Menyetujui vendor
+      summary: Approve Vendor
       description: >
         Mengubah status vendor dari `submitted` atau `rejected` menjadi `active`.
         Menghapus `status_reason` jika ada, dan menyimpan admin yang menyetujui di `approved_by`/`approved_at`.
@@ -1335,15 +1333,15 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Vendor berhasil disetujui.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorActionEnvelope'
+                $ref: "#/components/schemas/SuccessVendorActionEnvelope"
               example:
                 success: true
                 message: vendor approved successfully
@@ -1353,15 +1351,15 @@ paths:
                   message: vendor approved successfully
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (UUID salah atau transisi status tidak diizinkan).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidVendorID:
                   summary: Format UUID tidak valid
@@ -1375,64 +1373,64 @@ paths:
                   summary: Transisi status tidak valid
                   value:
                     success: false
-                    message: "invalid status transition: cannot approve vendor with status \"draft\""
+                    message: 'invalid status transition: cannot approve vendor with status "draft"'
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Vendor tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: vendor not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to approve vendor
@@ -1443,10 +1441,10 @@ paths:
     patch:
       tags:
         - Admin Vendors
-      summary: Menolak vendor
+      summary: Reject Vendor
       description: >
-        Mengubah status vendor dari `submitted` menjadi `rejected`.
-        Memerlukan `reason` yang akan disimpan di `status_reason`.
+        Mengubah status vendor dari `submitted` menjadi `rejected`. Memerlukan `reason` yang akan disimpan di `status_reason`.
+        Status user pemilik vendor juga diubah menjadi `rejected`.
       operationId: rejectAdminVendor
       security:
         - BearerAuth: []
@@ -1463,19 +1461,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdminVendorReasonRequest'
+              $ref: "#/components/schemas/AdminVendorReasonRequest"
             example:
               reason: Dokumen KTP tidak valid dan foto toko tidak sesuai
       responses:
-        '200':
+        "200":
           description: Vendor berhasil ditolak.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorActionEnvelope'
+                $ref: "#/components/schemas/SuccessVendorActionEnvelope"
               example:
                 success: true
                 message: vendor rejected successfully
@@ -1485,15 +1483,15 @@ paths:
                   message: vendor rejected successfully
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (UUID salah, reason kosong, atau transisi status tidak diizinkan).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidVendorID:
                   summary: Format UUID tidak valid
@@ -1515,64 +1513,64 @@ paths:
                   summary: Transisi status tidak valid
                   value:
                     success: false
-                    message: "invalid status transition: cannot reject vendor with status \"active\""
+                    message: 'invalid status transition: cannot reject vendor with status "active"'
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Vendor tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: vendor not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to reject vendor
@@ -1583,7 +1581,7 @@ paths:
     patch:
       tags:
         - Admin Vendors
-      summary: Memblokir vendor
+      summary: Blokir Vendor
       description: >
         Mengubah status vendor dari `active` atau `submitted` menjadi `blocked`.
         Memerlukan `reason` yang akan disimpan di `status_reason`.
@@ -1603,19 +1601,19 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdminVendorReasonRequest'
+              $ref: "#/components/schemas/AdminVendorReasonRequest"
             example:
               reason: Pelanggaran ketentuan layanan
       responses:
-        '200':
+        "200":
           description: Vendor berhasil diblokir.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorActionEnvelope'
+                $ref: "#/components/schemas/SuccessVendorActionEnvelope"
               example:
                 success: true
                 message: vendor blocked successfully
@@ -1625,15 +1623,15 @@ paths:
                   message: vendor blocked successfully
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (UUID salah, reason kosong, atau transisi status tidak diizinkan).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidVendorID:
                   summary: Format UUID tidak valid
@@ -1655,64 +1653,64 @@ paths:
                   summary: Transisi status tidak valid
                   value:
                     success: false
-                    message: "invalid status transition: cannot block vendor with status \"draft\""
+                    message: 'invalid status transition: cannot block vendor with status "draft"'
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Vendor tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: vendor not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to block vendor
@@ -1723,7 +1721,7 @@ paths:
     patch:
       tags:
         - Admin Vendors
-      summary: Membuka blokir vendor
+      summary: Buka Blokir Vendor
       description: >
         Mengubah status vendor dari `blocked` menjadi `active`.
         Menghapus `status_reason` dan menyimpan admin yang membuka blokir di `approved_by`/`approved_at`.
@@ -1740,15 +1738,15 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Vendor berhasil dibuka blokirnya.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorActionEnvelope'
+                $ref: "#/components/schemas/SuccessVendorActionEnvelope"
               example:
                 success: true
                 message: vendor unblocked successfully
@@ -1758,15 +1756,15 @@ paths:
                   message: vendor unblocked successfully
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (UUID salah atau transisi status tidak diizinkan).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidVendorID:
                   summary: Format UUID tidak valid
@@ -1780,69 +1778,241 @@ paths:
                   summary: Transisi status tidak valid
                   value:
                     success: false
-                    message: "invalid status transition: cannot unblock vendor with status \"active\""
+                    message: 'invalid status transition: cannot unblock vendor with status "active"'
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User tidak memiliki izin role admin.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Vendor tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: vendor not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to unblock vendor
                 data: null
                 errors: "failed to unblock vendor: database timeout"
+                meta: null
+  /api/v1/admin/payments:
+    get:
+      tags:
+        - Admin Payments
+      summary: Get Payment List
+      description: |
+        Endpoint untuk mengambil daftar semua payment invoice beserta informasi terkait (order, customer, vendor).
+        Data diambil dari tabel `payment_invoices` yang di-JOIN dengan `orders`, `users`, dan `vendors`.
+
+        URL: `GET /api/v1/admin/payments`
+        Header: `Authorization: Bearer <admin_jwt>`
+
+        **Pagination:**
+        - `page` — nomor halaman (default: 1)
+        - `limit` — jumlah item per halaman (default: 10, maks: 100)
+
+        **Filter:**
+        - `status` — filter berdasarkan status pembayaran (`pending`, `paid`, `expired`, `failed`)
+
+        **Pencarian:**
+        - `search` — pencarian berdasarkan nama customer (`users.full_name`) atau nomor order (`orders.order_no`) (case-insensitive, partial match)
+
+        **Sorting:**
+        - `sort_by` — kolom untuk pengurutan: `created_at`, `amount`, `customer_name`, `status` (default: `created_at`)
+        - `sort_order` — arah pengurutan: `asc` (ascending) atau `desc` (descending) (default: `desc`)
+      operationId: listAdminPayments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Nomor halaman (default 1).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Jumlah item per halaman (default 10). Nilai <1 atau >100 akan dinormalisasi server menjadi 10.
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: status
+          in: query
+          description: Filter berdasarkan status pembayaran.
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - paid
+              - expired
+              - failed
+        - name: search
+          in: query
+          description: Pencarian berdasarkan nama customer atau nomor order (case-insensitive, partial match).
+          required: false
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          description: |
+            Kolom yang digunakan untuk pengurutan. Default: `created_at`.
+          required: false
+          schema:
+            type: string
+            enum:
+              - created_at
+              - amount
+              - customer_name
+              - status
+            default: created_at
+        - name: sort_order
+          in: query
+          description: |
+            Arah pengurutan. Default: `desc` (descending/terbaru dulu).
+          required: false
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+      responses:
+        "200":
+          description: Daftar pembayaran berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessPaymentListEnvelope"
+              example:
+                success: true
+                message: payments retrieved successfully
+                data:
+                  - invoice_id: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+                    order_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    order_no: ORD-20260327-ABC123
+                    customer_name: Ahmad Fauzi
+                    vendor_name: Toko Oleh-Oleh Haji Mabrur
+                    payment_method: BANK_TRANSFER
+                    amount: 150000
+                    status: paid
+                    created_at: "2026-03-27T10:00:00Z"
+                  - invoice_id: a2b3c4d5-e6f7-8901-bcde-f12345678901
+                    order_id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    order_no: ORD-20260327-DEF456
+                    customer_name: Siti Aminah
+                    vendor_name: Umrah Store Jakarta
+                    payment_method: null
+                    amount: 75000
+                    status: pending
+                    created_at: "2026-03-27T09:30:00Z"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 2
+                  total_pages: 1
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: missing authorization header
+                data: null
+                errors: null
+                meta: null
+        "403":
+          description: User tidak memiliki izin role admin.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: insufficient permissions
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: failed to list payments
+                data: null
+                errors: "failed to list payments: database timeout"
                 meta: null
 components:
   securitySchemes:
@@ -2121,7 +2291,7 @@ components:
           type: string
           example: user retrieved successfully
         data:
-          $ref: '#/components/schemas/UserResponse'
+          $ref: "#/components/schemas/UserResponse"
         errors:
           nullable: true
           description: Selalu null pada response sukses.
@@ -2146,12 +2316,12 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/UserResponse'
+            $ref: "#/components/schemas/UserResponse"
         errors:
           nullable: true
           description: Selalu null pada response sukses.
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessNoDataEnvelope:
       type: object
       required:
@@ -2195,7 +2365,7 @@ components:
           type: string
           example: login successful
         data:
-          $ref: '#/components/schemas/AdminLoginResponse'
+          $ref: "#/components/schemas/AdminLoginResponse"
         errors:
           nullable: true
           description: Selalu null pada response sukses.
@@ -2220,7 +2390,7 @@ components:
           type: string
           example: admin profile retrieved successfully
         data:
-          $ref: '#/components/schemas/AdminMeResponse'
+          $ref: "#/components/schemas/AdminMeResponse"
         errors:
           nullable: true
           description: Selalu null pada response sukses.
@@ -2266,7 +2436,6 @@ components:
         - id
         - display_name
         - vendor_type
-        - responsible_person_name
         - status
         - owner_name
         - owner_email
@@ -2291,9 +2460,6 @@ components:
             - ppiu
             - hajj_dormitory
           example: souvenir_store
-        responsible_person_name:
-          type: string
-          example: Ahmad Fauzi
         status:
           type: string
           enum:
@@ -2420,7 +2586,6 @@ components:
         - doc_type
         - file_url
         - download_url
-        - verification_status
         - created_at
         - updated_at
       properties:
@@ -2458,17 +2623,6 @@ components:
           nullable: true
           description: Ukuran file dalam bytes.
           example: 245760
-        verification_status:
-          type: string
-          enum:
-            - pending
-            - verified
-            - rejected
-          example: pending
-        rejection_reason:
-          type: string
-          nullable: true
-          example: null
         verified_at:
           type: string
           format: date-time
@@ -2488,7 +2642,6 @@ components:
         - id
         - vendor_type
         - display_name
-        - responsible_person_name
         - status
         - created_at
         - updated_at
@@ -2514,9 +2667,6 @@ components:
           type: string
           nullable: true
           example: PT Mabrur Sejahtera
-        responsible_person_name:
-          type: string
-          example: Ahmad Fauzi
         description:
           type: string
           nullable: true
@@ -2559,15 +2709,15 @@ components:
           format: date-time
           example: "2026-02-10T09:30:00Z"
         owner:
-          $ref: '#/components/schemas/AdminVendorOwnerResponse'
+          $ref: "#/components/schemas/AdminVendorOwnerResponse"
         bank_account:
           nullable: true
           allOf:
-            - $ref: '#/components/schemas/AdminVendorBankAccountResponse'
+            - $ref: "#/components/schemas/AdminVendorBankAccountResponse"
         documents:
           type: array
           items:
-            $ref: '#/components/schemas/AdminVendorDocumentResponse'
+            $ref: "#/components/schemas/AdminVendorDocumentResponse"
     SuccessVendorListEnvelope:
       type: object
       required:
@@ -2586,12 +2736,12 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/AdminVendorListItem'
+            $ref: "#/components/schemas/AdminVendorListItem"
         errors:
           nullable: true
           description: Selalu null pada response sukses.
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessVendorDetailEnvelope:
       type: object
       required:
@@ -2608,7 +2758,7 @@ components:
           type: string
           example: vendor retrieved successfully
         data:
-          $ref: '#/components/schemas/AdminVendorDetailResponse'
+          $ref: "#/components/schemas/AdminVendorDetailResponse"
         errors:
           nullable: true
           description: Selalu null pada response sukses.
@@ -2664,10 +2814,92 @@ components:
           type: string
           example: vendor approved successfully
         data:
-          $ref: '#/components/schemas/AdminVendorActionResponse'
+          $ref: "#/components/schemas/AdminVendorActionResponse"
         errors:
           nullable: true
           description: Selalu null pada response sukses.
         meta:
           nullable: true
           description: Selalu null.
+    AdminPaymentListItem:
+      type: object
+      required:
+        - invoice_id
+        - order_id
+        - order_no
+        - customer_name
+        - vendor_name
+        - amount
+        - status
+        - created_at
+      properties:
+        invoice_id:
+          type: string
+          format: uuid
+          description: ID unik payment invoice.
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+        order_id:
+          type: string
+          format: uuid
+          description: ID order terkait.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        order_no:
+          type: string
+          description: Nomor order yang dapat dibaca manusia.
+          example: ORD-20260327-ABC123
+        customer_name:
+          type: string
+          description: Nama lengkap customer yang melakukan pembayaran (dari tabel users).
+          example: Ahmad Fauzi
+        vendor_name:
+          type: string
+          description: Nama toko vendor (display_name dari tabel vendors).
+          example: Toko Oleh-Oleh Haji Mabrur
+        payment_method:
+          type: string
+          nullable: true
+          description: Metode pembayaran yang digunakan (e.g. BANK_TRANSFER, EWALLET). Null jika belum dibayar.
+          example: BANK_TRANSFER
+        amount:
+          type: number
+          format: double
+          description: Nominal pembayaran dalam satuan Rupiah.
+          example: 150000
+        status:
+          type: string
+          description: Status pembayaran invoice.
+          enum:
+            - pending
+            - paid
+            - expired
+            - failed
+          example: paid
+        created_at:
+          type: string
+          format: date-time
+          description: Waktu pembuatan invoice.
+          example: "2026-03-27T10:00:00Z"
+    SuccessPaymentListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: payments retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminPaymentListItem"
+        errors:
+          nullable: true
+          description: Selalu null pada response sukses.
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"

@@ -67,6 +67,32 @@ func (h *ProductHandler) ConfirmImages(c *gin.Context) {
 	response.OK(c, "images confirmed successfully", result)
 }
 
+// UpdateProduct handles PUT /api/v1/vendors/products/:id
+func (h *ProductHandler) UpdateProduct(c *gin.Context) {
+	productID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid product ID", "id must be a valid UUID")
+		return
+	}
+
+	var req domain.UpdateProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)
+	vendorID, _ := vendorIDVal.(uuid.UUID)
+
+	result, err := h.useCase.UpdateProduct(c.Request.Context(), vendorID, productID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "product updated successfully", result)
+}
+
 // ListProducts handles GET /api/v1/vendors/products
 func (h *ProductHandler) ListProducts(c *gin.Context) {
 	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)

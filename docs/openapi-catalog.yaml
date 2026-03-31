@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Haji Umroh Store BE - Catalog API
+  title: UmrahMart - Catalog API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint katalog publik (produk, kategori, dan jasa pengiriman).
 servers:
@@ -20,7 +20,7 @@ paths:
     get:
       tags:
         - Categories
-      summary: Daftar kategori aktif
+      summary: Get list categories
       description: |
         Mengembalikan daftar semua kategori produk yang aktif (`is_active = true`),
         diurutkan berdasarkan nama secara alfabet (A-Z).
@@ -33,15 +33,15 @@ paths:
       operationId: listCategories
       security: []
       responses:
-        '200':
+        "200":
           description: Daftar kategori berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessCategoryListEnvelope'
+                $ref: "#/components/schemas/SuccessCategoryListEnvelope"
               example:
                 success: true
                 message: categories retrieved successfully
@@ -68,15 +68,15 @@ paths:
                     is_active: true
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to list categories
@@ -87,7 +87,7 @@ paths:
     get:
       tags:
         - Shipping Services
-      summary: Daftar jasa pengiriman aktif
+      summary: Get List Shipping Services
       description: |
         Mengembalikan daftar semua jasa pengiriman yang aktif (`is_active = true`),
         diurutkan berdasarkan nama secara alfabet (A-Z).
@@ -99,15 +99,15 @@ paths:
       operationId: listShippingServices
       security: []
       responses:
-        '200':
+        "200":
           description: Daftar jasa pengiriman berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessShippingServiceListEnvelope'
+                $ref: "#/components/schemas/SuccessShippingServiceListEnvelope"
               example:
                 success: true
                 message: shipping services retrieved successfully
@@ -134,15 +134,15 @@ paths:
                     created_at: "2026-01-01T00:00:00Z"
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to list shipping services
@@ -153,7 +153,7 @@ paths:
     get:
       tags:
         - Products
-      summary: Daftar produk yang bisa dibeli customer
+      summary: Get list product
       description: |
         Mengembalikan daftar produk marketplace yang dapat dibeli customer.
         Produk yang ditampilkan hanya yang:
@@ -207,15 +207,15 @@ paths:
             type: string
           description: Pencarian nama produk (case-insensitive).
       responses:
-        '200':
+        "200":
           description: Daftar produk berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessProductListEnvelope'
+                $ref: "#/components/schemas/SuccessProductListEnvelope"
               example:
                 success: true
                 message: products retrieved successfully
@@ -242,15 +242,15 @@ paths:
                   limit: 10
                   total_items: 23
                   total_pages: 3
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: failed to list products
@@ -261,7 +261,7 @@ paths:
     get:
       tags:
         - Products
-      summary: Detail produk berdasarkan ID
+      summary: Get Product By ID
       description: |
         Mengembalikan detail produk untuk halaman detail customer berdasarkan ID produk.
         Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
@@ -281,15 +281,15 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Detail produk berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessProductDetailEnvelope'
+                $ref: "#/components/schemas/SuccessProductDetailEnvelope"
               example:
                 success: true
                 message: product detail retrieved successfully
@@ -331,45 +331,45 @@ paths:
                   updated_at: "2026-03-04T10:00:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Parameter path tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid product ID
                 data: null
                 errors: id must be a valid UUID
                 meta: null
-        '404':
+        "404":
           description: Produk tidak ditemukan atau tidak tersedia untuk customer.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: product not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -380,7 +380,7 @@ paths:
     get:
       tags:
         - Product Reviews
-      summary: Daftar ulasan produk
+      summary: Get List Product Reviews
       description: |
         Mengembalikan daftar ulasan (`published`) untuk sebuah produk.
         Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
@@ -414,15 +414,15 @@ paths:
             default: 10
           description: Jumlah item per halaman.
       responses:
-        '200':
+        "200":
           description: Daftar ulasan berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessProductReviewListEnvelope'
+                $ref: "#/components/schemas/SuccessProductReviewListEnvelope"
               example:
                 success: true
                 message: product reviews retrieved successfully
@@ -441,30 +441,30 @@ paths:
                   limit: 10
                   total_items: 23
                   total_pages: 3
-        '400':
+        "400":
           description: Parameter path/query tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid product ID
                 data: null
                 errors: id must be a valid UUID
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -475,7 +475,7 @@ paths:
     get:
       tags:
         - Product Reviews
-      summary: Ringkasan rating produk
+      summary: Get Product Review Summary
       description: |
         Mengembalikan ringkasan rating produk:
         - `average_rating`
@@ -494,15 +494,15 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Ringkasan rating berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessProductReviewSummaryEnvelope'
+                $ref: "#/components/schemas/SuccessProductReviewSummaryEnvelope"
               example:
                 success: true
                 message: product review summary retrieved successfully
@@ -531,30 +531,30 @@ paths:
                       percentage: 58.33
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Parameter path tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid product ID
                 data: null
                 errors: id must be a valid UUID
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -856,9 +856,9 @@ components:
           description: Status review Halal AI.
           example: pending
         category:
-          $ref: '#/components/schemas/ProductDetailCategory'
+          $ref: "#/components/schemas/ProductDetailCategory"
         vendor:
-          $ref: '#/components/schemas/ProductDetailVendor'
+          $ref: "#/components/schemas/ProductDetailVendor"
         rating_average:
           type: number
           format: double
@@ -873,12 +873,12 @@ components:
           type: array
           description: Daftar gambar produk.
           items:
-            $ref: '#/components/schemas/ProductDetailImageItem'
+            $ref: "#/components/schemas/ProductDetailImageItem"
         variants:
           type: array
           description: Daftar varian aktif produk.
           items:
-            $ref: '#/components/schemas/ProductDetailVariantItem'
+            $ref: "#/components/schemas/ProductDetailVariantItem"
         created_at:
           type: string
           format: date-time
@@ -987,7 +987,7 @@ components:
           type: array
           description: Distribusi jumlah review berdasarkan bintang (0..5).
           items:
-            $ref: '#/components/schemas/RatingDistributionItem'
+            $ref: "#/components/schemas/RatingDistributionItem"
     PaginationMeta:
       type: object
       required:
@@ -1027,7 +1027,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/Category'
+            $ref: "#/components/schemas/Category"
         errors:
           nullable: true
           example: null
@@ -1052,12 +1052,12 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/ProductListItem'
+            $ref: "#/components/schemas/ProductListItem"
         errors:
           nullable: true
           example: null
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessProductDetailEnvelope:
       type: object
       required:
@@ -1074,7 +1074,7 @@ components:
           type: string
           example: product detail retrieved successfully
         data:
-          $ref: '#/components/schemas/ProductDetailResponse'
+          $ref: "#/components/schemas/ProductDetailResponse"
         errors:
           nullable: true
           example: null
@@ -1099,12 +1099,12 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/ProductReviewListItem'
+            $ref: "#/components/schemas/ProductReviewListItem"
         errors:
           nullable: true
           example: null
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessProductReviewSummaryEnvelope:
       type: object
       required:
@@ -1121,7 +1121,7 @@ components:
           type: string
           example: product review summary retrieved successfully
         data:
-          $ref: '#/components/schemas/ProductReviewSummary'
+          $ref: "#/components/schemas/ProductReviewSummary"
         errors:
           nullable: true
           example: null
@@ -1146,7 +1146,7 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/ShippingService'
+            $ref: "#/components/schemas/ShippingService"
         errors:
           nullable: true
           example: null

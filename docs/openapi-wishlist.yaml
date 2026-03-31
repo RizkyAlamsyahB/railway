@@ -15,7 +15,7 @@ paths:
   /api/v1/users/wishlist:
     get:
       tags: [Wishlist]
-      summary: Ambil daftar wishlist customer
+      summary: Get Wishlist Items
       description: |
         Mengembalikan daftar produk dalam wishlist milik customer yang sedang login.
 
@@ -64,7 +64,7 @@ paths:
   /api/v1/users/wishlist/items:
     post:
       tags: [Wishlist]
-      summary: Tambah produk ke wishlist
+      summary: Add Product to Wishlist
       description: |
         Menambahkan satu produk ke wishlist customer.
 
@@ -109,7 +109,7 @@ paths:
   /api/v1/users/wishlist/products/{productId}:
     delete:
       tags: [Wishlist]
-      summary: Hapus produk dari wishlist
+      summary: Remove Product from Wishlist
       description: |
         Menghapus satu produk dari wishlist customer.
 
@@ -146,7 +146,7 @@ paths:
   /api/v1/users/wishlist/products/{productId}/status:
     get:
       tags: [Wishlist]
-      summary: Cek status wishlist untuk satu produk
+      summary: Check Wishlist Product Status
       description: |
         Mengecek apakah sebuah produk sudah ada di wishlist customer.
 

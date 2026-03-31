@@ -1,0 +1,1 @@
+ALTER TABLE vendors ADD COLUMN IF NOT EXISTS responsible_person_name VARCHAR(120) NOT NULL DEFAULT '';

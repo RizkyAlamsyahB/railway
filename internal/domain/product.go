@@ -91,6 +91,46 @@ type CreateProductRequest struct {
 	Images      []CreateProductImageInput   `json:"images,omitempty" binding:"omitempty,min=1,max=10,dive"`
 }
 
+// UpdateProductVariantInput represents a single variant entry in the update product request.
+// If ID is provided, the variant is updated; if absent, a new variant is created.
+type UpdateProductVariantInput struct {
+	ID          *string `json:"id,omitempty" binding:"omitempty,uuid"`
+	VariantName string  `json:"variant_name" binding:"required,max=120"`
+	Price       float64 `json:"price" binding:"required,gt=0"`
+	Stock       int     `json:"stock" binding:"min=0"`
+	WeightGram  *int    `json:"weight_gram,omitempty" binding:"omitempty,min=0"`
+	IsActive    bool    `json:"is_active"`
+}
+
+// UpdateProductRequest is the input DTO for updating a product (full-replace PUT semantics).
+type UpdateProductRequest struct {
+	Name         string                      `json:"name" binding:"required,max=180"`
+	CategoryID   string                      `json:"category_id" binding:"required,uuid"`
+	Description  string                      `json:"description" binding:"required"`
+	Price        float64                     `json:"price" binding:"required,gt=0"`
+	Stock        int                         `json:"stock" binding:"min=0"`
+	WeightGram   *int                        `json:"weight_gram,omitempty" binding:"omitempty,min=0"`
+	IsActive     bool                        `json:"is_active"`
+	Variants     []UpdateProductVariantInput `json:"variants,omitempty" binding:"omitempty,max=20,dive"`
+	KeepImageIDs []string                    `json:"keep_image_ids,omitempty" binding:"omitempty,dive,uuid"`
+	NewImages    []CreateProductImageInput   `json:"new_images,omitempty" binding:"omitempty,max=10,dive"`
+}
+
+// UpdateProductResponse is the output DTO for a successful product update.
+type UpdateProductResponse struct {
+	ID            uuid.UUID                `json:"id"`
+	VendorID      uuid.UUID                `json:"vendor_id"`
+	CategoryID    uuid.UUID                `json:"category_id"`
+	Name          string                   `json:"name"`
+	Slug          string                   `json:"slug"`
+	Description   string                   `json:"description"`
+	Status        string                   `json:"status"`
+	HalalAIStatus string                   `json:"halal_ai_status"`
+	Variants      []ProductVariantResponse `json:"variants"`
+	NewUploadURLs []ProductImageUploadInfo `json:"new_upload_urls,omitempty"`
+	UpdatedAt     time.Time                `json:"updated_at"`
+}
+
 // ConfirmProductImageItem represents a single image in the confirm-images request.
 type ConfirmProductImageItem struct {
 	ImageID   string `json:"image_id" binding:"required,uuid"`
@@ -271,6 +311,15 @@ type ProductRepository interface {
 
 	// ListByVendor returns paginated products owned by a specific vendor.
 	ListByVendor(ctx context.Context, vendorID uuid.UUID, params VendorProductListParams) ([]VendorProductListItem, int64, error)
+
+	// UpdateProduct persists all product edits atomically in a single transaction.
+	// It updates the product row, upserts variants, deactivates removed variants,
+	// deletes image rows, and inserts new image placeholders.
+	UpdateProduct(ctx context.Context, product *Product,
+		variantsToUpsert []ProductVariant,
+		variantIDsToDeactivate []uuid.UUID,
+		imageIDsToDelete []uuid.UUID,
+		newImages []ProductImage) error
 }
 
 // CategoryRepository defines the interface for category data access.
@@ -295,6 +344,10 @@ type ProductUseCase interface {
 
 	// ListProducts returns paginated products belonging to the authenticated vendor.
 	ListProducts(ctx context.Context, vendorID uuid.UUID, params VendorProductListParams) ([]VendorProductListItem, *PaginationMeta, error)
+
+	// UpdateProduct updates an existing product owned by the authenticated vendor.
+	UpdateProduct(ctx context.Context, vendorID uuid.UUID, productID uuid.UUID,
+		req UpdateProductRequest) (*UpdateProductResponse, error)
 }
 
 // CatalogUseCase defines the interface for public catalog queries.

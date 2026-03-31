@@ -190,7 +190,7 @@ func (r *productRepository) CountByVendorID(ctx context.Context, vendorID uuid.U
 
 func (r *productRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (*domain.ProductVariant, error) {
 	var row productVariantPricingRow
-	activePromoExpr := buildActivePromoMinExpr("pv.product_id")
+	activeVoucherDiscountExpr := buildActiveVoucherDiscountExpr("pv.product_id")
 	effectivePriceExpr := buildEffectivePriceExpr("pv.price", "pv.product_id")
 	if err := r.db.WithContext(ctx).
 		Table("product_variants pv").
@@ -207,7 +207,7 @@ func (r *productRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (
 			pv.weight_gram,
 			pv.is_default,
 			pv.is_active
-		`, activePromoExpr, effectivePriceExpr)).
+		`, activeVoucherDiscountExpr, effectivePriceExpr)).
 		Where("pv.id = ?", id.String()).
 		Take(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -269,7 +269,7 @@ func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, i
 		return nil, err
 	}
 
-	activePromoExpr := buildActivePromoMinExpr("pv.product_id")
+	activeVoucherDiscountExpr := buildActiveVoucherDiscountExpr("pv.product_id")
 	effectivePriceExpr := buildEffectivePriceExpr("pv.price", "pv.product_id")
 	var variantRows []productVariantPricingRow
 	if err := r.db.WithContext(ctx).
@@ -287,7 +287,7 @@ func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, i
 			pv.weight_gram,
 			pv.is_default,
 			pv.is_active
-		`, activePromoExpr, effectivePriceExpr)).
+		`, activeVoucherDiscountExpr, effectivePriceExpr)).
 		Where("pv.product_id = ?", id.String()).
 		Where("pv.is_active = ?", true).
 		Order("pv.is_default DESC").
@@ -364,7 +364,7 @@ func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, i
 }
 
 func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params domain.ProductListParams) ([]domain.ProductListItem, int64, error) {
-	activePromoExpr := buildActivePromoMinExpr("products.id")
+	activeVoucherDiscountExpr := buildActiveVoucherDiscountExpr("products.id")
 	effectivePriceExpr := buildEffectivePriceExpr("pv.price", "products.id")
 
 	query := r.db.WithContext(ctx).Model(&productModel{}).
@@ -404,7 +404,7 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 			products.created_at,
 			COALESCE(prs.average_rating, 0) AS rating_average,
 			COALESCE(prs.total_reviews, 0) AS rating_count
-		`, activePromoExpr, effectivePriceExpr)).
+		`, activeVoucherDiscountExpr, effectivePriceExpr)).
 		Group("products.id, products.name, products.created_at, prs.average_rating, prs.total_reviews")
 
 	if params.Sort == "cheapest" {
@@ -530,27 +530,95 @@ func (r *productRepository) ListByVendor(ctx context.Context, vendorID uuid.UUID
 	return items, total, nil
 }
 
-func buildActivePromoMinExpr(productIDCol string) string {
+func (r *productRepository) UpdateProduct(
+	ctx context.Context,
+	product *domain.Product,
+	variantsToUpsert []domain.ProductVariant,
+	variantIDsToDeactivate []uuid.UUID,
+	imageIDsToDelete []uuid.UUID,
+	newImages []domain.ProductImage,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Update product row (excludes halal_ai_status).
+		pm := toProductModel(product)
+		if err := tx.Model(&productModel{ID: pm.ID}).
+			Select("name", "slug", "description", "category_id", "status", "updated_at").
+			Updates(&pm).Error; err != nil {
+			return err
+		}
+
+		// 2. Upsert variants.
+		for i := range variantsToUpsert {
+			vm := toProductVariantModel(&variantsToUpsert[i])
+			if variantsToUpsert[i].ID == (uuid.UUID{}) {
+				if err := tx.Create(&vm).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := tx.Model(&productVariantModel{ID: vm.ID}).
+					Select("variant_name", "price", "stock_on_hand", "weight_gram", "is_active").
+					Updates(&vm).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		// 3. Deactivate removed non-default variants.
+		for _, id := range variantIDsToDeactivate {
+			if err := tx.Model(&productVariantModel{}).
+				Where("id = ? AND is_default = false", id.String()).
+				Update("is_active", false).Error; err != nil {
+				return err
+			}
+		}
+
+		// 4. Delete removed image rows.
+		if len(imageIDsToDelete) > 0 {
+			ids := make([]string, len(imageIDsToDelete))
+			for i, id := range imageIDsToDelete {
+				ids[i] = id.String()
+			}
+			if err := tx.Where("id IN ? AND product_id = ?", ids, product.ID.String()).
+				Delete(&productImageModel{}).Error; err != nil {
+				return err
+			}
+		}
+
+		// 5. Insert new image placeholders.
+		for i := range newImages {
+			im := toProductImageModel(&newImages[i])
+			if err := tx.Create(&im).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+func buildActiveVoucherDiscountExpr(productIDCol string) string {
 	return fmt.Sprintf(`
 		(
-			SELECT MIN(pp.promo_price)
-			FROM product_promotions pp
-			WHERE pp.product_id = %s
-				AND pp.is_active = TRUE
-				AND pp.starts_at <= NOW()
-				AND pp.ends_at >= NOW()
+			SELECT MAX(vv.discount_amount)
+			FROM vendor_voucher_products vvp
+			JOIN vendor_vouchers vv ON vv.id = vvp.voucher_id
+			WHERE vvp.product_id = %s
+				AND vv.is_active = TRUE
+				AND vv.starts_at <= NOW()
+				AND vv.ends_at >= NOW()
+				AND vv.quota_used < vv.quota_total
 		)
 	`, productIDCol)
 }
 
 func buildEffectivePriceExpr(basePriceCol, productIDCol string) string {
-	activePromoExpr := buildActivePromoMinExpr(productIDCol)
+	activeVoucherDiscountExpr := buildActiveVoucherDiscountExpr(productIDCol)
 	return fmt.Sprintf(`
-		LEAST(
-			%s,
-			COALESCE(%s, %s)
+		GREATEST(
+			%s - COALESCE(%s, 0),
+			0
 		)
-	`, basePriceCol, activePromoExpr, basePriceCol)
+	`, basePriceCol, activeVoucherDiscountExpr)
 }
 
 // Mapper helpers.

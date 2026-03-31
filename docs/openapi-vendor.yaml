@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Haji Umroh Store BE - Vendor API
+  title: UmrahMart - Vendor API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint vendor/seller (UMKM), termasuk pendaftaran, autentikasi, dokumen, dan manajemen produk.
 servers:
@@ -13,10 +13,10 @@ tags:
     description: Autentikasi vendor.
   - name: Vendor Documents
     description: Manajemen dokumen vendor.
-  - name: Vendor Completion
-    description: Penyelesaian data vendor setelah login pertama.
   - name: Vendor Products
     description: Manajemen produk vendor.
+  - name: Vendor Vouchers
+    description: CRUD voucher diskon nominal per item (produk milik vendor).
   - name: Vendor Balance
     description: Operasi saldo dan penarikan vendor (Tokopedia-style self-service).
   - name: Xendit Webhook
@@ -26,7 +26,7 @@ paths:
     post:
       tags:
         - Vendor Registration
-      summary: Kirim OTP email untuk registrasi vendor
+      summary: 1. Request OTP
       description: Memulai flow onboarding vendor dengan mengirim OTP ke email vendor.
       operationId: requestVendorRegistrationOTP
       security: []
@@ -35,51 +35,51 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorRegisterOTPRequest'
+              $ref: "#/components/schemas/VendorRegisterOTPRequest"
             example:
               email: toko.mabrur@example.com
       responses:
-        '201':
+        "201":
           description: OTP berhasil dibuat dan dikirim.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorRegisterOTPEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorRegisterOTPEnvelope"
+        "400":
           description: Request tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '409':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
           description: Email sudah terpakai atau sudah punya profil vendor.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '429':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
           description: OTP diminta terlalu cepat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/register/verify-otp:
     post:
       tags:
         - Vendor Registration
-      summary: Verifikasi OTP email registrasi vendor
+      summary: 2. Verify OTP
       description: Memverifikasi OTP dan mengembalikan onboarding JWT untuk step register berikutnya.
       operationId: verifyVendorRegistrationOTP
       security: []
@@ -88,98 +88,61 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorVerifyRegistrationOTPRequest'
+              $ref: "#/components/schemas/VendorVerifyRegistrationOTPRequest"
             example:
               email: toko.mabrur@example.com
               code: "123456"
       responses:
-        '200':
+        "200":
           description: OTP valid dan onboarding JWT diterbitkan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorVerifyRegistrationOTPEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorVerifyRegistrationOTPEnvelope"
+        "400":
           description: OTP salah atau payload tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Token tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '409':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
           description: Email sudah terpakai akun vendor.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '429':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
           description: OTP terlalu banyak salah atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/v1/vendors/register/status:
-    get:
-      tags:
-        - Vendor Registration
-      summary: Ambil status onboarding vendor
-      description: Mengambil status draft onboarding vendor berdasarkan onboarding JWT yang dikirim di header `Authorization`.
-      operationId: getVendorRegistrationStatus
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Status onboarding berhasil diambil.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessVendorOnboardingStatusEnvelope'
-        '401':
-          description: Onboarding JWT tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '404':
-          description: Draft onboarding tidak ditemukan.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/register/password:
     post:
       tags:
         - Vendor Registration
-      summary: Simpan password onboarding vendor
+      summary: 3. Set Password
       operationId: saveVendorRegistrationPassword
       security:
         - BearerAuth: []
@@ -188,40 +151,40 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorRegistrationPasswordRequest'
+              $ref: "#/components/schemas/VendorRegistrationPasswordRequest"
       responses:
-        '200':
+        "200":
           description: Password berhasil disimpan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorOnboardingProgressEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorOnboardingProgressEnvelope"
+        "400":
           description: Step onboarding tidak valid atau payload tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Onboarding JWT tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/register/souvenir-store/individual/presign:
     post:
       tags:
         - Vendor Registration
-      summary: Buat presigned upload URL dokumen identitas perorangan (KTP/Paspor)
+      summary: 4a. Buat Presigned Upload URL untuk Dokumen Identitas Pribadi (KTP/Paspor)
       description: Membuat presigned URL untuk upload dokumen identitas pribadi (KTP atau paspor) dalam flow pendaftaran vendor perorangan (`souvenir_store`).
       operationId: presignVendorRegistrationIndividualDocument
       security:
@@ -231,43 +194,43 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorRegistrationPresignDocumentRequest'
+              $ref: "#/components/schemas/VendorRegistrationPresignDocumentRequest"
             example:
               document_id_type: ktp
               content_type: image/jpeg
       responses:
-        '200':
+        "200":
           description: Presigned URL berhasil dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorRegistrationIndividualPresignEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorRegistrationIndividualPresignEnvelope"
+        "400":
           description: Step onboarding tidak valid atau payload tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Onboarding JWT tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/register/souvenir-store/individual:
     post:
       tags:
         - Vendor Registration
-      summary: Finalisasi registrasi vendor perorangan dan login otomatis
+      summary: 5a. Submit Registrasi Vendor Perorangan
       description: |
         Menyelesaikan pendaftaran vendor tipe **perorangan** (`business_legal_type = perorangan`).
         Menerima data toko (`store_name`) dan data identitas pribadi (NIK, nama pemilik, tanggal lahir, object key dokumen KTP/paspor).
@@ -280,7 +243,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorRegistrationIndividualLegalRequest'
+              $ref: "#/components/schemas/VendorRegistrationIndividualLegalRequest"
             example:
               store_name: Toko Oleh-Oleh Haji Mabrur
               document_id_type: ktp
@@ -289,93 +252,93 @@ paths:
               birth_date: "1990-01-02"
               document_id_object_key: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
       responses:
-        '200':
+        "200":
           description: Registrasi perorangan selesai dan auth token vendor diterbitkan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorLoginEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorLoginEnvelope"
+        "400":
           description: Payload tidak valid, step tidak sesuai, atau file dokumen tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Onboarding JWT tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '409':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
           description: Email sudah dipakai akun lain.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/register/souvenir-store/corporate/presign:
     post:
       tags:
         - Vendor Registration
-      summary: Buat presigned upload URL dokumen NIB perusahaan
-      description: Membuat presigned URL untuk upload dokumen NIB dalam flow pendaftaran vendor korporasi (`souvenir_store`). Tidak memerlukan request body.
+      summary: 4b. Buat Presigned Upload URL untuk Dokumen NIB Perusahaan
+      description: Membuat presigned URL untuk upload dokumen NIB dalam flow pendaftaran vendor korporasi (`souvenir_store`).
       operationId: presignVendorRegistrationCorporateDocument
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Presigned URL berhasil dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorRegistrationCorporatePresignEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorRegistrationCorporatePresignEnvelope"
+        "400":
           description: Step onboarding tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Onboarding JWT tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/register/souvenir-store/corporate:
     post:
       tags:
         - Vendor Registration
-      summary: Finalisasi registrasi vendor korporasi dan login otomatis
+      summary: 5b. Submit Registrasi Vendor Korporasi
       description: |
         Menyelesaikan pendaftaran vendor tipe **korporasi** (`business_legal_type = korporasi`).
         Menerima data toko (`store_name`) dan data legalitas perusahaan (NIB, nama perusahaan, tanggal berdiri, alamat terdaftar, object key dokumen NIB).
@@ -388,7 +351,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorRegistrationCorporateLegalRequest'
+              $ref: "#/components/schemas/VendorRegistrationCorporateLegalRequest"
             example:
               store_name: Toko Oleh-Oleh Haji Mabrur
               nib: "1234567890123"
@@ -397,51 +360,51 @@ paths:
               registered_address: Jl. Sudirman No. 1, Jakarta Pusat
               nib_document_object_key: vendor-onboardings/6c9f5.../documents/business_nib/f1e2d3...
       responses:
-        '200':
+        "200":
           description: Registrasi korporasi selesai dan auth token vendor diterbitkan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorLoginEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorLoginEnvelope"
+        "400":
           description: Payload tidak valid, step tidak sesuai, atau file dokumen tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Onboarding JWT tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '409':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
           description: Email sudah dipakai akun lain.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/login:
     post:
       tags:
@@ -462,20 +425,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorLoginRequest'
+              $ref: "#/components/schemas/VendorLoginRequest"
             example:
               email: toko.mabrur@example.com
               password: SecurePass123!
       responses:
-        '200':
+        "200":
           description: Login berhasil. Response berisi JWT token dan informasi vendor.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorLoginEnvelope'
+                $ref: "#/components/schemas/SuccessVendorLoginEnvelope"
               example:
                 success: true
                 message: login successful
@@ -490,45 +453,45 @@ paths:
                   display_name: Toko Oleh-Oleh Haji Mabrur
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (validasi gagal).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: validation failed
                 data: null
                 errors: "Key: 'VendorLoginRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
                 meta: null
-        '401':
+        "401":
           description: Email atau password salah.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid email or password
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: Akses ditolak — user bukan vendor, tidak memiliki profil vendor, atau akun vendor diblokir.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 vendorAccessRequired:
                   summary: User bukan vendor (tidak punya role umkm)
@@ -554,15 +517,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -573,7 +536,7 @@ paths:
     get:
       tags:
         - Vendor Auth
-      summary: Ambil profil vendor yang sedang login
+      summary: Get Profile Vendor
       description: |
         Mengembalikan profil vendor berdasarkan `vendor_id` yang sudah diekstrak middleware
         dari Bearer token.
@@ -586,15 +549,15 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Profil vendor berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorProfileEnvelope'
+                $ref: "#/components/schemas/SuccessVendorProfileEnvelope"
               example:
                 success: true
                 message: vendor profile retrieved successfully
@@ -608,30 +571,30 @@ paths:
                   display_name: Toko Oleh-Oleh Haji Mabrur
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: "`vendor_id` pada context auth tidak tersedia atau tidak valid."
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid vendor ID in token
                 data: null
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak diberikan, tidak valid, atau sudah expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 missingHeader:
                   summary: Header Authorization tidak ada
@@ -649,30 +612,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '403':
+        "403":
           description: User tidak memiliki role yang diizinkan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Vendor atau owner user tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 vendorNotFound:
                   summary: Vendor tidak ditemukan
@@ -690,378 +653,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              example:
-                success: false
-                message: internal server error
-                data: null
-                errors: null
-                meta: null
-  /api/v1/vendors/bank-account:
-    post:
-      tags:
-        - Vendor Completion
-      summary: Simpan atau perbarui rekening bank vendor draft
-      description: |
-        Menyimpan data rekening bank vendor pada fase post-login completion.
-
-        **Aturan:**
-        - Memerlukan autentikasi JWT vendor dengan role `umkm`.
-        - Hanya vendor dengan status `draft` yang dapat menyimpan atau memperbarui rekening.
-        - Jika rekening sudah ada, data akan diperbarui dan status verifikasi rekening di-reset ke `pending`.
-        - Setelah rekening berhasil disimpan, backend akan mengevaluasi ulang kelengkapan completion. Jika seluruh dokumen wajib sudah lengkap, status vendor otomatis berubah menjadi `submitted`.
-      operationId: saveVendorBankAccount
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VendorSaveBankAccountRequest'
-            example:
-              bank_name: Bank Syariah Indonesia
-              account_number: "1234567890"
-              account_holder_name: Ahmad Subarkah
-      responses:
-        '200':
-          description: Rekening bank vendor berhasil disimpan.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessVendorSaveBankAccountEnvelope'
-              example:
-                success: true
-                message: vendor bank account saved successfully
-                data:
-                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  vendor_status: submitted
-                  bank_account:
-                    id: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
-                    vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    bank_name: Bank Syariah Indonesia
-                    account_number: "1234567890"
-                    account_holder_name: Ahmad Subarkah
-                    verification_status: pending
-                    rejection_reason: null
-                    verified_by: null
-                    verified_at: null
-                    created_at: "2026-03-13T08:00:00Z"
-                    updated_at: "2026-03-13T08:00:00Z"
-                errors: null
-                meta: null
-        '400':
-          description: Payload tidak valid atau status vendor tidak mengizinkan perubahan rekening.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
-          description: Token tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '403':
-          description: User tidak memiliki role umkm.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '404':
-          description: Vendor tidak ditemukan.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
-          description: Internal server error.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/v1/vendors/documents/presign:
-    post:
-      tags:
-        - Vendor Completion
-      summary: Buat presigned upload URL untuk dokumen completion vendor
-      description: |
-        Membuat presigned URL untuk upload dokumen post-login completion vendor.
-
-        **Aturan:**
-        - Memerlukan autentikasi JWT vendor dengan role `umkm`.
-        - Hanya vendor dengan status `draft` yang dapat meminta presigned URL.
-        - `doc_type` yang diizinkan: `store_photo`, `bank_account_proof`, `business_logo`, `business_banner`, `business_npwp`.
-      operationId: presignVendorCompletionDocument
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VendorDocumentPresignRequest'
-            example:
-              doc_type: store_photo
-      responses:
-        '200':
-          description: Presigned URL berhasil dibuat.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessVendorDocumentPresignEnvelope'
-              example:
-                success: true
-                message: vendor document presigned successfully
-                data:
-                  doc_type: store_photo
-                  upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/.../documents/store_photo/uuid?X-Amz-...
-                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/f1e2d3c4-b5a6-7890-abcd-ef1234567890
-                  expires_at: "2026-03-13T08:30:00Z"
-                errors: null
-                meta: null
-        '400':
-          description: Payload tidak valid atau status vendor tidak mengizinkan upload dokumen.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
-          description: Token tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '403':
-          description: User tidak memiliki role umkm.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '404':
-          description: Vendor tidak ditemukan.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
-          description: Internal server error.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-  /api/v1/vendors/documents/confirm:
-    post:
-      tags:
-        - Vendor Documents
-      summary: Konfirmasi upload dokumen completion vendor
-      description: |
-        Mengkonfirmasi bahwa dokumen completion vendor telah berhasil diupload ke storage.
-        Endpoint ini memverifikasi bahwa file benar-benar ada di S3, memeriksa ukuran dan MIME type,
-        lalu memperbarui status dokumen di database.
-
-        **Aturan:**
-        - Memerlukan autentikasi dengan JWT token (role `umkm`).
-        - Hanya vendor dengan status `draft` yang dapat memakai endpoint ini.
-        - Setiap dokumen divalidasi: file harus ada di S3, MIME type harus `image/jpeg`, `image/png`, `image/webp`, atau `application/pdf`.
-        - Ukuran file maksimum 5 MB per dokumen.
-        - Dokumen yang dapat dikonfirmasi melalui endpoint ini: `store_photo`, `bank_account_proof`, `business_logo`, `business_banner`, `business_npwp`.
-        - Status vendor akan berubah dari `draft` menjadi `submitted` jika:
-          - rekening bank vendor sudah tersimpan
-          - dokumen legal onboarding awal sudah lengkap:
-            - `owner_document_id` bila `business_legal_type = perorangan`
-            - `business_nib` bila `business_legal_type = korporasi`
-          - dokumen wajib `store_photo`, `bank_account_proof`, `business_logo`, dan `business_banner` sudah lengkap
-          - `business_npwp` juga sudah lengkap bila `business_legal_type = korporasi`
-        - Evaluasi status dilakukan setiap endpoint ini dipanggil, termasuk saat request hanya mengirim dokumen yang sudah pernah dikonfirmasi sebelumnya.
-
-        **Catatan:** dokumen legal onboarding awal (`owner_document_id` atau `business_nib`) dibuat saat onboarding dan tidak dipresign ulang dari endpoint ini.
-      operationId: confirmVendorDocuments
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ConfirmDocumentsRequest'
-            example:
-              documents:
-                - doc_type: store_photo
-                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/c4d5e6f7-a8b9-0123-def0-345678901234
-                - doc_type: bank_account_proof
-                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/bank_account_proof/d5e6f7a8-b9c0-1234-ef01-456789012345
-                - doc_type: business_logo
-                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_logo/e6f7a8b9-c0d1-2345-f012-567890123456
-                - doc_type: business_banner
-                  object_key: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_banner/f7a8b9c0-d1e2-3456-0123-678901234567
-      responses:
-        '200':
-          description: Dokumen berhasil dikonfirmasi.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessConfirmDocumentsEnvelope'
-              example:
-                success: true
-                message: documents confirmed successfully
-                data:
-                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  vendor_status: submitted
-                  documents_confirmed: 4
-                errors: null
-                meta: null
-        '400':
-          description: Request tidak valid (validasi gagal, tipe dokumen tidak didukung, file belum diupload, MIME type salah, ukuran file terlalu besar, atau status vendor tidak valid).
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                validationFailed:
-                  summary: Validasi payload gagal
-                  value:
-                    success: false
-                    message: validation failed
-                    data: null
-                    errors: "Key: 'ConfirmDocumentsRequest.Documents' Error:Field validation for 'Documents' failed on the 'required' tag"
-                    meta: null
-                invalidDocType:
-                  summary: Tipe dokumen tidak didukung endpoint completion
-                  value:
-                    success: false
-                    message: "invalid vendor document type: owner_document_id"
-                    data: null
-                    errors: null
-                    meta: null
-                objectNotUploaded:
-                  summary: File belum diupload ke S3
-                  value:
-                    success: false
-                    message: "object not found in storage: vendors/a1b2c3d4/documents/store_photo/uuid"
-                    data: null
-                    errors: null
-                    meta: null
-                invalidMimeType:
-                  summary: MIME type file tidak diizinkan
-                  value:
-                    success: false
-                    message: "invalid document content type: text/plain"
-                    data: null
-                    errors: null
-                    meta: null
-                fileTooLarge:
-                  summary: Ukuran file melebihi batas
-                  value:
-                    success: false
-                    message: "document file size exceeds supported limit: 10485760 bytes"
-                    data: null
-                    errors: null
-                    meta: null
-        '401':
-          description: Token tidak ada, format salah, atau token expired/invalid.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              example:
-                success: false
-                message: invalid or expired token
-                data: null
-                errors: null
-                meta: null
-        '403':
-          description: User tidak memiliki role umkm.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              example:
-                success: false
-                message: insufficient permissions
-                data: null
-                errors: null
-                meta: null
-        '404':
-          description: Vendor tidak ditemukan untuk user ini.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              example:
-                success: false
-                message: vendor not found
-                data: null
-                errors: null
-                meta: null
-        '500':
-          description: Internal server error.
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -1072,7 +672,7 @@ paths:
     get:
       tags:
         - Vendor Products
-      summary: Daftar produk vendor
+      summary: Get List Produk
       description: |
         Mengambil daftar paginasi dari semua produk milik vendor yang sedang login.
         Mendukung pencarian nama, filter status, dan pengurutan (sorting) berdasarkan nama, harga, stok, atau tanggal pembuatan.
@@ -1129,24 +729,24 @@ paths:
               - desc
             default: desc
       responses:
-        '200':
+        "200":
           description: Daftar produk berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/VendorProductListItem'
+                          $ref: "#/components/schemas/VendorProductListItem"
                       meta:
-                        $ref: '#/components/schemas/PaginationMeta'
+                        $ref: "#/components/schemas/PaginationMeta"
               example:
                 success: true
                 message: vendor products retrieved successfully
@@ -1171,29 +771,29 @@ paths:
                   limit: 10
                   total_items: 2
                   total_pages: 1
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
 
     post:
       tags:
         - Vendor Products
-      summary: Membuat produk baru
+      summary: Create Product
       description: |
         Membuat produk baru untuk vendor yang sedang login.
         Vendor harus berstatus `active` (sudah di-approve admin) untuk dapat membuat produk.
@@ -1225,7 +825,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateProductRequest'
+              $ref: "#/components/schemas/CreateProductRequest"
             example:
               name: Sajadah Premium Madinah
               category_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
@@ -1256,15 +856,15 @@ paths:
                   content_type: image/jpeg
                   is_primary: false
       responses:
-        '201':
+        "201":
           description: Produk berhasil dibuat. Response berisi data produk, varian, dan presigned upload URLs untuk gambar.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessCreateProductEnvelope'
+                $ref: "#/components/schemas/SuccessCreateProductEnvelope"
               example:
                 success: true
                 message: product created successfully
@@ -1328,15 +928,15 @@ paths:
                   created_at: "2026-02-13T10:30:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (validasi gagal, kategori tidak ditemukan, shipping service tidak valid, atau aturan gambar dilanggar).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 validationFailed:
                   summary: Validasi payload gagal
@@ -1394,30 +994,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: Vendor belum aktif atau user tidak memiliki role umkm.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 vendorNotActive:
                   summary: Vendor belum di-approve atau berstatus selain active
@@ -1435,15 +1035,307 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/vendors/products/{id}:
+    put:
+      tags:
+        - Vendor Products
+      summary: Edit Product
+      description: |
+        Memperbarui data produk milik vendor yang sedang login (full-replace PUT semantics).
+
+        **Alur gambar:**
+        - `keep_image_ids` — array UUID gambar lama yang ingin **dipertahankan**. Gambar yang tidak disertakan akan **dihapus**.
+        - `new_images` — gambar baru yang akan ditambahkan. Response berisi `new_upload_urls` (presigned URL) untuk upload ke S3.
+        - Setelah upload, panggil `/api/v1/vendors/products/{id}/images/confirm` untuk mengkonfirmasi gambar baru.
+
+        **Aturan:**
+        - Memerlukan autentikasi JWT dengan role `umkm`.
+        - Vendor harus berstatus `active`.
+        - Produk harus milik vendor yang sedang login.
+        - Default variant selalu diperbarui dari field `price`, `stock`, dan `weight_gram` di level atas (tidak melalui array `variants`).
+        - Pada array `variants`: varian dengan `id` = update varian yang ada; varian tanpa `id` = buat varian baru. Varian lama yang tidak disertakan akan **dinonaktifkan** (soft-delete — tidak dihapus permanen).
+        - Total gambar setelah update (dipertahankan + baru) tidak boleh melebihi **10**.
+        - Slug hanya di-regenerate jika nama produk berubah.
+        - `halal_ai_status` tidak di-reset saat update.
+        - Presigned URL berlaku selama **30 menit**.
+        - MIME gambar yang diizinkan: `image/jpeg`, `image/png`, `image/webp`.
+      operationId: updateProduct
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID produk (UUID).
+          schema:
+            type: string
+            format: uuid
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductRequest"
+            example:
+              name: Sajadah Premium Madinah — Edisi Revisi
+              category_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+              description: Sajadah premium kualitas terbaik langsung dari Madinah. Kini hadir dengan kemasan baru.
+              price: 165000
+              stock: 45
+              weight_gram: 520
+              is_active: true
+              variants:
+                - id: bb22cc33-dd44-ee55-ff66-778899001122
+                  variant_name: Merah
+                  price: 165000
+                  stock: 25
+                  weight_gram: 520
+                  is_active: true
+                - variant_name: Hijau
+                  price: 175000
+                  stock: 10
+                  weight_gram: 520
+                  is_active: true
+              keep_image_ids:
+                - dd44ee55-ff66-7788-9900-112233445566
+              new_images:
+                - file_name: sajadah-kemasan-baru.jpg
+                  content_type: image/jpeg
+                  is_primary: false
+      responses:
+        "200":
+          description: Produk berhasil diperbarui. Response berisi data produk terbaru beserta presigned URL untuk gambar baru (jika ada).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessUpdateProductEnvelope"
+              example:
+                success: true
+                message: product updated successfully
+                data:
+                  id: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  category_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                  name: Sajadah Premium Madinah — Edisi Revisi
+                  slug: sajadah-premium-madinah
+                  description: Sajadah premium kualitas terbaik langsung dari Madinah. Kini hadir dengan kemasan baru.
+                  status: published
+                  halal_ai_status: pending
+                  variants:
+                    - id: aa11bb22-cc33-dd44-ee55-ff6677889900
+                      sku: TOKOO-SAJAD000-00
+                      variant_name: Default
+                      price: 165000
+                      original_price: 165000
+                      promo_price: null
+                      has_promo: false
+                      currency: IDR
+                      stock_on_hand: 45
+                      weight_gram: 520
+                      is_default: true
+                      is_active: true
+                    - id: bb22cc33-dd44-ee55-ff66-778899001122
+                      sku: TOKOO-SAJAD000-01
+                      variant_name: Merah
+                      price: 165000
+                      original_price: 165000
+                      promo_price: null
+                      has_promo: false
+                      currency: IDR
+                      stock_on_hand: 25
+                      weight_gram: 520
+                      is_default: false
+                      is_active: true
+                    - id: ff99ee88-dd77-cc66-bb55-aa4433221100
+                      sku: TOKOO-SAJAD002-03
+                      variant_name: Hijau
+                      price: 175000
+                      original_price: 175000
+                      promo_price: null
+                      has_promo: false
+                      currency: IDR
+                      stock_on_hand: 10
+                      weight_gram: 520
+                      is_default: false
+                      is_active: true
+                  new_upload_urls:
+                    - image_id: ab12cd34-ef56-7890-abcd-ef1234567890
+                      upload_url: https://s3.ap-southeast-1.amazonaws.com/bucket/products/f1a2b3c4.../images/ab12cd34.../sajadah-kemasan-baru.jpg?X-Amz-...
+                      object_key: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/ab12cd34-ef56-7890-abcd-ef1234567890/sajadah-kemasan-baru.jpg
+                      sort_order: 1
+                      is_primary: false
+                  updated_at: "2026-03-30T08:00:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid (validasi gagal, kategori tidak ditemukan, varian tidak ditemukan, atau aturan gambar dilanggar).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'UpdateProductRequest.Name' Error:Field validation for 'Name' failed on the 'required' tag"
+                    meta: null
+                categoryNotFound:
+                  summary: Kategori tidak ditemukan atau tidak aktif
+                  value:
+                    success: false
+                    message: category not found
+                    data: null
+                    errors: null
+                    meta: null
+                tooManyImages:
+                  summary: Total gambar (dipertahankan + baru) melebihi batas maksimal 10
+                  value:
+                    success: false
+                    message: maximum 10 images per product
+                    data: null
+                    errors: null
+                    meta: null
+                duplicatePrimary:
+                  summary: Lebih dari satu gambar baru ditandai sebagai primary
+                  value:
+                    success: false
+                    message: only one image can be marked as primary
+                    data: null
+                    errors: null
+                    meta: null
+                noPrimary:
+                  summary: Tidak ada gambar primary setelah update
+                  value:
+                    success: false
+                    message: at least one image must be marked as primary
+                    data: null
+                    errors: null
+                    meta: null
+                imageNotFound:
+                  summary: UUID di keep_image_ids bukan milik produk ini
+                  value:
+                    success: false
+                    message: image not found for this product
+                    data: null
+                    errors: null
+                    meta: null
+                invalidProductId:
+                  summary: ID produk bukan UUID yang valid
+                  value:
+                    success: false
+                    message: invalid product ID
+                    data: null
+                    errors: id must be a valid UUID
+                    meta: null
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        "403":
+          description: Vendor belum aktif, produk bukan milik vendor ini, atau user tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                vendorNotActive:
+                  summary: Vendor belum di-approve atau berstatus selain active
+                  value:
+                    success: false
+                    message: vendor is not active
+                    data: null
+                    errors: null
+                    meta: null
+                productNotOwned:
+                  summary: Produk bukan milik vendor yang login
+                  value:
+                    success: false
+                    message: product does not belong to this vendor
+                    data: null
+                    errors: null
+                    meta: null
+                insufficientPermissions:
+                  summary: User tidak memiliki role umkm
+                  value:
+                    success: false
+                    message: insufficient permissions
+                    data: null
+                    errors: null
+                    meta: null
+        "404":
+          description: Produk atau varian tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                productNotFound:
+                  summary: Produk tidak ditemukan
+                  value:
+                    success: false
+                    message: product not found
+                    data: null
+                    errors: null
+                    meta: null
+                variantNotFound:
+                  summary: ID varian di array variants tidak ditemukan untuk produk ini
+                  value:
+                    success: false
+                    message: product variant not found
+                    data: null
+                    errors: null
+                    meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -1454,7 +1346,7 @@ paths:
     post:
       tags:
         - Vendor Products
-      summary: Konfirmasi upload gambar produk
+      summary: Konfirmasi Gambar Produk
       description: |
         Mengkonfirmasi bahwa gambar-gambar produk telah berhasil diupload ke S3 storage.
         Endpoint ini memverifikasi bahwa file benar-benar ada di S3 via HeadObject,
@@ -1482,7 +1374,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConfirmProductImagesRequest'
+              $ref: "#/components/schemas/ConfirmProductImagesRequest"
             example:
               images:
                 - image_id: dd44ee55-ff66-7788-9900-112233445566
@@ -1490,15 +1382,15 @@ paths:
                 - image_id: ee55ff66-7788-9900-1122-334455667788
                   object_key: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/ee55ff66-7788-9900-1122-334455667788/sajadah-belakang.jpg
       responses:
-        '200':
+        "200":
           description: Gambar berhasil dikonfirmasi.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessConfirmProductImagesEnvelope'
+                $ref: "#/components/schemas/SuccessConfirmProductImagesEnvelope"
               example:
                 success: true
                 message: images confirmed successfully
@@ -1507,15 +1399,15 @@ paths:
                   images_confirmed: 2
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (validasi gagal, gambar tidak ditemukan, file belum diupload, atau MIME type salah).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 validationFailed:
                   summary: Validasi payload gagal
@@ -1557,30 +1449,30 @@ paths:
                     data: null
                     errors: id must be a valid UUID
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: Produk bukan milik vendor ini atau user tidak memiliki role umkm.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 productNotOwned:
                   summary: Produk bukan milik vendor yang login
@@ -1598,23 +1490,87 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '404':
+        "404":
           description: Produk tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: product not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
+  /api/v1/vendors/vouchers:
+    get:
+      tags:
+        - Vendor Vouchers
+      summary: Daftar voucher vendor
+      description: Mengambil daftar voucher diskon milik vendor yang sedang login.
+      operationId: listVendorVouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: search
+          in: query
+          description: Filter berdasarkan kode/nama voucher (case-insensitive).
+          schema:
+            type: string
+        - name: is_active
+          in: query
+          description: Filter berdasarkan flag aktif voucher.
+          schema:
+            type: boolean
+        - name: product_id
+          in: query
+          description: Filter voucher yang terkait dengan product tertentu.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Daftar voucher berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorVoucherListEnvelope'
+        '400':
+          description: Query parameter tidak valid.
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestIDHeader'
@@ -1622,17 +1578,240 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
-              example:
-                success: false
-                message: internal server error
-                data: null
-                errors: null
-                meta: null
+        '401':
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags:
+        - Vendor Vouchers
+      summary: Buat voucher vendor
+      description: Membuat voucher diskon nominal yang berlaku untuk produk milik vendor.
+      operationId: createVendorVoucher
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVendorVoucherRequest'
+      responses:
+        '201':
+          description: Voucher berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorVoucherEnvelope'
+        '400':
+          description: Payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Kode voucher sudah dipakai di vendor ini.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /api/v1/vendors/vouchers/{id}:
+    get:
+      tags:
+        - Vendor Vouchers
+      summary: Detail voucher vendor
+      operationId: getVendorVoucher
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detail voucher berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorVoucherEnvelope'
+        '400':
+          description: ID voucher tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Voucher tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    patch:
+      tags:
+        - Vendor Vouchers
+      summary: Update voucher vendor
+      operationId: updateVendorVoucher
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVendorVoucherRequest'
+      responses:
+        '200':
+          description: Voucher berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessVendorVoucherEnvelope'
+        '400':
+          description: Payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Voucher tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Kode voucher sudah dipakai di vendor ini.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags:
+        - Vendor Vouchers
+      summary: Hapus voucher vendor
+      operationId: deleteVendorVoucher
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Voucher berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '400':
+          description: ID voucher tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Voucher tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestIDHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /api/v1/vendors/balance:
     get:
       tags:
         - Vendor Balance
-      summary: Lihat saldo vendor
+      summary: Get Balance
       description: |
         Menampilkan saldo terkini vendor yang sedang login.
 
@@ -1648,15 +1827,15 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Saldo vendor berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorBalanceEnvelope'
+                $ref: "#/components/schemas/SuccessVendorBalanceEnvelope"
               example:
                 success: true
                 message: vendor balance retrieved
@@ -1667,45 +1846,45 @@ paths:
                   total_withdrawn: 900000
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Saldo vendor belum diinisialisasi.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: vendor balance not found
                 data: null
                 errors: null
                 meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -1716,7 +1895,7 @@ paths:
     get:
       tags:
         - Vendor Balance
-      summary: Ambil daftar payout channel untuk withdrawal
+      summary: Get Payout Channels
       description: |
         Mengambil daftar channel payout dari Xendit untuk kebutuhan UI withdrawal vendor.
 
@@ -1730,15 +1909,15 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        '200':
+        "200":
           description: Daftar payout channel berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorPayoutChannelsEnvelope'
+                $ref: "#/components/schemas/SuccessVendorPayoutChannelsEnvelope"
               example:
                 success: true
                 message: payout channels retrieved successfully
@@ -1754,45 +1933,45 @@ paths:
                       channel_category: BANK
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: User bukan role vendor (`umkm`) atau vendor tidak aktif.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: vendor is not active
                 data: null
                 errors: null
                 meta: null
-        '502':
+        "502":
           description: Gagal mengambil daftar payout channel dari Xendit.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: payout channels unavailable
@@ -1803,7 +1982,7 @@ paths:
     post:
       tags:
         - Vendor Balance
-      summary: Request penarikan saldo ke rekening bank
+      summary: Withdraw Balance
       description: |
         Menginisiasi penarikan saldo vendor ke rekening bank yang terdaftar melalui Xendit Payout API.
 
@@ -1830,20 +2009,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VendorWithdrawRequest'
+              $ref: "#/components/schemas/VendorWithdrawRequest"
             example:
               amount: 100000
               channel_code: ID_BCA
       responses:
-        '200':
+        "200":
           description: Penarikan berhasil disubmit ke Xendit.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorWithdrawEnvelope'
+                $ref: "#/components/schemas/SuccessVendorWithdrawEnvelope"
               example:
                 success: true
                 message: withdrawal request submitted successfully
@@ -1856,15 +2035,15 @@ paths:
                   channel_code: ID_BCA
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (validasi gagal, channel code tidak valid, saldo tidak cukup, atau di bawah minimum).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 validationFailed:
                   summary: Validasi payload gagal
@@ -1898,30 +2077,30 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '401':
+        "401":
           description: Token tidak ada, format salah, atau token expired/invalid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid or expired token
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: Vendor tidak aktif atau user bukan vendor.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 vendorNotActive:
                   summary: Vendor belum aktif
@@ -1931,15 +2110,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '404':
+        "404":
           description: Vendor, user pemilik vendor, rekening bank vendor, atau saldo vendor tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 bankNotFound:
                   summary: Rekening bank vendor tidak ditemukan
@@ -1973,15 +2152,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '502':
+        "502":
           description: Vendor belum terhubung ke akun Xendit atau gagal memanggil Xendit Payout API.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 noXenditAccount:
                   summary: Vendor belum memiliki Xendit account
@@ -1999,15 +2178,15 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '500':
+        "500":
           description: Internal server error.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: internal server error
@@ -2018,7 +2197,7 @@ paths:
     post:
       tags:
         - Xendit Webhook
-      summary: Webhook notifikasi status payout Xendit
+      summary: Xendit Payout Webhook Callback
       description: |
         Endpoint callback dari Xendit untuk update status payout vendor withdrawal.
 
@@ -2041,7 +2220,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/XenditPayoutWebhookPayload'
+              $ref: "#/components/schemas/XenditPayoutWebhookPayload"
             example:
               business_id: 62c589ea1f995274c6fd8f47
               event: payout.succeeded
@@ -2053,18 +2232,18 @@ paths:
                 status: SUCCEEDED
                 channel_code: ID_BCA
                 failure_code: ""
-                created: '2024-09-01T07:50:46.013124437Z'
-                updated: '2024-09-01T07:52:10.012531923Z'
+                created: "2024-09-01T07:50:46.013124437Z"
+                updated: "2024-09-01T07:52:10.012531923Z"
       responses:
-        '200':
+        "200":
           description: Webhook diterima dan diproses (termasuk no-op/idempotent).
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/XenditWebhookResponse'
+                $ref: "#/components/schemas/XenditWebhookResponse"
               examples:
                 processed:
                   summary: Berhasil diproses
@@ -2075,28 +2254,65 @@ paths:
                   value:
                     message: webhook received with errors
                     error: failed to apply payout webhook update
-        '400':
+        "400":
           description: Payload tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/XenditWebhookResponse'
+                $ref: "#/components/schemas/XenditWebhookResponse"
               example:
                 message: invalid payload
-        '401':
+        "401":
           description: Callback token tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/XenditWebhookResponse'
+                $ref: "#/components/schemas/XenditWebhookResponse"
               example:
                 message: invalid callback token
+  /api/v1/vendors/register/status:
+    get:
+      tags:
+        - Vendor Registration
+      summary: Get Vendor Onboarding Status
+      description: Mengambil status draft onboarding vendor berdasarkan onboarding JWT yang dikirim di header `Authorization`.
+      operationId: getVendorRegistrationStatus
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Status onboarding berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessVendorOnboardingStatusEnvelope"
+        "401":
+          description: Onboarding JWT tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Draft onboarding tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 components:
   securitySchemes:
     BearerAuth:
@@ -2485,6 +2701,150 @@ components:
           type: string
           description: Nama toko yang ditampilkan.
           example: Toko Oleh-Oleh Haji Mabrur
+    SuccessVendorRegisterOTPEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: OTP sent successfully
+        data:
+          $ref: "#/components/schemas/VendorRegisterOTPResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorVerifyRegistrationOTPEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: OTP verified successfully
+        data:
+          $ref: "#/components/schemas/VendorVerifyRegistrationOTPResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorOnboardingStatusEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: onboarding status retrieved
+        data:
+          $ref: "#/components/schemas/VendorOnboardingStatusResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorOnboardingProgressEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: password saved successfully
+        data:
+          $ref: "#/components/schemas/VendorOnboardingProgressResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorRegistrationIndividualPresignEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: presigned URL created successfully
+        data:
+          $ref: "#/components/schemas/VendorRegistrationPresignDocumentResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorRegistrationCorporatePresignEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: presigned URL created successfully
+        data:
+          $ref: "#/components/schemas/VendorRegistrationPresignDocumentResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorLoginEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: login successful
+        data:
+          $ref: "#/components/schemas/VendorLoginResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorProfileEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor profile retrieved successfully
+        data:
+          $ref: "#/components/schemas/VendorProfileResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
     VendorBankAccount:
       type: object
       required:
@@ -2541,347 +2901,6 @@ components:
         updated_at:
           type: string
           format: date-time
-    VendorSaveBankAccountRequest:
-      type: object
-      required:
-        - bank_name
-        - account_number
-        - account_holder_name
-      properties:
-        bank_name:
-          type: string
-          maxLength: 120
-          example: Bank Syariah Indonesia
-        account_number:
-          type: string
-          maxLength: 64
-          example: "1234567890"
-        account_holder_name:
-          type: string
-          maxLength: 120
-          example: Ahmad Subarkah
-    VendorSaveBankAccountResponse:
-      type: object
-      required:
-        - vendor_id
-        - vendor_status
-        - bank_account
-      properties:
-        vendor_id:
-          type: string
-          format: uuid
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        vendor_status:
-          type: string
-          enum:
-            - draft
-            - submitted
-            - active
-            - rejected
-            - blocked
-          example: draft
-        bank_account:
-          $ref: '#/components/schemas/VendorBankAccount'
-    VendorDocumentPresignRequest:
-      type: object
-      required:
-        - doc_type
-      properties:
-        doc_type:
-          type: string
-          enum:
-            - store_photo
-            - bank_account_proof
-            - business_logo
-            - business_banner
-            - business_npwp
-          example: store_photo
-    VendorDocumentPresignResponse:
-      type: object
-      required:
-        - doc_type
-        - upload_url
-        - object_key
-        - expires_at
-      properties:
-        doc_type:
-          type: string
-          enum:
-            - store_photo
-            - bank_account_proof
-            - business_logo
-            - business_banner
-            - business_npwp
-          example: store_photo
-        upload_url:
-          type: string
-          format: uri
-        object_key:
-          type: string
-          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/f1e2d3c4-b5a6-7890-abcd-ef1234567890
-        expires_at:
-          type: string
-          format: date-time
-    PresignedUploadInfo:
-      type: object
-      required:
-        - doc_type
-        - upload_url
-        - object_key
-      properties:
-        doc_type:
-          type: string
-          description: Jenis dokumen.
-          enum:
-            - owner_document_id
-            - business_npwp
-            - store_photo
-            - bank_account_proof
-            - business_logo
-            - business_banner
-          example: owner_document_id
-        upload_url:
-          type: string
-          format: uri
-          description: |
-            Presigned URL untuk upload file langsung ke S3 via HTTP PUT.
-            Berlaku selama 30 menit. Gunakan `Content-Type` sesuai MIME file yang diunggah.
-            MIME yang diizinkan: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`.
-          example: https://s3.ap-southeast-1.amazonaws.com/bucket/vendors/.../documents/owner_document_id/uuid?X-Amz-...
-        object_key:
-          type: string
-          description: Object key di S3 storage. Simpan key ini untuk referensi saat mengkonfirmasi upload dokumen.
-          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/f1e2d3c4-b5a6-7890-abcd-ef1234567890
-    SuccessVendorRegisterOTPEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor registration otp sent
-        data:
-          $ref: '#/components/schemas/VendorRegisterOTPResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorVerifyRegistrationOTPEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor registration otp verified
-        data:
-          $ref: '#/components/schemas/VendorVerifyRegistrationOTPResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorOnboardingProgressEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor registration progress saved
-        data:
-          $ref: '#/components/schemas/VendorOnboardingProgressResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorOnboardingStatusEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor registration status retrieved
-        data:
-          $ref: '#/components/schemas/VendorOnboardingStatusResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorRegistrationIndividualPresignEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor registration individual document presigned
-        data:
-          $ref: '#/components/schemas/VendorRegistrationPresignDocumentResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorRegistrationCorporatePresignEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor registration corporate document presigned
-        data:
-          $ref: '#/components/schemas/VendorRegistrationPresignDocumentResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorLoginEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: login successful
-        data:
-          $ref: '#/components/schemas/VendorLoginResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorProfileEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor profile retrieved successfully
-        data:
-          $ref: '#/components/schemas/VendorProfileResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorSaveBankAccountEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor bank account saved successfully
-        data:
-          $ref: '#/components/schemas/VendorSaveBankAccountResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorDocumentPresignEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: vendor document presigned successfully
-        data:
-          $ref: '#/components/schemas/VendorDocumentPresignResponse'
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
     ErrorEnvelope:
       type: object
       required:
@@ -2903,83 +2922,6 @@ components:
         errors:
           nullable: true
           description: Detail error atau pesan validasi.
-        meta:
-          nullable: true
-          example: null
-    ConfirmDocumentItem:
-      type: object
-      required:
-        - doc_type
-        - object_key
-      properties:
-        doc_type:
-          type: string
-          description: Tipe dokumen completion yang dikonfirmasi.
-          enum:
-            - store_photo
-            - bank_account_proof
-            - business_logo
-            - business_banner
-            - business_npwp
-          example: store_photo
-        object_key:
-          type: string
-          description: Object key di S3 yang didapat dari response `POST /api/v1/vendors/documents/presign`.
-          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/store_photo/f1e2d3c4-b5a6-7890-abcd-ef1234567890
-    ConfirmDocumentsRequest:
-      type: object
-      required:
-        - documents
-      properties:
-        documents:
-          type: array
-          minItems: 1
-          description: Daftar dokumen yang akan dikonfirmasi.
-          items:
-            $ref: '#/components/schemas/ConfirmDocumentItem'
-    ConfirmDocumentsResponse:
-      type: object
-      required:
-        - vendor_id
-        - vendor_status
-        - documents_confirmed
-      properties:
-        vendor_id:
-          type: string
-          format: uuid
-          description: ID vendor.
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        vendor_status:
-          type: string
-          description: Status vendor setelah konfirmasi. Berubah ke `submitted` jika rekening bank sudah ada dan semua dokumen wajib completion telah lengkap.
-          enum:
-            - draft
-            - submitted
-          example: submitted
-        documents_confirmed:
-          type: integer
-          description: Jumlah dokumen yang berhasil dikonfirmasi.
-          example: 3
-    SuccessConfirmDocumentsEnvelope:
-      type: object
-      required:
-        - success
-        - message
-        - data
-        - errors
-        - meta
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: documents confirmed successfully
-        data:
-          $ref: '#/components/schemas/ConfirmDocumentsResponse'
-        errors:
-          nullable: true
-          example: null
         meta:
           nullable: true
           example: null
@@ -3108,7 +3050,7 @@ components:
             dari field `price`, `stock`, dan `weight_gram` di level atas.
             Varian di sini adalah varian tambahan selain default.
           items:
-            $ref: '#/components/schemas/CreateProductVariantInput'
+            $ref: "#/components/schemas/CreateProductVariantInput"
         images:
           type: array
           minItems: 1
@@ -3118,7 +3060,7 @@ components:
             Tepat 1 gambar harus ditandai sebagai `is_primary: true`.
             Response akan berisi presigned upload URL untuk setiap gambar.
           items:
-            $ref: '#/components/schemas/CreateProductImageInput'
+            $ref: "#/components/schemas/CreateProductImageInput"
     ProductImageUploadInfo:
       type: object
       required:
@@ -3280,18 +3222,230 @@ components:
           type: array
           description: Daftar semua varian produk (termasuk default variant).
           items:
-            $ref: '#/components/schemas/ProductVariantResponse'
+            $ref: "#/components/schemas/ProductVariantResponse"
         upload_urls:
           type: array
           nullable: true
           description: Daftar presigned upload URL untuk gambar produk. Null jika tidak ada gambar.
           items:
-            $ref: '#/components/schemas/ProductImageUploadInfo'
+            $ref: "#/components/schemas/ProductImageUploadInfo"
         created_at:
           type: string
           format: date-time
           description: Waktu pembuatan produk.
           example: "2026-02-13T10:30:00Z"
+    UpdateProductVariantInput:
+      type: object
+      required:
+        - variant_name
+        - price
+      properties:
+        id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            ID varian yang sudah ada. Jika disertakan, varian akan diperbarui.
+            Jika tidak disertakan, varian baru akan dibuat.
+          example: bb22cc33-dd44-ee55-ff66-778899001122
+        variant_name:
+          type: string
+          maxLength: 120
+          description: Nama varian produk.
+          example: Merah
+        price:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Harga varian dalam Rupiah (IDR). Harus lebih besar dari 0.
+          example: 165000
+        stock:
+          type: integer
+          minimum: 0
+          description: Jumlah stok tersedia untuk varian ini.
+          default: 0
+          example: 25
+        weight_gram:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Berat varian dalam gram (opsional).
+          example: 520
+        is_active:
+          type: boolean
+          description: Status aktif varian.
+          default: false
+          example: true
+    UpdateProductRequest:
+      type: object
+      required:
+        - name
+        - category_id
+        - description
+        - price
+      properties:
+        name:
+          type: string
+          maxLength: 180
+          description: Nama produk.
+          example: Sajadah Premium Madinah — Edisi Revisi
+        category_id:
+          type: string
+          format: uuid
+          description: ID kategori produk. Harus kategori yang aktif.
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        description:
+          type: string
+          description: Deskripsi lengkap produk.
+          example: Sajadah premium kualitas terbaik langsung dari Madinah. Kini hadir dengan kemasan baru.
+        price:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Harga baru default variant dalam Rupiah (IDR).
+          example: 165000
+        stock:
+          type: integer
+          minimum: 0
+          description: Stok baru default variant.
+          default: 0
+          example: 45
+        weight_gram:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Berat baru default variant dalam gram (opsional).
+          example: 520
+        is_active:
+          type: boolean
+          description: |
+            Toggle untuk mengaktifkan produk.
+            - `true` → status produk menjadi `published`.
+            - `false` → status produk menjadi `draft`.
+          default: false
+          example: true
+        variants:
+          type: array
+          maxItems: 20
+          description: |
+            Daftar varian tambahan (non-default). Varian dengan `id` diperbarui; tanpa `id` dibuat baru.
+            Varian lama yang tidak disertakan akan **dinonaktifkan** (bukan dihapus permanen).
+          items:
+            $ref: "#/components/schemas/UpdateProductVariantInput"
+        keep_image_ids:
+          type: array
+          description: |
+            Daftar UUID gambar lama yang ingin dipertahankan.
+            Gambar yang tidak ada di list ini akan **dihapus**.
+            Kosongkan atau hilangkan field ini untuk menghapus semua gambar lama.
+          items:
+            type: string
+            format: uuid
+          example:
+            - dd44ee55-ff66-7788-9900-112233445566
+        new_images:
+          type: array
+          maxItems: 10
+          description: |
+            Daftar gambar baru yang akan ditambahkan (opsional, maksimal 10 total setelah update).
+            Response akan berisi `new_upload_urls` dengan presigned URL untuk setiap gambar baru.
+          items:
+            $ref: "#/components/schemas/CreateProductImageInput"
+    UpdateProductResponse:
+      type: object
+      required:
+        - id
+        - vendor_id
+        - category_id
+        - name
+        - slug
+        - description
+        - status
+        - halal_ai_status
+        - variants
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID produk.
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor pemilik produk.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        category_id:
+          type: string
+          format: uuid
+          description: ID kategori produk.
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        name:
+          type: string
+          description: Nama produk setelah diperbarui.
+          example: Sajadah Premium Madinah — Edisi Revisi
+        slug:
+          type: string
+          description: URL-friendly slug. Hanya berubah jika nama produk berubah.
+          example: sajadah-premium-madinah
+        description:
+          type: string
+          description: Deskripsi produk setelah diperbarui.
+          example: Sajadah premium kualitas terbaik langsung dari Madinah. Kini hadir dengan kemasan baru.
+        status:
+          type: string
+          description: Status produk setelah diperbarui.
+          enum:
+            - draft
+            - published
+          example: published
+        halal_ai_status:
+          type: string
+          description: Status verifikasi AI halal (tidak di-reset saat update).
+          enum:
+            - pending
+            - passed
+            - failed
+          example: pending
+        variants:
+          type: array
+          description: Daftar semua varian produk aktif setelah update (termasuk default variant).
+          items:
+            $ref: "#/components/schemas/ProductVariantResponse"
+        new_upload_urls:
+          type: array
+          nullable: true
+          description: Presigned URL untuk gambar baru. Null jika tidak ada gambar baru ditambahkan.
+          items:
+            $ref: "#/components/schemas/ProductImageUploadInfo"
+        updated_at:
+          type: string
+          format: date-time
+          description: Waktu terakhir produk diperbarui.
+          example: "2026-03-30T08:00:00Z"
+    SuccessUpdateProductEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: product updated successfully
+        data:
+          $ref: "#/components/schemas/UpdateProductResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
     ConfirmProductImageItem:
       type: object
       required:
@@ -3317,7 +3471,7 @@ components:
           minItems: 1
           description: Daftar gambar yang akan dikonfirmasi.
           items:
-            $ref: '#/components/schemas/ConfirmProductImageItem'
+            $ref: "#/components/schemas/ConfirmProductImageItem"
     ConfirmProductImagesResponse:
       type: object
       required:
@@ -3349,7 +3503,7 @@ components:
           type: string
           example: product created successfully
         data:
-          $ref: '#/components/schemas/CreateProductResponse'
+          $ref: "#/components/schemas/CreateProductResponse"
         errors:
           nullable: true
           example: null
@@ -3372,7 +3526,7 @@ components:
           type: string
           example: images confirmed successfully
         data:
-          $ref: '#/components/schemas/ConfirmProductImagesResponse'
+          $ref: "#/components/schemas/ConfirmProductImagesResponse"
         errors:
           nullable: true
           example: null
@@ -3435,7 +3589,7 @@ components:
         channels:
           type: array
           items:
-            $ref: '#/components/schemas/VendorPayoutChannel'
+            $ref: "#/components/schemas/VendorPayoutChannel"
     VendorWithdrawRequest:
       type: object
       required:
@@ -3511,7 +3665,7 @@ components:
           type: string
           example: vendor balance retrieved
         data:
-          $ref: '#/components/schemas/VendorBalanceResponse'
+          $ref: "#/components/schemas/VendorBalanceResponse"
         errors:
           nullable: true
           example: null
@@ -3534,7 +3688,7 @@ components:
           type: string
           example: payout channels retrieved successfully
         data:
-          $ref: '#/components/schemas/VendorPayoutChannelsResponse'
+          $ref: "#/components/schemas/VendorPayoutChannelsResponse"
         errors:
           nullable: true
           example: null
@@ -3557,7 +3711,7 @@ components:
           type: string
           example: withdrawal request submitted successfully
         data:
-          $ref: '#/components/schemas/VendorWithdrawResponse'
+          $ref: "#/components/schemas/VendorWithdrawResponse"
         errors:
           nullable: true
           example: null
@@ -3623,7 +3777,7 @@ components:
             - payout.reversed
           example: payout.succeeded
         data:
-          $ref: '#/components/schemas/XenditPayoutWebhookData'
+          $ref: "#/components/schemas/XenditPayoutWebhookData"
     XenditWebhookResponse:
       type: object
       required:
@@ -3636,6 +3790,237 @@ components:
           type: string
           nullable: true
           example: failed to apply payout webhook update
+
+    CreateVendorVoucherRequest:
+      type: object
+      required:
+        - code
+        - name
+        - discount_amount
+        - quota_total
+        - starts_at
+        - ends_at
+        - product_ids
+      properties:
+        code:
+          type: string
+          maxLength: 50
+          example: RAMADAN2026
+        name:
+          type: string
+          maxLength: 120
+          example: Voucher Ramadhan
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+          example: Diskon spesial ramadhan untuk item tertentu.
+        discount_amount:
+          type: number
+          format: double
+          minimum: 0.01
+          description: Nominal potongan per item (IDR).
+          example: 25000
+        quota_total:
+          type: integer
+          minimum: 1
+          example: 100
+        starts_at:
+          type: string
+          format: date-time
+          example: "2026-04-01T00:00:00Z"
+        ends_at:
+          type: string
+          format: date-time
+          example: "2026-04-30T23:59:59Z"
+        is_active:
+          type: boolean
+          default: true
+          example: true
+        product_ids:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+          example:
+            - 11f407cd-01ce-4a82-9419-edefc95489e4
+            - e8d5d25b-febe-4d8f-ab59-df88a0f9c0bb
+
+    UpdateVendorVoucherRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 50
+          example: LEBARAN2026
+        name:
+          type: string
+          maxLength: 120
+          example: Voucher Lebaran
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+          example: Voucher update deskripsi.
+        discount_amount:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 30000
+        quota_total:
+          type: integer
+          minimum: 1
+          example: 150
+        starts_at:
+          type: string
+          format: date-time
+          example: "2026-04-05T00:00:00Z"
+        ends_at:
+          type: string
+          format: date-time
+          example: "2026-05-05T23:59:59Z"
+        is_active:
+          type: boolean
+          example: true
+        product_ids:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+          example:
+            - 11f407cd-01ce-4a82-9419-edefc95489e4
+
+    VendorVoucherResponse:
+      type: object
+      required:
+        - id
+        - vendor_id
+        - code
+        - name
+        - discount_amount
+        - quota_total
+        - quota_used
+        - quota_remaining
+        - starts_at
+        - ends_at
+        - is_active
+        - is_currently_active
+        - product_ids
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: d6b36f08-47eb-45ac-b891-60a396536f13
+        vendor_id:
+          type: string
+          format: uuid
+          example: 384d442b-29d2-4c69-a20b-c861b03523ba
+        code:
+          type: string
+          example: RAMADAN2026
+        name:
+          type: string
+          example: Voucher Ramadhan
+        description:
+          type: string
+          nullable: true
+          example: Diskon spesial ramadhan untuk item tertentu.
+        discount_amount:
+          type: number
+          format: double
+          example: 25000
+        quota_total:
+          type: integer
+          example: 100
+        quota_used:
+          type: integer
+          example: 12
+        quota_remaining:
+          type: integer
+          example: 88
+        starts_at:
+          type: string
+          format: date-time
+          example: "2026-04-01T00:00:00Z"
+        ends_at:
+          type: string
+          format: date-time
+          example: "2026-04-30T23:59:59Z"
+        is_active:
+          type: boolean
+          example: true
+        is_currently_active:
+          type: boolean
+          example: true
+        product_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          example:
+            - 11f407cd-01ce-4a82-9419-edefc95489e4
+            - e8d5d25b-febe-4d8f-ab59-df88a0f9c0bb
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-27T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-27T09:00:00Z"
+
+    SuccessVendorVoucherEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: voucher retrieved successfully
+        data:
+          $ref: '#/components/schemas/VendorVoucherResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessVendorVoucherListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor vouchers retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/VendorVoucherResponse'
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
 
     VendorProductListItem:
       type: object

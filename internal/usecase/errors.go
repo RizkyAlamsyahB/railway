@@ -243,6 +243,17 @@ var (
 	ErrVendorBannerImageNotUploaded   = errors.New("vendor banner image not found in storage; upload it first")
 )
 
+// --- Vendor Voucher errors ---
+
+var (
+	ErrVoucherNotFound         = errors.New("voucher not found")
+	ErrVoucherCodeExists       = errors.New("voucher code already exists")
+	ErrInvalidVoucherCode      = errors.New("invalid voucher code")
+	ErrInvalidVoucherPeriod    = errors.New("invalid voucher period: ends_at must be after or equal to starts_at")
+	ErrInvalidVoucherQuota     = errors.New("invalid voucher quota")
+	ErrVoucherProductsRequired = errors.New("voucher must be assigned to at least one product")
+)
+
 // --- Address errors ---
 
 var (
@@ -274,4 +285,5 @@ var (
 	ErrTrackingNumberRequired       = errors.New("tracking number is required")
 	ErrShipmentNotFound             = errors.New("shipment not found for this order")
 	ErrTrackingFailed               = errors.New("failed to track waybill")
+	ErrInvalidOrderCancelTransition = errors.New("order can only be canceled when status is pending_payment, paid, or processing")
 )

@@ -199,12 +199,12 @@
       <div class="grid">
         <div class="field full">
           <label for="baseUrl">Base URL API</label>
-          <input id="baseUrl" type="text" value="https://rizkyalamsyah.my.id" />
+          <input id="baseUrl" type="text" value="http://localhost:8080" />
         </div>
       </div>
       <p class="hint" id="endpointInfo"></p>
       <div class="row-actions">
-        <button id="btnLoadCatalog" class="secondary">Load Categories & Shipping Services</button>
+        <button id="btnLoadCatalog" class="secondary">Load Categories</button>
       </div>
     </div>
 
@@ -270,14 +270,7 @@
             <option value="true">true (published)</option>
           </select>
         </div>
-        <div class="field full">
-          <label>shipping_service_ids * (minimal 1)</label>
-          <div class="checks" id="shippingChecks"></div>
-        </div>
-        <div class="field full">
-          <label for="shippingManual">Manual shipping_service_ids (comma separated UUID, override jika diisi)</label>
-          <input id="shippingManual" placeholder="uuid-1,uuid-2" />
-        </div>
+
       </div>
 
       <h3>Variants (Optional)</h3>
@@ -375,7 +368,6 @@
   <script>
     const state = {
       categories: [],
-      shippingServices: [],
       variantRows: [],
       imageRows: [],
       uploadRows: [],
@@ -410,8 +402,7 @@
         "Login: " + endpoint("/api/v1/vendors/login") +
         " | Create: " + endpoint("/api/v1/vendors/products") +
         " | Confirm: " + endpoint("/api/v1/vendors/products/{id}/images/confirm") +
-        " | Categories: " + endpoint("/api/v1/categories") +
-        " | Shipping: " + endpoint("/api/v1/shipping-services");
+        " | Categories: " + endpoint("/api/v1/categories");
     }
 
     async function parseBody(res) {
@@ -453,24 +444,7 @@
       });
     }
 
-    function renderShippingChecks() {
-      const wrap = document.getElementById("shippingChecks");
-      wrap.innerHTML = "";
 
-      if (state.shippingServices.length === 0) {
-        wrap.innerHTML = '<span class="hint">Belum ada data. Klik Load Catalog.</span>';
-        return;
-      }
-
-      state.shippingServices.forEach(function(svc, idx) {
-        const id = "ship_" + idx;
-        const row = document.createElement("label");
-        row.innerHTML = '<input id="' + id + '" type="checkbox" value="' + svc.id + '">' +
-          '<span>' + svc.name + '</span>' +
-          '<span class="inline-muted">(' + svc.code + ')</span>';
-        wrap.appendChild(row);
-      });
-    }
 
     function addVariantRow(seed) {
       state.variantRows.push({
@@ -586,21 +560,6 @@
       });
     }
 
-    function collectSelectedShippingIDs() {
-      const manual = document.getElementById("shippingManual").value.trim();
-      if (manual) {
-        return manual.split(",").map(function(v) { return v.trim(); }).filter(Boolean);
-      }
-
-      const checked = [];
-      const wrap = document.getElementById("shippingChecks");
-      const boxes = wrap.querySelectorAll('input[type="checkbox"]');
-      boxes.forEach(function(box) {
-        if (box.checked) checked.push(box.value);
-      });
-      return checked;
-    }
-
     function collectVariantsPayload() {
       return state.variantRows
         .map(function(v) {
@@ -654,7 +613,6 @@
         stock: Math.trunc(parseNumber(stockRaw, 0)),
         weight_gram: weight,
         is_active: document.getElementById("isActive").value === "true",
-        shipping_service_ids: collectSelectedShippingIDs(),
         variants: variants,
         images: imagesWithFile.map(function(i) {
           return {
@@ -682,9 +640,6 @@
       if (!payload.category_id) return "category_id wajib diisi";
       if (!payload.description) return "description wajib diisi";
       if (!Number.isFinite(payload.price) || payload.price <= 0) return "price harus > 0";
-      if (!Array.isArray(payload.shipping_service_ids) || payload.shipping_service_ids.length < 1) {
-        return "minimal 1 shipping_service_id wajib dipilih";
-      }
 
       if (payload.images && payload.images.length > 10) {
         return "maksimal 10 images";
@@ -720,17 +675,11 @@
 
     async function loadCatalog() {
       const categoryURL = endpoint("/api/v1/categories");
-      const shippingURL = endpoint("/api/v1/shipping-services");
-      log({ request: "load_catalog", categories_url: categoryURL, shipping_url: shippingURL });
+      log({ request: "load_catalog", categories_url: categoryURL });
 
       try {
-        const [catRes, shipRes] = await Promise.all([
-          fetch(categoryURL),
-          fetch(shippingURL)
-        ]);
-
+        const catRes = await fetch(categoryURL);
         const catBody = await parseBody(catRes);
-        const shipBody = await parseBody(shipRes);
 
         log({
           response: "load_categories",
@@ -739,24 +688,15 @@
           body: catBody
         });
 
-        log({
-          response: "load_shipping_services",
-          status: shipRes.status,
-          request_id: shipRes.headers.get("X-Request-ID"),
-          body: shipBody
-        });
-
-        if (!catRes.ok || !shipRes.ok) {
-          alert("Load catalog gagal. Cek Log & Debug.");
+        if (!catRes.ok) {
+          alert("Load categories gagal. Cek Log & Debug.");
           return;
         }
 
         state.categories = Array.isArray(catBody && catBody.data) ? catBody.data : [];
-        state.shippingServices = Array.isArray(shipBody && shipBody.data) ? shipBody.data : [];
         renderCategoryOptions();
-        renderShippingChecks();
         refreshCreatePayloadPreview();
-        alert("Catalog berhasil dimuat.");
+        alert("Categories berhasil dimuat.");
       } catch (err) {
         log({ response: "load_catalog", error: String(err) });
         alert("Load catalog error. Cek Log & Debug.");
@@ -1059,15 +999,13 @@
     function wireAutoPreviewUpdates() {
       [
         "productName", "categorySelect", "categoryManual", "description",
-        "price", "stock", "weightGram", "isActive", "shippingManual"
+        "price", "stock", "weightGram", "isActive"
       ].forEach(function(id) {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener("input", refreshCreatePayloadPreview);
         el.addEventListener("change", refreshCreatePayloadPreview);
       });
-
-      document.getElementById("shippingChecks").addEventListener("change", refreshCreatePayloadPreview);
     }
 
     document.getElementById("baseUrl").addEventListener("input", refreshEndpointInfo);

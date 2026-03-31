@@ -40,7 +40,99 @@ func (h *OrderActionHandler) Complete(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "order marked as received", res)
+	response.OK(c, "order completed successfully", res)
+}
+
+// Cancel handles POST /api/v1/users/orders/:orderId/cancel.
+func (h *OrderActionHandler) Cancel(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("orderId"))
+	if err != nil {
+		response.BadRequest(c, "invalid order ID", "orderId must be a valid UUID")
+		return
+	}
+
+	res, err := h.useCase.CancelByCustomer(c.Request.Context(), userID, orderID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "order canceled successfully", res)
+}
+
+// GetOrderDetail handles GET /api/v1/users/orders/:orderId.
+func (h *OrderActionHandler) GetOrderDetail(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("orderId"))
+	if err != nil {
+		response.BadRequest(c, "invalid order ID", "orderId must be a valid UUID")
+		return
+	}
+
+	res, err := h.useCase.GetOrderDetail(c.Request.Context(), userID, orderID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "order detail retrieved successfully", res)
+}
+
+// GetOrderShippingInfo handles GET /api/v1/users/orders/:orderId/shipping.
+func (h *OrderActionHandler) GetOrderShippingInfo(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("orderId"))
+	if err != nil {
+		response.BadRequest(c, "invalid order ID", "orderId must be a valid UUID")
+		return
+	}
+
+	res, err := h.useCase.GetOrderShippingInfo(c.Request.Context(), userID, orderID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "shipping info retrieved successfully", res)
+}
+
+// GetOrderInvoice handles GET /api/v1/users/orders/:orderId/invoice.
+func (h *OrderActionHandler) GetOrderInvoice(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("orderId"))
+	if err != nil {
+		response.BadRequest(c, "invalid order ID", "orderId must be a valid UUID")
+		return
+	}
+
+	res, err := h.useCase.GetOrderInvoice(c.Request.Context(), userID, orderID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "order invoice retrieved successfully", res)
 }
 
 // ListOrders handles GET /api/v1/users/orders.

@@ -201,6 +201,14 @@ var errorRules = []errorRule{
 	{usecase.ErrVendorBannerImageTooLarge, http.StatusUnprocessableEntity, ""},
 	{usecase.ErrVendorBannerImageNotUploaded, http.StatusUnprocessableEntity, ""},
 
+	// Vendor Voucher
+	{usecase.ErrVoucherNotFound, http.StatusNotFound, "voucher not found"},
+	{usecase.ErrVoucherCodeExists, http.StatusConflict, "voucher code already exists"},
+	{usecase.ErrInvalidVoucherCode, http.StatusBadRequest, "invalid voucher code"},
+	{usecase.ErrInvalidVoucherPeriod, http.StatusBadRequest, ""},
+	{usecase.ErrInvalidVoucherQuota, http.StatusBadRequest, ""},
+	{usecase.ErrVoucherProductsRequired, http.StatusBadRequest, ""},
+
 	// Address
 	{usecase.ErrAddressNotFound, http.StatusNotFound, "address not found"},
 	{usecase.ErrAddressNotOwned, http.StatusForbidden, "address does not belong to this user"},
@@ -221,6 +229,7 @@ var errorRules = []errorRule{
 	{usecase.ErrTrackingNumberRequired, http.StatusBadRequest, ""},
 	{usecase.ErrShipmentNotFound, http.StatusNotFound, "shipment not found for this order"},
 	{usecase.ErrTrackingFailed, http.StatusBadGateway, ""},
+	{usecase.ErrInvalidOrderCancelTransition, http.StatusBadRequest, ""},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.

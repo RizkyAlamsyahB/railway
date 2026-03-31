@@ -285,6 +285,10 @@ type PaymentRepository interface {
 
 	// EventExistsByExternalID checks if a payment event with the given external_event_id already exists.
 	EventExistsByExternalID(ctx context.Context, externalEventID string) (bool, error)
+
+	// ListForAdmin returns payment invoices joined with orders, users, and vendors
+	// matching the given params, plus total count for pagination.
+	ListForAdmin(ctx context.Context, params AdminPaymentListParams) ([]AdminPaymentListItem, int64, error)
 }
 
 // LedgerRepository defines the interface for ledger journal data access.
@@ -294,6 +298,37 @@ type LedgerRepository interface {
 
 	// CreateJournalWithLines inserts a ledger journal and its lines in a single transaction.
 	CreateJournalWithLines(ctx context.Context, journal *LedgerJournal, lines []LedgerLine) error
+}
+
+// --- Admin Payment DTOs ---
+
+// AdminPaymentListParams holds query parameters for admin payment invoice listing.
+type AdminPaymentListParams struct {
+	Page      int
+	Limit     int
+	Status    string
+	Search    string
+	SortBy    string
+	SortOrder string
+}
+
+// AdminPaymentListItem is the output DTO for a payment invoice in the admin list.
+type AdminPaymentListItem struct {
+	InvoiceID     uuid.UUID `json:"invoice_id"`
+	OrderID       uuid.UUID `json:"order_id"`
+	OrderNo       string    `json:"order_no"`
+	CustomerName  string    `json:"customer_name"`
+	VendorName    string    `json:"vendor_name"`
+	PaymentMethod *string   `json:"payment_method"`
+	Amount        float64   `json:"amount"`
+	Status        string    `json:"status"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// AdminPaymentUseCase defines the interface for admin payment listing operations.
+type AdminPaymentUseCase interface {
+	// List returns a paginated list of payment invoices with related order/customer/vendor info.
+	List(ctx context.Context, params AdminPaymentListParams) ([]AdminPaymentListItem, *PaginationMeta, error)
 }
 
 // --- Usecase Interface ---

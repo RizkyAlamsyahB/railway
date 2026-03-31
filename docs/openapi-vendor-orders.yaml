@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Haji Umroh Store BE - Vendor Kelola Order API
+  title: UmrahMart - Vendor Kelola Order API
   version: 1.0.0
   description: |
     Dokumentasi OpenAPI 3 untuk fitur **Kelola Order** vendor (UMKM).
@@ -70,21 +70,21 @@ paths:
               - completed
               - canceled
       responses:
-        '200':
+        "200":
           description: Daftar pesanan berhasil diambil.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
                       data:
                         type: array
                         items:
-                          $ref: '#/components/schemas/VendorOrderListItem'
+                          $ref: "#/components/schemas/VendorOrderListItem"
                       meta:
-                        $ref: '#/components/schemas/PaginationMeta'
+                        $ref: "#/components/schemas/PaginationMeta"
               example:
                 success: true
                 message: vendor orders retrieved successfully
@@ -107,8 +107,8 @@ paths:
                   limit: 10
                   total_items: 3
                   total_pages: 1
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/v1/vendors/orders/{orderId}:
     get:
@@ -124,19 +124,19 @@ paths:
         - Informasi pembayaran
       operationId: getVendorOrderDetail
       parameters:
-        - $ref: '#/components/parameters/OrderIdParam'
+        - $ref: "#/components/parameters/OrderIdParam"
       responses:
-        '200':
+        "200":
           description: Detail pesanan berhasil diambil.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/VendorOrderDetailResponse'
+                        $ref: "#/components/schemas/VendorOrderDetailResponse"
               example:
                 success: true
                 message: order detail retrieved successfully
@@ -179,14 +179,14 @@ paths:
                     grand_total: 325000
                 errors: null
                 meta: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
           description: Pesanan bukan milik vendor ini.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: order does not belong to this vendor
@@ -206,23 +206,23 @@ paths:
         Hanya bisa dilakukan jika status pesanan saat ini adalah `paid`.
       operationId: acceptVendorOrder
       parameters:
-        - $ref: '#/components/parameters/OrderIdParam'
+        - $ref: "#/components/parameters/OrderIdParam"
       requestBody:
         description: Tidak memerlukan request body.
         required: false
         content: {}
       responses:
-        '200':
+        "200":
           description: Pesanan berhasil diterima.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/AcceptRejectOrderResponse'
+                        $ref: "#/components/schemas/AcceptRejectOrderResponse"
               example:
                 success: true
                 message: order accepted successfully
@@ -232,26 +232,26 @@ paths:
                   updated_at: "2026-03-01T11:00:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Status pesanan tidak valid untuk diterima (bukan `paid`).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: order can only be accepted when status is paid
                 data: null
                 errors: null
                 meta: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
           description: Pesanan bukan milik vendor ini.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: order does not belong to this vendor
@@ -271,23 +271,23 @@ paths:
         atau `processing` (sudah diproses tapi vendor membatalkan).
       operationId: rejectVendorOrder
       parameters:
-        - $ref: '#/components/parameters/OrderIdParam'
+        - $ref: "#/components/parameters/OrderIdParam"
       requestBody:
         description: Tidak memerlukan request body.
         required: false
         content: {}
       responses:
-        '200':
+        "200":
           description: Pesanan berhasil ditolak.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/AcceptRejectOrderResponse'
+                        $ref: "#/components/schemas/AcceptRejectOrderResponse"
               example:
                 success: true
                 message: order rejected successfully
@@ -297,26 +297,26 @@ paths:
                   updated_at: "2026-03-01T11:05:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Status pesanan tidak valid untuk ditolak.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: order can only be rejected when status is paid or processing
                 data: null
                 errors: null
                 meta: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
           description: Pesanan bukan milik vendor ini.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: order does not belong to this vendor
@@ -337,27 +337,27 @@ paths:
         Data shipment yang sudah ada (courier_code, service_type) akan tetap dipertahankan.
       operationId: shipVendorOrder
       parameters:
-        - $ref: '#/components/parameters/OrderIdParam'
+        - $ref: "#/components/parameters/OrderIdParam"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ShipOrderRequest'
+              $ref: "#/components/schemas/ShipOrderRequest"
             example:
               tracking_no: "JNT0123456789"
       responses:
-        '200':
+        "200":
           description: Resi berhasil diinput, pesanan dikirim.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/ShipOrderResponse'
+                        $ref: "#/components/schemas/ShipOrderResponse"
               example:
                 success: true
                 message: order shipped successfully
@@ -369,12 +369,12 @@ paths:
                   shipped_at: "2026-03-01T14:30:00Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Request tidak valid (tracking_no kosong atau status bukan `processing`).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               examples:
                 invalidTransition:
                   summary: Status pesanan tidak valid
@@ -392,26 +392,26 @@ paths:
                     data: null
                     errors: null
                     meta: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
           description: Pesanan bukan milik vendor ini.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: order does not belong to this vendor
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Shipment belum dibuat untuk pesanan ini.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: shipment not found for this order
@@ -431,19 +431,19 @@ paths:
         Pesanan harus sudah memiliki shipment record (sudah melewati tahap ship).
       operationId: trackVendorOrderWaybill
       parameters:
-        - $ref: '#/components/parameters/OrderIdParam'
+        - $ref: "#/components/parameters/OrderIdParam"
       responses:
-        '200':
+        "200":
           description: Informasi tracking berhasil diambil.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - $ref: "#/components/schemas/SuccessEnvelope"
                   - type: object
                     properties:
                       data:
-                        $ref: '#/components/schemas/TrackWaybillResponse'
+                        $ref: "#/components/schemas/TrackWaybillResponse"
               example:
                 success: true
                 message: tracking info retrieved successfully
@@ -495,26 +495,26 @@ paths:
                       city_name: "Jakarta"
                 errors: null
                 meta: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
           description: Pesanan bukan milik vendor ini.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: order does not belong to this vendor
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Shipment tidak ditemukan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: shipment not found for this order
@@ -549,7 +549,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
           example:
             success: false
             message: unauthorized
@@ -644,7 +644,7 @@ components:
           type: array
           description: Daftar item produk dalam pesanan.
           items:
-            $ref: '#/components/schemas/VendorOrderProductItem'
+            $ref: "#/components/schemas/VendorOrderProductItem"
         total_payment:
           type: number
           format: double
@@ -855,16 +855,16 @@ components:
           description: Apakah paket sudah terkirim.
           example: false
         summary:
-          $ref: '#/components/schemas/TrackWaybillSummary'
+          $ref: "#/components/schemas/TrackWaybillSummary"
         details:
-          $ref: '#/components/schemas/TrackWaybillDetails'
+          $ref: "#/components/schemas/TrackWaybillDetails"
         delivery_status:
-          $ref: '#/components/schemas/TrackDeliveryStatus'
+          $ref: "#/components/schemas/TrackDeliveryStatus"
         manifest:
           type: array
           description: Daftar event/manifest tracking.
           items:
-            $ref: '#/components/schemas/TrackManifestItem'
+            $ref: "#/components/schemas/TrackManifestItem"
 
     TrackWaybillSummary:
       type: object

@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Haji Umroh Store BE - CS API
+  title: UmrahMart - CS API
   version: 1.0.0
   description: |
     Dokumentasi OpenAPI 3 untuk modul Customer Service: autentikasi CS dan manajemen Reply Template.
@@ -230,7 +230,7 @@ components:
           type: string
           example: login successful
         data:
-          $ref: '#/components/schemas/CSLoginResponseData'
+          $ref: "#/components/schemas/CSLoginResponseData"
         errors:
           nullable: true
           example: null
@@ -248,7 +248,7 @@ components:
           type: string
           example: template created
         data:
-          $ref: '#/components/schemas/ReplyTemplateResponse'
+          $ref: "#/components/schemas/ReplyTemplateResponse"
         errors:
           nullable: true
           example: null
@@ -266,7 +266,7 @@ components:
           type: string
           example: template retrieved
         data:
-          $ref: '#/components/schemas/ReplyTemplateResponse'
+          $ref: "#/components/schemas/ReplyTemplateResponse"
         errors:
           nullable: true
           example: null
@@ -284,7 +284,7 @@ components:
           type: string
           example: template updated
         data:
-          $ref: '#/components/schemas/ReplyTemplateResponse'
+          $ref: "#/components/schemas/ReplyTemplateResponse"
         errors:
           nullable: true
           example: null
@@ -304,12 +304,12 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/ReplyTemplateResponse'
+            $ref: "#/components/schemas/ReplyTemplateResponse"
         errors:
           nullable: true
           example: null
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
 
     SuccessDeleteTemplateEnvelope:
       type: object
@@ -368,20 +368,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CSLoginRequest'
+              $ref: "#/components/schemas/CSLoginRequest"
             example:
               email: cs@dev.local
               password: Password123!
       responses:
-        '200':
+        "200":
           description: Login berhasil. Token JWT dikembalikan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessCSLoginEnvelope'
+                $ref: "#/components/schemas/SuccessCSLoginEnvelope"
               example:
                 success: true
                 message: login successful
@@ -392,36 +392,36 @@ paths:
                   email: cs@dev.local
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Validasi request gagal (field kosong atau format tidak valid).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "Key: 'CSLoginRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
                 data: null
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Email atau password salah.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid email or password
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: Akun ditemukan tapi bukan role CS.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "access denied: cs only"
@@ -483,15 +483,15 @@ paths:
             type: string
             example: konfirmasi
       responses:
-        '200':
+        "200":
           description: Daftar template berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessListTemplatesEnvelope'
+                $ref: "#/components/schemas/SuccessListTemplatesEnvelope"
               example:
                 success: true
                 message: templates retrieved
@@ -512,24 +512,24 @@ paths:
                   limit: 10
                   total_items: 1
                   total_pages: 1
-        '401':
+        "401":
           description: Token tidak valid atau tidak disertakan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: unauthorized
                 data: null
                 errors: null
                 meta: null
-        '403':
+        "403":
           description: Role tidak memiliki akses (bukan CS).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: insufficient permissions
@@ -559,22 +559,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateReplyTemplateRequest'
+              $ref: "#/components/schemas/CreateReplyTemplateRequest"
             example:
               title: Konfirmasi Pesanan Diterima
               category: order
               sub_key: konfirmasi pesanan diterima
               content: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}\nStatus: Menunggu Pembayaran\n\nSilakan selesaikan pembayaran sebelum {expired_at}."
       responses:
-        '201':
+        "201":
           description: Template berhasil dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessCreateTemplateEnvelope'
+                $ref: "#/components/schemas/SuccessCreateTemplateEnvelope"
               example:
                 success: true
                 message: template created
@@ -591,48 +591,48 @@ paths:
                   updated_at: "2026-02-24T08:00:00.000Z"
                 errors: null
                 meta: null
-        '400':
+        "400":
           description: Validasi request gagal (field wajib kosong atau terlalu panjang).
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: "Key: 'CreateReplyTemplateRequest.Title' Error:Field validation for 'Title' failed on the 'required' tag"
                 data: null
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak valid atau tidak disertakan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: unauthorized
                 data: null
                 errors: null
                 meta: null
-        '409':
+        "409":
           description: Shortcut yang di-generate sudah digunakan oleh template lain.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: shortcut already exists
                 data: null
                 errors: null
                 meta: null
-        '422':
+        "422":
           description: Kategori tidak termasuk dalam daftar kategori yang valid.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: invalid reply template category
@@ -662,15 +662,15 @@ paths:
             format: uuid
             example: 6f669159-9740-4cd2-be7d-de966969836f
       responses:
-        '200':
+        "200":
           description: Detail template berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessGetTemplateEnvelope'
+                $ref: "#/components/schemas/SuccessGetTemplateEnvelope"
               example:
                 success: true
                 message: template retrieved
@@ -687,24 +687,24 @@ paths:
                   updated_at: "2026-02-24T07:57:40.193Z"
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak valid atau tidak disertakan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: unauthorized
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Template dengan ID tersebut tidak ditemukan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: reply template not found
@@ -742,22 +742,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateReplyTemplateRequest'
+              $ref: "#/components/schemas/UpdateReplyTemplateRequest"
             example:
               title: Konfirmasi Pesanan Diterima (Revisi)
               sub_key: order confirmed updated
               content: "Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅"
               is_active: true
       responses:
-        '200':
+        "200":
           description: Template berhasil diupdate.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessUpdateTemplateEnvelope'
+                $ref: "#/components/schemas/SuccessUpdateTemplateEnvelope"
               example:
                 success: true
                 message: template updated
@@ -774,36 +774,36 @@ paths:
                   updated_at: "2026-02-24T09:00:00.000Z"
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak valid atau tidak disertakan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: unauthorized
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Template dengan ID tersebut tidak ditemukan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: reply template not found
                 data: null
                 errors: null
                 meta: null
-        '409':
+        "409":
           description: Shortcut hasil recalculate sudah digunakan template lain.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: shortcut already exists
@@ -832,39 +832,39 @@ paths:
             format: uuid
             example: 6f669159-9740-4cd2-be7d-de966969836f
       responses:
-        '200':
+        "200":
           description: Template berhasil dihapus.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessDeleteTemplateEnvelope'
+                $ref: "#/components/schemas/SuccessDeleteTemplateEnvelope"
               example:
                 success: true
                 message: template deleted
                 data: null
                 errors: null
                 meta: null
-        '401':
+        "401":
           description: Token tidak valid atau tidak disertakan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: unauthorized
                 data: null
                 errors: null
                 meta: null
-        '404':
+        "404":
           description: Template dengan ID tersebut tidak ditemukan.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
               example:
                 success: false
                 message: reply template not found
