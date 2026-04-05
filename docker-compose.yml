@@ -75,25 +75,23 @@ services:
     restart: "no"
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: haji-umroh-api
-    env_file:
-      - .env
-    ports:
-      - "8080:8080"
-    environment:
-      DB_HOST: postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-      minio-init:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
+  image: ghcr.io/rizkyalamsyahb/railway:latest
+  container_name: haji-umroh-api
+  env_file:
+    - .env
+  ports:
+    - "8080:8080"
+  environment:
+    DB_HOST: postgres
+  depends_on:
+    postgres:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+    minio-init:
+      condition: service_completed_successfully
+  restart: unless-stopped
+  
   caddy:
     image: caddy:2
     container_name: haji-umroh-caddy
