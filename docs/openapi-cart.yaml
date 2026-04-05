@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: UmrahMart - Cart API
-  version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint cart/keranjang belanja customer, termasuk melihat cart, menambah item, mengubah jumlah, menghapus item, dan mengosongkan cart.
+  title: Cart API
+  version: 1.1.0
+  description: Dokumentasi OpenAPI 3 untuk endpoint cart/keranjang belanja customer, termasuk melihat cart, menambah item, mengubah jumlah, memilih item untuk checkout, menghapus item, dan mengosongkan cart.
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -10,7 +10,7 @@ tags:
   - name: Cart
     description: Operasi pada keranjang belanja customer, seperti melihat dan mengosongkan cart.
   - name: Cart Items
-    description: Operasi pada item di dalam keranjang belanja customer, seperti menambah, mengubah qty, dan menghapus item.
+    description: Operasi pada item di dalam keranjang belanja customer, seperti menambah, mengubah qty, memilih item untuk checkout, dan menghapus item.
 paths:
   /api/v1/users/cart:
     get:
@@ -36,6 +36,10 @@ paths:
 
         **Field `total`:**
         Total hanya menjumlahkan subtotal dari item yang `is_available = true`.
+
+        **Field `is_selected`:**
+        Menandakan apakah item sedang dipilih untuk checkout.
+        Endpoint checkout preview dan checkout hanya memproses item dengan `is_selected = true`.
 
         **Autentikasi:**
         - Wajib menyertakan header `Authorization: Bearer <token>`.
@@ -77,6 +81,7 @@ paths:
                       subtotal: 300000
                       stock_on_hand: 100
                       is_available: true
+                      is_selected: true
                       created_at: "2026-02-18T10:00:00Z"
                   item_count: 1
                   total: 300000
@@ -246,6 +251,9 @@ paths:
         **Perilaku upsert:**
         Jika variant sudah ada di cart, qty di-increment (bukan di-replace).
         Contoh: cart sudah berisi variant X qty 2, lalu request menambah qty 3 → total menjadi 5.
+
+        **Default selection:**
+        Item baru yang masuk ke cart otomatis memiliki `is_selected = true`.
 
         **Autentikasi:**
         - Wajib menyertakan header `Authorization: Bearer <token>`.
@@ -739,6 +747,144 @@ paths:
                 errors: null
                 meta: null
 
+  /api/v1/users/cart/items/{itemId}/selection:
+    patch:
+      tags:
+        - Cart Items
+      summary: Update Cart Item Selection
+      description: |
+        Mengubah status selected dari item di cart customer.
+        Item dengan `is_selected = true` akan ikut pada checkout preview dan checkout.
+
+        **Validasi:**
+        - Item harus ada di cart.
+        - Item harus milik cart user yang sedang login.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Hanya user dengan role `customer` yang diizinkan.
+      operationId: updateCartItemSelection
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          description: UUID dari cart item yang selection state-nya akan diubah.
+          schema:
+            type: string
+            format: uuid
+          example: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCartItemSelectionRequest"
+            example:
+              is_selected: false
+      responses:
+        "200":
+          description: Status selection item berhasil diupdate.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCartItemActionEnvelope"
+              example:
+                success: true
+                message: "cart item selection updated"
+                data:
+                  cart_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  item_id: f1e2d3c4-b5a6-7890-abcd-ef1234567890
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid atau item ID bukan UUID.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalidItemId:
+                  summary: Item ID bukan UUID valid
+                  value:
+                    success: false
+                    message: "invalid item ID"
+                    data: null
+                    errors: "itemId must be a valid UUID"
+                    meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki akses atau item bukan milik cart user ini.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                insufficientPermissions:
+                  summary: Bukan role customer
+                  value:
+                    success: false
+                    message: "insufficient permissions"
+                    data: null
+                    errors: null
+                    meta: null
+                itemNotOwned:
+                  summary: Item bukan milik cart user ini
+                  value:
+                    success: false
+                    message: "cart item does not belong to your cart"
+                    data: null
+                    errors: null
+                    meta: null
+        "404":
+          description: Cart item tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "cart item not found"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "an unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
 components:
   securitySchemes:
     BearerAuth:
@@ -785,6 +931,16 @@ components:
           minimum: 1
           description: Jumlah baru untuk item ini (menggantikan qty lama).
           example: 5
+
+    UpdateCartItemSelectionRequest:
+      type: object
+      required:
+        - is_selected
+      properties:
+        is_selected:
+          type: boolean
+          description: Menandakan apakah item dipilih untuk checkout.
+          example: false
 
     # ──────────── Response Data Schemas ────────────
 
@@ -867,6 +1023,10 @@ components:
         is_available:
           type: boolean
           description: "Apakah item bisa di-checkout (variant aktif DAN product published)."
+          example: true
+        is_selected:
+          type: boolean
+          description: Menandakan apakah item sedang dipilih untuk checkout.
           example: true
         created_at:
           type: string

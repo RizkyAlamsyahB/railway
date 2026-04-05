@@ -769,6 +769,35 @@
       el.style.display = 'none';
     }
 
+    function formatDateTime(value) {
+      if (!value) return '–';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+    }
+
+    function formatBytes(value) {
+      if (value === null || value === undefined || value === '') return '–';
+      const num = Number(value);
+      if (!Number.isFinite(num) || num < 0) return String(value);
+
+      if (num < 1024) return `${num} B`;
+
+      const units = ['KB', 'MB', 'GB', 'TB'];
+      let size = num / 1024;
+      let unitIndex = 0;
+
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+      }
+
+      return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+    }
+
     function updateStateDisplay() {
       elStateToken.textContent        = state.adminToken ? state.adminToken.slice(0, 40) + '…' : '–';
       elStateRole.textContent         = state.adminToken ? 'admin' : '–';
@@ -966,6 +995,15 @@
       const owner = v.owner || {};
       const bank  = v.bank_account || {};
       const docs  = v.documents || [];
+      const ownerName = owner.full_name || owner.name || '–';
+      const businessAddress = [
+        v.address_line,
+        v.subdistrict_name,
+        v.district_name,
+        v.city_name,
+        v.province_name,
+        v.postal_code,
+      ].filter(Boolean).join(', ') || '–';
 
       let html = `
         <h3 style="margin:0 0 12px;font-size:15px;">Informasi Vendor</h3>
@@ -976,17 +1014,20 @@
           <div class="detail-row"><dt>Vendor Type</dt><dd><span class="vendor-type-badge">${escHtml(v.vendor_type || '–')}</span></dd></div>
           <div class="detail-row"><dt>Status</dt><dd><span class="status-badge ${v.status || 'draft'}">${escHtml(v.status || '–')}</span></dd></div>
           ${v.status_reason ? `<div class="detail-row"><dt>Alasan Status</dt><dd style="color:var(--danger)">${escHtml(v.status_reason)}</dd></div>` : ''}
-          <div class="detail-row"><dt>Responsible Person</dt><dd>${escHtml(v.responsible_person_name || '–')}</dd></div>
-          <div class="detail-row"><dt>Alamat Usaha</dt><dd>${escHtml(v.registered_address || '–')}</dd></div>
+          <div class="detail-row"><dt>Deskripsi</dt><dd>${escHtml(v.description || '–')}</dd></div>
+          <div class="detail-row"><dt>Alamat Usaha</dt><dd>${escHtml(businessAddress)}</dd></div>
+          <div class="detail-row"><dt>Approved At</dt><dd>${escHtml(formatDateTime(v.approved_at))}</dd></div>
+          <div class="detail-row"><dt>Dibuat</dt><dd>${escHtml(formatDateTime(v.created_at))}</dd></div>
+          <div class="detail-row"><dt>Diupdate</dt><dd>${escHtml(formatDateTime(v.updated_at))}</dd></div>
           <div class="detail-row"><dt>Xendit Account ID</dt><dd class="mono" style="font-size:11px;">${escHtml(v.xendit_account_id || '–')}</dd></div>
         </dl>
 
         <h3 style="margin:16px 0 12px;font-size:15px;">Data Owner</h3>
         <dl>
-          <div class="detail-row"><dt>Nama</dt><dd>${escHtml(owner.name || '–')}</dd></div>
+          <div class="detail-row"><dt>Nama</dt><dd>${escHtml(ownerName)}</dd></div>
           <div class="detail-row"><dt>Email</dt><dd>${escHtml(owner.email || '–')}</dd></div>
           <div class="detail-row"><dt>No. HP</dt><dd>${escHtml(owner.phone || '–')}</dd></div>
-          <div class="detail-row"><dt>NIK / KTP</dt><dd class="mono">${escHtml(owner.nik || '–')}</dd></div>
+          <div class="detail-row"><dt>Status Akun</dt><dd>${escHtml(owner.status || '–')}</dd></div>
         </dl>
 
         <h3 style="margin:16px 0 12px;font-size:15px;">Rekening Bank</h3>
@@ -994,6 +1035,9 @@
           <div class="detail-row"><dt>Nama Bank</dt><dd>${escHtml(bank.bank_name || '–')}</dd></div>
           <div class="detail-row"><dt>No. Rekening</dt><dd class="mono">${escHtml(bank.account_number || '–')}</dd></div>
           <div class="detail-row"><dt>Nama Pemilik</dt><dd>${escHtml(bank.account_holder_name || '–')}</dd></div>
+          <div class="detail-row"><dt>Status Verifikasi</dt><dd>${escHtml(bank.verification_status || '–')}</dd></div>
+          <div class="detail-row"><dt>Verified At</dt><dd>${escHtml(formatDateTime(bank.verified_at))}</dd></div>
+          ${bank.rejection_reason ? `<div class="detail-row"><dt>Alasan Reject Rekening</dt><dd style="color:var(--danger)">${escHtml(bank.rejection_reason)}</dd></div>` : ''}
         </dl>
 
         <h3 style="margin:16px 0 8px;font-size:15px;">Dokumen (${docs.length})</h3>
@@ -1004,13 +1048,23 @@
       } else {
         html += '<div class="doc-list">';
         docs.forEach(d => {
+          const docType = d.doc_type || '–';
+          const docMeta = [
+            d.mime_type || null,
+            d.file_size_bytes !== null && d.file_size_bytes !== undefined ? formatBytes(d.file_size_bytes) : null,
+            d.verification_status ? `status ${d.verification_status}` : null,
+            d.verified_at ? `verified ${formatDateTime(d.verified_at)}` : null,
+          ].filter(Boolean);
+
           html += `
             <div class="doc-item">
               <div>
-                <strong style="font-size:12px;font-family:Consolas,Monaco,monospace;">${escHtml(d.document_type || d.type || '–')}</strong>
-                ${d.original_name ? `<br><small style="color:var(--muted)">${escHtml(d.original_name)}</small>` : ''}
+                <strong style="font-size:12px;font-family:Consolas,Monaco,monospace;">${escHtml(docType)}</strong>
+                ${docMeta.length ? `<br><small style="color:var(--muted)">${escHtml(docMeta.join(' • '))}</small>` : ''}
+                ${d.rejection_reason ? `<br><small style="color:var(--danger)">${escHtml(d.rejection_reason)}</small>` : ''}
+                ${d.file_url ? `<br><small class="mono" style="color:var(--muted)">${escHtml(d.file_url)}</small>` : ''}
               </div>
-              ${d.url ? `<a href="${escHtml(d.url)}" target="_blank" rel="noopener">&#128065; Lihat</a>` : '<span style="color:var(--muted);font-size:12px;">Tidak ada URL</span>'}
+              ${d.download_url ? `<a href="${escHtml(d.download_url)}" target="_blank" rel="noopener">&#128065; Lihat</a>` : '<span style="color:var(--muted);font-size:12px;">Tidak ada URL</span>'}
             </div>
           `;
         });
@@ -1062,7 +1116,7 @@
         return setStatus('actionStatus', `✗ ${msg}`, 'error');
       }
 
-      setStatus('actionStatus', `✓ Vendor berhasil di-approve! Status: ${res.data?.data?.status || 'active'}`, 'ok');
+      setStatus('actionStatus', `✓ ${res.data?.message || 'vendor approved successfully'} (status: ${res.data?.data?.status || 'active'})`, 'ok');
       // Refresh detail & list
       await selectVendor(state.selectedVendorId, 'active');
       loadVendors();
@@ -1086,7 +1140,7 @@
         return setStatus('actionStatus', `✗ ${msg}`, 'error');
       }
 
-      setStatus('actionStatus', `✓ Vendor berhasil di-reject! Status: ${res.data?.data?.status || 'rejected'}`, 'ok');
+      setStatus('actionStatus', `✓ ${res.data?.message || 'vendor rejected successfully'} (status: ${res.data?.data?.status || 'rejected'})`, 'ok');
       await selectVendor(state.selectedVendorId, 'rejected');
       loadVendors();
     });
@@ -1109,7 +1163,7 @@
         return setStatus('actionStatus', `✗ ${msg}`, 'error');
       }
 
-      setStatus('actionStatus', `✓ Vendor berhasil di-block! Status: ${res.data?.data?.status || 'blocked'}`, 'ok');
+      setStatus('actionStatus', `✓ ${res.data?.message || 'vendor blocked successfully'} (status: ${res.data?.data?.status || 'blocked'})`, 'ok');
       await selectVendor(state.selectedVendorId, 'blocked');
       loadVendors();
     });
@@ -1130,7 +1184,7 @@
         return setStatus('actionStatus', `✗ ${msg}`, 'error');
       }
 
-      setStatus('actionStatus', `✓ Vendor berhasil di-unblock! Status: ${res.data?.data?.status || 'active'}`, 'ok');
+      setStatus('actionStatus', `✓ ${res.data?.message || 'vendor unblocked successfully'} (status: ${res.data?.data?.status || 'active'})`, 'ok');
       await selectVendor(state.selectedVendorId, 'active');
       loadVendors();
     });

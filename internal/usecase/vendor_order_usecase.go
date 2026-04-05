@@ -22,6 +22,10 @@ type vendorOrderUseCase struct {
 	userRepo        domain.UserRepository
 	vendorRepo      domain.VendorRepository
 	rajaOngkir      domain.RajaOngkirProvider
+	xenditRefund    domain.XenditRefundProvider
+	refundRepo      domain.CustomerRefundRepository
+	bankAccountRepo domain.UserBankAccountRepository
+	financeRepo     domain.FinanceRepository
 }
 
 // NewVendorOrderUseCase creates a new VendorOrderUseCase.
@@ -33,6 +37,10 @@ func NewVendorOrderUseCase(
 	userRepo domain.UserRepository,
 	vendorRepo domain.VendorRepository,
 	rajaOngkir domain.RajaOngkirProvider,
+	xenditRefund domain.XenditRefundProvider,
+	refundRepo domain.CustomerRefundRepository,
+	bankAccountRepo domain.UserBankAccountRepository,
+	financeRepo domain.FinanceRepository,
 ) domain.VendorOrderUseCase {
 	return &vendorOrderUseCase{
 		vendorOrderRepo: vendorOrderRepo,
@@ -42,6 +50,10 @@ func NewVendorOrderUseCase(
 		userRepo:        userRepo,
 		vendorRepo:      vendorRepo,
 		rajaOngkir:      rajaOngkir,
+		xenditRefund:    xenditRefund,
+		refundRepo:      refundRepo,
+		bankAccountRepo: bankAccountRepo,
+		financeRepo:     financeRepo,
 	}
 }
 
@@ -211,7 +223,7 @@ func (uc *vendorOrderUseCase) GetOrderDetail(ctx context.Context, vendorID, orde
 	storeName := ""
 	vendor, err := uc.vendorRepo.FindByID(ctx, order.VendorID)
 	if err == nil && vendor != nil {
-		storeName = vendor.DisplayName
+		storeName = vendorDisplayNameOrEmpty(vendor)
 	}
 
 	// Fetch shipment (may be nil if not shipped yet).
@@ -461,11 +473,21 @@ func (uc *vendorOrderUseCase) RejectOrder(ctx context.Context, vendorID, orderID
 		fmt.Printf("WARN: failed to restore stock for order %s: %v\n", orderID, err)
 	}
 
-	return &domain.AcceptRejectOrderResponse{
+	resp := &domain.AcceptRejectOrderResponse{
 		OrderID:     orderID,
 		OrderStatus: domain.OrderStatusCanceled,
 		UpdatedAt:   time.Now(),
-	}, nil
+	}
+
+	// Auto-refund for paid orders
+	if order.PaymentStatus == domain.PaymentStatusPaid {
+		refundInfo := uc.initiateAutoRefund(ctx, order, "Order rejected by vendor")
+		if refundInfo != nil {
+			resp.RefundInfo = refundInfo
+		}
+	}
+
+	return resp, nil
 }
 
 // ShipOrder inputs tracking number and transitions from processing → shipped.
@@ -839,4 +861,98 @@ func calculateEstimatedArrival(shippedAt time.Time, etd string) *string {
 	arrival := shippedAt.Add(time.Duration(days) * 24 * time.Hour)
 	formatted := arrival.Format("2006-01-02")
 	return &formatted
+}
+
+// initiateAutoRefund creates a refund record and, for gateway-eligible payment methods,
+// calls the Xendit Refund API. For VA payments it creates an awaiting_destination record.
+func (uc *vendorOrderUseCase) initiateAutoRefund(ctx context.Context, order *domain.Order, reason string) *domain.CancelOrderRefundInfo {
+	invoice, err := uc.paymentRepo.FindInvoiceByOrderID(ctx, order.ID)
+	if err != nil || invoice == nil {
+		fmt.Printf("WARN: failed to find invoice for order %s: %v\n", order.ID, err)
+		return nil
+	}
+
+	strategy := resolveRefundStrategy(invoice.PaymentMethod, invoice.PaymentChannel)
+
+	refundInput := domain.CreateCustomerRefundInput{
+		OrderID:          order.ID,
+		PaymentInvoiceID: invoice.ID,
+		Amount:           order.GrandTotal,
+		Reason:           reason,
+		RequestedBy:      order.UserID,
+		RequestedAt:      time.Now().UTC(),
+	}
+
+	switch {
+	case strategy == refundStrategyQRGateway || strategy == refundStrategyEWalletGateway:
+		refundInput.Status = domain.RefundStatusProcessing
+		refundInput.RefundMethod = domain.RefundMethodGateway
+
+		resp, err := uc.refundRepo.CreateRefundRequest(ctx, refundInput)
+		if err != nil {
+			fmt.Printf("WARN: failed to create refund record for order %s: %v\n", order.ID, err)
+			return nil
+		}
+
+		uc.callXenditGatewayRefund(ctx, order, invoice, resp.RefundID)
+
+		return &domain.CancelOrderRefundInfo{
+			RefundID:     resp.RefundID,
+			RefundMethod: domain.RefundMethodGateway,
+			Status:       domain.RefundStatusProcessing,
+			Message:      "Refund sedang diproses melalui metode pembayaran asal",
+		}
+
+	default:
+		refundInput.Status = domain.RefundStatusAwaitingDestination
+		refundInput.RefundMethod = domain.RefundMethodDisbursement
+
+		resp, err := uc.refundRepo.CreateRefundRequest(ctx, refundInput)
+		if err != nil {
+			fmt.Printf("WARN: failed to create refund record for order %s: %v\n", order.ID, err)
+			return nil
+		}
+
+		return &domain.CancelOrderRefundInfo{
+			RefundID:     resp.RefundID,
+			RefundMethod: domain.RefundMethodDisbursement,
+			Status:       domain.RefundStatusAwaitingDestination,
+			Message:      "Silakan pilih rekening tujuan untuk refund",
+		}
+	}
+}
+
+func (uc *vendorOrderUseCase) callXenditGatewayRefund(ctx context.Context, order *domain.Order, invoice *domain.PaymentInvoice, refundID uuid.UUID) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, order.VendorID)
+	if err != nil || vendor == nil || vendor.XenditAccountID == nil {
+		fmt.Printf("WARN: cannot get vendor xendit account for order %s: %v\n", order.ID, err)
+		return
+	}
+
+	referenceID := fmt.Sprintf("refund-%s", refundID.String())
+	idempotencyKey := fmt.Sprintf("%s-%d", referenceID, time.Now().UTC().UnixNano())
+
+	xenditReq := domain.XenditRefundRequest{
+		InvoiceID:   strings.TrimSpace(derefString(invoice.XenditInvoiceID)),
+		ReferenceID: referenceID,
+		Amount:      order.GrandTotal,
+		Currency:    invoice.Currency,
+		Reason:      "CANCELLATION",
+	}
+
+	resp, err := uc.xenditRefund.CreateRefund(ctx, *vendor.XenditAccountID, idempotencyKey, xenditReq)
+	if err != nil {
+		fmt.Printf("WARN: xendit refund API failed for order %s: %v\n", order.ID, err)
+		return
+	}
+
+	if err := uc.financeRepo.SetRefundGatewayInitiated(ctx, refundID, resp.ID, domain.RefundMethodGateway, referenceID); err != nil {
+		fmt.Printf("WARN: failed to update refund gateway initiated for order %s: %v\n", order.ID, err)
+	}
+
+	if resp.Status == domain.XenditRefundStatusSucceeded {
+		if err := uc.financeRepo.UpdateOrderPaymentStatus(ctx, order.ID, domain.PaymentStatusRefunded); err != nil {
+			fmt.Printf("WARN: failed to update payment status for order %s: %v\n", order.ID, err)
+		}
+	}
 }

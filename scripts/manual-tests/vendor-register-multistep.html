@@ -3,961 +3,704 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vendor Register Multi Step Manual Test</title>
+  <title>Vendor Register + Proposal Manual Test</title>
   <style>
     :root {
-      --bg: #f6f7fb;
+      --bg: #f5f7fb;
       --panel: #ffffff;
-      --text: #152033;
+      --line: #dbe3ef;
+      --text: #1f2937;
       --muted: #667085;
-      --line: #d7deea;
       --primary: #0f766e;
-      --primary-soft: #d9f3ef;
-      --accent: #b45309;
-      --danger: #b42318;
+      --secondary: #0f172a;
       --ok: #166534;
-      --shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+      --warn: #b45309;
+      --danger: #b91c1c;
+      --chip: #f8fafc;
     }
 
     * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at top right, rgba(15, 118, 110, 0.10), transparent 28%),
-        radial-gradient(circle at bottom left, rgba(180, 83, 9, 0.08), transparent 32%),
-        var(--bg);
-    }
-
-    .wrap {
-      max-width: 1280px;
-      margin: 24px auto 48px;
-      padding: 0 16px;
-    }
-
-    .hero {
-      margin-bottom: 20px;
-    }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: 32px;
-      line-height: 1.1;
-    }
-
-    .hero p {
-      margin: 0;
-      color: var(--muted);
-      max-width: 900px;
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
-      gap: 16px;
-      align-items: start;
-    }
-
-    .stack {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-
-    .panel-head {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-      background: linear-gradient(180deg, #ffffff, #fbfcff);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .panel-head h2 {
-      margin: 0;
-      font-size: 18px;
-    }
-
-    .panel-body {
-      padding: 16px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .field.full {
-      grid-column: 1 / -1;
-    }
-
-    label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--muted);
-    }
-
-    input, select, textarea, button {
-      font: inherit;
-    }
-
-    input, select, textarea {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--text);
-    }
-
-    textarea {
-      min-height: 110px;
-      resize: vertical;
-    }
-
-    button {
-      border: 0;
-      border-radius: 10px;
-      padding: 10px 14px;
-      cursor: pointer;
-      color: #fff;
-      background: var(--primary);
-      transition: transform 0.14s ease, opacity 0.14s ease;
-    }
-
-    button:hover {
-      transform: translateY(-1px);
-    }
-
-    button:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .button-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
-    }
-
-    .button-secondary {
-      background: #334155;
-    }
-
-    .button-accent {
-      background: var(--accent);
-    }
-
-    .button-danger {
-      background: var(--danger);
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: var(--primary-soft);
-      color: var(--primary);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .hint {
-      margin: 0;
-      font-size: 13px;
-      color: var(--muted);
-    }
-
-    .state-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .state-card {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 12px;
-      background: #fbfcfe;
-    }
-
-    .state-card strong {
-      display: block;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 4px;
-    }
-
-    .state-card code {
-      display: block;
-      word-break: break-word;
-      font-size: 12px;
-    }
-
-    .log {
-      margin: 0;
-      padding: 14px;
-      border-radius: 12px;
-      background: #081120;
-      color: #d8e5ff;
-      overflow: auto;
-      max-height: 520px;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    .mono {
-      font-family: Consolas, Monaco, monospace;
-    }
-
-    .status-line {
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      background: #f8fafc;
-      border: 1px dashed var(--line);
-      font-size: 13px;
-    }
-
-    .status-line.ok {
-      border-color: #86efac;
-      background: #f0fdf4;
-      color: var(--ok);
-    }
-
-    .status-line.error {
-      border-color: #fda4af;
-      background: #fff1f2;
-      color: var(--danger);
-    }
-
-    @media (max-width: 980px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .grid, .state-grid {
-        grid-template-columns: 1fr;
-      }
-
-      h1 {
-        font-size: 26px;
-      }
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: linear-gradient(180deg, #eef5ff 0%, #f9fff6 100%); color: var(--text); }
+    .wrap { max-width: 1180px; margin: 24px auto; padding: 0 16px 32px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+    h1, h2, h3 { margin-top: 0; }
+    p { margin: 8px 0; }
+    .muted { color: var(--muted); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .full { grid-column: 1 / -1; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #475467; margin-bottom: 6px; }
+    input, textarea, select, button { width: 100%; font: inherit; }
+    input, textarea, select { border: 1px solid #cfd8e3; border-radius: 10px; padding: 10px 12px; background: #fff; }
+    textarea { min-height: 120px; resize: vertical; }
+    button { border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; color: #fff; background: var(--primary); }
+    button.secondary { background: var(--secondary); }
+    button.warn { background: var(--warn); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .row > * { flex: 1; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .stat { background: var(--chip); border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; }
+    .stat strong { display: block; font-size: 12px; color: #475467; margin-bottom: 6px; }
+    .stat span { font-size: 14px; word-break: break-word; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; }
+    code { word-break: break-all; }
+    .status { display: inline-block; padding: 3px 8px; border-radius: 999px; color: #fff; font-size: 12px; }
+    .s-idle { background: #64748b; }
+    .s-ready { background: #2563eb; }
+    .s-uploading { background: var(--warn); }
+    .s-uploaded { background: var(--ok); }
+    .s-failed { background: var(--danger); }
+    @media (max-width: 900px) {
+      .grid, .stats { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="hero">
-      <h1>Vendor Register Multi Step Manual Test</h1>
-      <p>
-        Manual tester untuk flow vendor onboarding terbaru:
-        request OTP → verify OTP → set password → pilih tipe badan usaha
-        (<span class="mono">perorangan</span> atau <span class="mono">korporasi</span>) →
-        presign dokumen → upload file → submit legal info + store info.
-        Setelah submit, status vendor langsung menjadi <span class="mono">submitted</span> dan siap direview admin.
+    <div class="card">
+      <h1>Vendor Register + Proposal Manual Test</h1>
+      <p class="muted">
+        Halaman ini menggabungkan seluruh alur vendor souvenir store:
+        request OTP, verify OTP, set password, login, presign dokumen, upload file ke storage, lalu submit profil dan proposal dokumen.
       </p>
     </div>
 
-    <div class="layout">
-      <div class="stack">
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Config</h2>
-            <span class="badge">Persistent in localStorage</span>
-          </div>
-          <div class="panel-body">
-            <div class="grid">
-              <div class="field full">
-                <label for="baseUrl">Base URL API</label>
-                <input id="baseUrl" type="text" value="http://localhost:8080" />
-              </div>
-              <div class="field">
-                <label for="email">Vendor Email</label>
-                <input id="email" type="email" />
-              </div>
-              <div class="field">
-                <label for="otpCode">OTP Code</label>
-                <input id="otpCode" type="text" maxlength="6" placeholder="Masukkan kode OTP dari email" />
-              </div>
-            </div>
-            <div class="button-row">
-              <button id="btnGenerateEmail" class="button-secondary">Generate Test Email</button>
-              <button id="btnResetAll" class="button-danger">Reset State</button>
-            </div>
-            <p class="hint" style="margin-top: 12px;">
-              Jika backend memakai domain lokal tertentu untuk SMTP sandbox, ubah email di sini sesuai kebutuhan.
-            </p>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Step 1 - Request OTP</h2>
-          </div>
-          <div class="panel-body">
-            <p class="hint">Memanggil <span class="mono">POST /api/v1/vendors/register/request-otp</span>.</p>
-            <div class="button-row">
-              <button id="btnRequestOtp">Request OTP</button>
-            </div>
-            <div id="requestOtpStatus" class="status-line">Belum dijalankan.</div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Step 2 - Verify OTP</h2>
-          </div>
-          <div class="panel-body">
-            <p class="hint">Memanggil <span class="mono">POST /api/v1/vendors/register/verify-otp</span> dan menyimpan onboarding JWT.</p>
-            <div class="button-row">
-              <button id="btnVerifyOtp">Verify OTP</button>
-            </div>
-            <div id="verifyOtpStatus" class="status-line">Belum dijalankan.</div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Step 3 - Set Password</h2>
-          </div>
-          <div class="panel-body">
-            <div class="grid">
-              <div class="field full">
-                <label for="password">Password</label>
-                <input id="password" type="text" value="Password123!" />
-              </div>
-            </div>
-            <div class="button-row">
-              <button id="btnSetPassword">Save Password</button>
-            </div>
-            <div id="passwordStatus" class="status-line">Belum dijalankan.</div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Step 4 - Legal Document & Store Info</h2>
-            <span class="badge">Presign + Upload + Submit</span>
-          </div>
-          <div class="panel-body">
-            <div class="grid">
-              <div class="field">
-                <label for="storeName">Store Name</label>
-                <input id="storeName" type="text" value="Toko Oleh Oleh Haji Test" />
-              </div>
-              <div class="field">
-                <label for="businessLegalType">Business Legal Type</label>
-                <select id="businessLegalType">
-                  <option value="perorangan" selected>perorangan (individual)</option>
-                  <option value="korporasi">korporasi (corporate)</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Individual fields (perorangan) -->
-            <div id="individualFields" class="grid" style="margin-top: 12px;">
-              <div class="field">
-                <label for="documentIdType">Document ID Type</label>
-                <select id="documentIdType">
-                  <option value="ktp" selected>ktp</option>
-                  <option value="passport">passport</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="nik">NIK / Passport Number</label>
-                <input id="nik" type="text" value="3173000000000001" />
-              </div>
-              <div class="field">
-                <label for="ownerName">Owner Name</label>
-                <input id="ownerName" type="text" value="Ahmad Subarkah" />
-              </div>
-              <div class="field">
-                <label for="birthDate">Birth Date</label>
-                <input id="birthDate" type="date" value="1990-01-02" />
-              </div>
-            </div>
-
-            <!-- Corporate fields (korporasi) -->
-            <div id="corporateFields" class="grid" style="margin-top: 12px; display: none;">
-              <div class="field">
-                <label for="nib">NIB (Nomor Induk Berusaha)</label>
-                <input id="nib" type="text" value="1234567890123" />
-              </div>
-              <div class="field">
-                <label for="companyName">Company Name</label>
-                <input id="companyName" type="text" value="PT Toko Oleh-Oleh Haji Mabrur" />
-              </div>
-              <div class="field">
-                <label for="establishedDate">Established Date</label>
-                <input id="establishedDate" type="date" value="2010-05-20" />
-              </div>
-              <div class="field full">
-                <label for="registeredAddress">Registered Address</label>
-                <input id="registeredAddress" type="text" value="Jl. Sudirman No. 1, Jakarta Pusat" />
-              </div>
-            </div>
-
-            <!-- Shared: file input + readonly fields -->
-            <div class="grid" style="margin-top: 12px;">
-              <div class="field">
-                <label for="documentFile">Document File</label>
-                <input id="documentFile" type="file" accept=".jpg,.jpeg,.pdf" />
-              </div>
-              <div class="field full">
-                <label for="documentObjectKey">Presigned Object Key</label>
-                <input id="documentObjectKey" type="text" readonly />
-              </div>
-              <div class="field full">
-                <label for="presignedUploadUrl">Presigned Upload URL</label>
-                <textarea id="presignedUploadUrl" readonly></textarea>
-              </div>
-            </div>
-
-            <div class="button-row">
-              <button id="btnPresignDoc">Presign Document</button>
-              <button id="btnUploadDoc" class="button-accent">Upload Selected File</button>
-              <button id="btnSubmitLegal">Submit Legal Info</button>
-            </div>
-            <p id="legalEndpointHint" class="hint" style="margin-top: 10px;"></p>
-            <div id="legalStatus" class="status-line">Belum dijalankan.</div>
-          </div>
-        </section>
-
+    <div class="card">
+      <h2>Config</h2>
+      <div class="grid">
+        <div>
+          <label for="baseUrl">Base URL</label>
+          <input id="baseUrl" value="http://localhost:8080/api/v1" />
+        </div>
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" />
+        </div>
+        <div>
+          <label for="otp">OTP Code</label>
+          <input id="otp" value="123456" />
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" type="password" value="Password123!" />
+        </div>
       </div>
+      <div class="hint">Gunakan email unik jika ingin mengulang flow register dari awal.</div>
+    </div>
 
-      <aside class="stack">
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Live State</h2>
-          </div>
-          <div class="panel-body">
-            <div class="state-grid">
-              <div class="state-card">
-                <strong>Onboarding Status</strong>
-                <code id="stateStatus">-</code>
-              </div>
-              <div class="state-card">
-                <strong>OTP Expires At</strong>
-                <code id="stateOtpExpires">-</code>
-              </div>
-              <div class="state-card">
-                <strong>Cooldown Until</strong>
-                <code id="stateCooldown">-</code>
-              </div>
-              <div class="state-card">
-                <strong>Onboarding Token</strong>
-                <code id="stateOnboardingToken">-</code>
-              </div>
-              <div class="state-card">
-                <strong>Onboarding Expires</strong>
-                <code id="stateOnboardingExpires">-</code>
-              </div>
-              <div class="state-card">
-                <strong>Document Uploaded</strong>
-                <code id="stateDocumentUploaded">false</code>
-              </div>
-              <div class="state-card">
-                <strong>Vendor Auth Token</strong>
-                <code id="stateAuthToken">-</code>
-              </div>
-              <div class="state-card">
-                <strong>Vendor ID</strong>
-                <code id="stateVendorId">-</code>
-              </div>
-              <div class="state-card">
-                <strong>Vendor Status</strong>
-                <code id="stateVendorStatus">-</code>
-              </div>
-            </div>
-          </div>
-        </section>
+    <div class="card">
+      <h2>1. Registration Flow</h2>
+      <div class="row">
+        <button id="requestOtpBtn">Request OTP</button>
+        <button id="verifyOtpBtn">Verify OTP</button>
+        <button id="setPasswordBtn">Set Password</button>
+        <button id="loginBtn" class="secondary">Login Vendor</button>
+      </div>
+    </div>
 
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Tokens</h2>
-          </div>
-          <div class="panel-body">
-            <div class="field">
-              <label for="onboardingToken">Onboarding JWT</label>
-              <textarea id="onboardingToken"></textarea>
-            </div>
-            <div class="field" style="margin-top: 12px;">
-              <label for="authToken">Vendor Auth JWT</label>
-              <textarea id="authToken"></textarea>
-            </div>
-          </div>
-        </section>
+    <div class="card">
+      <h2>Session State</h2>
+      <div class="stats">
+        <div class="stat">
+          <strong>OTP Expires At</strong>
+          <span id="otpExpiresAt">-</span>
+        </div>
+        <div class="stat">
+          <strong>OTP Cooldown Until</strong>
+          <span id="otpCooldownUntil">-</span>
+        </div>
+        <div class="stat">
+          <strong>Vendor ID</strong>
+          <span id="vendorId">-</span>
+        </div>
+        <div class="stat">
+          <strong>Vendor Status</strong>
+          <span id="vendorStatus">-</span>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:12px;">
+        <div class="full">
+          <label for="emailToken">Email Token</label>
+          <input id="emailToken" readonly />
+        </div>
+        <div class="full">
+          <label for="accessToken">Access Token</label>
+          <textarea id="accessToken" readonly></textarea>
+        </div>
+      </div>
+    </div>
 
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Last Response</h2>
-          </div>
-          <div class="panel-body">
-            <pre id="responseLog" class="log">Belum ada request.</pre>
-          </div>
-        </section>
-      </aside>
+    <div class="card">
+      <h2>2. Proposal Profile</h2>
+      <div class="grid">
+        <div>
+          <label for="storeName">store_name</label>
+          <input id="storeName" value="Toko Oleh-Oleh Haji Mabrur" />
+        </div>
+        <div>
+          <label for="storeDescription">store_description</label>
+          <input id="storeDescription" value="Menjual aneka oleh-oleh haji dan umrah." />
+        </div>
+        <div>
+          <label for="provinceId">province_id</label>
+          <select id="provinceId">
+            <option value="">Login dulu untuk memuat provinsi</option>
+          </select>
+        </div>
+        <div>
+          <label for="cityId">city_id</label>
+          <select id="cityId" disabled>
+            <option value="">Pilih provinsi dulu</option>
+          </select>
+        </div>
+        <div>
+          <label for="districtId">district_id</label>
+          <select id="districtId" disabled>
+            <option value="">Pilih kota dulu</option>
+          </select>
+        </div>
+        <div>
+          <label for="subdistrictId">subdistrict_id</label>
+          <select id="subdistrictId" disabled>
+            <option value="">Pilih kecamatan dulu</option>
+          </select>
+        </div>
+        <div>
+          <label for="postalCode">postal_code</label>
+          <input id="postalCode" value="10320" />
+        </div>
+        <div>
+          <label for="responsibleName">responsible_person.name</label>
+          <input id="responsibleName" value="Ahmad Fauzi" />
+        </div>
+        <div>
+          <label for="responsiblePhone">responsible_person.phone</label>
+          <input id="responsiblePhone" value="+6281234567890" />
+        </div>
+        <div>
+          <label for="responsibleEmail">responsible_person.email</label>
+          <input id="responsibleEmail" type="email" />
+        </div>
+        <div>
+          <label for="responsibleNik">responsible_person.nik</label>
+          <input id="responsibleNik" value="3175090901010001" />
+        </div>
+        <div class="full">
+          <label for="addressLine">address.address_line</label>
+          <input id="addressLine" value="Jl. Pegangsaan Barat No. 12" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3. Presign and Upload Documents</h2>
+      <p class="muted">Pilih 3 file, jalankan presign, lalu upload ke URL hasil presign.</p>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>field</th>
+              <th>mime</th>
+              <th>object_id</th>
+              <th>presigned_url</th>
+              <th>file</th>
+              <th>status</th>
+            </tr>
+          </thead>
+          <tbody id="docsBody"></tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="presignBtn">Presign Documents</button>
+        <button id="uploadSelectedBtn" class="secondary">Upload Selected</button>
+        <button id="submitProposalBtn" class="warn">Submit Proposal</button>
+        <button id="getMeBtn" class="secondary">Get /vendors/me</button>
+      </div>
+      <div class="hint">Upload dilakukan via HTTP PUT langsung ke storage menggunakan <code>presigned_url</code> tanpa bearer token.</div>
+    </div>
+
+    <div class="card">
+      <h2>Response Log</h2>
+      <textarea id="log" readonly></textarea>
     </div>
   </div>
 
   <script>
-    const STORAGE_KEY = "vendor_register_multistep_manual_test";
-
     const state = {
-      baseUrl: "http://localhost:8080",
-      email: "",
-      otpCode: "",
-      otpExpiresAt: "",
-      cooldownUntil: "",
-      onboardingToken: "",
-      onboardingExpiresAt: "",
-      onboardingStatus: "",
-      documentObjectKey: "",
-      presignedUploadUrl: "",
-      documentUploaded: false,
-      businessLegalType: "perorangan",
-      authToken: "",
-      vendorId: "",
-      vendorStatus: "",
-      lastResponse: "Belum ada request."
+      docs: [
+        { key: "responsible_person_ktp", label: "KTP", objectId: "", presignedUrl: "", file: null, status: "idle", error: "" },
+        { key: "nib", label: "NIB", objectId: "", presignedUrl: "", file: null, status: "idle", error: "" },
+        { key: "halal_certificate", label: "Halal Certificate", objectId: "", presignedUrl: "", file: null, status: "idle", error: "" }
+      ]
     };
-
-    // -- Corporate-only state (not persisted, derived from form inputs at submit time) --
 
     const els = {
       baseUrl: document.getElementById("baseUrl"),
       email: document.getElementById("email"),
-      otpCode: document.getElementById("otpCode"),
+      otp: document.getElementById("otp"),
       password: document.getElementById("password"),
+      emailToken: document.getElementById("emailToken"),
+      accessToken: document.getElementById("accessToken"),
+      vendorId: document.getElementById("vendorId"),
+      vendorStatus: document.getElementById("vendorStatus"),
+      otpExpiresAt: document.getElementById("otpExpiresAt"),
+      otpCooldownUntil: document.getElementById("otpCooldownUntil"),
       storeName: document.getElementById("storeName"),
-      // Step 4 shared
-      businessLegalType: document.getElementById("businessLegalType"),
-      documentFile: document.getElementById("documentFile"),
-      documentObjectKey: document.getElementById("documentObjectKey"),
-      presignedUploadUrl: document.getElementById("presignedUploadUrl"),
-      legalEndpointHint: document.getElementById("legalEndpointHint"),
-      // Step 4 individual fields
-      individualFields: document.getElementById("individualFields"),
-      documentIdType: document.getElementById("documentIdType"),
-      nik: document.getElementById("nik"),
-      ownerName: document.getElementById("ownerName"),
-      birthDate: document.getElementById("birthDate"),
-      // Step 4 corporate fields
-      corporateFields: document.getElementById("corporateFields"),
-      nib: document.getElementById("nib"),
-      companyName: document.getElementById("companyName"),
-      establishedDate: document.getElementById("establishedDate"),
-      registeredAddress: document.getElementById("registeredAddress"),
-      onboardingToken: document.getElementById("onboardingToken"),
-      authToken: document.getElementById("authToken"),
-      responseLog: document.getElementById("responseLog"),
-      stateStatus: document.getElementById("stateStatus"),
-      stateOtpExpires: document.getElementById("stateOtpExpires"),
-      stateCooldown: document.getElementById("stateCooldown"),
-      stateOnboardingToken: document.getElementById("stateOnboardingToken"),
-      stateOnboardingExpires: document.getElementById("stateOnboardingExpires"),
-      stateDocumentUploaded: document.getElementById("stateDocumentUploaded"),
-      stateAuthToken: document.getElementById("stateAuthToken"),
-      stateVendorId: document.getElementById("stateVendorId"),
-      stateVendorStatus: document.getElementById("stateVendorStatus"),
-      requestOtpStatus: document.getElementById("requestOtpStatus"),
-      verifyOtpStatus: document.getElementById("verifyOtpStatus"),
-      passwordStatus: document.getElementById("passwordStatus"),
-      legalStatus: document.getElementById("legalStatus")
+      storeDescription: document.getElementById("storeDescription"),
+      provinceId: document.getElementById("provinceId"),
+      cityId: document.getElementById("cityId"),
+      districtId: document.getElementById("districtId"),
+      subdistrictId: document.getElementById("subdistrictId"),
+      postalCode: document.getElementById("postalCode"),
+      addressLine: document.getElementById("addressLine"),
+      responsibleName: document.getElementById("responsibleName"),
+      responsiblePhone: document.getElementById("responsiblePhone"),
+      responsibleEmail: document.getElementById("responsibleEmail"),
+      responsibleNik: document.getElementById("responsibleNik"),
+      log: document.getElementById("log"),
+      docsBody: document.getElementById("docsBody")
     };
 
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
-        const saved = JSON.parse(raw);
-        Object.assign(state, saved || {});
-      } catch (err) {
-        console.warn("Failed to load local state:", err);
-      }
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
-    function saveState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    function appendLog(title, payload) {
+      const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+      els.log.value = `[${new Date().toISOString()}] ${title}\n${text}\n\n` + els.log.value;
     }
 
-    function syncInputsFromState() {
-      els.baseUrl.value = state.baseUrl || "";
-      els.email.value = state.email || "";
-      els.otpCode.value = state.otpCode || "";
-      els.businessLegalType.value = state.businessLegalType || "perorangan";
-      els.onboardingToken.value = state.onboardingToken || "";
-      els.authToken.value = state.authToken || "";
-      els.documentObjectKey.value = state.documentObjectKey || "";
-      els.presignedUploadUrl.value = state.presignedUploadUrl || "";
-      els.responseLog.textContent = state.lastResponse || "Belum ada request.";
+    function statusBadge(status) {
+      const cls = {
+        idle: "s-idle",
+        ready: "s-ready",
+        uploading: "s-uploading",
+        uploaded: "s-uploaded",
+        failed: "s-failed"
+      }[status] || "s-idle";
+      return `<span class="status ${cls}">${status}</span>`;
     }
 
-    function truncate(value, length = 42) {
-      if (!value) return "-";
-      return value.length > length ? value.slice(0, length) + "..." : value;
+    function shortText(value) {
+      if (!value) return "";
+      if (value.length <= 72) return value;
+      return value.slice(0, 64) + "...";
     }
 
-    function renderState() {
-      syncInputsFromState();
-      els.stateStatus.textContent = state.onboardingStatus || "-";
-      els.stateOtpExpires.textContent = state.otpExpiresAt || "-";
-      els.stateCooldown.textContent = state.cooldownUntil || "-";
-      els.stateOnboardingToken.textContent = truncate(state.onboardingToken);
-      els.stateOnboardingExpires.textContent = state.onboardingExpiresAt || "-";
-      els.stateDocumentUploaded.textContent = String(Boolean(state.documentUploaded));
-      els.stateAuthToken.textContent = truncate(state.authToken);
-      els.stateVendorId.textContent = state.vendorId || "-";
-      els.stateVendorStatus.textContent = state.vendorStatus || "-";
-      showLegalTypeFields();
-    }
+    function renderDocs() {
+      els.docsBody.innerHTML = "";
+      state.docs.forEach((doc, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = [
+          `<td><strong>${doc.key}</strong><div class="hint">${doc.label}</div></td>`,
+          `<td>${doc.file ? doc.file.type || "-" : "-"}</td>`,
+          `<td><code>${doc.objectId || "-"}</code></td>`,
+          `<td title="${(doc.presignedUrl || "").replace(/"/g, "&quot;")}">${shortText(doc.presignedUrl) || "-"}</td>`,
+          `<td><input type="file" id="file_${idx}" accept=".jpg,.jpeg,.png,.webp,.pdf"></td>`,
+          `<td>${statusBadge(doc.status)}${doc.error ? `<div class="hint">${doc.error}</div>` : ""}</td>`
+        ].join("");
+        els.docsBody.appendChild(tr);
 
-    function setStatus(el, message, mode) {
-      el.textContent = message;
-      el.className = "status-line" + (mode ? " " + mode : "");
-    }
-
-    function updateLiveFieldsFromInputs() {
-      state.baseUrl = els.baseUrl.value.trim();
-      state.email = els.email.value.trim();
-      state.otpCode = els.otpCode.value.trim();
-      state.businessLegalType = els.businessLegalType.value;
-      state.onboardingToken = els.onboardingToken.value.trim();
-      state.authToken = els.authToken.value.trim();
-      state.documentObjectKey = els.documentObjectKey.value.trim();
-      state.presignedUploadUrl = els.presignedUploadUrl.value.trim();
-      saveState();
-      renderState();
-    }
-
-    function logResponse(label, payload) {
-      const value = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
-      state.lastResponse = "[" + new Date().toISOString() + "] " + label + "\n\n" + value;
-      saveState();
-      renderState();
-    }
-
-    function safeJsonParse(text) {
-      try {
-        return JSON.parse(text);
-      } catch (err) {
-        return text;
-      }
-    }
-
-    async function apiRequest(path, options = {}) {
-      updateLiveFieldsFromInputs();
-      const baseUrl = (state.baseUrl || "").replace(/\/+$/, "");
-      const url = baseUrl + path;
-      const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
-      const res = await fetch(url, {
-        method: options.method || "POST",
-        headers,
-        body: options.body ? JSON.stringify(options.body) : undefined
+        const input = document.getElementById(`file_${idx}`);
+        input.addEventListener("change", (event) => {
+          doc.file = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+          doc.error = "";
+          if (!doc.file) {
+            doc.status = doc.objectId ? "ready" : "idle";
+          }
+          renderDocs();
+        });
       });
+    }
 
+    function setText(el, value) {
+      el.textContent = value || "-";
+    }
+
+    function currentAccessToken() {
+      return els.accessToken.value.trim();
+    }
+
+    function collectAuthHeaders(token) {
+      return {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      };
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(`${els.baseUrl.value.replace(/\/+$/, "")}${path}`, options);
       const text = await res.text();
-      const data = safeJsonParse(text);
-      logResponse((options.method || "POST") + " " + path + " [" + res.status + "]", data);
-
+      let body;
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch (_) {
+        body = text;
+      }
+      appendLog(`${options.method || "GET"} ${path} -> ${res.status}`, body);
       if (!res.ok) {
-        const message = data && typeof data === "object" && data.message ? data.message : "Request failed";
-        throw new Error(message + " (HTTP " + res.status + ")");
+        throw new Error(`HTTP ${res.status}`);
       }
-      return data;
+      return body;
     }
 
-    async function uploadFileToPresignedUrl() {
-      return uploadSelectedFile(state.presignedUploadUrl, state.documentObjectKey, els.documentFile);
+    function fillSelect(selectEl, items, placeholder, selectedValue = "") {
+      const rows = Array.isArray(items) ? items : [];
+      const options = [`<option value="">${escapeHtml(placeholder)}</option>`];
+      rows.forEach((item) => {
+        const id = item?.id || "";
+        const name = item?.name || "";
+        options.push(`<option value="${escapeHtml(id)}" data-name="${escapeHtml(name)}"${id === selectedValue ? " selected" : ""}>${escapeHtml(name)}</option>`);
+      });
+      selectEl.innerHTML = options.join("");
+      selectEl.disabled = rows.length === 0;
     }
 
-    async function uploadSelectedFile(uploadUrl, objectKey, fileInput) {
-      const file = fileInput.files[0];
+    function resetLocationSelect(selectEl, placeholder) {
+      selectEl.innerHTML = `<option value="">${placeholder}</option>`;
+      selectEl.disabled = true;
+    }
 
-      if (!uploadUrl || !objectKey) {
-        throw new Error("Presigned URL belum dibuat.");
+    async function loadProvinces() {
+      resetLocationSelect(els.provinceId, "Memuat provinsi...");
+      try {
+        const res = await api("/locations/provinces", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${ensureToken()}`
+          }
+        });
+        fillSelect(els.provinceId, res?.data || [], "Pilih provinsi");
+      } catch (err) {
+        resetLocationSelect(els.provinceId, "Gagal memuat provinsi");
+        appendLog("load provinces failed", String(err));
       }
-      if (!file) {
-        throw new Error("Pilih file dokumen dulu.");
-      }
+    }
 
-      const res = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type || "application/octet-stream"
+    async function loadCities(provinceID) {
+      resetLocationSelect(els.cityId, provinceID ? "Memuat kota..." : "Pilih provinsi dulu");
+      resetLocationSelect(els.districtId, "Pilih kota dulu");
+      resetLocationSelect(els.subdistrictId, "Pilih kecamatan dulu");
+      if (!provinceID) return;
+      try {
+        const res = await api(`/locations/cities?province_id=${encodeURIComponent(provinceID)}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${ensureToken()}`
+          }
+        });
+        fillSelect(els.cityId, res?.data || [], "Pilih kota");
+      } catch (err) {
+        resetLocationSelect(els.cityId, "Gagal memuat kota");
+        appendLog("load cities failed", String(err));
+      }
+    }
+
+    async function loadDistricts(cityID) {
+      resetLocationSelect(els.districtId, cityID ? "Memuat kecamatan..." : "Pilih kota dulu");
+      resetLocationSelect(els.subdistrictId, "Pilih kecamatan dulu");
+      if (!cityID) return;
+      try {
+        const res = await api(`/locations/districts?city_id=${encodeURIComponent(cityID)}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${ensureToken()}`
+          }
+        });
+        fillSelect(els.districtId, res?.data || [], "Pilih kecamatan");
+      } catch (err) {
+        resetLocationSelect(els.districtId, "Gagal memuat kecamatan");
+        appendLog("load districts failed", String(err));
+      }
+    }
+
+    async function loadSubdistricts(districtID) {
+      resetLocationSelect(els.subdistrictId, districtID ? "Memuat kelurahan..." : "Pilih kecamatan dulu");
+      if (!districtID) return;
+      try {
+        const res = await api(`/locations/subdistricts?district_id=${encodeURIComponent(districtID)}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${ensureToken()}`
+          }
+        });
+        fillSelect(els.subdistrictId, res?.data || [], "Pilih kelurahan");
+      } catch (err) {
+        resetLocationSelect(els.subdistrictId, "Gagal memuat kelurahan");
+        appendLog("load subdistricts failed", String(err));
+      }
+    }
+
+    function applyVendorSession(data) {
+      els.accessToken.value = data?.access_token || els.accessToken.value;
+      setText(els.vendorId, data?.vendor_id || "");
+      setText(els.vendorStatus, data?.vendor_status || "");
+      if (currentAccessToken()) {
+        loadProvinces();
+      }
+    }
+
+    function ensureToken() {
+      const token = currentAccessToken();
+      if (!token) {
+        throw new Error("Access token kosong. Jalankan register/password atau login dulu.");
+      }
+      return token;
+    }
+
+    function ensureFilesReady() {
+      const missing = state.docs.filter((doc) => !doc.file);
+      if (missing.length > 0) {
+        throw new Error(`File belum lengkap: ${missing.map((doc) => doc.key).join(", ")}`);
+      }
+    }
+
+    function collectProposalPayload() {
+      const ktp = state.docs.find((doc) => doc.key === "responsible_person_ktp");
+      const nib = state.docs.find((doc) => doc.key === "nib");
+      const halal = state.docs.find((doc) => doc.key === "halal_certificate");
+
+      return {
+        store_name: els.storeName.value.trim(),
+        store_description: els.storeDescription.value.trim(),
+        address: {
+          province_id: els.provinceId.value.trim(),
+          city_id: els.cityId.value.trim(),
+          district_id: els.districtId.value.trim(),
+          subdistrict_id: els.subdistrictId.value.trim(),
+          postal_code: els.postalCode.value.trim(),
+          address_line: els.addressLine.value.trim()
         },
-        body: file
-      });
-
-      const text = await res.text();
-      logResponse("PUT presigned-upload [" + res.status + "]", text || "(empty body)");
-
-      if (!res.ok) {
-        throw new Error("Upload ke presigned URL gagal (HTTP " + res.status + ")");
-      }
-
-      return true;
-    }
-
-    function onboardingAuthHeaders() {
-      updateLiveFieldsFromInputs();
-      if (!state.onboardingToken) {
-        throw new Error("Onboarding token kosong. Verify OTP dulu.");
-      }
-      return {
-        Authorization: "Bearer " + state.onboardingToken
+        responsible_person: {
+          name: els.responsibleName.value.trim(),
+          phone: els.responsiblePhone.value.trim(),
+          email: els.responsibleEmail.value.trim(),
+          nik: els.responsibleNik.value.trim(),
+          ktp_object_id: ktp.objectId
+        },
+        other_documents: {
+          nib_object_id: nib.objectId,
+          halal_certificate_object_id: halal.objectId
+        }
       };
     }
 
-    function vendorAuthHeaders() {
-      updateLiveFieldsFromInputs();
-      if (!state.authToken) {
-        throw new Error("Vendor auth token kosong. Submit legal info dulu.");
+    async function uploadDoc(doc) {
+      if (!doc.file) {
+        throw new Error(`File untuk ${doc.key} belum dipilih`);
       }
-      return {
-        Authorization: "Bearer " + state.authToken
-      };
-    }
+      if (!doc.presignedUrl) {
+        throw new Error(`Presigned URL untuk ${doc.key} belum ada`);
+      }
 
-    function showLegalTypeFields() {
-      const isIndividual = els.businessLegalType.value === "perorangan";
-      els.individualFields.style.display = isIndividual ? "" : "none";
-      els.corporateFields.style.display = isIndividual ? "none" : "";
-      els.documentFile.setAttribute("accept", isIndividual ? ".jpg,.jpeg,.pdf" : ".pdf");
-      const base = "/api/v1/vendors/register/souvenir-store";
-      const path = isIndividual ? "individual" : "corporate";
-      els.legalEndpointHint.textContent =
-        "Presign → " + base + "/" + path + "/presign" +
-        "  |  Submit → " + base + "/" + path;
-    }
+      doc.status = "uploading";
+      doc.error = "";
+      renderDocs();
 
-    function generateEmail() {
-      const stamp = Date.now();
-      const value = "vendor.multistep." + stamp + "@example.com";
-      state.email = value;
-      saveState();
-      renderState();
-    }
-
-    function resetAll() {
-      Object.assign(state, {
-        baseUrl: els.baseUrl.value.trim() || "http://localhost:8080",
-        email: "",
-        otpCode: "",
-        otpExpiresAt: "",
-        cooldownUntil: "",
-        onboardingToken: "",
-        onboardingExpiresAt: "",
-        onboardingStatus: "",
-        documentObjectKey: "",
-        presignedUploadUrl: "",
-        documentUploaded: false,
-        businessLegalType: "perorangan",
-        authToken: "",
-        vendorId: "",
-        vendorStatus: "",
-        lastResponse: "State di-reset."
-      });
-      localStorage.removeItem(STORAGE_KEY);
-      saveState();
-      renderState();
-      setStatus(els.requestOtpStatus, "Belum dijalankan.", "");
-      setStatus(els.verifyOtpStatus, "Belum dijalankan.", "");
-      setStatus(els.passwordStatus, "Belum dijalankan.", "");
-      setStatus(els.legalStatus, "Belum dijalankan.", "");
-      els.documentFile.value = "";
-    }
-
-    document.getElementById("btnGenerateEmail").addEventListener("click", generateEmail);
-    document.getElementById("btnResetAll").addEventListener("click", resetAll);
-
-    document.getElementById("btnRequestOtp").addEventListener("click", async () => {
       try {
-        const res = await apiRequest("/api/v1/vendors/register/request-otp", {
-          body: { email: els.email.value.trim() }
+        const res = await fetch(doc.presignedUrl, {
+          method: "PUT",
+          headers: { "Content-Type": doc.file.type || "application/octet-stream" },
+          body: doc.file
         });
-        state.email = els.email.value.trim();
-        state.otpExpiresAt = res.data?.expires_at || "";
-        state.cooldownUntil = res.data?.cooldown_until || "";
-        saveState();
-        renderState();
-        setStatus(els.requestOtpStatus, "OTP requested successfully.", "ok");
+
+        const text = await res.text();
+        if (!res.ok) {
+          doc.status = "failed";
+          doc.error = `HTTP ${res.status}`;
+          renderDocs();
+          appendLog(`PUT upload ${doc.key} -> ${res.status}`, text || "(empty)");
+          return;
+        }
+
+        doc.status = "uploaded";
+        doc.error = "";
+        renderDocs();
+        appendLog(`PUT upload ${doc.key} -> ${res.status}`, { object_id: doc.objectId });
       } catch (err) {
-        setStatus(els.requestOtpStatus, err.message, "error");
+        doc.status = "failed";
+        doc.error = String(err);
+        renderDocs();
+        appendLog(`upload ${doc.key} failed`, String(err));
+      }
+    }
+
+    document.getElementById("requestOtpBtn").addEventListener("click", async () => {
+      try {
+        const res = await api("/vendors/register/request-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: els.email.value.trim() })
+        });
+        setText(els.otpExpiresAt, res?.data?.expires_at || "");
+        setText(els.otpCooldownUntil, res?.data?.cooldown_until || "");
+        if (!els.responsibleEmail.value.trim()) {
+          els.responsibleEmail.value = els.email.value.trim();
+        }
+      } catch (err) {
+        appendLog("request otp failed", String(err));
       }
     });
 
-    document.getElementById("btnVerifyOtp").addEventListener("click", async () => {
+    document.getElementById("verifyOtpBtn").addEventListener("click", async () => {
       try {
-        const res = await apiRequest("/api/v1/vendors/register/verify-otp", {
-          body: {
+        const res = await api("/vendors/register/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             email: els.email.value.trim(),
-            code: els.otpCode.value.trim()
-          }
+            code: els.otp.value.trim()
+          })
         });
-        state.email = els.email.value.trim();
-        state.otpCode = els.otpCode.value.trim();
-        state.onboardingToken = res.data?.onboarding_token || "";
-        state.onboardingExpiresAt = res.data?.onboarding_expires_at || "";
-        state.onboardingStatus = res.data?.status || "";
-        saveState();
-        renderState();
-        setStatus(els.verifyOtpStatus, "OTP verified. Onboarding JWT saved.", "ok");
+        els.emailToken.value = res?.data?.email_token || "";
       } catch (err) {
-        setStatus(els.verifyOtpStatus, err.message, "error");
+        appendLog("verify otp failed", String(err));
       }
     });
 
-    document.getElementById("btnSetPassword").addEventListener("click", async () => {
+    document.getElementById("setPasswordBtn").addEventListener("click", async () => {
       try {
-        const res = await apiRequest("/api/v1/vendors/register/password", {
-          headers: onboardingAuthHeaders(),
-          body: {
+        const res = await api("/vendors/register/password", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${els.emailToken.value.trim()}`
+          },
+          body: JSON.stringify({ password: els.password.value })
+        });
+        applyVendorSession(res?.data);
+      } catch (err) {
+        appendLog("set password failed", String(err));
+      }
+    });
+
+    document.getElementById("loginBtn").addEventListener("click", async () => {
+      try {
+        const res = await api("/vendors/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: els.email.value.trim(),
             password: els.password.value
+          })
+        });
+        applyVendorSession(res?.data);
+      } catch (err) {
+        appendLog("login failed", String(err));
+      }
+    });
+
+    document.getElementById("presignBtn").addEventListener("click", async () => {
+      try {
+        const token = ensureToken();
+        ensureFilesReady();
+
+        const payload = {
+          responsible_person_ktp: state.docs[0].file.type,
+          nib: state.docs[1].file.type,
+          halal_certificate: state.docs[2].file.type
+        };
+
+        const res = await api("/vendors/register/propose/souvenir_store/presign", {
+          method: "POST",
+          headers: collectAuthHeaders(token),
+          body: JSON.stringify(payload)
+        });
+
+        state.docs[0].objectId = res?.data?.responsible_person_ktp?.object_id || "";
+        state.docs[0].presignedUrl = res?.data?.responsible_person_ktp?.presigned_url || "";
+        state.docs[1].objectId = res?.data?.nib?.object_id || "";
+        state.docs[1].presignedUrl = res?.data?.nib?.presigned_url || "";
+        state.docs[2].objectId = res?.data?.halal_certificate?.object_id || "";
+        state.docs[2].presignedUrl = res?.data?.halal_certificate?.presigned_url || "";
+        state.docs.forEach((doc) => {
+          doc.status = doc.objectId ? "ready" : "idle";
+          doc.error = "";
+        });
+        renderDocs();
+      } catch (err) {
+        appendLog("presign failed", String(err));
+      }
+    });
+
+    document.getElementById("uploadSelectedBtn").addEventListener("click", async () => {
+      try {
+        const toUpload = state.docs.filter((doc) => doc.file && doc.presignedUrl);
+        if (toUpload.length === 0) {
+          throw new Error("Belum ada dokumen yang siap diupload. Jalankan presign dulu.");
+        }
+        for (const doc of toUpload) {
+          await uploadDoc(doc);
+        }
+      } catch (err) {
+        appendLog("upload selected failed", String(err));
+      }
+    });
+
+    document.getElementById("submitProposalBtn").addEventListener("click", async () => {
+      try {
+        const token = ensureToken();
+        const notUploaded = state.docs.filter((doc) => doc.status !== "uploaded");
+        if (notUploaded.length > 0) {
+          throw new Error(`Masih ada dokumen belum uploaded: ${notUploaded.map((doc) => doc.key).join(", ")}`);
+        }
+
+        const res = await api("/vendors/register/propose/souvenir_store", {
+          method: "POST",
+          headers: collectAuthHeaders(token),
+          body: JSON.stringify(collectProposalPayload())
+        });
+        setText(els.vendorId, res?.data?.vendor_id || els.vendorId.textContent);
+        setText(els.vendorStatus, res?.data?.status || "");
+      } catch (err) {
+        appendLog("submit proposal failed", String(err));
+      }
+    });
+
+    document.getElementById("getMeBtn").addEventListener("click", async () => {
+      try {
+        const token = ensureToken();
+        const res = await api("/vendors/me", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`
           }
         });
-        state.onboardingStatus = res.data?.status || state.onboardingStatus;
-        saveState();
-        renderState();
-        setStatus(els.passwordStatus, "Password saved.", "ok");
+        setText(els.vendorId, res?.data?.vendor_id || "");
+        setText(els.vendorStatus, res?.data?.vendor_status || "");
       } catch (err) {
-        setStatus(els.passwordStatus, err.message, "error");
+        appendLog("get me failed", String(err));
       }
     });
 
-    document.getElementById("businessLegalType").addEventListener("change", function() {
-      state.businessLegalType = els.businessLegalType.value;
-      saveState();
-      renderState();
+    els.provinceId.addEventListener("change", async () => {
+      await loadCities(els.provinceId.value);
     });
 
-    document.getElementById("btnPresignDoc").addEventListener("click", async () => {
-      try {
-        const isIndividual = els.businessLegalType.value === "perorangan";
-        const path = isIndividual
-          ? "/api/v1/vendors/register/souvenir-store/individual/presign"
-          : "/api/v1/vendors/register/souvenir-store/corporate/presign";
-        // Individual presign needs a body; corporate presign has no body
-        const options = { headers: onboardingAuthHeaders() };
-        if (isIndividual) {
-          const file = els.documentFile.files[0];
-          if (!file) {
-            throw new Error("Pilih file dokumen individual dulu sebelum presign.");
-          }
-          options.body = {
-            document_id_type: els.documentIdType.value,
-            content_type: file.type || "application/octet-stream"
-          };
-        }
-        const res = await apiRequest(path, options);
-        state.documentObjectKey = res.data?.object_key || "";
-        state.presignedUploadUrl = res.data?.upload_url || "";
-        state.documentUploaded = false;
-        saveState();
-        renderState();
-        setStatus(els.legalStatus, "Presigned URL generated. Upload file next.", "ok");
-      } catch (err) {
-        setStatus(els.legalStatus, err.message, "error");
-      }
+    els.cityId.addEventListener("change", async () => {
+      await loadDistricts(els.cityId.value);
     });
 
-    document.getElementById("btnUploadDoc").addEventListener("click", async () => {
-      try {
-        await uploadFileToPresignedUrl();
-        state.documentUploaded = true;
-        saveState();
-        renderState();
-        setStatus(els.legalStatus, "Document uploaded to storage.", "ok");
-      } catch (err) {
-        setStatus(els.legalStatus, err.message, "error");
-      }
+    els.districtId.addEventListener("change", async () => {
+      await loadSubdistricts(els.districtId.value);
     });
 
-    document.getElementById("btnSubmitLegal").addEventListener("click", async () => {
-      try {
-        const isIndividual = els.businessLegalType.value === "perorangan";
-        const objectKey = state.documentObjectKey || els.documentObjectKey.value.trim();
-
-        let path, body;
-        if (isIndividual) {
-          path = "/api/v1/vendors/register/souvenir-store/individual";
-          body = {
-            store_name: els.storeName.value.trim(),
-            document_id_type: els.documentIdType.value,
-            nik: els.nik.value.trim(),
-            owner_name: els.ownerName.value.trim(),
-            birth_date: els.birthDate.value,
-            document_id_object_key: objectKey
-          };
-        } else {
-          path = "/api/v1/vendors/register/souvenir-store/corporate";
-          body = {
-            store_name: els.storeName.value.trim(),
-            nib: els.nib.value.trim(),
-            company_name: els.companyName.value.trim(),
-            established_date: els.establishedDate.value,
-            registered_address: els.registeredAddress.value.trim(),
-            nib_document_object_key: objectKey
-          };
-        }
-
-        const res = await apiRequest(path, { headers: onboardingAuthHeaders(), body });
-        state.authToken = res.data?.token || "";
-        state.vendorId = res.data?.vendor_id || "";
-        state.vendorStatus = res.data?.vendor_status || "";
-        saveState();
-        renderState();
-        setStatus(els.legalStatus, "Vendor registration completed. Auth JWT received.", "ok");
-      } catch (err) {
-        setStatus(els.legalStatus, err.message, "error");
-      }
-    });
-
-    [
-      els.baseUrl,
-      els.email,
-      els.otpCode,
-      els.onboardingToken,
-      els.authToken,
-      els.documentObjectKey,
-      els.presignedUploadUrl
-    ].forEach((el) => {
-      el.addEventListener("input", updateLiveFieldsFromInputs);
-      el.addEventListener("change", updateLiveFieldsFromInputs);
-    });
-
-    loadState();
-    if (!state.email) {
-      state.email = "vendor.multistep." + Date.now() + "@example.com";
-    }
-    saveState();
-    renderState();
-    showLegalTypeFields();
+    (function seedDefaults() {
+      const ts = Date.now();
+      const email = `vendor.test+${ts}@example.com`;
+      els.email.value = email;
+      els.responsibleEmail.value = email;
+      renderDocs();
+      appendLog("page ready", { email });
+    })();
   </script>
 </body>
 </html>

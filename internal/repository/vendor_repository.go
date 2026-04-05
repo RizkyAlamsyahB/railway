@@ -17,21 +17,30 @@ import (
 // GORM model structs (internal to repository layer).
 
 type vendorModel struct {
-	ID                    string     `gorm:"column:id;primaryKey"`
-	OwnerUserID           string     `gorm:"column:owner_user_id"`
-	VendorType            string     `gorm:"column:vendor_type"`
-	BusinessLegalType     *string    `gorm:"column:business_legal_type"`
-	LegalName             *string    `gorm:"column:legal_name"`
-	DisplayName           string     `gorm:"column:display_name"`
-	Description           *string    `gorm:"column:description"`
-	RegisteredAddress     *string    `gorm:"column:registered_address"`
-	Status                string     `gorm:"column:status"`
-	ApprovedBy            *string    `gorm:"column:approved_by"`
-	ApprovedAt            *time.Time `gorm:"column:approved_at"`
-	StatusReason          *string    `gorm:"column:status_reason"`
-	XenditAccountID       *string    `gorm:"column:xendit_account_id"`
-	CreatedAt             time.Time  `gorm:"column:created_at"`
-	UpdatedAt             time.Time  `gorm:"column:updated_at"`
+	ID              string     `gorm:"column:id;primaryKey"`
+	OwnerUserID     string     `gorm:"column:owner_user_id"`
+	VendorType      *string    `gorm:"column:vendor_type"`
+	LegalName       *string    `gorm:"column:legal_name"`
+	DisplayName     *string    `gorm:"column:display_name"`
+	Description     *string    `gorm:"column:description"`
+	ProvinceID      *string    `gorm:"column:province_id"`
+	ProvinceName    *string    `gorm:"column:province_name"`
+	CityID          *string    `gorm:"column:city_id"`
+	CityName        *string    `gorm:"column:city_name"`
+	DistrictID      *string    `gorm:"column:district_id"`
+	DistrictName    *string    `gorm:"column:district_name"`
+	SubdistrictID   *string    `gorm:"column:subdistrict_id"`
+	SubdistrictName *string    `gorm:"column:subdistrict_name"`
+	PostalCode      *string    `gorm:"column:postal_code"`
+	AddressLine     *string    `gorm:"column:address_line"`
+	Status          string     `gorm:"column:status"`
+	ApprovedBy      *string    `gorm:"column:approved_by"`
+	ApprovedAt      *time.Time `gorm:"column:approved_at"`
+	StatusReason    *string    `gorm:"column:status_reason"`
+	XenditAccountID *string    `gorm:"column:xendit_account_id"`
+	TotalSold       int        `gorm:"column:total_sold"`
+	CreatedAt       time.Time  `gorm:"column:created_at"`
+	UpdatedAt       time.Time  `gorm:"column:updated_at"`
 }
 
 func (vendorModel) TableName() string { return "vendors" }
@@ -53,21 +62,32 @@ type vendorBankAccountModel struct {
 func (vendorBankAccountModel) TableName() string { return "vendor_bank_accounts" }
 
 type vendorDocumentModel struct {
-	ID                 string     `gorm:"column:id;primaryKey"`
-	VendorID           string     `gorm:"column:vendor_id"`
-	DocType            string     `gorm:"column:doc_type"`
-	FileURL            string     `gorm:"column:file_url"`
-	MimeType           *string    `gorm:"column:mime_type"`
-	FileSizeBytes      *int       `gorm:"column:file_size_bytes"`
-	FileChecksum       *string    `gorm:"column:file_checksum"`
-	UploadedBy         *string    `gorm:"column:uploaded_by"`
-	VerifiedBy         *string    `gorm:"column:verified_by"`
-	VerifiedAt         *time.Time `gorm:"column:verified_at"`
-	CreatedAt          time.Time  `gorm:"column:created_at"`
-	UpdatedAt          time.Time  `gorm:"column:updated_at"`
+	ID            string     `gorm:"column:id;primaryKey"`
+	VendorID      string     `gorm:"column:vendor_id"`
+	DocType       string     `gorm:"column:doc_type"`
+	FileURL       string     `gorm:"column:file_url"`
+	MimeType      *string    `gorm:"column:mime_type"`
+	FileSizeBytes *int       `gorm:"column:file_size_bytes"`
+	FileChecksum  *string    `gorm:"column:file_checksum"`
+	UploadedBy    *string    `gorm:"column:uploaded_by"`
+	VerifiedBy    *string    `gorm:"column:verified_by"`
+	VerifiedAt    *time.Time `gorm:"column:verified_at"`
+	CreatedAt     time.Time  `gorm:"column:created_at"`
+	UpdatedAt     time.Time  `gorm:"column:updated_at"`
 }
 
 func (vendorDocumentModel) TableName() string { return "vendor_documents" }
+
+type vendorResponsiblePersonModel struct {
+	ID        string    `gorm:"column:id;primaryKey"`
+	VendorID  string    `gorm:"column:vendor_id"`
+	UserID    string    `gorm:"column:user_id"`
+	NIK       string    `gorm:"column:nik"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (vendorResponsiblePersonModel) TableName() string { return "vendor_responsible_persons" }
 
 type vendorRepository struct {
 	db          *gorm.DB
@@ -188,6 +208,17 @@ func (r *vendorRepository) FindBankAccountByVendorID(ctx context.Context, vendor
 	return r.toDomainVendorBankAccount(&model)
 }
 
+func (r *vendorRepository) FindResponsiblePersonByVendorID(ctx context.Context, vendorID uuid.UUID) (*domain.VendorResponsiblePerson, error) {
+	var model vendorResponsiblePersonModel
+	if err := r.db.WithContext(ctx).Where("vendor_id = ?", vendorID.String()).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return r.toDomainVendorResponsiblePerson(&model)
+}
+
 func (r *vendorRepository) UpsertBankAccount(ctx context.Context, bankAccount *domain.VendorBankAccount) error {
 	model, err := r.toVendorBankAccountModel(bankAccount)
 	if err != nil {
@@ -258,6 +289,89 @@ func (r *vendorRepository) UpdateStatus(ctx context.Context, vendorID uuid.UUID,
 	return r.db.WithContext(ctx).Model(&vendorModel{}).
 		Where("id = ?", vendorID.String()).
 		Updates(updates).Error
+}
+
+func (r *vendorRepository) SubmitSouvenirStoreProposal(ctx context.Context, input domain.SubmitSouvenirStoreProposalInput) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if input.OwnerUser == nil {
+			return errors.New("missing owner user")
+		}
+		if input.Vendor == nil {
+			return errors.New("missing vendor")
+		}
+		if input.ResponsiblePerson == nil {
+			return errors.New("missing responsible person")
+		}
+
+		userUpdates := map[string]any{
+			"full_name":  input.OwnerUser.FullName,
+			"phone":      input.OwnerUser.Phone,
+			"updated_at": input.OwnerUser.UpdatedAt,
+		}
+		if err := tx.Model(&userModel{}).
+			Where("id = ?", input.OwnerUser.ID.String()).
+			Updates(userUpdates).Error; err != nil {
+			return err
+		}
+
+		vendorUpdates := map[string]any{
+			"vendor_type":    input.Vendor.VendorType,
+			"display_name":   input.Vendor.DisplayName,
+			"description":    input.Vendor.Description,
+			"province_id":    input.Vendor.ProvinceID,
+			"city_id":        input.Vendor.CityID,
+			"district_id":    input.Vendor.DistrictID,
+			"subdistrict_id": input.Vendor.SubdistrictID,
+			"postal_code":    input.Vendor.PostalCode,
+			"address_line":   input.Vendor.AddressLine,
+			"status":         input.Vendor.Status,
+			"approved_by":    nil,
+			"approved_at":    nil,
+			"status_reason":  nil,
+			"updated_at":     input.Vendor.UpdatedAt,
+		}
+		if err := tx.Model(&vendorModel{}).
+			Where("id = ?", input.Vendor.ID.String()).
+			Updates(vendorUpdates).Error; err != nil {
+			return err
+		}
+
+		responsiblePersonModel, err := r.toVendorResponsiblePersonModel(input.ResponsiblePerson)
+		if err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "vendor_id"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"user_id":    responsiblePersonModel.UserID,
+				"nik":        responsiblePersonModel.NIK,
+				"updated_at": responsiblePersonModel.UpdatedAt,
+			}),
+		}).Create(&responsiblePersonModel).Error; err != nil {
+			return err
+		}
+
+		for i := range input.Documents {
+			documentModel := toVendorDocumentModel(&input.Documents[i])
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "vendor_id"}, {Name: "doc_type"}},
+				DoUpdates: clause.Assignments(map[string]any{
+					"file_url":        documentModel.FileURL,
+					"mime_type":       documentModel.MimeType,
+					"file_size_bytes": documentModel.FileSizeBytes,
+					"file_checksum":   documentModel.FileChecksum,
+					"uploaded_by":     documentModel.UploadedBy,
+					"verified_by":     nil,
+					"verified_at":     nil,
+					"updated_at":      documentModel.UpdatedAt,
+				}),
+			}).Create(&documentModel).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 type payoutBatchModel struct {
@@ -655,19 +769,28 @@ func toVendorWithdrawalModel(w *domain.VendorWithdrawal) vendorWithdrawalModel {
 
 func toVendorModel(v *domain.Vendor) vendorModel {
 	m := vendorModel{
-		ID:                    v.ID.String(),
-		OwnerUserID:           v.OwnerUserID.String(),
-		VendorType:            v.VendorType,
-		BusinessLegalType:     v.BusinessLegalType,
-		LegalName:             v.LegalName,
-		DisplayName:           v.DisplayName,
-		Description:           v.Description,
-		RegisteredAddress:     v.RegisteredAddress,
-		Status:                v.Status,
-		StatusReason:          v.StatusReason,
-		XenditAccountID:       v.XenditAccountID,
-		CreatedAt:             v.CreatedAt,
-		UpdatedAt:             v.UpdatedAt,
+		ID:              v.ID.String(),
+		OwnerUserID:     v.OwnerUserID.String(),
+		VendorType:      v.VendorType,
+		LegalName:       v.LegalName,
+		DisplayName:     v.DisplayName,
+		Description:     v.Description,
+		ProvinceID:      v.ProvinceID,
+		ProvinceName:    v.ProvinceName,
+		CityID:          v.CityID,
+		CityName:        v.CityName,
+		DistrictID:      v.DistrictID,
+		DistrictName:    v.DistrictName,
+		SubdistrictID:   v.SubdistrictID,
+		SubdistrictName: v.SubdistrictName,
+		PostalCode:      v.PostalCode,
+		AddressLine:     v.AddressLine,
+		Status:          v.Status,
+		StatusReason:    v.StatusReason,
+		XenditAccountID: v.XenditAccountID,
+		TotalSold:       v.TotalSold,
+		CreatedAt:       v.CreatedAt,
+		UpdatedAt:       v.UpdatedAt,
 	}
 	if v.ApprovedBy != nil {
 		s := v.ApprovedBy.String()
@@ -682,20 +805,29 @@ func toDomainVendor(m *vendorModel) *domain.Vendor {
 	ownerID, _ := uuid.Parse(m.OwnerUserID)
 
 	v := &domain.Vendor{
-		ID:                    id,
-		OwnerUserID:           ownerID,
-		VendorType:            m.VendorType,
-		BusinessLegalType:     m.BusinessLegalType,
-		LegalName:             m.LegalName,
-		DisplayName:           m.DisplayName,
-		Description:           m.Description,
-		RegisteredAddress:     m.RegisteredAddress,
-		Status:                m.Status,
-		StatusReason:          m.StatusReason,
-		XenditAccountID:       m.XenditAccountID,
-		ApprovedAt:            m.ApprovedAt,
-		CreatedAt:             m.CreatedAt,
-		UpdatedAt:             m.UpdatedAt,
+		ID:              id,
+		OwnerUserID:     ownerID,
+		VendorType:      m.VendorType,
+		LegalName:       m.LegalName,
+		DisplayName:     m.DisplayName,
+		Description:     m.Description,
+		ProvinceID:      m.ProvinceID,
+		ProvinceName:    m.ProvinceName,
+		CityID:          m.CityID,
+		CityName:        m.CityName,
+		DistrictID:      m.DistrictID,
+		DistrictName:    m.DistrictName,
+		SubdistrictID:   m.SubdistrictID,
+		SubdistrictName: m.SubdistrictName,
+		PostalCode:      m.PostalCode,
+		AddressLine:     m.AddressLine,
+		Status:          m.Status,
+		StatusReason:    m.StatusReason,
+		XenditAccountID: m.XenditAccountID,
+		TotalSold:       m.TotalSold,
+		ApprovedAt:      m.ApprovedAt,
+		CreatedAt:       m.CreatedAt,
+		UpdatedAt:       m.UpdatedAt,
 	}
 	if m.ApprovedBy != nil {
 		approvedBy, _ := uuid.Parse(*m.ApprovedBy)
@@ -733,6 +865,27 @@ func (r *vendorRepository) toVendorBankAccountModel(ba *domain.VendorBankAccount
 	return m, nil
 }
 
+func (r *vendorRepository) toVendorResponsiblePersonModel(rp *domain.VendorResponsiblePerson) (vendorResponsiblePersonModel, error) {
+	m := vendorResponsiblePersonModel{
+		ID:        rp.ID.String(),
+		VendorID:  rp.VendorID.String(),
+		UserID:    rp.UserID.String(),
+		NIK:       rp.NIK,
+		CreatedAt: rp.CreatedAt,
+		UpdatedAt: rp.UpdatedAt,
+	}
+
+	if m.NIK != "" {
+		encrypted, err := r.fieldCipher.EncryptString(m.NIK)
+		if err != nil {
+			return vendorResponsiblePersonModel{}, fmt.Errorf("failed to encrypt responsible person nik: %w", err)
+		}
+		m.NIK = encrypted
+	}
+
+	return m, nil
+}
+
 func (r *vendorRepository) toDomainVendorBankAccount(m *vendorBankAccountModel) (*domain.VendorBankAccount, error) {
 	id, _ := uuid.Parse(m.ID)
 	vendorID, _ := uuid.Parse(m.VendorID)
@@ -765,18 +918,43 @@ func (r *vendorRepository) toDomainVendorBankAccount(m *vendorBankAccountModel) 
 	return ba, nil
 }
 
+func (r *vendorRepository) toDomainVendorResponsiblePerson(m *vendorResponsiblePersonModel) (*domain.VendorResponsiblePerson, error) {
+	id, _ := uuid.Parse(m.ID)
+	vendorID, _ := uuid.Parse(m.VendorID)
+	userID, _ := uuid.Parse(m.UserID)
+
+	rp := &domain.VendorResponsiblePerson{
+		ID:        id,
+		VendorID:  vendorID,
+		UserID:    userID,
+		NIK:       m.NIK,
+		CreatedAt: m.CreatedAt,
+		UpdatedAt: m.UpdatedAt,
+	}
+
+	if rp.NIK != "" {
+		decrypted, err := r.fieldCipher.DecryptString(rp.NIK)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt responsible person nik: %w", err)
+		}
+		rp.NIK = decrypted
+	}
+
+	return rp, nil
+}
+
 func toVendorDocumentModel(d *domain.VendorDocument) vendorDocumentModel {
 	m := vendorDocumentModel{
-		ID:                 d.ID.String(),
-		VendorID:           d.VendorID.String(),
-		DocType:            d.DocType,
-		FileURL:            d.FileURL,
-		MimeType:           d.MimeType,
-		FileSizeBytes:      d.FileSizeBytes,
-		FileChecksum:       d.FileChecksum,
-		VerifiedAt:         d.VerifiedAt,
-		CreatedAt:          d.CreatedAt,
-		UpdatedAt:          d.UpdatedAt,
+		ID:            d.ID.String(),
+		VendorID:      d.VendorID.String(),
+		DocType:       d.DocType,
+		FileURL:       d.FileURL,
+		MimeType:      d.MimeType,
+		FileSizeBytes: d.FileSizeBytes,
+		FileChecksum:  d.FileChecksum,
+		VerifiedAt:    d.VerifiedAt,
+		CreatedAt:     d.CreatedAt,
+		UpdatedAt:     d.UpdatedAt,
 	}
 	if d.UploadedBy != nil {
 		s := d.UploadedBy.String()
@@ -794,16 +972,16 @@ func toDomainVendorDocument(m *vendorDocumentModel) *domain.VendorDocument {
 	vendorID, _ := uuid.Parse(m.VendorID)
 
 	d := &domain.VendorDocument{
-		ID:                 id,
-		VendorID:           vendorID,
-		DocType:            m.DocType,
-		FileURL:            m.FileURL,
-		MimeType:           m.MimeType,
-		FileSizeBytes:      m.FileSizeBytes,
-		FileChecksum:       m.FileChecksum,
-		VerifiedAt:         m.VerifiedAt,
-		CreatedAt:          m.CreatedAt,
-		UpdatedAt:          m.UpdatedAt,
+		ID:            id,
+		VendorID:      vendorID,
+		DocType:       m.DocType,
+		FileURL:       m.FileURL,
+		MimeType:      m.MimeType,
+		FileSizeBytes: m.FileSizeBytes,
+		FileChecksum:  m.FileChecksum,
+		VerifiedAt:    m.VerifiedAt,
+		CreatedAt:     m.CreatedAt,
+		UpdatedAt:     m.UpdatedAt,
 	}
 	if m.UploadedBy != nil {
 		uploadedBy, _ := uuid.Parse(*m.UploadedBy)
@@ -814,4 +992,51 @@ func toDomainVendorDocument(m *vendorDocumentModel) *domain.VendorDocument {
 		d.VerifiedBy = &verifiedBy
 	}
 	return d
+}
+
+func (r *vendorRepository) IncrementTotalSold(ctx context.Context, vendorID uuid.UUID, qty int) error {
+	return r.db.WithContext(ctx).Model(&vendorModel{}).
+		Where("id = ?", vendorID.String()).
+		Updates(map[string]interface{}{
+			"total_sold": gorm.Expr("total_sold + ?", qty),
+			"updated_at": time.Now(),
+		}).Error
+}
+
+func (r *vendorRepository) FindDocumentByVendorIDAndDocType(ctx context.Context, vendorID uuid.UUID, docType string) (*domain.VendorDocument, error) {
+	var model vendorDocumentModel
+	if err := r.db.WithContext(ctx).
+		Where("vendor_id = ? AND doc_type = ?", vendorID.String(), docType).
+		First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toDomainVendorDocument(&model), nil
+}
+
+func (r *vendorRepository) GetVendorAggregatedRating(ctx context.Context, vendorID uuid.UUID) (float64, int64, error) {
+	type ratingRow struct {
+		AvgRating    float64 `gorm:"column:avg_rating"`
+		TotalReviews int64   `gorm:"column:total_reviews"`
+	}
+	var row ratingRow
+	if err := r.db.WithContext(ctx).
+		Table("product_review_stats prs").
+		Select(`
+			COALESCE(
+				CASE WHEN SUM(prs.total_reviews) > 0
+					THEN SUM(prs.total_stars)::float / SUM(prs.total_reviews)::float
+					ELSE 0
+				END, 0
+			) AS avg_rating,
+			COALESCE(SUM(prs.total_reviews), 0) AS total_reviews
+		`).
+		Joins("JOIN products p ON p.id = prs.product_id").
+		Where("p.vendor_id = ?", vendorID.String()).
+		Scan(&row).Error; err != nil {
+		return 0, 0, err
+	}
+	return row.AvgRating, row.TotalReviews, nil
 }

@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Haji &amp; Umrah Store — Finance Refunds</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    :root {
+      --gold: #C5A46C;
+      --gold-light: #d4b88a;
+      --gold-dark: #a8894e;
+      --gold-bg: #f9f3ea;
+      --sidebar-bg: #1a1a1a;
+      --sidebar-text: #ccc;
+      --sidebar-active: #C5A46C;
+      --bg: #f5f5f5;
+      --card: #fff;
+      --border: #e5e5e5;
+      --text: #333;
+      --text-muted: #888;
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: 240px; background: var(--sidebar-bg); color: var(--sidebar-text);
+      display: flex; flex-direction: column; position: fixed; top: 0; left: 0;
+      height: 100vh; z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 20px 18px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid #333; font-weight: 700; color: #fff; font-size: .95rem;
+    }
+    .sidebar-brand .icon { width: 32px; height: 32px; background: var(--gold); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .sidebar nav { flex: 1; padding: 12px 0; display: flex; flex-direction: column; }
+    .sidebar nav a {
+      display: flex; align-items: center; gap: 12px; padding: 11px 20px;
+      color: var(--sidebar-text); text-decoration: none; font-size: .85rem;
+      transition: all .15s; border-left: 3px solid transparent;
+    }
+    .sidebar nav a:hover { background: #2a2a2a; color: #fff; }
+    .sidebar nav a.active { background: #2a2a2a; color: var(--sidebar-active); border-left-color: var(--sidebar-active); font-weight: 600; }
+    .sidebar nav .spacer { flex: 1; }
+
+    /* ===== MAIN ===== */
+    .main { flex: 1; margin-left: 240px; padding: 0; min-height: 100vh; display: flex; flex-direction: column; }
+    .topbar {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 14px 28px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar h1 { font-size: 1.1rem; font-weight: 700; }
+    .content { padding: 24px 28px; flex: 1; }
+    .footer { text-align: center; padding: 16px; font-size: .78rem; color: var(--text-muted); border-top: 1px solid var(--border); background: var(--card); }
+
+    /* ===== LOGIN PANEL ===== */
+    .login-panel {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 18px 22px; margin-bottom: 20px;
+    }
+    .login-panel h3 { font-size: .82rem; font-weight: 600; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+    .config-row { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+    .config-row label { min-width: 110px; font-size: .82rem; color: var(--text-muted); font-weight: 500; }
+    .config-row input, .config-row select {
+      flex: 1; min-width: 160px; padding: 8px 12px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: .82rem; font-family: inherit; outline: none;
+    }
+    .config-row input:focus, .config-row select:focus { border-color: var(--gold); }
+    .token-badge { font-size: .75rem; padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+    .token-badge.active { background: #dcfce7; color: #166534; }
+    .token-badge.inactive { background: #fee2e2; color: #991b1b; }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border: none; border-radius: 6px;
+      font-size: .82rem; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: all .15s; white-space: nowrap;
+    }
+    .btn-gold { background: var(--gold); color: #fff; }
+    .btn-gold:hover { background: var(--gold-dark); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { background: #f5f5f5; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-info { background: #0891b2; color: #fff; }
+    .btn-info:hover { background: #0e7490; }
+    .btn-warning { background: #d97706; color: #fff; }
+    .btn-warning:hover { background: #b45309; }
+    .btn-sm { padding: 5px 12px; font-size: .78rem; }
+
+    /* ===== TABS ===== */
+    .tab-bar { display: flex; gap: 2px; margin-bottom: 18px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .tab-btn {
+      flex: 1; padding: 12px 8px; text-align: center; font-size: .8rem; font-weight: 500;
+      cursor: pointer; border: none; background: transparent; color: var(--text-muted);
+      transition: all .15s; font-family: inherit; position: relative;
+    }
+    .tab-btn:hover { background: #fafafa; color: var(--text); }
+    .tab-btn.active { color: var(--gold-dark); font-weight: 700; background: var(--gold-bg); }
+    .tab-btn.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--gold); }
+
+    /* ===== TABLE ===== */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+    th { text-align: left; padding: 10px 14px; background: #fafafa; font-weight: 600; color: var(--text-muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .5px; border-bottom: 2px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    tr:hover td { background: #fafafa; }
+
+    /* ===== STATUS BADGES ===== */
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: .72rem; font-weight: 600; text-transform: capitalize; white-space: nowrap; }
+    .status-requested { background: #fef3c7; color: #92400e; }
+    .status-approved { background: #dbeafe; color: #1e40af; }
+    .status-rejected { background: #fee2e2; color: #991b1b; }
+    .status-processed { background: #dcfce7; color: #166534; }
+
+    /* ===== SUMMARY CARDS ===== */
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .summary-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .summary-card .label { font-size: .75rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+    .summary-card .value { font-size: 1.3rem; font-weight: 700; color: var(--text); }
+    .summary-card .value.gold { color: var(--gold-dark); }
+
+    /* ===== FILTER BAR ===== */
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .filter-bar input, .filter-bar select {
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: .82rem; font-family: inherit; outline: none;
+    }
+    .filter-bar input:focus, .filter-bar select:focus { border-color: var(--gold); }
+
+    /* ===== PAGINATION ===== */
+    .pagination-bar { padding: 14px 0; display: flex; align-items: center; justify-content: space-between; font-size: .82rem; }
+    .pagination-info { color: var(--text-muted); }
+    .pagination-btns { display: flex; gap: 4px; align-items: center; }
+    .page-btn {
+      min-width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); border-radius: 6px; background: #fff;
+      cursor: pointer; font-size: .82rem; font-weight: 500; transition: all .15s; padding: 0 8px;
+    }
+    .page-btn:hover { border-color: var(--gold); color: var(--gold-dark); }
+    .page-btn.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ===== MODAL ===== */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; display: none; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #fff; border-radius: 12px; max-width: 600px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .modal-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h3 { font-size: 1rem; font-weight: 700; }
+    .modal-close { width: 30px; height: 30px; border: none; background: #f5f5f5; border-radius: 50%; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; }
+    .modal-close:hover { background: #e5e5e5; }
+    .modal-body { padding: 22px; }
+    .modal-footer { padding: 16px 22px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ===== FORM ===== */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: .8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: .84rem; font-family: inherit; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--gold); }
+    .form-group textarea { resize: vertical; min-height: 70px; }
+    .form-group .hint { font-size: .72rem; color: var(--text-muted); margin-top: 4px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ===== TOAST ===== */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 20px; border-radius: 8px; font-size: .84rem; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,.15); transform: translateX(120%); transition: transform .3s; max-width: 380px; }
+    .toast.show { transform: translateX(0); }
+    .toast.success { background: #16a34a; color: #fff; }
+    .toast.error { background: #dc2626; color: #fff; }
+    .toast.info { background: #0891b2; color: #fff; }
+
+    /* ===== EMPTY ===== */
+    .empty-state { text-align: center; padding: 50px 20px; }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .empty-state p { color: var(--text-muted); font-size: .88rem; }
+
+    /* ===== JSON ===== */
+    .json-output { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 8px; font-family: 'Fira Code','Cascadia Code',monospace; font-size: .76rem; max-height: 350px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin-top: 12px; display: none; }
+    .json-output.show { display: block; }
+    .json-output .k { color: #7dd3fc; }
+    .json-output .s { color: #86efac; }
+    .json-output .n { color: #fdba74; }
+    .json-output .b { color: #c4b5fd; }
+    .json-output .nl { color: #94a3b8; }
+    .toggle-json { font-size: .75rem; color: var(--text-muted); cursor: pointer; text-decoration: underline; display: inline-block; margin-top: 8px; }
+    .toggle-json:hover { color: var(--text); }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; }
+      .content { padding: 16px; }
+      .topbar { padding: 14px 16px; }
+      .tab-btn { font-size: .72rem; padding: 10px 4px; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand"><div class="icon">🕋</div> UmrahStore</div>
+    <nav>
+      <a href="#" class="active">💰 Finance Refunds</a>
+      <a href="customer-my-orders.html">📦 Pesanan Saya</a>
+      <a href="vendor-order-management.html">🏪 Vendor Orders</a>
+      <a href="checkout-flow.html">🛒 Checkout</a>
+      <a href="cs-ticket-bantuan.html">🎧 CS Ticket</a>
+      <div class="spacer"></div>
+    </nav>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <h1>💰 Finance — Refund Management</h1>
+      <span class="token-badge inactive" id="tokenBadge">No Token</span>
+    </div>
+
+    <div class="content">
+      <!-- LOGIN PANEL -->
+      <div class="login-panel">
+        <h3>⚙️ Configuration</h3>
+        <div class="config-row">
+          <label>Base URL</label>
+          <input id="baseUrl" value="http://localhost:8080" placeholder="http://localhost:8080" />
+        </div>
+        <div class="config-row">
+          <label>Customer Token</label>
+          <input id="customerToken" placeholder="Paste customer JWT token..." />
+          <span class="token-badge inactive" id="customerBadge">Inactive</span>
+        </div>
+        <div class="config-row">
+          <label>Finance Token</label>
+          <input id="financeToken" placeholder="Paste finance JWT token..." />
+          <span class="token-badge inactive" id="financeBadge">Inactive</span>
+        </div>
+        <div class="config-row">
+          <label>Webhook Token</label>
+          <input id="webhookToken" placeholder="x-callback-token value" />
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 8px;">
+          <button class="btn btn-gold btn-sm" onclick="saveConfig()">💾 Save Config</button>
+          <button class="btn btn-outline btn-sm" onclick="clearConfig()">🗑️ Clear</button>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('customer-request')">📝 Customer Request</button>
+        <button class="tab-btn" onclick="switchTab('list-refunds')">📋 List Refunds</button>
+        <button class="tab-btn" onclick="switchTab('update-status')">🔄 Update Status</button>
+        <button class="tab-btn" onclick="switchTab('export')">📥 Export CSV</button>
+        <button class="tab-btn" onclick="switchTab('webhook')">🔔 Test Webhook</button>
+      </div>
+
+      <!-- TAB: Customer Request Refund -->
+      <div id="tab-customer-request" class="tab-content">
+        <div class="login-panel">
+          <h3>📝 Request Refund (Customer)</h3>
+          <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px;">POST /api/v1/users/orders/:orderId/refunds — Requires customer token. Order must be <b>received</b> or <b>completed</b> with payment <b>paid</b>.</p>
+
+          <div class="form-group">
+            <label>Order ID *</label>
+            <input id="refundOrderId" placeholder="UUID of the order" />
+          </div>
+          <div class="form-group">
+            <label>Reason * <span class="hint">(max 255)</span></label>
+            <input id="refundReason" placeholder="e.g. Barang rusak" maxlength="255" />
+          </div>
+          <div class="form-group">
+            <label>Description <span class="hint">(optional, max 1000)</span></label>
+            <textarea id="refundDescription" placeholder="Detail alasan refund..." maxlength="1000"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Bank Name *</label>
+              <input id="refundBankName" placeholder="e.g. PT Bank Central Asia Tbk" />
+            </div>
+            <div class="form-group">
+              <label>Channel Code <span class="hint">(default: ID_BCA)</span></label>
+              <select id="refundChannelCode">
+                <option value="">Default (ID_BCA)</option>
+                <option value="ID_BCA">ID_BCA</option>
+                <option value="ID_MANDIRI">ID_MANDIRI</option>
+                <option value="ID_BRI">ID_BRI</option>
+                <option value="ID_BNI">ID_BNI</option>
+                <option value="ID_BSI">ID_BSI</option>
+                <option value="ID_CIMB">ID_CIMB</option>
+                <option value="ID_PERMATA">ID_PERMATA</option>
+                <option value="ID_DANA">ID_DANA</option>
+                <option value="ID_OVO">ID_OVO</option>
+                <option value="ID_GOPAY">ID_GOPAY</option>
+                <option value="ID_SHOPEEPAY">ID_SHOPEEPAY</option>
+                <option value="ID_LINKAJA">ID_LINKAJA</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Account Number *</label>
+              <input id="refundAccountNumber" placeholder="e.g. 1234567890" maxlength="64" />
+            </div>
+            <div class="form-group">
+              <label>Account Holder Name *</label>
+              <input id="refundAccountHolder" placeholder="e.g. John Doe" maxlength="120" />
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button class="btn btn-gold" onclick="requestRefund()">📤 Submit Refund</button>
+          </div>
+          <span class="toggle-json" onclick="toggleJson('jsonRequestRefund')">Toggle JSON Response</span>
+          <div class="json-output" id="jsonRequestRefund"></div>
+        </div>
+      </div>
+
+      <!-- TAB: List Refunds -->
+      <div id="tab-list-refunds" class="tab-content" style="display:none;">
+        <!-- Summary Cards -->
+        <div class="summary-grid" id="summaryCards">
+          <div class="summary-card"><div class="label">Submitted</div><div class="value" id="sumSubmitted">-</div></div>
+          <div class="summary-card"><div class="label">Dispute Active</div><div class="value" id="sumDispute">-</div></div>
+          <div class="summary-card"><div class="label">Approved Amount</div><div class="value gold" id="sumApproved">-</div></div>
+          <div class="summary-card"><div class="label">Processed</div><div class="value" id="sumProcessed">-</div></div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-bar">
+          <input type="month" id="filterMonth" title="Month" />
+          <input type="date" id="filterDateFrom" title="Date From" />
+          <input type="date" id="filterDateTo" title="Date To" />
+          <select id="filterStatus">
+            <option value="">All Status</option>
+            <option value="requested">Requested</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="processed">Processed</option>
+          </select>
+          <input type="text" id="filterSearch" placeholder="🔍 Search..." style="min-width:200px;" />
+          <select id="filterLimit">
+            <option value="10">10/page</option>
+            <option value="25">25/page</option>
+            <option value="50">50/page</option>
+            <option value="100">100/page</option>
+          </select>
+          <button class="btn btn-gold btn-sm" onclick="loadRefunds(1)">🔍 Fetch</button>
+        </div>
+
+        <!-- Table -->
+        <div class="login-panel" style="padding:0;overflow:hidden;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Customer</th>
+                  <th>Vendor</th>
+                  <th>Order ID</th>
+                  <th>Reason</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="refundTableBody">
+                <tr><td colspan="8" class="empty-state"><div class="icon">📋</div><p>Click "Fetch" to load refunds</p></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-bar">
+          <div class="pagination-info" id="paginationInfo">-</div>
+          <div class="pagination-btns" id="paginationBtns"></div>
+        </div>
+
+        <span class="toggle-json" onclick="toggleJson('jsonListRefunds')">Toggle JSON Response</span>
+        <div class="json-output" id="jsonListRefunds"></div>
+      </div>
+
+      <!-- TAB: Update Status -->
+      <div id="tab-update-status" class="tab-content" style="display:none;">
+        <div class="login-panel">
+          <h3>🔄 Update Refund Status (Finance)</h3>
+          <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px;">
+            PATCH /api/v1/finance/refunds/:id/status — Transitions: <b>requested→approved</b>, <b>requested→rejected</b>, <b>approved→processed</b>
+          </p>
+
+          <div class="form-group">
+            <label>Refund ID *</label>
+            <input id="updateRefundId" placeholder="UUID of the refund" />
+          </div>
+          <div class="form-group">
+            <label>New Status *</label>
+            <select id="updateStatus">
+              <option value="approved">✅ Approved</option>
+              <option value="rejected">❌ Rejected</option>
+              <option value="processed">💸 Processed (triggers Xendit payout)</option>
+            </select>
+          </div>
+
+          <div id="payoutOptions" style="margin-top:14px;padding:14px;background:#fafafa;border-radius:8px;border:1px solid #f0f0f0;">
+            <h3 style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:12px;">💳 Payout Destination Override (optional, for "processed")</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Channel Code</label>
+                <select id="updateChannelCode">
+                  <option value="">Use existing</option>
+                  <option value="ID_BCA">ID_BCA</option>
+                  <option value="ID_MANDIRI">ID_MANDIRI</option>
+                  <option value="ID_BRI">ID_BRI</option>
+                  <option value="ID_BNI">ID_BNI</option>
+                  <option value="ID_BSI">ID_BSI</option>
+                  <option value="ID_CIMB">ID_CIMB</option>
+                  <option value="ID_PERMATA">ID_PERMATA</option>
+                  <option value="ID_DANA">ID_DANA</option>
+                  <option value="ID_OVO">ID_OVO</option>
+                  <option value="ID_GOPAY">ID_GOPAY</option>
+                  <option value="ID_SHOPEEPAY">ID_SHOPEEPAY</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Bank Name</label>
+                <input id="updateBankName" placeholder="Override bank name" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Account Number</label>
+                <input id="updateAccountNumber" placeholder="Override account number" />
+              </div>
+              <div class="form-group">
+                <label>Account Holder Name</label>
+                <input id="updateAccountHolder" placeholder="Override holder name" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>QR Disbursement Fallback</label>
+                <select id="updateQRFallback">
+                  <option value="">Default (true)</option>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+                <div class="hint">Fallback to bank disbursement if QR refund not supported</div>
+              </div>
+              <div class="form-group">
+                <label>E-Wallet Disbursement Fallback</label>
+                <select id="updateEWalletFallback">
+                  <option value="">Default (true)</option>
+                  <option value="true">Yes</option>
+                  <option value="false">No</option>
+                </select>
+                <div class="hint">Fallback to bank disbursement if e-wallet refund not supported</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="btn btn-gold" onclick="updateRefundStatus()">📤 Update Status</button>
+          </div>
+          <span class="toggle-json" onclick="toggleJson('jsonUpdateStatus')">Toggle JSON Response</span>
+          <div class="json-output" id="jsonUpdateStatus"></div>
+        </div>
+      </div>
+
+      <!-- TAB: Export CSV -->
+      <div id="tab-export" class="tab-content" style="display:none;">
+        <div class="login-panel">
+          <h3>📥 Export Refunds as CSV (Finance)</h3>
+          <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px;">GET /api/v1/finance/refunds/export — Downloads refunds.csv with same filters as list.</p>
+
+          <div class="filter-bar" style="margin-bottom:14px;">
+            <input type="month" id="exportMonth" title="Month" />
+            <input type="date" id="exportDateFrom" title="Date From" />
+            <input type="date" id="exportDateTo" title="Date To" />
+            <select id="exportStatus">
+              <option value="">All Status</option>
+              <option value="requested">Requested</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="processed">Processed</option>
+            </select>
+            <input type="text" id="exportSearch" placeholder="🔍 Search..." />
+          </div>
+          <button class="btn btn-gold" onclick="exportRefunds()">📥 Download CSV</button>
+        </div>
+      </div>
+
+      <!-- TAB: Test Webhook -->
+      <div id="tab-webhook" class="tab-content" style="display:none;">
+        <div class="login-panel">
+          <h3>🔔 Simulate Xendit Refund Payout Webhook</h3>
+          <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:14px;">POST /api/v1/webhooks/xendit/refund-payout — Requires x-callback-token header.</p>
+
+          <div class="form-group">
+            <label>Event *</label>
+            <select id="whEvent">
+              <option value="payout.succeeded">payout.succeeded</option>
+              <option value="payout.failed">payout.failed</option>
+              <option value="payout.reversed">payout.reversed</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Payout ID *</label>
+              <input id="whPayoutId" placeholder="e.g. po-xxxxxxxx" />
+            </div>
+            <div class="form-group">
+              <label>Reference ID *</label>
+              <input id="whReferenceId" placeholder="e.g. refund-{uuid}" />
+              <div class="hint">Format: refund-{refund_id}</div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Amount</label>
+              <input id="whAmount" type="number" placeholder="100000" />
+            </div>
+            <div class="form-group">
+              <label>Channel Code</label>
+              <input id="whChannelCode" placeholder="ID_BCA" />
+            </div>
+          </div>
+          <div class="form-row" id="whFailureFields" style="display:none;">
+            <div class="form-group">
+              <label>Failure Code</label>
+              <input id="whFailureCode" placeholder="e.g. INSUFFICIENT_BALANCE" />
+            </div>
+            <div class="form-group">
+              <label>Failure Message</label>
+              <input id="whFailureMsg" placeholder="Failure description" />
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-warning" onclick="sendWebhook()">🔔 Send Webhook</button>
+            <button class="btn btn-outline btn-sm" onclick="previewWebhook()">👁️ Preview Payload</button>
+          </div>
+          <span class="toggle-json" onclick="toggleJson('jsonWebhook')">Toggle JSON Response</span>
+          <div class="json-output" id="jsonWebhook"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">Haji & Umrah Store — Finance Refund Manual Test</div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+  /* ============================
+     CONFIG & LOCAL STORAGE
+     ============================ */
+  const LS_KEY = 'finance_refund_test_config';
+
+  function saveConfig() {
+    const cfg = {
+      baseUrl: el('baseUrl').value.replace(/\/+$/, ''),
+      customerToken: el('customerToken').value.trim(),
+      financeToken: el('financeToken').value.trim(),
+      webhookToken: el('webhookToken').value.trim()
+    };
+    localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+    applyConfig(cfg);
+    toast('Config saved!', 'success');
+  }
+
+  function loadConfig() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+      if (cfg.baseUrl) el('baseUrl').value = cfg.baseUrl;
+      if (cfg.customerToken) el('customerToken').value = cfg.customerToken;
+      if (cfg.financeToken) el('financeToken').value = cfg.financeToken;
+      if (cfg.webhookToken) el('webhookToken').value = cfg.webhookToken;
+      applyConfig(cfg);
+    } catch (_) {}
+  }
+
+  function clearConfig() {
+    localStorage.removeItem(LS_KEY);
+    el('baseUrl').value = 'http://localhost:8080';
+    el('customerToken').value = '';
+    el('financeToken').value = '';
+    el('webhookToken').value = '';
+    applyConfig({});
+    toast('Config cleared', 'info');
+  }
+
+  function applyConfig(cfg) {
+    const hasCust = !!(cfg.customerToken);
+    const hasFin = !!(cfg.financeToken);
+    setBadge('customerBadge', hasCust);
+    setBadge('financeBadge', hasFin);
+    setBadge('tokenBadge', hasCust || hasFin);
+    el('tokenBadge').textContent = hasFin ? 'Finance ✓' : hasCust ? 'Customer ✓' : 'No Token';
+  }
+
+  function setBadge(id, active) {
+    const b = el(id);
+    b.className = 'token-badge ' + (active ? 'active' : 'inactive');
+    if (id === 'customerBadge') b.textContent = active ? 'Active' : 'Inactive';
+    if (id === 'financeBadge') b.textContent = active ? 'Active' : 'Inactive';
+  }
+
+  function getBaseUrl() { return el('baseUrl').value.replace(/\/+$/, ''); }
+  function getCustomerToken() { return el('customerToken').value.trim(); }
+  function getFinanceToken() { return el('financeToken').value.trim(); }
+
+  /* ============================
+     TABS
+     ============================ */
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    el('tab-' + tab).style.display = 'block';
+    event.target.classList.add('active');
+  }
+
+  /* ============================
+     CUSTOMER: REQUEST REFUND
+     ============================ */
+  async function requestRefund() {
+    const orderId = el('refundOrderId').value.trim();
+    if (!orderId) return toast('Order ID is required', 'error');
+
+    const token = getCustomerToken();
+    if (!token) return toast('Customer token is required', 'error');
+
+    const body = { reason: el('refundReason').value.trim() };
+    const desc = el('refundDescription').value.trim();
+    if (desc) body.description = desc;
+
+    const channel = el('refundChannelCode').value;
+    if (channel) body.destination_channel_code = channel;
+
+    body.destination_bank_name = el('refundBankName').value.trim();
+    body.destination_account_number = el('refundAccountNumber').value.trim();
+    body.destination_account_holder_name = el('refundAccountHolder').value.trim();
+
+    if (!body.reason) return toast('Reason is required', 'error');
+    if (!body.destination_bank_name) return toast('Bank name is required', 'error');
+    if (!body.destination_account_number) return toast('Account number is required', 'error');
+    if (!body.destination_account_holder_name) return toast('Account holder name is required', 'error');
+
+    try {
+      const res = await apiFetch(`/api/v1/users/orders/${encodeURIComponent(orderId)}/refunds`, {
+        method: 'POST',
+        headers: authHeader(token),
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      showJson('jsonRequestRefund', data);
+      if (res.ok) {
+        toast('Refund request submitted!', 'success');
+      } else {
+        toast(`Error ${res.status}: ${data.message || JSON.stringify(data.errors || data)}`, 'error');
+      }
+    } catch (err) {
+      toast('Network error: ' + err.message, 'error');
+    }
+  }
+
+  /* ============================
+     FINANCE: LIST REFUNDS
+     ============================ */
+  let currentPage = 1;
+
+  async function loadRefunds(page) {
+    const token = getFinanceToken();
+    if (!token) return toast('Finance token is required', 'error');
+
+    currentPage = page || 1;
+    const params = new URLSearchParams();
+    params.set('page', currentPage);
+    params.set('limit', el('filterLimit').value);
+
+    const month = el('filterMonth').value;
+    const dateFrom = el('filterDateFrom').value;
+    const dateTo = el('filterDateTo').value;
+    const status = el('filterStatus').value;
+    const search = el('filterSearch').value.trim();
+
+    if (month) params.set('month', month);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (status) params.set('status', status);
+    if (search) params.set('search', search);
+
+    try {
+      const res = await apiFetch(`/api/v1/finance/refunds?${params}`, {
+        headers: authHeader(token)
+      });
+      const json = await res.json();
+      showJson('jsonListRefunds', json);
+
+      if (!res.ok) {
+        toast(`Error ${res.status}: ${json.message || 'Unknown'}`, 'error');
+        return;
+      }
+
+      const d = json.data;
+      // Summary
+      if (d && d.summary) {
+        el('sumSubmitted').textContent = d.summary.submitted_count ?? '-';
+        el('sumDispute').textContent = d.summary.dispute_active_count ?? '-';
+        el('sumApproved').textContent = fmtCurrency(d.summary.approved_amount);
+        el('sumProcessed').textContent = d.summary.processed_count ?? '-';
+      }
+
+      // Table
+      const items = (d && d.items) || [];
+      const tbody = el('refundTableBody');
+      if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><div class="icon">📋</div><p>No refunds found</p></td></tr>';
+      } else {
+        tbody.innerHTML = items.map(r => `
+          <tr>
+            <td style="font-family:monospace;font-size:.76rem;" title="${esc(r.id)}">${esc(r.id.substring(0,8))}…</td>
+            <td>${esc(r.customer)}</td>
+            <td>${esc(r.vendor)}</td>
+            <td style="font-family:monospace;font-size:.76rem;" title="${esc(r.order_id)}">${esc(r.order_id.substring(0,8))}…</td>
+            <td>${esc(r.reason || '-')}</td>
+            <td style="font-weight:600;color:var(--gold-dark);">${fmtCurrency(r.amount)}</td>
+            <td><span class="status-badge status-${esc(r.status)}">${esc(r.status)}</span></td>
+            <td>
+              <button class="btn btn-outline btn-sm" onclick="fillUpdateForm('${esc(r.id)}')">✏️</button>
+              <button class="btn btn-outline btn-sm" onclick="copyText('${esc(r.id)}')">📋</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      // Pagination
+      const meta = json.meta;
+      if (meta) {
+        el('paginationInfo').textContent = `Page ${meta.page} of ${meta.total_pages} (${meta.total_items} items)`;
+        renderPagination(meta.page, meta.total_pages);
+      }
+    } catch (err) {
+      toast('Network error: ' + err.message, 'error');
+    }
+  }
+
+  function renderPagination(page, totalPages) {
+    const container = el('paginationBtns');
+    container.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const addBtn = (label, p, disabled) => {
+      const btn = document.createElement('button');
+      btn.className = 'page-btn' + (p === page ? ' active' : '');
+      btn.textContent = label;
+      btn.disabled = disabled;
+      btn.onclick = () => loadRefunds(p);
+      container.appendChild(btn);
+    };
+
+    addBtn('‹', page - 1, page <= 1);
+    for (let i = 1; i <= totalPages && i <= 10; i++) addBtn(i, i, false);
+    if (totalPages > 10) addBtn('…', page, true);
+    addBtn('›', page + 1, page >= totalPages);
+  }
+
+  /* ============================
+     FINANCE: UPDATE STATUS
+     ============================ */
+  function fillUpdateForm(refundId) {
+    el('updateRefundId').value = refundId;
+    switchTabByName('update-status');
+    toast('Refund ID filled. Choose status and submit.', 'info');
+  }
+
+  function switchTabByName(name) {
+    document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    el('tab-' + name).style.display = 'block';
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      if (b.textContent.toLowerCase().includes(name.replace('-', ' ').substring(0, 6))) b.classList.add('active');
+    });
+  }
+
+  async function updateRefundStatus() {
+    const refundId = el('updateRefundId').value.trim();
+    if (!refundId) return toast('Refund ID is required', 'error');
+
+    const token = getFinanceToken();
+    if (!token) return toast('Finance token is required', 'error');
+
+    const body = { status: el('updateStatus').value };
+
+    const channelCode = el('updateChannelCode').value;
+    const bankName = el('updateBankName').value.trim();
+    const accountNumber = el('updateAccountNumber').value.trim();
+    const accountHolder = el('updateAccountHolder').value.trim();
+    const qrFallback = el('updateQRFallback').value;
+    const ewalletFallback = el('updateEWalletFallback').value;
+
+    if (channelCode) body.destination_channel_code = channelCode;
+    if (bankName) body.destination_bank_name = bankName;
+    if (accountNumber) body.destination_account_number = accountNumber;
+    if (accountHolder) body.destination_account_holder_name = accountHolder;
+    if (qrFallback !== '') body.use_disbursement_fallback_for_qr = qrFallback === 'true';
+    if (ewalletFallback !== '') body.use_disbursement_fallback_for_ewallet = ewalletFallback === 'true';
+
+    try {
+      const res = await apiFetch(`/api/v1/finance/refunds/${encodeURIComponent(refundId)}/status`, {
+        method: 'PATCH',
+        headers: authHeader(token),
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      showJson('jsonUpdateStatus', data);
+      if (res.ok) {
+        toast(`Refund ${data.data?.status || body.status} successfully!`, 'success');
+      } else {
+        toast(`Error ${res.status}: ${data.message || JSON.stringify(data.errors || data)}`, 'error');
+      }
+    } catch (err) {
+      toast('Network error: ' + err.message, 'error');
+    }
+  }
+
+  /* ============================
+     FINANCE: EXPORT CSV
+     ============================ */
+  async function exportRefunds() {
+    const token = getFinanceToken();
+    if (!token) return toast('Finance token is required', 'error');
+
+    const params = new URLSearchParams();
+    const month = el('exportMonth').value;
+    const dateFrom = el('exportDateFrom').value;
+    const dateTo = el('exportDateTo').value;
+    const status = el('exportStatus').value;
+    const search = el('exportSearch').value.trim();
+
+    if (month) params.set('month', month);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (status) params.set('status', status);
+    if (search) params.set('search', search);
+
+    try {
+      const res = await apiFetch(`/api/v1/finance/refunds/export?${params}`, {
+        headers: authHeader(token)
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast(`Error ${res.status}: ${data.message || 'Export failed'}`, 'error');
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'refunds.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('CSV downloaded!', 'success');
+    } catch (err) {
+      toast('Network error: ' + err.message, 'error');
+    }
+  }
+
+  /* ============================
+     WEBHOOK: SIMULATE
+     ============================ */
+  // Show/hide failure fields based on event
+  el('whEvent').addEventListener('change', () => {
+    const ev = el('whEvent').value;
+    el('whFailureFields').style.display = ev.includes('failed') || ev.includes('reversed') ? 'grid' : 'none';
+  });
+
+  function buildWebhookPayload() {
+    const payload = {
+      business_id: 'test-business-id',
+      event: el('whEvent').value,
+      data: {
+        id: el('whPayoutId').value.trim() || 'po-test-' + Date.now(),
+        reference_id: el('whReferenceId').value.trim(),
+        amount: parseFloat(el('whAmount').value) || 100000,
+        currency: 'IDR',
+        status: el('whEvent').value === 'payout.succeeded' ? 'SUCCEEDED' : el('whEvent').value === 'payout.failed' ? 'FAILED' : 'REVERSED',
+        channel_code: el('whChannelCode').value.trim() || 'ID_BCA',
+        created: new Date().toISOString(),
+        updated: new Date().toISOString()
+      }
+    };
+
+    if (payload.data.status === 'SUCCEEDED') {
+      payload.data.completed_date = new Date().toISOString();
+    }
+
+    if (payload.data.status === 'FAILED' || payload.data.status === 'REVERSED') {
+      payload.data.failure_code = el('whFailureCode').value.trim() || '';
+      payload.data.failure_message = el('whFailureMsg').value.trim() || '';
+    }
+
+    return payload;
+  }
+
+  function previewWebhook() {
+    const payload = buildWebhookPayload();
+    showJson('jsonWebhook', payload);
+    el('jsonWebhook').classList.add('show');
+    toast('Payload preview shown below', 'info');
+  }
+
+  async function sendWebhook() {
+    const whToken = el('webhookToken').value.trim();
+    if (!whToken) return toast('Webhook verification token is required', 'error');
+
+    const refId = el('whReferenceId').value.trim();
+    if (!refId) return toast('Reference ID is required', 'error');
+
+    const payload = buildWebhookPayload();
+
+    try {
+      const res = await apiFetch('/api/v1/webhooks/xendit/refund-payout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-callback-token': whToken
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      showJson('jsonWebhook', data);
+      if (res.ok) {
+        toast('Webhook processed!', 'success');
+      } else {
+        toast(`Error ${res.status}: ${data.message || JSON.stringify(data)}`, 'error');
+      }
+    } catch (err) {
+      toast('Network error: ' + err.message, 'error');
+    }
+  }
+
+  /* ============================
+     UTILITY FUNCTIONS
+     ============================ */
+  function el(id) { return document.getElementById(id); }
+
+  function apiFetch(path, opts = {}) {
+    const url = getBaseUrl() + path;
+    opts.headers = opts.headers || {};
+    if (!opts.headers['Content-Type'] && opts.body) {
+      opts.headers['Content-Type'] = 'application/json';
+    }
+    return fetch(url, opts);
+  }
+
+  function authHeader(token) {
+    return { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+  }
+
+  function fmtCurrency(amount) {
+    if (amount == null) return '-';
+    return 'Rp ' + Number(amount).toLocaleString('id-ID');
+  }
+
+  function esc(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  function copyText(text) {
+    navigator.clipboard.writeText(text).then(() => toast('Copied!', 'info')).catch(() => {});
+  }
+
+  /* ===== TOAST ===== */
+  function toast(msg, type = 'info') {
+    const container = el('toastContainer');
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.textContent = msg;
+    container.appendChild(t);
+    requestAnimationFrame(() => t.classList.add('show'));
+    setTimeout(() => {
+      t.classList.remove('show');
+      setTimeout(() => t.remove(), 300);
+    }, 3500);
+  }
+
+  /* ===== JSON VIEWER ===== */
+  function showJson(containerId, data) {
+    const container = el(containerId);
+    container.innerHTML = syntaxHighlight(JSON.stringify(data, null, 2));
+    container.classList.add('show');
+  }
+
+  function toggleJson(id) {
+    el(id).classList.toggle('show');
+  }
+
+  function syntaxHighlight(json) {
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|\bnull\b)/g, match => {
+      let cls = 'n';
+      if (/^"/.test(match)) {
+        cls = /:$/.test(match) ? 'k' : 's';
+      } else if (/true|false/.test(match)) {
+        cls = 'b';
+      } else if (/null/.test(match)) {
+        cls = 'nl';
+      }
+      return '<span class="' + cls + '">' + match + '</span>';
+    });
+  }
+
+  /* ===== INIT ===== */
+  loadConfig();
+  </script>
+</body>
+</html>

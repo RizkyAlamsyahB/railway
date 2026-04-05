@@ -17,7 +17,7 @@
 
 ## Gambaran Umum
 
-Checkout pada UmrahMart mengubah isi **keranjang (cart)** menjadi satu atau lebih **order** — masing-masing satu order per vendor. Setiap order memiliki invoice pembayaran sendiri di Xendit (sub-account vendor). Ongkir dihitung secara real-time melalui **RajaOngkir Komerce API** berdasarkan alamat pengiriman pelanggan dan alamat gudang vendor.
+Checkout pada UmrahMart mengubah **item cart yang dipilih** menjadi satu atau lebih **order** — masing-masing satu order per vendor. Setiap order memiliki invoice pembayaran sendiri di Xendit (sub-account vendor). Ongkir dihitung secara real-time melalui **RajaOngkir Komerce API** berdasarkan alamat pengiriman pelanggan dan alamat gudang vendor.
 
 ```
 ┌─────────┐     ┌──────────────────┐     ┌──────────────┐     ┌───────────────┐
@@ -36,34 +36,42 @@ Customer menambahkan product variant ke keranjang via `POST /api/v1/users/cart/i
 
 - Cart dibuat otomatis (lazy-create) — satu cart aktif per user (enforced via UNIQUE constraint di DB).
 - Jika variant yang sama sudah ada di cart, quantity akan di-increment (upsert).
+- Item baru otomatis memiliki `is_selected = true`.
 - Validasi saat menambah item:
   - Variant harus aktif & exist
   - Product harus berstatus `published`
   - Stok mencukupi (`stock_on_hand >= qty`)
+
+### Step 1.5 — Pilih Item yang Akan Di-checkout
+
+Customer dapat mengubah status pilihan item via `PATCH /api/v1/users/cart/items/:itemId/selection`.
+
+- Item dengan `is_selected = true` akan ikut pada checkout preview dan checkout.
+- Item dengan `is_selected = false` tetap berada di cart, tetapi diabaikan oleh preview dan checkout.
 
 ### Step 2 — Preview Checkout
 
 Customer memanggil `POST /api/v1/users/checkout/preview` dengan `address_id`.
 
 1. **Validasi alamat**: Alamat harus milik user yang login dan memiliki `district_id`.
-2. **Ambil cart aktif** beserta item-nya. Gagal jika cart kosong.
-3. **Enrich setiap item**: Ambil data variant + product terkini. Gagal jika ada item yang sudah tidak tersedia.
-4. **Kelompokkan item per vendor**.
+2. **Ambil item cart terpilih** (`is_selected = true`) dari cart aktif. Gagal jika tidak ada item terpilih.
+3. **Enrich setiap item terpilih**: Ambil data variant + product terkini. Gagal jika ada item yang sudah tidak tersedia.
+4. **Kelompokkan item terpilih per vendor**.
 5. **Untuk setiap vendor**:
    - Ambil alamat gudang vendor (alamat default pemilik vendor — harus punya `district_id`).
    - Ambil daftar kurir yang dipilih vendor dari tabel `vendor_couriers`.
    - Hitung subtotal dan total berat (default **500 gram** per item jika berat tidak diset).
    - Panggil **RajaOngkir** `CalculateDomesticCost` dengan origin district, destination district, total berat, dan kode kurir yang dipisah titik dua.
-6. **Return response**: Item dikelompokkan per vendor, lengkap dengan `shipping_options` (pilihan ongkir) dan `platform_fee` tetap **Rp 6.000**.
+6. **Return response**: Item terpilih dikelompokkan per vendor, lengkap dengan `shipping_options` (pilihan ongkir) dan `platform_fee` tetap **Rp 6.000**.
 
 ### Step 3 — Place Order (Checkout)
 
 Customer memanggil `POST /api/v1/users/checkout` dengan `address_id`, `shipping_choices`, dan optional `notes`.
 
 1. **Validasi ulang alamat** dan parse pilihan pengiriman per vendor.
-2. **Ambil cart + items**, enrich, dan validasi stok (`qty <= stock_on_hand`).
+2. **Ambil item cart terpilih**, enrich, dan validasi stok (`qty <= stock_on_hand`).
 3. **Ambil data user** untuk customer data di Xendit.
-4. **Untuk setiap vendor group**:
+4. **Untuk setiap vendor group dari item terpilih**:
    - Validasi vendor punya `XenditAccountID`.
    - Resolve alamat gudang + kurir vendor.
    - Build order items, hitung subtotal + total berat.
@@ -75,8 +83,9 @@ Customer memanggil `POST /api/v1/users/checkout` dengan `address_id`, `shipping_
      - **Kurangi `stock_on_hand` secara atomik** (gagal jika stok tidak cukup)
    - Panggil Xendit `CreateInvoice` pada sub-account vendor, masa berlaku **24 jam**.
    - Buat record `payment_invoices` (status = `pending`).
-5. **Tandai cart sebagai `converted`**.
-6. **Return response**: Array order dengan `invoice_url`, `order_id`, `order_no`, rincian biaya, dan `expires_at`.
+5. **Hapus item terpilih yang berhasil diproses** dari cart aktif.
+6. **Biarkan item yang tidak dipilih tetap berada di cart aktif**.
+7. **Return response**: Array order dengan `invoice_url`, `order_id`, `order_no`, rincian biaya, dan `expires_at`.
 
 ### Step 4 — Pembayaran
 
@@ -101,6 +110,7 @@ Customer bisa menandai order sebagai selesai via `POST /api/v1/users/orders/:ord
 | `GET` | `/api/v1/users/cart` | Ambil cart aktif beserta items |
 | `POST` | `/api/v1/users/cart/items` | Tambah product variant ke cart |
 | `PATCH` | `/api/v1/users/cart/items/:itemId` | Update quantity item |
+| `PATCH` | `/api/v1/users/cart/items/:itemId/selection` | Ubah status selected item untuk checkout |
 | `DELETE` | `/api/v1/users/cart/items/:itemId` | Hapus satu item |
 | `DELETE` | `/api/v1/users/cart` | Kosongkan seluruh cart |
 
@@ -108,8 +118,8 @@ Customer bisa menandai order sebagai selesai via `POST /api/v1/users/orders/:ord
 
 | Method | Path | Deskripsi |
 |--------|------|-----------|
-| `POST` | `/api/v1/users/checkout/preview` | Preview checkout — items per vendor + opsi ongkir |
-| `POST` | `/api/v1/users/checkout` | Place order, buat invoice Xendit, return payment URL |
+| `POST` | `/api/v1/users/checkout/preview` | Preview checkout untuk item cart terpilih — items per vendor + opsi ongkir |
+| `POST` | `/api/v1/users/checkout` | Place order untuk item cart terpilih, buat invoice Xendit, return payment URL |
 
 ### Order (Customer Only)
 
@@ -129,10 +139,14 @@ Customer bisa menandai order sebagai selesai via `POST /api/v1/users/orders/:ord
 
 | Method | Path | Deskripsi |
 |--------|------|-----------|
-| `GET` | `/api/v1/shipping/provinces` | Daftar provinsi (proxy RajaOngkir) |
-| `GET` | `/api/v1/shipping/cities?province_id=` | Daftar kota per provinsi |
-| `GET` | `/api/v1/shipping/districts?city_id=` | Daftar kecamatan per kota |
-| `GET` | `/api/v1/shipping/subdistricts?district_id=` | Daftar kelurahan per kecamatan |
+| `GET` | `/api/v1/locations/provinces` | Daftar provinsi (alias resmi untuk form alamat umum/vendor) |
+| `GET` | `/api/v1/locations/cities?province_id=` | Daftar kota per provinsi |
+| `GET` | `/api/v1/locations/districts?city_id=` | Daftar kecamatan per kota |
+| `GET` | `/api/v1/locations/subdistricts?district_id=` | Daftar kelurahan per kecamatan |
+| `GET` | `/api/v1/shipping/provinces` | Alias backward-compatible untuk provinces |
+| `GET` | `/api/v1/shipping/cities?province_id=` | Alias backward-compatible untuk cities |
+| `GET` | `/api/v1/shipping/districts?city_id=` | Alias backward-compatible untuk districts |
+| `GET` | `/api/v1/shipping/subdistricts?district_id=` | Alias backward-compatible untuk subdistricts |
 | `GET` | `/api/v1/shipping/couriers` | Daftar semua kurir aktif |
 
 ### Manajemen Kurir Vendor (Vendor Only)
@@ -410,6 +424,10 @@ Header `x-callback-token` harus sesuai dengan `webhookVerificationToken` yang di
 }
 ```
 
+Catatan:
+- Preview hanya memproses item dengan `is_selected = true`.
+- Jika tidak ada item cart yang dipilih, endpoint akan gagal dengan error `no selected cart items`.
+
 ### Place Order (Checkout)
 
 **Request** — `POST /api/v1/users/checkout`
@@ -427,6 +445,12 @@ Header `x-callback-token` harus sesuai dengan `webhookVerificationToken` yang di
   "notes": "Tolong packing rapi ya"
 }
 ```
+
+Catatan:
+- Checkout hanya memproses item dengan `is_selected = true`.
+- Setelah checkout sukses, item yang berhasil diproses dihapus dari cart aktif.
+- Item yang tidak dipilih tetap berada di cart aktif.
+- Field `notes` saat ini diterima oleh API tetapi belum diproses lebih lanjut oleh backend.
 
 **Response**
 
@@ -544,8 +568,10 @@ Tabel idempotency: `external_event_id` UNIQUE, menyimpan setiap event webhook Xe
 
 ### Tabel `carts` / `cart_items`
 
-- `carts`: Satu per user (UNIQUE `user_id`), status ∈ {`active`, `converted`, `abandoned`}.
-- `cart_items`: `cart_id` + `product_variant_id` → `quantity`.
+- `carts`: Satu cart aktif per user.
+- `cart_items`: UNIQUE `cart_id` + `product_variant_id`, menyimpan `qty` dan `is_selected`.
+- `is_selected`: Menentukan apakah item ikut dalam checkout preview dan checkout.
+- Partial checkout tidak mengubah status cart; hanya item terpilih yang sukses diproses akan dihapus dari cart aktif.
 
 ### Tabel `couriers` / `vendor_couriers`
 

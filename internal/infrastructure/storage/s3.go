@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	smithy "github.com/aws/smithy-go"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	smithy "github.com/aws/smithy-go"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/config"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 )
@@ -52,7 +53,6 @@ func NewS3Storage(cfg config.StorageConfig) (domain.StorageProvider, error) {
 	}
 
 	client := s3.NewFromConfig(awsCfg, s3OptFns...)
-	presign := s3.NewPresignClient(client)
 
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
@@ -63,9 +63,19 @@ func NewS3Storage(cfg config.StorageConfig) (domain.StorageProvider, error) {
 		}
 	}
 
+	presignClient := client
+	if publicEndpoint, ok := publicEndpointFromBaseURL(baseURL); ok {
+		presignOptFns := append([]func(*s3.Options){}, s3OptFns...)
+		presignOptFns = append(presignOptFns, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(publicEndpoint)
+			o.UsePathStyle = cfg.S3ForcePathStyle
+		})
+		presignClient = s3.NewFromConfig(awsCfg, presignOptFns...)
+	}
+
 	return &s3Storage{
 		client:  client,
-		presign: presign,
+		presign: s3.NewPresignClient(presignClient),
 		bucket:  cfg.S3Bucket,
 		baseURL: baseURL,
 	}, nil
@@ -152,6 +162,14 @@ func (s *s3Storage) GeneratePresignedUploadURL(ctx context.Context, key string, 
 	}
 
 	return req.URL, nil
+}
+
+func publicEndpointFromBaseURL(baseURL string) (string, bool) {
+	parsed, err := url.Parse(baseURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", false
+	}
+	return parsed.Scheme + "://" + parsed.Host, true
 }
 
 func (s *s3Storage) HeadObject(ctx context.Context, key string) (*domain.ObjectInfo, error) {

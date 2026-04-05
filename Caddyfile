@@ -1,3 +1,7 @@
 haji-umroh-store-api.jauhar.id {
     reverse_proxy api:8080
 }
+
+storage.jauhar.id {
+    reverse_proxy minio:9000
+}

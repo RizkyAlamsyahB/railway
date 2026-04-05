@@ -596,6 +596,117 @@ func (r *productRepository) UpdateProduct(
 	})
 }
 
+func (r *productRepository) DeleteProduct(ctx context.Context, productID uuid.UUID) error {
+	id := productID.String()
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("product_id = ?", id).Delete(&productImageModel{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("product_id = ?", id).Delete(&productVariantModel{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ?", id).Delete(&productModel{}).Error
+	})
+}
+
+func (r *productRepository) ListPublishedByVendorForStore(ctx context.Context, vendorID uuid.UUID, sortBy string, limit int, offset int) ([]domain.StoreProductItem, int64, error) {
+	activeVoucherDiscountExpr := buildActiveVoucherDiscountExpr("products.id")
+	effectivePriceExpr := buildEffectivePriceExpr("pv.price", "products.id")
+
+	baseQuery := r.db.WithContext(ctx).Table("products").
+		Joins("JOIN product_variants pv ON pv.product_id = products.id").
+		Joins("LEFT JOIN product_review_stats prs ON prs.product_id = products.id").
+		Where("products.vendor_id = ?", vendorID.String()).
+		Where("products.status = ?", domain.ProductStatusPublished).
+		Where("pv.is_active = ?", true).
+		Where("pv.stock_on_hand > 0")
+
+	// Count distinct products.
+	var total int64
+	if err := baseQuery.Session(&gorm.Session{}).Distinct("products.id").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	type storeProductRow struct {
+		ID            string   `gorm:"column:id"`
+		Name          string   `gorm:"column:name"`
+		Price         float64  `gorm:"column:price"`
+		OriginalPrice float64  `gorm:"column:original_price"`
+		PromoPrice    *float64 `gorm:"column:promo_price"`
+		Currency      string   `gorm:"column:currency"`
+		ImageURL      *string  `gorm:"column:image_url"`
+		RatingAverage float64  `gorm:"column:rating_average"`
+		RatingCount   int64    `gorm:"column:rating_count"`
+		TotalSold     int64    `gorm:"column:total_sold"`
+	}
+
+	listQuery := baseQuery.Session(&gorm.Session{}).
+		Select(fmt.Sprintf(`
+			products.id,
+			products.name,
+			MIN(pv.price) AS original_price,
+			MIN(%s) AS promo_price,
+			MIN(%s) AS price,
+			COALESCE(MIN(pv.currency), 'IDR') AS currency,
+			(
+				SELECT pi.image_url FROM product_images pi
+				WHERE pi.product_id = products.id
+				ORDER BY pi.is_primary DESC, pi.sort_order ASC
+				LIMIT 1
+			) AS image_url,
+			COALESCE(prs.average_rating, 0) AS rating_average,
+			COALESCE(prs.total_reviews, 0) AS rating_count,
+			COALESCE(
+				(SELECT SUM(oi.qty) FROM order_items oi
+				 JOIN orders o ON o.id = oi.order_id
+				 JOIN product_variants pv2 ON pv2.id = oi.product_variant_id
+				 WHERE pv2.product_id = products.id
+				   AND o.order_status IN ('completed','received')
+				), 0
+			) AS total_sold
+		`, activeVoucherDiscountExpr, effectivePriceExpr)).
+		Group("products.id, products.name, products.created_at, prs.average_rating, prs.total_reviews")
+
+	switch sortBy {
+	case "bestseller":
+		listQuery = listQuery.Order("total_sold DESC").Order("products.created_at DESC")
+	default: // "newest" / "default"
+		listQuery = listQuery.Order("products.created_at DESC")
+	}
+
+	var rows []storeProductRow
+	if err := listQuery.Offset(offset).Limit(limit).Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]domain.StoreProductItem, len(rows))
+	for i, row := range rows {
+		id, _ := uuid.Parse(row.ID)
+		promoPrice, hasPromo := normalizePromoInfo(row.OriginalPrice, row.Price)
+
+		var imageURL string
+		if row.ImageURL != nil {
+			imageURL = *row.ImageURL
+		}
+
+		items[i] = domain.StoreProductItem{
+			ID:            id,
+			Name:          row.Name,
+			Price:         row.Price,
+			OriginalPrice: row.OriginalPrice,
+			PromoPrice:    promoPrice,
+			HasPromo:      hasPromo,
+			Currency:      row.Currency,
+			ImageURL:      imageURL,
+			RatingAverage: row.RatingAverage,
+			RatingCount:   row.RatingCount,
+			TotalSold:     row.TotalSold,
+		}
+	}
+
+	return items, total, nil
+}
+
 func buildActiveVoucherDiscountExpr(productIDCol string) string {
 	return fmt.Sprintf(`
 		(

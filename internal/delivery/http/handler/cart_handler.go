@@ -86,6 +86,35 @@ func (h *CartHandler) UpdateItem(c *gin.Context) {
 	response.OK(c, "cart item updated", result)
 }
 
+// UpdateItemSelection handles PATCH /api/v1/users/cart/items/:itemId/selection.
+func (h *CartHandler) UpdateItemSelection(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	itemID, err := uuid.Parse(c.Param("itemId"))
+	if err != nil {
+		response.BadRequest(c, "invalid item ID", "itemId must be a valid UUID")
+		return
+	}
+
+	var req domain.UpdateCartItemSelectionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	result, err := h.useCase.UpdateItemSelection(c.Request.Context(), userID, itemID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "cart item selection updated", result)
+}
+
 // RemoveItem handles DELETE /api/v1/users/cart/items/:itemId.
 func (h *CartHandler) RemoveItem(c *gin.Context) {
 	userID, ok := extractUserID(c)

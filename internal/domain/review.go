@@ -131,6 +131,9 @@ type ReviewRepository interface {
 
 	// GetStatsByProductID returns pre-aggregated rating stats for a product.
 	GetStatsByProductID(ctx context.Context, productID uuid.UUID) (*ProductReviewStats, error)
+
+	// ListByVendor returns paginated reviews across all products for a vendor.
+	ListByVendor(ctx context.Context, vendorID uuid.UUID, page, limit int) ([]VendorReviewItem, int64, error)
 }
 
 // ReviewUseCase defines the interface for review business operations.

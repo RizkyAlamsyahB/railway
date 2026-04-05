@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: UmrahMart - Catalog API
+  title: Catalog API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint katalog publik (produk, kategori, dan jasa pengiriman).
 servers:
@@ -560,7 +560,157 @@ paths:
                 message: internal server error
                 data: null
                 errors: null
-                meta: null
+  /api/v1/vendors/{id}:
+    get:
+      tags:
+        - Vendors
+      summary: Get Vendor Store Detail
+      description: |
+        Mengembalikan informasi lengkap profil toko publik (Vendor) beserta daftar produknya.
+        Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
+        
+        Isi response meliputi:
+        - Profil toko (rating, total produk, total barang terjual, lokasi).
+        - Daftar banner aktif toko.
+        - Section "Recommended Products" (maksimal 8 produk terlaris).
+        - Section "New Products" (maksimal 8 produk terbaru).
+        - Katalog produk utama dalam bentuk paginasi (grid).
+      operationId: getStoreDetail
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID vendor (toko).
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Nomor halaman untuk grid produk.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Jumlah item per halaman untuk grid produk.
+      responses:
+        "200":
+          description: Berhasil memuat informasi toko dan katalog produknya.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessStoreDetailEnvelope"
+        "400":
+          description: ID tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Toko tidak ditemukan atau tidak aktif.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/{id}/reviews:
+    get:
+      tags:
+        - Vendors
+      summary: Get Vendor Store Reviews
+      description: |
+        Mengembalikan daftar ulasan untuk toko (vendor) spesifik.
+        Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
+      operationId: getStoreReviews
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID vendor (toko).
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Nomor halaman.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Jumlah item per halaman.
+      responses:
+        "200":
+          description: Berhasil mendapatkan ulasan toko.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessStoreReviewsEnvelope"
+        "400":
+          description: ID tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Toko tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 components:
   headers:
     RequestIDHeader:
@@ -1174,6 +1324,54 @@ components:
         errors:
           nullable: true
           description: Detail error atau pesan validasi.
+        meta:
+          nullable: true
+          example: null
+    SuccessStoreDetailEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: store detail loaded
+        data:
+          type: object
+          description: The store detail response including info, banners, and products
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessStoreReviewsEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: store reviews loaded
+        data:
+          type: object
+          description: The store reviews including pagination and breakdown summary
+        errors:
+          nullable: true
+          example: null
         meta:
           nullable: true
           example: null

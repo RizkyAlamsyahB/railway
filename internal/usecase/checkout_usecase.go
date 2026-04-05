@@ -118,12 +118,12 @@ func (uc *checkoutUseCase) Preview(ctx context.Context, userID uuid.UUID, req do
 	if cart == nil {
 		return nil, ErrCartEmpty
 	}
-	cartItems, err := uc.cartRepo.FindItemsByCartID(ctx, cart.ID)
+	cartItems, err := uc.cartRepo.FindSelectedItemsByCartID(ctx, cart.ID)
 	if err != nil {
-		return nil, fmt.Errorf("find cart items: %w", err)
+		return nil, fmt.Errorf("find selected cart items: %w", err)
 	}
 	if len(cartItems) == 0 {
-		return nil, ErrCartEmpty
+		return nil, ErrNoSelectedCartItems
 	}
 
 	// 3. Enrich cart items and group by vendor.
@@ -167,7 +167,7 @@ func (uc *checkoutUseCase) Preview(ctx context.Context, userID uuid.UUID, req do
 			return nil, fmt.Errorf("find vendor warehouse address: %w", err)
 		}
 		if warehouseAddr == nil || warehouseAddr.DistrictID == nil || *warehouseAddr.DistrictID == "" {
-			return nil, fmt.Errorf("%w: vendor %s", ErrVendorWarehouseNotFound, vendor.DisplayName)
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorWarehouseNotFound, vendorDisplayNameOrFallback(vendor))
 		}
 
 		// 4b. Get vendor courier selections.
@@ -176,7 +176,7 @@ func (uc *checkoutUseCase) Preview(ctx context.Context, userID uuid.UUID, req do
 			return nil, fmt.Errorf("find vendor couriers: %w", err)
 		}
 		if len(vendorCouriers) == 0 {
-			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendor.DisplayName)
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendorDisplayNameOrFallback(vendor))
 		}
 
 		// 4c. Build items and calculate subtotal + total weight.
@@ -239,7 +239,7 @@ func (uc *checkoutUseCase) Preview(ctx context.Context, userID uuid.UUID, req do
 
 		vendorPreviews = append(vendorPreviews, domain.CheckoutPreviewVendorGroup{
 			VendorID:        vendorID,
-			VendorName:      vendor.DisplayName,
+			VendorName:      vendorDisplayNameOrEmpty(vendor),
 			Items:           previewItems,
 			Subtotal:        vendorSubtotal,
 			TotalWeightGram: totalWeightGram,
@@ -312,12 +312,12 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 	}
 
 	// 3. Get cart items.
-	cartItems, err := uc.cartRepo.FindItemsByCartID(ctx, cart.ID)
+	cartItems, err := uc.cartRepo.FindSelectedItemsByCartID(ctx, cart.ID)
 	if err != nil {
-		return nil, fmt.Errorf("find cart items: %w", err)
+		return nil, fmt.Errorf("find selected cart items: %w", err)
 	}
 	if len(cartItems) == 0 {
-		return nil, ErrCartEmpty
+		return nil, ErrNoSelectedCartItems
 	}
 
 	// 4. Get user info for Xendit customer data.
@@ -363,6 +363,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 	// 6. For each vendor group: create order -> call Xendit -> save invoice.
 	var results []domain.CheckoutOrderResult
 	var createdUnits []createdCheckoutUnit
+	var processedCartItemIDs []uuid.UUID
 	now := time.Now()
 
 	// Build shipping address snapshot from the selected address.
@@ -390,7 +391,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 			return nil, fmt.Errorf("find vendor warehouse address: %w", err)
 		}
 		if warehouseAddr == nil || warehouseAddr.DistrictID == nil || *warehouseAddr.DistrictID == "" {
-			return nil, fmt.Errorf("%w: vendor %s", ErrVendorWarehouseNotFound, vendor.DisplayName)
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorWarehouseNotFound, vendorDisplayNameOrFallback(vendor))
 		}
 
 		// 6d. Get vendor courier selections.
@@ -399,7 +400,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 			return nil, fmt.Errorf("find vendor couriers: %w", err)
 		}
 		if len(vendorCouriers) == 0 {
-			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendor.DisplayName)
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendorDisplayNameOrFallback(vendor))
 		}
 
 		// 6e. Build order items, calculate subtotal and total weight.
@@ -418,6 +419,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 		for _, ei := range items {
 			lineTotal := ei.variant.Price * float64(ei.cartItem.Qty)
 			subtotal += lineTotal
+			processedCartItemIDs = append(processedCartItemIDs, ei.cartItem.ID)
 
 			weight := defaultWeightGram
 			if ei.variant.WeightGram != nil && *ei.variant.WeightGram > 0 {
@@ -451,7 +453,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 			}
 		}
 		if len(courierCodes) == 0 {
-			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendor.DisplayName)
+			return nil, fmt.Errorf("%w: vendor %s", ErrVendorNoCouriersConfigured, vendorDisplayNameOrFallback(vendor))
 		}
 
 		shippingOptions, err := uc.rajaOngkir.CalculateDomesticCost(
@@ -479,7 +481,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 		}
 		if !serviceFound {
 			return nil, fmt.Errorf("%w: courier=%s service=%s for vendor %s",
-				ErrShippingServiceNotFound, sc.CourierCode, sc.Service, vendor.DisplayName)
+				ErrShippingServiceNotFound, sc.CourierCode, sc.Service, vendorDisplayNameOrFallback(vendor))
 		}
 
 		grandTotal := subtotal + shippingFee + platformFeeTotal
@@ -587,7 +589,7 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 			OrderID:     orderID,
 			OrderNo:     orderNo,
 			VendorID:    vendorID,
-			VendorName:  vendor.DisplayName,
+			VendorName:  vendorDisplayNameOrEmpty(vendor),
 			Subtotal:    subtotal,
 			ShippingFee: shippingFee,
 			PlatformFee: platformFeeTotal,
@@ -597,9 +599,9 @@ func (uc *checkoutUseCase) Checkout(ctx context.Context, userID uuid.UUID, req d
 		})
 	}
 
-	// 7. Mark cart as converted.
-	if err := uc.cartRepo.UpdateStatus(ctx, cart.ID, domain.CartStatusConverted); err != nil {
-		return nil, fmt.Errorf("update cart status: %w", err)
+	// 7. Remove processed selected items from the active cart.
+	if err := uc.cartRepo.DeleteItemsByIDs(ctx, cart.ID, processedCartItemIDs); err != nil {
+		return nil, fmt.Errorf("delete processed cart items: %w", err)
 	}
 
 	return &domain.CheckoutResponse{Orders: results}, nil

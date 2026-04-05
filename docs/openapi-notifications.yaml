@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: UmrahMart - Notifications API
+  title: Notifications API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint notifikasi (admin/finance/cs).
 servers:

@@ -133,6 +133,8 @@
     .status-received { background: #e0e7ff; color: #3730a3; }
     .status-completed { background: #dcfce7; color: #166534; }
     .status-canceled { background: #fee2e2; color: #991b1b; }
+    .status-refund_pending { background: #fff7ed; color: #9a3412; }
+    .status-refunded { background: #dcfce7; color: #166534; }
 
     /* ===== PAGINATION ===== */
     .pagination-bar { padding: 14px 0; display: flex; align-items: center; justify-content: space-between; font-size: .82rem; }
@@ -226,6 +228,54 @@
       .topbar { padding: 14px 16px; }
       .tab-btn { font-size: .72rem; padding: 10px 4px; }
     }
+
+    /* ===== CHAT ===== */
+    .chat-messages { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; padding: 12px; background: #f9f9f9; border-radius: 8px; border: 1px solid #f0f0f0; }
+    .chat-msg { max-width: 75%; padding: 10px 14px; border-radius: 12px; font-size: .84rem; word-break: break-word; }
+    .chat-msg.mine { align-self: flex-end; background: var(--gold); color: #fff; border-bottom-right-radius: 4px; }
+    .chat-msg.theirs { align-self: flex-start; background: #fff; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .chat-msg .msg-meta { font-size: .7rem; opacity: .7; margin-top: 4px; }
+    .chat-msg .msg-attachment { margin-top: 6px; }
+    .chat-msg .msg-attachment img { max-width: 200px; max-height: 150px; border-radius: 6px; cursor: pointer; }
+    .chat-input-bar { display: flex; gap: 8px; margin-top: 12px; }
+    .chat-input-bar input[type="text"] { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: .84rem; font-family: inherit; outline: none; }
+    .chat-input-bar input[type="text"]:focus { border-color: var(--gold); }
+
+    /* ===== REVIEW ===== */
+    .star-rating { display: flex; gap: 4px; margin: 8px 0; }
+    .star-rating .star { font-size: 1.8rem; cursor: pointer; color: #d1d5db; transition: color .15s; user-select: none; }
+    .star-rating .star.active { color: #f59e0b; }
+    .star-rating .star:hover { color: #fbbf24; }
+    .review-textarea { width: 100%; min-height: 100px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: .84rem; font-family: inherit; resize: vertical; outline: none; }
+    .review-textarea:focus { border-color: var(--gold); }
+    .review-images-preview { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .review-images-preview .img-thumb { position: relative; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+    .review-images-preview .img-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .review-images-preview .img-thumb .remove-btn { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; border: none; cursor: pointer; font-size: .7rem; display: flex; align-items: center; justify-content: center; }
+
+    /* ===== REFUND / BANK ACCOUNT ===== */
+    .status-refunded { background: #fae8ff; color: #86198f; }
+    .status-awaiting_destination { background: #fff7ed; color: #9a3412; }
+    .refund-banner { padding: 14px 18px; border-radius: 8px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 12px; }
+    .refund-banner.gateway { background: #dbeafe; border: 1px solid #93c5fd; }
+    .refund-banner.disbursement { background: #fff7ed; border: 1px solid #fdba74; }
+    .refund-banner .icon { font-size: 1.5rem; flex-shrink: 0; }
+    .refund-banner .info { flex: 1; }
+    .refund-banner .info .title { font-weight: 700; font-size: .88rem; margin-bottom: 2px; }
+    .refund-banner .info .msg { font-size: .82rem; color: var(--text-muted); }
+    .refund-banner .info .meta { font-size: .75rem; color: var(--text-muted); margin-top: 4px; }
+    .ba-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; margin-bottom: 8px; transition: all .15s; }
+    .ba-card:hover { border-color: var(--gold-light); }
+    .ba-card.default { border-color: var(--gold); background: var(--gold-bg); }
+    .ba-card .ba-icon { width: 40px; height: 40px; background: var(--gold-bg); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+    .ba-card .ba-info { flex: 1; }
+    .ba-card .ba-info .ba-name { font-weight: 600; font-size: .85rem; }
+    .ba-card .ba-info .ba-detail { font-size: .78rem; color: var(--text-muted); }
+    .ba-card .ba-actions { display: flex; gap: 4px; }
+    .ba-card .ba-default-badge { font-size: .7rem; background: var(--gold); color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .refund-dest-option { padding: 14px; border: 2px solid #e5e5e5; border-radius: 8px; cursor: pointer; transition: all .15s; margin-bottom: 8px; }
+    .refund-dest-option:hover { border-color: var(--gold-light); }
+    .refund-dest-option.selected { border-color: var(--gold); background: var(--gold-bg); }
   </style>
 </head>
 <body>
@@ -242,6 +292,7 @@
     <a href="#"><span class="nav-icon">🛒</span> Keranjang</a>
     <a href="#" class="active"><span class="nav-icon">📋</span> Pesanan Saya</a>
     <a href="#"><span class="nav-icon">❤️</span> Wishlist</a>
+    <a href="#" onclick="event.preventDefault();openBankAccountsModal()"><span class="nav-icon">🏦</span> Rekening Bank</a>
     <a href="#"><span class="nav-icon">💬</span> Chat</a>
     <a href="#"><span class="nav-icon">🔔</span> Notifikasi</a>
     <a href="#"><span class="nav-icon">👤</span> Profil</a>
@@ -268,7 +319,7 @@
       <h3>⚙️ Konfigurasi &amp; Login</h3>
       <div class="config-row">
         <label>Base URL</label>
-        <input type="text" id="baseUrl" value="https://a02a-111-94-138-203.ngrok-free.app/api/v1" />
+        <input type="text" id="baseUrl" value="https://a228-111-94-138-203.ngrok-free.app/api/v1" />
       </div>
       <div class="config-row">
         <label>Email</label>
@@ -381,8 +432,232 @@
   </div>
 </div>
 
+<!-- MODAL: BANK ACCOUNTS -->
+<div class="modal-overlay" id="modalBankAccounts" onclick="if(event.target===this)closeModal('modalBankAccounts')">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>🏦 Rekening Bank Saya</h3>
+      <button class="modal-close" onclick="closeModal('modalBankAccounts')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="bankAccountList"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+      <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+      <h4 style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:10px;">➕ Tambah Rekening Baru</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Channel Code</label>
+          <input type="text" id="baChannelCode" placeholder="ID_BCA" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Nama Bank</label>
+          <input type="text" id="baBankName" placeholder="BCA" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">No. Rekening</label>
+          <input type="text" id="baAccountNumber" placeholder="1234567890" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Nama Pemilik</label>
+          <input type="text" id="baAccountHolder" placeholder="John Doe" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+      </div>
+      <button class="btn btn-gold" style="margin-top:12px;width:100%;justify-content:center;" onclick="createBankAccount()">💾 Simpan Rekening</button>
+    </div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('baJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalBankAccounts')">Tutup</button>
+    </div>
+    <pre class="json-output" id="baJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: REFUND DESTINATION -->
+<div class="modal-overlay" id="modalRefundDest" onclick="if(event.target===this)closeModal('modalRefundDest')">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>💰 Pilih Tujuan Refund</h3>
+      <button class="modal-close" onclick="closeModal('modalRefundDest')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="refund-banner disbursement" style="margin-bottom:16px;">
+        <div class="icon">💸</div>
+        <div class="info">
+          <div class="title">Refund via Transfer Bank</div>
+          <div class="msg">Pilih rekening tujuan atau masukkan data rekening baru untuk menerima dana refund.</div>
+        </div>
+      </div>
+      <div id="refundDestOrderInfo" style="margin-bottom:12px;"></div>
+      <h4 style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">Rekening Tersimpan</h4>
+      <div id="refundDestBankList"><p style="text-align:center;color:var(--text-muted);font-size:.82rem;">Memuat...</p></div>
+      <div style="margin:16px 0;text-align:center;font-size:.78rem;color:var(--text-muted);">— atau masukkan manual —</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Channel Code</label>
+          <input type="text" id="rdChannelCode" placeholder="ID_BCA" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Nama Bank</label>
+          <input type="text" id="rdBankName" placeholder="BCA" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">No. Rekening</label>
+          <input type="text" id="rdAccountNumber" placeholder="1234567890" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Nama Pemilik</label>
+          <input type="text" id="rdAccountHolder" placeholder="John Doe" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.82rem;cursor:pointer;">
+        <input type="checkbox" id="rdSaveAccount" /> Simpan rekening ini untuk penggunaan berikutnya
+      </label>
+    </div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('rdJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalRefundDest')">Batal</button>
+      <button class="btn btn-gold" onclick="submitRefundDestination()">💰 Kirim Tujuan Refund</button>
+    </div>
+    <pre class="json-output" id="rdJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: REFUND REQUEST -->
+<div class="modal-overlay" id="modalRefundRequest" onclick="if(event.target===this)closeModal('modalRefundRequest')">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <h3>📦 Ajukan Pengembalian</h3>
+      <button class="modal-close" onclick="closeModal('modalRefundRequest')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="refundReqOrderInfo" style="margin-bottom:16px;"></div>
+
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px;">Alasan Pengembalian *</label>
+      <select id="refundReasonSelect" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:.84rem;font-family:inherit;margin-bottom:14px;outline:none;">
+        <option value="">— Pilih alasan —</option>
+      </select>
+
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px;">Deskripsi (opsional)</label>
+      <textarea id="refundDescription" class="review-textarea" placeholder="Jelaskan lebih detail masalah yang Anda alami..." maxlength="1000" style="min-height:80px;margin-bottom:14px;"></textarea>
+
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px;">Bukti Foto (max 5)</label>
+      <input type="file" id="refundFileInput" accept="image/*" multiple style="font-size:.78rem;margin-bottom:6px;" onchange="handleRefundEvidenceFiles(this)" />
+      <div class="review-images-preview" id="refundEvidencePreview" style="margin-bottom:14px;"></div>
+
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px;">Bukti Video (max 1, opsional)</label>
+      <input type="file" id="refundVideoInput" accept="video/*" style="font-size:.78rem;margin-bottom:14px;" onchange="handleRefundEvidenceVideo(this)" />
+      <div id="refundVideoPreview" style="margin-bottom:14px;"></div>
+
+      <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+      <h4 style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:10px;">🏦 Rekening Tujuan Refund *</h4>
+
+      <div id="refundReqBankList"></div>
+      <div style="margin:12px 0;text-align:center;font-size:.78rem;color:var(--text-muted);">— atau masukkan manual —</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Channel Code</label>
+          <input type="text" id="rrChannelCode" placeholder="ID_BCA" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Nama Bank</label>
+          <input type="text" id="rrBankName" placeholder="BCA" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">No. Rekening</label>
+          <input type="text" id="rrAccountNumber" placeholder="1234567890" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--text-muted);">Nama Pemilik</label>
+          <input type="text" id="rrAccountHolder" placeholder="John Doe" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;font-family:inherit;" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('rrJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalRefundRequest')">Batal</button>
+      <button class="btn btn-danger" onclick="submitRefundRequest()">📦 Ajukan Pengembalian</button>
+    </div>
+    <pre class="json-output" id="rrJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast-container" id="toastContainer"></div>
+
+<!-- MODAL: CHAT -->
+<div class="modal-overlay" id="modalChat" onclick="if(event.target===this)closeModal('modalChat')">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3>💬 Chat dengan Penjual</h3>
+      <button class="modal-close" onclick="closeModal('modalChat')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="chatStoreName" style="font-weight:600;margin-bottom:12px;"></div>
+      <div class="chat-messages" id="chatMessages">
+        <p style="text-align:center;color:var(--text-muted);">Memuat pesan...</p>
+      </div>
+      <div class="chat-input-bar">
+        <input type="text" id="chatInput" placeholder="Ketik pesan..." onkeydown="if(event.key==='Enter')sendChatMessage()" />
+        <button class="btn btn-gold btn-sm" onclick="sendChatMessage()">Kirim</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('chatJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline btn-sm" onclick="loadChatMessages()" title="Refresh">🔄 Refresh</button>
+      <button class="btn btn-outline" onclick="closeModal('modalChat')">Tutup</button>
+    </div>
+    <pre class="json-output" id="chatJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: REVIEW -->
+<div class="modal-overlay" id="modalReview" onclick="if(event.target===this)closeModal('modalReview')">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <h3>⭐ Beri Ulasan</h3>
+      <button class="modal-close" onclick="closeModal('modalReview')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="reviewItemInfo" style="margin-bottom:16px;"></div>
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);">Rating</label>
+      <div class="star-rating" id="starRating">
+        <span class="star" data-val="1" onclick="setRating(1)" onmouseover="hoverRating(1)" onmouseout="resetRatingHover()">★</span>
+        <span class="star" data-val="2" onclick="setRating(2)" onmouseover="hoverRating(2)" onmouseout="resetRatingHover()">★</span>
+        <span class="star" data-val="3" onclick="setRating(3)" onmouseover="hoverRating(3)" onmouseout="resetRatingHover()">★</span>
+        <span class="star" data-val="4" onclick="setRating(4)" onmouseover="hoverRating(4)" onmouseout="resetRatingHover()">★</span>
+        <span class="star" data-val="5" onclick="setRating(5)" onmouseover="hoverRating(5)" onmouseout="resetRatingHover()">★</span>
+      </div>
+      <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);display:block;margin-top:12px;">Ulasan</label>
+      <textarea class="review-textarea" id="reviewText" placeholder="Tulis ulasan Anda tentang produk ini..." maxlength="2000"></textarea>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+        <label style="font-size:.82rem;font-weight:600;color:var(--text-muted);">Foto (max 5)</label>
+        <input type="file" id="reviewFileInput" accept="image/*" multiple style="font-size:.78rem;" onchange="handleReviewFiles(this)" />
+      </div>
+      <div class="review-images-preview" id="reviewImagesPreview"></div>
+    </div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('reviewJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalReview')">Batal</button>
+      <button class="btn btn-gold" onclick="submitReview()">⭐ Kirim Ulasan</button>
+    </div>
+    <pre class="json-output" id="reviewJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
+
+<!-- MODAL: STORE INFO -->
+<div class="modal-overlay" id="modalStoreInfo" onclick="if(event.target===this)closeModal('modalStoreInfo')">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <h3>🏪 Profil Toko</h3>
+      <button class="modal-close" onclick="closeModal('modalStoreInfo')">✕</button>
+    </div>
+    <div class="modal-body" id="storeInfoBody"><p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat...</p></div>
+    <div class="modal-footer">
+      <span class="toggle-json" onclick="toggleJson('storeInfoJson')" style="margin-right:auto;">📄 Raw JSON</span>
+      <button class="btn btn-outline" onclick="closeModal('modalStoreInfo')">Tutup</button>
+    </div>
+    <pre class="json-output" id="storeInfoJson" style="margin:0 22px 16px;"></pre>
+  </div>
+</div>
 
 <script>
 // ═══════ State ═══════
@@ -403,10 +678,22 @@ function fmtDate(s) {
   return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
 }
 function statusLabel(s) {
-  const map = { pending_payment:'Belum Dibayar', paid:'Dibayar', processing:'Dikemas', shipped:'Dikirim', received:'Diterima', completed:'Selesai', canceled:'Dibatalkan' };
+  const map = { pending_payment:'Belum Dibayar', paid:'Dibayar', processing:'Dikemas', shipped:'Dikirim', received:'Diterima', completed:'Selesai', canceled:'Dibatalkan', refunded:'Dikembalikan' };
   return map[s] || s || '-';
 }
-function statusBadge(s) { return '<span class="status-badge status-' + (s||'') + '">' + statusLabel(s) + '</span>'; }
+function refundStatusLabel(s) {
+  const map = { requested:'Diajukan', approved:'Disetujui', rejected:'Ditolak', processing:'Diproses', processed:'Selesai', awaiting_destination:'Menunggu Tujuan' };
+  return map[s] || s || '-';
+}
+function statusBadge(s, ps) { return '<span class="status-badge status-' + (s||'') + '">' + statusLabel(s) + '</span>'; }
+function orderCardBadge(o) {
+  if (o.status === 'canceled' && (o.payment_status === 'paid' || o.payment_status === 'refunded')) {
+    const cls = o.payment_status === 'refunded' ? 'refunded' : 'refund_pending';
+    const lbl = o.payment_status === 'refunded' ? 'Dana Dikembalikan' : 'Pengembalian Dana';
+    return '<span class="status-badge status-' + cls + '">' + lbl + '</span>';
+  }
+  return statusBadge(o.status);
+}
 
 function toast(msg, type) {
   const t = document.createElement('div');
@@ -518,7 +805,7 @@ function renderOrderList(orders, meta) {
     return '<div class="order-card" onclick="showDetail(\'' + o.order_id + '\')">' +
       '<div class="order-card-header">' +
       '<span class="order-card-date">' + fmtDate(o.order_date) + '</span>' +
-      statusBadge(o.status) +
+      orderCardBadge(o) +
       '</div>' +
       '<div class="order-card-items">' + items + '</div>' +
       '<div class="order-card-footer">' +
@@ -555,6 +842,9 @@ function buildOrderCardActions(o) {
   if (s === 'received') {
     b += '<button class="btn btn-sm btn-success" onclick="confirmComplete(\'' + o.order_id + '\')">✅ Pesanan Diterima</button>';
   }
+  if (s === 'completed' || s === 'received') {
+    b += '<button class="btn btn-sm btn-outline" style="border-color:#f97316;color:#ea580c;" onclick="openRefundRequestModal(\'' + o.order_id + '\')">📦 Ajukan Pengembalian</button>';
+  }
   return b;
 }
 
@@ -590,9 +880,11 @@ function renderDetail(d) {
     '</div></div>';
 
   // Store
-  html += '<div class="detail-section"><h4>🏪 Toko</h4><div class="detail-grid">' +
-    '<span class="detail-label">Nama Toko</span><span class="detail-value">' + esc(d.store?.name) + '</span>' +
-    '</div></div>';
+  const storeId = d.store?.id || d.store?.vendor_id || d.order?.vendor_id || '';
+  html += '<div class="detail-section"><h4>🏪 Toko</h4><div class="detail-grid" style="align-items:center;">' +
+    '<span class="detail-label">Nama Toko</span><div style="display:flex;align-items:center;gap:10px;"><span class="detail-value" style="font-weight:600;">' + esc(d.store?.name) + '</span>' +
+    (storeId ? '<button class="btn btn-outline btn-sm" onclick="closeModal(\'modalDetail\');showStoreDetail(\'' + storeId + '\')">🛒 Kunjungi Toko</button>' : '') +
+    '</div></div></div>';
 
   // Shipping
   if (d.shipping) {
@@ -642,8 +934,32 @@ function renderDetail(d) {
   if (d.payment) {
     html += '<div class="detail-section"><h4>💳 Pembayaran</h4><div class="detail-grid">' +
       '<span class="detail-label">Metode</span><span class="detail-value">' + esc(d.payment.method) + '</span>' +
+      '<span class="detail-label">Status</span><span class="detail-value">' + statusBadge(d.order?.payment_status) + '</span>' +
       (d.payment.invoice_id ? '<span class="detail-label">Invoice ID</span><span class="detail-value" style="font-family:monospace;">' + esc(d.payment.invoice_id) + '</span>' : '') +
       '</div></div>';
+  }
+
+  // Refund Info
+  if (d.refund) {
+    const r = d.refund;
+    const isGateway = r.refund_method === 'gateway';
+    const bannerClass = isGateway ? 'gateway' : 'disbursement';
+    const icon = isGateway ? '🔄' : '💸';
+    const title = isGateway ? 'Refund via Metode Pembayaran Asal' : 'Refund via Transfer Bank';
+    html += '<div class="detail-section"><h4>💰 Informasi Refund</h4>';
+    html += '<div class="refund-banner ' + bannerClass + '">';
+    html += '<div class="icon">' + icon + '</div>';
+    html += '<div class="info">';
+    html += '<div class="title">' + title + '</div>';
+    html += '<div class="msg">' + esc(r.message || '') + '</div>';
+    html += '<div class="meta">Status: <strong>' + refundStatusLabel(r.status) + '</strong> · Metode: ' + esc(r.refund_method) + ' · Jumlah: ' + fmt(r.amount) + '</div>';
+    if (r.destination_account_number_last4) html += '<div class="meta">Rek. Tujuan: ****' + esc(r.destination_account_number_last4) + ' (' + esc(r.destination_bank_name||'') + ')</div>';
+    html += '</div></div>';
+    if (r.status === 'awaiting_destination') {
+      html += '<button class="btn btn-gold" style="margin-top:8px;" onclick="closeModal(\'modalDetail\');openRefundDestinationModal(\'' + currentDetailOrderId + '\')">' +
+        '💰 Pilih Tujuan Refund</button>';
+    }
+    html += '</div>';
   }
 
   // Actions
@@ -651,13 +967,191 @@ function renderDetail(d) {
     html += '<div class="detail-section"><h4>⚡ Aksi</h4><div style="display:flex;gap:8px;flex-wrap:wrap;">';
     if (d.actions.can_cancel) html += '<button class="btn btn-danger" onclick="closeModal(\'modalDetail\');confirmCancel(\'' + currentDetailOrderId + '\')">❌ Batalkan Pesanan</button>';
     if (d.actions.can_complete) html += '<button class="btn btn-success" onclick="closeModal(\'modalDetail\');confirmComplete(\'' + currentDetailOrderId + '\')">✅ Pesanan Diterima</button>';
-    if (d.actions.can_contact) html += '<button class="btn btn-outline">💬 Hubungi Penjual</button>';
+    if (d.actions.can_refund) html += '<button class="btn btn-outline" style="border-color:#f97316;color:#ea580c;" onclick="closeModal(\'modalDetail\');openRefundRequestModal(\'' + currentDetailOrderId + '\')">📦 Ajukan Pengembalian</button>';
+    if (d.actions.can_contact) html += '<button class="btn btn-outline" onclick="closeModal(\'modalDetail\');startChat(\'' + esc(d.store?.owner_user_id||'') + '\',\'' + esc(d.store?.name||'Penjual') + '\')">💬 Hubungi Penjual</button>';
+    if (d.actions.can_review) html += '<button class="btn btn-gold" onclick="closeModal(\'modalDetail\');openReviewPicker()">⭐ Nilai Produk</button>';
     html += '<button class="btn btn-outline" onclick="closeModal(\'modalDetail\');showShippingInfo(\'' + currentDetailOrderId + '\')">📦 Info Pengiriman</button>';
     html += '<button class="btn btn-outline" onclick="closeModal(\'modalDetail\');showInvoice(\'' + currentDetailOrderId + '\')">🧾 Nota Pesanan</button>';
     html += '</div></div>';
   }
 
   $('detailBody').innerHTML = html;
+}
+
+// ═══════ STORE DETAIL ═══════
+async function showStoreDetail(vendorId) {
+  window.currentStoreVendorId = vendorId;
+  window.storeReviewsLoaded = false;
+  openModal('modalStoreInfo');
+  $('storeInfoBody').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat info toko...</p>';
+  $('storeInfoJson').innerHTML = ''; $('storeInfoJson').classList.remove('show');
+  try {
+    const res = await api('GET', '/vendors/' + vendorId);
+    $('storeInfoJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.status === 200 && res.json?.success) {
+       const s = res.json.data;
+       let html = '<div style="display:flex;gap:16px;margin-bottom:16px;align-items:center;">';
+       html += '<div style="width:72px;height:72px;border-radius:12px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">' + (s.store?.image_url ? '<img src="'+esc(s.store.image_url)+'" style="width:100%;height:100%;object-fit:cover;">' : '🏪') + '</div>';
+       html += '<div><h4 style="font-size:1.1rem;margin-bottom:4px;">' + esc(s.store?.name) + '</h4>';
+       html += '<div style="font-size:0.84rem;color:var(--text-muted);"><span style="margin-right:12px;">📍 ' + esc(s.store?.location) + '</span><span style="color:#f59e0b;font-weight:700;">★ ' + (s.store?.rating||0) + '</span> <span style="margin-right:12px;">(' + (s.store?.total_reviews||0) + ' ulasan)</span><span>📦 ' + (s.store?.total_products||0) + ' Produk</span></div>';
+       html += '<div style="font-size:0.84rem;color:var(--text-muted);margin-top:4px;">✓ Terjual: ' + (s.store?.total_sold||0) + ' item</div>';
+       html += '</div></div>';
+
+       html += '<div style="display:flex;gap:16px;border-bottom:1px solid #eee;margin-bottom:16px;" id="storeDetailTabs">';
+       html += '<div class="s-tab" data-target="toko" style="padding:10px 0;border-bottom:3px solid var(--gold);color:var(--gold-dark);font-weight:700;cursor:pointer;flex:1;text-align:center;font-size:0.9rem;" onclick="switchStoreTab(\'toko\')">Toko</div>';
+       html += '<div class="s-tab" data-target="produk" style="padding:10px 0;border-bottom:3px solid transparent;color:var(--text-muted);font-weight:500;cursor:pointer;flex:1;text-align:center;font-size:0.9rem;" onclick="switchStoreTab(\'produk\')">Produk</div>';
+       html += '<div class="s-tab" data-target="ulasan" style="padding:10px 0;border-bottom:3px solid transparent;color:var(--text-muted);font-weight:500;cursor:pointer;flex:1;text-align:center;font-size:0.9rem;" onclick="switchStoreTab(\'ulasan\')">Ulasan</div>';
+       html += '</div>';
+
+       // TAB TOKO
+       html += '<div id="storeTabToko" class="s-tab-content">';
+       if (s.banners && s.banners.length > 0) { // Fix bug where s.banner might be used instead of s.banners
+          const banner = s.banners[0];
+          html += '<div style="margin-bottom:20px;border-radius:12px;overflow:hidden;background:#fafafa;border:1px solid #eee;"><img src="' + esc(banner.image_url) + '" style="width:100%;max-height:160px;object-fit:cover;" onerror="this.style.display=\'none\'"></div>';
+       }
+
+       if (s.recommended_products && s.recommended_products.length > 0) {
+          html += '<h4 style="font-size:0.9rem;margin-bottom:12px;">🔥 Rekomendasi (Bestseller)</h4>';
+          html += '<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;margin-bottom:8px;">';
+          s.recommended_products.forEach(p => {
+             html += '<div style="min-width:140px;border:1px solid #eee;border-radius:8px;padding:8px;"><div style="height:120px;background:#f5f5f5;border-radius:6px;margin-bottom:8px;position:relative;"><img src="'+esc(p.image_url)+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'"><div style="position:absolute;bottom:4px;right:4px;background:rgba(255,255,255,0.9);font-size:0.7rem;padding:2px 4px;border-radius:4px;">★ '+(p.rating_average||0)+'</div></div><div style="font-size:0.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</div><div style="font-weight:700;color:var(--gold-dark);font-size:0.85rem;">'+fmt(p.price)+'</div></div>';
+          });
+          html += '</div>';
+       }
+
+       if (s.new_products && s.new_products.length > 0) {
+          html += '<h4 style="font-size:0.9rem;margin-bottom:12px;">✨ Produk Terbaru</h4>';
+          html += '<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;margin-bottom:8px;">';
+          s.new_products.forEach(p => {
+             html += '<div style="min-width:140px;border:1px solid #eee;border-radius:8px;padding:8px;"><div style="height:120px;background:#f5f5f5;border-radius:6px;margin-bottom:8px;position:relative;"><img src="'+esc(p.image_url)+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'"><div style="position:absolute;bottom:4px;right:4px;background:rgba(255,255,255,0.9);font-size:0.7rem;padding:2px 4px;border-radius:4px;">★ '+(p.rating_average||0)+'</div></div><div style="font-size:0.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</div><div style="font-weight:700;color:var(--gold-dark);font-size:0.85rem;">'+fmt(p.price)+'</div></div>';
+          });
+          html += '</div>';
+       }
+       html += '</div>'; // End Tab Toko
+
+       // TAB PRODUK (Grid)
+       html += '<div id="storeTabProduk" class="s-tab-content" style="display:none;">';
+       if (s.products && s.products.length > 0) {
+          let searchBar = '<div style="display:flex;align-items:center;margin-bottom:16px;gap:8px;"><input type="text" placeholder="Cari di toko ini..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:0.82rem;font-family:inherit;outline:none;" disabled><button class="btn btn-outline" disabled>🔍</button></div>';
+          html += searchBar;
+          html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">';
+          s.products.forEach(p => {
+             html += '<div style="border:1px solid #eee;border-radius:8px;padding:8px;display:flex;flex-direction:column;"><div style="height:120px;background:#f5f5f5;border-radius:6px;margin-bottom:8px;position:relative;"><img src="'+esc(p.image_url)+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'"><div style="position:absolute;bottom:4px;right:4px;background:rgba(255,255,255,0.9);font-size:0.7rem;padding:2px 6px;border-radius:4px;">★ '+(p.rating_average||0)+'</div></div><div style="font-size:0.8rem;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1;">'+esc(p.name)+'</div><div style="font-weight:700;color:var(--gold-dark);font-size:0.85rem;margin-top:4px;">'+fmt(p.price)+'</div></div>';
+          });
+          html += '</div>';
+          if (s.products_pagination) {
+             html += '<div style="margin-top:16px;text-align:center;font-size:0.8rem;color:var(--text-muted);">Menampilkan halaman ' + s.products_pagination.page + ' dari ' + s.products_pagination.total_pages + '</div>';
+          }
+       } else {
+          html += '<p style="text-align:center;color:var(--text-muted);padding:20px;">Belum ada produk untuk ditampilkan.</p>';
+       }
+       html += '</div>'; // End Tab Produk
+
+       // TAB ULASAN
+       html += '<div id="storeTabUlasan" class="s-tab-content" style="display:none;text-align:center;padding:40px 20px;">';
+       html += '<div style="font-size:2.5rem;margin-bottom:12px;">⭐</div>';
+       html += '<p style="color:var(--text-muted);font-size:0.9rem;">Endpoint ulasan toko secara spesifik belum diimplementasikan di backend.<br><br>Data ulasan akan muncul di sini nanti.</p>';
+       html += '</div>'; // End Tab Ulasan
+
+
+       $('storeInfoBody').innerHTML = html;
+    } else {
+       $('storeInfoBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+    }
+  } catch (e) {
+    $('storeInfoBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>';
+  }
+}
+
+window.switchStoreTab = function(target) {
+    const tabs = document.querySelectorAll('#storeDetailTabs .s-tab');
+    const contents = document.querySelectorAll('.s-tab-content');
+    tabs.forEach(t => {
+        if (t.dataset.target === target) {
+            t.style.borderBottomColor = 'var(--gold)';
+            t.style.color = 'var(--gold-dark)';
+            t.style.fontWeight = '700';
+        } else {
+            t.style.borderBottomColor = 'transparent';
+            t.style.color = 'var(--text-muted)';
+            t.style.fontWeight = '500';
+        }
+    });
+
+    contents.forEach(c => {
+        if (c.id === 'storeTab' + target.charAt(0).toUpperCase() + target.slice(1)) {
+            c.style.display = 'block';
+        } else {
+            c.style.display = 'none';
+        }
+    });
+
+    if (target === 'ulasan' && window.currentStoreVendorId && !window.storeReviewsLoaded) {
+       loadStoreReviews(window.currentStoreVendorId);
+    }
+};
+
+window.currentStoreVendorId = null;
+window.storeReviewsLoaded = false;
+
+async function loadStoreReviews(vendorId) {
+   const container = $('storeTabUlasan');
+   container.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">⏳ Memuat ulasan toko...</p>';
+   try {
+      const res = await api('GET', '/vendors/' + vendorId + '/reviews');
+      if (res.status === 200 && res.json?.success) {
+         window.storeReviewsLoaded = true;
+         const data = res.json.data;
+         let html = '';
+         if (data.reviews && data.reviews.length > 0) {
+            data.reviews.forEach(r => {
+               html += '<div style="border-bottom:1px solid #eee;padding-bottom:16px;margin-bottom:16px;">';
+               html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+               
+               // User Info
+               html += '<div style="display:flex;align-items:center;gap:12px;">';
+               html += '<div style="width:36px;height:36px;border-radius:50%;background:#f0f0f0;overflow:hidden;">';
+               if (r.user?.avatar_url) {
+                  html += '<img src="'+esc(r.user.avatar_url)+'" style="width:100%;height:100%;object-fit:cover;">';
+               } else {
+                  html += '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#999;font-size:1.2rem;">👤</div>';
+               }
+               html += '</div>';
+               html += '<div><div style="font-weight:600;font-size:0.9rem;">'+esc(r.user?.name)+'</div>';
+               html += '<div style="color:#f59e0b;font-size:0.8rem;">' + '★'.repeat(r.rating) + '☆'.repeat(5-r.rating) + '</div></div>';
+               html += '</div>'; // End User Info
+               
+               html += '<div style="font-size:0.75rem;color:var(--text-muted);">'+fmtDate(r.created_at)+'</div>';
+               html += '</div>';
+               
+               if (r.variant?.name) {
+                   html += '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Varian : '+esc(r.variant.name)+'</div>';
+               }
+               html += '<div style="font-size:0.85rem;line-height:1.4;margin-bottom:12px;">'+esc(r.comment)+'</div>';
+               
+               if (r.images && r.images.length > 0) {
+                   html += '<div style="display:flex;gap:8px;overflow-x:auto;">';
+                   r.images.forEach(img => {
+                       html += '<img src="'+esc(img)+'" style="width:72px;height:72px;border-radius:8px;object-fit:cover;border:1px solid #eee;">';
+                   });
+                   html += '</div>';
+               }
+               html += '</div>';
+            });
+         } else {
+            html = '<div style="text-align:center;padding:40px 20px;"><div style="font-size:2.5rem;margin-bottom:12px;">⭐</div><p style="color:var(--text-muted);font-size:0.9rem;">Belum ada ulasan untuk toko ini.</p></div>';
+         }
+         container.innerHTML = html;
+
+         // Prepend to the JSON output tree to view schema dynamically
+         const oldJson = $('storeInfoJson').innerHTML;
+         $('storeInfoJson').innerHTML = hl(res.json) + '\n\n/* ---- TOKO DETAIL RESPONSE ---- */\n\n' + oldJson;
+      } else {
+         container.innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+      }
+   } catch(e) {
+      container.innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>';
+   }
 }
 
 // ═══════ SHIPPING INFO ═══════
@@ -841,6 +1335,15 @@ async function doConfirmAction() {
         toast('Pesanan selesai! Terima kasih telah berbelanja.', 'success');
       } else {
         toast('Pesanan berhasil dibatalkan.', 'success');
+        // Show refund info if present
+        const ri = res.json.data?.refund_info;
+        if (ri) {
+          if (ri.refund_method === 'gateway') {
+            toast('💸 ' + ri.message, 'info');
+          } else if (ri.status === 'awaiting_destination') {
+            setTimeout(() => openRefundDestinationModal(id, ri), 500);
+          }
+        }
       }
       loadOrders();
     } else {
@@ -850,6 +1353,575 @@ async function doConfirmAction() {
 }
 
 updateUI();
+
+// ═══════ CHAT ═══════
+let currentConversationId = '';
+let currentChatParticipantId = '';
+
+async function startChat(ownerUserId, storeName) {
+  if (!ownerUserId) { toast('Owner user ID tidak tersedia.', 'error'); return; }
+  currentChatParticipantId = ownerUserId;
+  $('chatStoreName').textContent = '🏪 ' + storeName;
+  $('chatMessages').innerHTML = '<p style="text-align:center;color:var(--text-muted);">⏳ Memulai percakapan...</p>';
+  $('chatInput').value = '';
+  $('chatJson').innerHTML = ''; $('chatJson').classList.remove('show');
+  openModal('modalChat');
+
+  try {
+    const res = await api('POST', '/chat', { participant_id: ownerUserId });
+    $('chatJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.json?.success && res.json.data?.id) {
+      currentConversationId = res.json.data.id;
+      toast('Percakapan dimulai!', 'success');
+      loadChatMessages();
+    } else {
+      $('chatMessages').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || 'Gagal memulai chat') + '</p>';
+    }
+  } catch (e) { $('chatMessages').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+async function loadChatMessages() {
+  if (!currentConversationId) return;
+  try {
+    const res = await api('GET', '/chat/' + currentConversationId + '/messages?limit=50');
+    $('chatJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.json?.success) {
+      const messages = res.json.data || [];
+      renderChatMessages(messages);
+    }
+  } catch (e) { toast('Gagal memuat pesan: ' + e.message, 'error'); }
+}
+
+function renderChatMessages(messages) {
+  if (!messages.length) {
+    $('chatMessages').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;">Belum ada pesan. Mulai percakapan!</p>';
+    return;
+  }
+  const sorted = [...messages].reverse();
+  const html = sorted.map(m => {
+    const isMine = m.sender_id !== currentChatParticipantId;
+    let content = '<div class="chat-msg ' + (isMine ? 'mine' : 'theirs') + '">';
+    if (!isMine) content += '<div style="font-size:.72rem;font-weight:600;color:var(--gold-dark);margin-bottom:2px;">' + esc(m.sender_name) + '</div>';
+    content += '<div>' + esc(m.message) + '</div>';
+    if (m.attachment_url) content += '<div class="msg-attachment"><img src="' + esc(m.attachment_url) + '" alt="attachment" onclick="window.open(this.src)" /></div>';
+    content += '<div class="msg-meta">' + fmtDate(m.created_at) + '</div>';
+    content += '</div>';
+    return content;
+  }).join('');
+  $('chatMessages').innerHTML = html;
+  $('chatMessages').scrollTop = $('chatMessages').scrollHeight;
+}
+
+async function sendChatMessage() {
+  const msg = $('chatInput').value.trim();
+  if (!msg || !currentConversationId) return;
+  $('chatInput').value = '';
+  try {
+    const res = await api('POST', '/chat/' + currentConversationId + '/messages', { message: msg });
+    if (res.json?.success) {
+      loadChatMessages();
+    } else {
+      toast('Gagal kirim pesan: ' + (res.json?.message || ''), 'error');
+      $('chatInput').value = msg;
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); $('chatInput').value = msg; }
+}
+
+// ═══════ REVIEW ═══════
+let reviewRating = 0;
+let reviewOrderId = '';
+let reviewOrderItemId = '';
+let reviewImageKeys = [];
+
+function openReviewPicker() {
+  if (!currentDetailData || !currentDetailData.items || !currentDetailData.items.length) {
+    toast('Tidak ada item untuk di-review.', 'error');
+    return;
+  }
+  const items = currentDetailData.items;
+  if (items.length === 1) {
+    openReviewForItem(items[0], 0);
+  } else {
+    let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+    items.forEach((it, idx) => {
+      html += '<div class="product-card" style="cursor:pointer;" onclick="closeModal(\'modalConfirm\');openReviewForItem(currentDetailData.items[' + idx + '],' + idx + ')">';
+      html += '<div class="product-img">' + (it.image_url ? '<img src="' + esc(it.image_url) + '" alt="">' : '📦') + '</div>';
+      html += '<div class="product-info">';
+      html += '<div class="product-name">' + esc(it.name) + '</div>';
+      html += '<div class="product-variant">' + esc(it.variant) + '</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+    $('confirmTitle').textContent = 'Pilih Produk untuk Di-review';
+    $('confirmIcon').textContent = '⭐';
+    $('confirmMsg').innerHTML = html;
+    $('confirmSub').textContent = '';
+    $('confirmBtn').style.display = 'none';
+    openModal('modalConfirm');
+  }
+}
+
+function openReviewForItem(item, idx) {
+  closeModal('modalConfirm');
+  $('confirmBtn').style.display = '';
+  reviewOrderId = currentDetailOrderId;
+  reviewOrderItemId = item.order_item_id || '';
+  reviewRating = 0;
+  reviewImageKeys = [];
+
+  $('reviewItemInfo').innerHTML =
+    '<div class="product-card">' +
+    '<div class="product-img">' + (item.image_url ? '<img src="' + esc(item.image_url) + '" alt="">' : '📦') + '</div>' +
+    '<div class="product-info">' +
+    '<div class="product-name">' + esc(item.name) + '</div>' +
+    '<div class="product-variant">' + esc(item.variant) + '</div>' +
+    '</div></div>';
+
+  document.querySelectorAll('#starRating .star').forEach(s => s.classList.remove('active'));
+  $('reviewText').value = '';
+  $('reviewImagesPreview').innerHTML = '';
+  $('reviewFileInput').value = '';
+  $('reviewJson').innerHTML = ''; $('reviewJson').classList.remove('show');
+
+  openModal('modalReview');
+}
+
+function setRating(val) {
+  reviewRating = val;
+  document.querySelectorAll('#starRating .star').forEach(s => {
+    s.classList.toggle('active', parseInt(s.dataset.val) <= val);
+  });
+}
+
+function hoverRating(val) {
+  document.querySelectorAll('#starRating .star').forEach(s => {
+    s.classList.toggle('active', parseInt(s.dataset.val) <= val);
+  });
+}
+
+function resetRatingHover() {
+  document.querySelectorAll('#starRating .star').forEach(s => {
+    s.classList.toggle('active', parseInt(s.dataset.val) <= reviewRating);
+  });
+}
+
+async function handleReviewFiles(input) {
+  const files = Array.from(input.files || []);
+  if (reviewImageKeys.length + files.length > 5) {
+    toast('Maksimal 5 foto.', 'error');
+    input.value = '';
+    return;
+  }
+  for (const file of files) {
+    try {
+      const presignRes = await api('POST', '/users/reviews/presign', { content_type: file.type });
+      if (!presignRes.json?.success) { toast('Presign gagal: ' + (presignRes.json?.message || ''), 'error'); continue; }
+      const { upload_url, object_key } = presignRes.json.data;
+      await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      const previewUrl = URL.createObjectURL(file);
+      reviewImageKeys.push({ object_key, previewUrl });
+      renderReviewImagePreviews();
+      toast('Foto berhasil diupload!', 'success');
+    } catch (e) { toast('Upload error: ' + e.message, 'error'); }
+  }
+  input.value = '';
+}
+
+function renderReviewImagePreviews() {
+  $('reviewImagesPreview').innerHTML = reviewImageKeys.map((img, i) =>
+    '<div class="img-thumb">' +
+    '<img src="' + esc(img.previewUrl) + '" alt="" />' +
+    '<button class="remove-btn" onclick="removeReviewImage(' + i + ')">✕</button>' +
+    '</div>'
+  ).join('');
+}
+
+function removeReviewImage(idx) {
+  reviewImageKeys.splice(idx, 1);
+  renderReviewImagePreviews();
+}
+
+async function submitReview() {
+  if (!reviewRating) { toast('Pilih rating terlebih dahulu.', 'error'); return; }
+  const text = $('reviewText').value.trim();
+  if (!text) { toast('Tulis ulasan terlebih dahulu.', 'error'); return; }
+
+  const body = {
+    order_id: reviewOrderId,
+    order_item_id: reviewOrderItemId,
+    rating: reviewRating,
+    review_text: text,
+  };
+  if (reviewImageKeys.length) {
+    body.images = reviewImageKeys.map(img => ({ object_key: img.object_key }));
+  }
+
+  try {
+    const res = await api('POST', '/users/reviews', body);
+    $('reviewJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    $('reviewJson').classList.add('show');
+    if (res.json?.success) {
+      toast('Ulasan berhasil dikirim! ⭐', 'success');
+      closeModal('modalReview');
+    } else {
+      toast('Gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ═══════ BANK ACCOUNTS ═══════
+let bankAccounts = [];
+
+async function openBankAccountsModal() {
+  if (!customerToken) { toast('Login dulu!', 'error'); return; }
+  openModal('modalBankAccounts');
+  $('baJson').innerHTML = ''; $('baJson').classList.remove('show');
+  await loadBankAccounts();
+}
+
+async function loadBankAccounts() {
+  $('bankAccountList').innerHTML = '<p style="text-align:center;color:var(--text-muted);">⏳ Memuat rekening...</p>';
+  try {
+    const res = await api('GET', '/users/bank-accounts');
+    $('baJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.json?.success) {
+      bankAccounts = res.json.data || [];
+      renderBankAccounts();
+    } else {
+      $('bankAccountList').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (res.json?.message || res.text) + '</p>';
+    }
+  } catch (e) { $('bankAccountList').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>'; }
+}
+
+function renderBankAccounts() {
+  if (!bankAccounts.length) {
+    $('bankAccountList').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:12px;">Belum ada rekening tersimpan.</p>';
+    return;
+  }
+  $('bankAccountList').innerHTML = bankAccounts.map(ba =>
+    '<div class="ba-card ' + (ba.is_default ? 'default' : '') + '">' +
+    '<div class="ba-icon">🏦</div>' +
+    '<div class="ba-info">' +
+    '<div class="ba-name">' + esc(ba.bank_name) + (ba.is_default ? ' <span class="ba-default-badge">Utama</span>' : '') + '</div>' +
+    '<div class="ba-detail">' + esc(ba.account_holder_name) + ' · ****' + esc(ba.account_last4) + ' · ' + esc(ba.channel_code) + '</div>' +
+    '</div>' +
+    '<div class="ba-actions">' +
+    (!ba.is_default ? '<button class="btn btn-sm btn-outline" onclick="setDefaultBankAccount(\'' + ba.id + '\')">⭐ Utamakan</button>' : '') +
+    '<button class="btn btn-sm btn-danger" onclick="deleteBankAccount(\'' + ba.id + '\')">🗑️</button>' +
+    '</div></div>'
+  ).join('');
+}
+
+async function createBankAccount() {
+  const body = {
+    channel_code: $('baChannelCode').value.trim(),
+    bank_name: $('baBankName').value.trim(),
+    account_number: $('baAccountNumber').value.trim(),
+    account_holder_name: $('baAccountHolder').value.trim()
+  };
+  if (!body.channel_code || !body.account_number || !body.account_holder_name) {
+    toast('Lengkapi semua field!', 'error'); return;
+  }
+  try {
+    const res = await api('POST', '/users/bank-accounts', body);
+    $('baJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    $('baJson').classList.add('show');
+    if (res.json?.success) {
+      toast('Rekening berhasil ditambahkan! 🏦', 'success');
+      $('baChannelCode').value = ''; $('baBankName').value = ''; $('baAccountNumber').value = ''; $('baAccountHolder').value = '';
+      loadBankAccounts();
+    } else {
+      toast('Gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function deleteBankAccount(id) {
+  if (!confirm('Hapus rekening ini?')) return;
+  try {
+    const res = await api('DELETE', '/users/bank-accounts/' + id);
+    $('baJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.json?.success) {
+      toast('Rekening dihapus.', 'success');
+      loadBankAccounts();
+    } else {
+      toast('Gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function setDefaultBankAccount(id) {
+  try {
+    const res = await api('PATCH', '/users/bank-accounts/' + id + '/default');
+    $('baJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    if (res.json?.success) {
+      toast('Rekening utama diperbarui! ⭐', 'success');
+      loadBankAccounts();
+    } else {
+      toast('Gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ═══════ REFUND DESTINATION ═══════
+let refundDestOrderId = '';
+let refundDestSelectedBaId = null;
+
+async function openRefundDestinationModal(orderId, refundInfo) {
+  if (!customerToken) { toast('Login dulu!', 'error'); return; }
+  refundDestOrderId = orderId;
+  refundDestSelectedBaId = null;
+  $('rdJson').innerHTML = ''; $('rdJson').classList.remove('show');
+
+  // Show order info
+  let infoHtml = '<div style="font-size:.84rem;color:var(--text-muted);">Order ID: <strong style="color:var(--text);font-family:monospace;">' + esc(orderId) + '</strong></div>';
+  if (refundInfo?.message) infoHtml += '<div style="font-size:.82rem;color:var(--gold-dark);margin-top:4px;">' + esc(refundInfo.message) + '</div>';
+  $('refundDestOrderInfo').innerHTML = infoHtml;
+
+  // Clear manual fields
+  $('rdChannelCode').value = ''; $('rdBankName').value = ''; $('rdAccountNumber').value = ''; $('rdAccountHolder').value = '';
+  $('rdSaveAccount').checked = false;
+
+  openModal('modalRefundDest');
+
+  // Load bank accounts for selection
+  $('refundDestBankList').innerHTML = '<p style="text-align:center;color:var(--text-muted);font-size:.82rem;">⏳ Memuat...</p>';
+  try {
+    const res = await api('GET', '/users/bank-accounts');
+    const accounts = res.json?.data || [];
+    if (!accounts.length) {
+      $('refundDestBankList').innerHTML = '<p style="text-align:center;color:var(--text-muted);font-size:.82rem;">Belum ada rekening tersimpan.</p>';
+    } else {
+      $('refundDestBankList').innerHTML = accounts.map(ba =>
+        '<div class="refund-dest-option" data-ba-id="' + ba.id + '" onclick="selectRefundDestBank(this, \'' + ba.id + '\')">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:1.2rem;">🏦</span>' +
+        '<div style="flex:1;">' +
+        '<div style="font-weight:600;font-size:.84rem;">' + esc(ba.bank_name) + (ba.is_default ? ' <span style="font-size:.7rem;background:var(--gold);color:#fff;padding:1px 6px;border-radius:8px;">Utama</span>' : '') + '</div>' +
+        '<div style="font-size:.78rem;color:var(--text-muted);">' + esc(ba.account_holder_name) + ' · ****' + esc(ba.account_last4) + '</div>' +
+        '</div>' +
+        '<div style="width:20px;height:20px;border:2px solid #d1d5db;border-radius:50%;display:flex;align-items:center;justify-content:center;" class="radio-dot"></div>' +
+        '</div></div>'
+      ).join('');
+    }
+  } catch (e) { $('refundDestBankList').innerHTML = '<p style="color:#dc2626;font-size:.82rem;">❌ ' + e.message + '</p>'; }
+}
+
+function selectRefundDestBank(el, baId) {
+  refundDestSelectedBaId = baId;
+  // Clear manual fields when selecting saved account
+  $('rdChannelCode').value = ''; $('rdBankName').value = ''; $('rdAccountNumber').value = ''; $('rdAccountHolder').value = '';
+  // UI - highlight selected
+  document.querySelectorAll('#refundDestBankList .refund-dest-option').forEach(o => {
+    o.classList.remove('selected');
+    o.querySelector('.radio-dot').innerHTML = '';
+    o.querySelector('.radio-dot').style.borderColor = '#d1d5db';
+  });
+  el.classList.add('selected');
+  el.querySelector('.radio-dot').innerHTML = '<div style="width:10px;height:10px;background:var(--gold);border-radius:50%;"></div>';
+  el.querySelector('.radio-dot').style.borderColor = 'var(--gold)';
+}
+
+async function submitRefundDestination() {
+  const body = {};
+  const manualChannel = $('rdChannelCode').value.trim();
+  const manualAccount = $('rdAccountNumber').value.trim();
+
+  if (refundDestSelectedBaId && !manualAccount) {
+    body.user_bank_account_id = refundDestSelectedBaId;
+  } else if (manualAccount) {
+    refundDestSelectedBaId = null; // manual overrides selection
+    body.destination_channel_code = manualChannel;
+    body.destination_bank_name = $('rdBankName').value.trim();
+    body.destination_account_number = manualAccount;
+    body.destination_account_holder_name = $('rdAccountHolder').value.trim();
+    body.save_bank_account = $('rdSaveAccount').checked;
+  } else {
+    toast('Pilih rekening atau isi data rekening manual!', 'error');
+    return;
+  }
+
+  try {
+    const res = await api('POST', '/users/orders/' + refundDestOrderId + '/refunds/destination', body);
+    $('rdJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    $('rdJson').classList.add('show');
+    if (res.json?.success) {
+      toast('Tujuan refund berhasil dikirim! 💰', 'success');
+      closeModal('modalRefundDest');
+      loadOrders();
+    } else {
+      toast('Gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ═══════ REFUND REQUEST ═══════
+let refundReqOrderId = '';
+let refundReqImageKeys = [];
+let refundReqVideoKey = null;
+let refundReqSelectedBaId = null;
+let returnReasons = [];
+
+async function openRefundRequestModal(orderId) {
+  if (!customerToken) { toast('Login dulu!', 'error'); return; }
+  refundReqOrderId = orderId;
+  refundReqImageKeys = [];
+  refundReqVideoKey = null;
+  refundReqSelectedBaId = null;
+  $('rrJson').innerHTML = ''; $('rrJson').classList.remove('show');
+  $('refundDescription').value = '';
+  $('refundEvidencePreview').innerHTML = '';
+  $('refundVideoPreview').innerHTML = '';
+  $('refundFileInput').value = '';
+  $('refundVideoInput').value = '';
+  $('rrChannelCode').value = ''; $('rrBankName').value = ''; $('rrAccountNumber').value = ''; $('rrAccountHolder').value = '';
+
+  // Order info
+  $('refundReqOrderInfo').innerHTML =
+    '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:10px;">' +
+    '<span style="font-size:1.5rem;">📦</span>' +
+    '<div><p style="margin:0;font-size:.82rem;color:#9a3412;">Ajukan pengembalian untuk pesanan:</p>' +
+    '<p style="margin:4px 0 0;font-weight:700;font-size:.95rem;font-family:monospace;">' + esc(orderId) + '</p></div></div>';
+
+  openModal('modalRefundRequest');
+
+  // Load return reasons
+  if (!returnReasons.length) {
+    try {
+      const res = await api('GET', '/return-reasons');
+      if (res.json?.success) returnReasons = res.json.data || [];
+    } catch (e) { /* ignore */ }
+  }
+  const sel = $('refundReasonSelect');
+  sel.innerHTML = '<option value="">— Pilih alasan —</option>';
+  returnReasons.forEach(r => {
+    sel.innerHTML += '<option value="' + r.id + '">' + esc(r.reason) + '</option>';
+  });
+
+  // Load bank accounts
+  $('refundReqBankList').innerHTML = '<p style="text-align:center;color:var(--text-muted);font-size:.82rem;">⏳ Memuat rekening...</p>';
+  try {
+    const res = await api('GET', '/users/bank-accounts');
+    const accounts = res.json?.data || [];
+    if (!accounts.length) {
+      $('refundReqBankList').innerHTML = '<p style="text-align:center;color:var(--text-muted);font-size:.82rem;">Belum ada rekening tersimpan.</p>';
+    } else {
+      $('refundReqBankList').innerHTML = accounts.map(ba =>
+        '<div class="refund-dest-option" data-ba-id="' + ba.id + '" data-channel="' + esc(ba.channel_code) + '" data-bank="' + esc(ba.bank_name) + '" data-number="' + esc(ba.account_number||'') + '" data-holder="' + esc(ba.account_holder_name) + '" onclick="selectRefundReqBank(this)">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:1.2rem;">🏦</span>' +
+        '<div style="flex:1;">' +
+        '<div style="font-weight:600;font-size:.84rem;">' + esc(ba.bank_name) + (ba.is_default ? ' <span style="font-size:.7rem;background:var(--gold);color:#fff;padding:1px 6px;border-radius:8px;">Utama</span>' : '') + '</div>' +
+        '<div style="font-size:.78rem;color:var(--text-muted);">' + esc(ba.account_holder_name) + ' · ****' + esc(ba.account_last4) + '</div>' +
+        '</div>' +
+        '<div style="width:20px;height:20px;border:2px solid #d1d5db;border-radius:50%;display:flex;align-items:center;justify-content:center;" class="radio-dot"></div>' +
+        '</div></div>'
+      ).join('');
+    }
+  } catch (e) { $('refundReqBankList').innerHTML = '<p style="color:#dc2626;font-size:.82rem;">❌ ' + e.message + '</p>'; }
+}
+
+function selectRefundReqBank(el) {
+  refundReqSelectedBaId = el.dataset.baId;
+  // Fill manual fields from selected account
+  $('rrChannelCode').value = el.dataset.channel || '';
+  $('rrBankName').value = el.dataset.bank || '';
+  $('rrAccountHolder').value = el.dataset.holder || '';
+  // Don't fill account number (we don't have it, only last4)
+  // UI - highlight
+  document.querySelectorAll('#refundReqBankList .refund-dest-option').forEach(o => {
+    o.classList.remove('selected');
+    o.querySelector('.radio-dot').innerHTML = '';
+    o.querySelector('.radio-dot').style.borderColor = '#d1d5db';
+  });
+  el.classList.add('selected');
+  el.querySelector('.radio-dot').innerHTML = '<div style="width:10px;height:10px;background:var(--gold);border-radius:50%;"></div>';
+  el.querySelector('.radio-dot').style.borderColor = 'var(--gold)';
+}
+
+async function handleRefundEvidenceFiles(input) {
+  const files = Array.from(input.files || []);
+  if (refundReqImageKeys.length + files.length > 5) {
+    toast('Maksimal 5 foto.', 'error'); input.value = ''; return;
+  }
+  for (const file of files) {
+    try {
+      const presignRes = await api('POST', '/users/orders/' + refundReqOrderId + '/refunds/evidence/presign', { content_type: file.type });
+      if (!presignRes.json?.success) { toast('Presign gagal: ' + (presignRes.json?.message || ''), 'error'); continue; }
+      const { upload_url, object_key } = presignRes.json.data;
+      await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      refundReqImageKeys.push({ object_key, previewUrl: URL.createObjectURL(file) });
+      renderRefundEvidencePreviews();
+      toast('Foto bukti berhasil diupload!', 'success');
+    } catch (e) { toast('Upload error: ' + e.message, 'error'); }
+  }
+  input.value = '';
+}
+
+async function handleRefundEvidenceVideo(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const presignRes = await api('POST', '/users/orders/' + refundReqOrderId + '/refunds/evidence/presign', { content_type: file.type });
+    if (!presignRes.json?.success) { toast('Presign gagal: ' + (presignRes.json?.message || ''), 'error'); return; }
+    const { upload_url, object_key } = presignRes.json.data;
+    toast('Mengupload video...', 'info');
+    await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+    refundReqVideoKey = object_key;
+    $('refundVideoPreview').innerHTML = '<div style="padding:8px 12px;background:#dcfce7;border-radius:6px;font-size:.82rem;color:#166534;">✅ Video berhasil diupload <button class="btn btn-sm btn-outline" onclick="refundReqVideoKey=null;$(\x27refundVideoPreview\x27).innerHTML=\'\';$(\x27refundVideoInput\x27).value=\'\';" style="margin-left:8px;">✕ Hapus</button></div>';
+    toast('Video bukti berhasil diupload!', 'success');
+  } catch (e) { toast('Upload error: ' + e.message, 'error'); }
+  input.value = '';
+}
+
+function renderRefundEvidencePreviews() {
+  $('refundEvidencePreview').innerHTML = refundReqImageKeys.map((img, i) =>
+    '<div class="img-thumb">' +
+    '<img src="' + esc(img.previewUrl) + '" alt="" />' +
+    '<button class="remove-btn" onclick="refundReqImageKeys.splice(' + i + ',1);renderRefundEvidencePreviews();">✕</button>' +
+    '</div>'
+  ).join('');
+}
+
+async function submitRefundRequest() {
+  const reasonId = parseInt($('refundReasonSelect').value);
+  if (!reasonId) { toast('Pilih alasan pengembalian!', 'error'); return; }
+
+  const bankName = $('rrBankName').value.trim();
+  const accountNumber = $('rrAccountNumber').value.trim();
+  const accountHolder = $('rrAccountHolder').value.trim();
+  if (!bankName || !accountNumber || !accountHolder) {
+    toast('Lengkapi data rekening tujuan refund!', 'error'); return;
+  }
+
+  const body = {
+    return_reason_id: reasonId,
+    description: $('refundDescription').value.trim() || undefined,
+    destination_channel_code: $('rrChannelCode').value.trim() || 'ID_BCA',
+    destination_bank_name: bankName,
+    destination_account_number: accountNumber,
+    destination_account_holder_name: accountHolder,
+  };
+  if (refundReqImageKeys.length) {
+    body.image_object_keys = refundReqImageKeys.map(img => img.object_key);
+  }
+  if (refundReqVideoKey) {
+    body.video_object_key = refundReqVideoKey;
+  }
+
+  try {
+    const res = await api('POST', '/users/orders/' + refundReqOrderId + '/refunds', body);
+    $('rrJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+    $('rrJson').classList.add('show');
+    if (res.json?.success) {
+      toast('Pengajuan pengembalian berhasil! 📦', 'success');
+      closeModal('modalRefundRequest');
+      loadOrders();
+    } else {
+      toast('Gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'error'); }
+}
 </script>
 </body>
 </html>

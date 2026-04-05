@@ -101,3 +101,19 @@ func (mr *MockReviewRepositoryMockRecorder) ListByProductID(ctx, productID, para
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByProductID", reflect.TypeOf((*MockReviewRepository)(nil).ListByProductID), ctx, productID, params)
 }
+
+// ListByVendor mocks base method.
+func (m *MockReviewRepository) ListByVendor(ctx context.Context, vendorID uuid.UUID, page, limit int) ([]domain.VendorReviewItem, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByVendor", ctx, vendorID, page, limit)
+	ret0, _ := ret[0].([]domain.VendorReviewItem)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListByVendor indicates an expected call of ListByVendor.
+func (mr *MockReviewRepositoryMockRecorder) ListByVendor(ctx, vendorID, page, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByVendor", reflect.TypeOf((*MockReviewRepository)(nil).ListByVendor), ctx, vendorID, page, limit)
+}

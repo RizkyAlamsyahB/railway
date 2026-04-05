@@ -142,6 +142,7 @@ func (uc *cartUseCase) GetCart(ctx context.Context, userID uuid.UUID) (*domain.G
 			Subtotal:         subtotal,
 			StockOnHand:      variant.StockOnHand,
 			IsAvailable:      isAvailable,
+			IsSelected:       item.IsSelected,
 			CreatedAt:        item.CreatedAt,
 		})
 	}
@@ -213,6 +214,7 @@ func (uc *cartUseCase) AddItem(ctx context.Context, userID uuid.UUID, req domain
 		CartID:           cart.ID,
 		ProductVariantID: variantID,
 		Qty:              req.Qty,
+		IsSelected:       true,
 		CreatedAt:        time.Now(),
 	}
 	if err := uc.cartRepo.UpsertItem(ctx, item); err != nil {
@@ -293,6 +295,33 @@ func (uc *cartUseCase) RemoveItem(ctx context.Context, userID uuid.UUID, itemID 
 	}
 
 	return nil
+}
+
+func (uc *cartUseCase) UpdateItemSelection(ctx context.Context, userID uuid.UUID, itemID uuid.UUID, req domain.UpdateCartItemSelectionRequest) (*domain.CartItemActionResponse, error) {
+	cart, err := uc.getOrCreateCart(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	item, err := uc.cartRepo.FindItemByID(ctx, itemID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find cart item: %w", err)
+	}
+	if item == nil {
+		return nil, ErrCartItemNotFound
+	}
+	if item.CartID != cart.ID {
+		return nil, ErrCartItemNotOwned
+	}
+
+	if err := uc.cartRepo.UpdateItemSelection(ctx, itemID, req.IsSelected); err != nil {
+		return nil, fmt.Errorf("failed to update cart item selection: %w", err)
+	}
+
+	return &domain.CartItemActionResponse{
+		CartID: cart.ID,
+		ItemID: itemID,
+	}, nil
 }
 
 func (uc *cartUseCase) ClearCart(ctx context.Context, userID uuid.UUID) error {

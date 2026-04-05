@@ -76,6 +76,7 @@ func fixtureCartItems(cartID, variantID uuid.UUID) []domain.CartItem {
 			CartID:           cartID,
 			ProductVariantID: variantID,
 			Qty:              2,
+			IsSelected:       true,
 		},
 	}
 }
@@ -111,10 +112,11 @@ func fixtureProduct(productID, vendorID uuid.UUID) *domain.Product {
 
 func fixtureVendor(vendorID uuid.UUID) *domain.Vendor {
 	xenditAccID := "xa-vendor-123"
+	displayName := "Test Vendor"
 	return &domain.Vendor{
 		ID:              vendorID,
 		OwnerUserID:     uuid.MustParse("00000000-0000-0000-0000-000000000010"),
-		DisplayName:     "Test Vendor",
+		DisplayName:     &displayName,
 		XenditAccountID: &xenditAccID,
 	}
 }
@@ -202,7 +204,7 @@ func TestCheckout(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
@@ -214,7 +216,7 @@ func TestCheckout(t *testing.T) {
 				sr.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
 				xi.EXPECT().CreateInvoice(gomock.Any(), "xa-vendor-123", gomock.Any()).Return(fixtureXenditInvoiceResponse(), nil)
 				pmr.EXPECT().CreateInvoice(gomock.Any(), gomock.Any()).Return(nil)
-				cr.EXPECT().UpdateStatus(gomock.Any(), cartID, domain.CartStatusConverted).Return(nil)
+				cr.EXPECT().DeleteItemsByIDs(gomock.Any(), cartID, gomock.Any()).Return(nil)
 			},
 			wantErr: nil,
 		},
@@ -242,20 +244,20 @@ func TestCheckout(t *testing.T) {
 			wantErr: ErrCartEmpty,
 		},
 		{
-			name: "empty cart - no items",
+			name: "no selected cart items",
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{}, nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{}, nil)
 			},
-			wantErr: ErrCartEmpty,
+			wantErr: ErrNoSelectedCartItems,
 		},
 		{
 			name: "variant not active",
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 
 				inactiveVariant := fixtureVariant(variantID, productID)
@@ -269,7 +271,7 @@ func TestCheckout(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 
@@ -284,7 +286,7 @@ func TestCheckout(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 
 				lowStock := fixtureVariant(variantID, productID)
@@ -299,7 +301,7 @@ func TestCheckout(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
@@ -315,7 +317,7 @@ func TestCheckout(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
@@ -333,7 +335,7 @@ func TestCheckout(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
@@ -354,7 +356,7 @@ func TestCheckout(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
@@ -377,7 +379,7 @@ func TestCheckout(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, vr *mocks.MockVendorRepository, or *mocks.MockOrderRepository, pmr *mocks.MockPaymentRepository, lr *mocks.MockLedgerRepository, ur *mocks.MockUserRepository, ar *mocks.MockAddressRepository, vcr *mocks.MockVendorCourierRepository, ro *mocks.MockRajaOngkirProvider, sp *mocks.MockStorageProvider, xi *mocks.MockXenditInvoiceProvider, sr *mocks.MockShipmentRepository) {
 				ar.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
+				cr.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(fixtureCartItems(cartID, variantID), nil)
 				ur.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(fixtureVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(fixtureProduct(productID, vendorID), nil)
@@ -466,24 +468,28 @@ func TestCheckoutCompensatesPreviousVendorWhenLaterVendorRunsOutOfStock(t *testi
 			CartID:           cartID,
 			ProductVariantID: variantID1,
 			Qty:              1,
+			IsSelected:       true,
 		},
 		{
 			ID:               uuid.New(),
 			CartID:           cartID,
 			ProductVariantID: variantID2,
 			Qty:              1,
+			IsSelected:       true,
 		},
 	}
 
 	vendor1 := fixtureVendor(vendorID1)
 	vendor1Account := "xa-vendor-1"
 	vendor1.XenditAccountID = &vendor1Account
-	vendor1.DisplayName = "Vendor 1"
+	vendor1DisplayName := "Vendor 1"
+	vendor1.DisplayName = &vendor1DisplayName
 
 	vendor2 := fixtureVendor(vendorID2)
 	vendor2Account := "xa-vendor-2"
 	vendor2.XenditAccountID = &vendor2Account
-	vendor2.DisplayName = "Vendor 2"
+	vendor2DisplayName := "Vendor 2"
+	vendor2.DisplayName = &vendor2DisplayName
 
 	req := domain.CheckoutRequest{
 		AddressID: addressID.String(),
@@ -495,7 +501,7 @@ func TestCheckoutCompensatesPreviousVendorWhenLaterVendorRunsOutOfStock(t *testi
 
 	addressRepo.EXPECT().FindByID(gomock.Any(), addressID).Return(fixtureAddress(addressID, userID), nil)
 	cartRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(fixtureCart(cartID, userID), nil)
-	cartRepo.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return(cartItems, nil)
+	cartRepo.EXPECT().FindSelectedItemsByCartID(gomock.Any(), cartID).Return(cartItems, nil)
 	userRepo.EXPECT().FindByID(gomock.Any(), userID).Return(fixtureUser(userID), nil)
 
 	productRepo.EXPECT().FindVariantByID(gomock.Any(), variantID1).Return(fixtureVariant(variantID1, productID1), nil)

@@ -168,6 +168,20 @@ func (uc *addressUseCase) Delete(ctx context.Context, userID uuid.UUID, addressI
 		return ErrAddressNotFound
 	}
 
+	// Cannot delete default address — must set another as default first.
+	if address.IsDefault {
+		return ErrCannotDeleteDefaultAddr
+	}
+
+	// Cannot delete last address — at least one must remain.
+	all, err := uc.addressRepo.FindByUserID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to count addresses: %w", err)
+	}
+	if len(all) <= 1 {
+		return ErrCannotDeleteLastAddr
+	}
+
 	if err := uc.addressRepo.Delete(ctx, addressID); err != nil {
 		return fmt.Errorf("failed to delete address: %w", err)
 	}

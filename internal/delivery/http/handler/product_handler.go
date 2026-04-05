@@ -93,6 +93,45 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	response.OK(c, "product updated successfully", result)
 }
 
+// GetProductByID handles GET /api/v1/vendors/products/:id
+func (h *ProductHandler) GetProductByID(c *gin.Context) {
+	productID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid product ID", "id must be a valid UUID")
+		return
+	}
+
+	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)
+	vendorID, _ := vendorIDVal.(uuid.UUID)
+
+	result, err := h.useCase.GetProductByID(c.Request.Context(), vendorID, productID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "product detail retrieved successfully", result)
+}
+
+// DeleteProduct handles DELETE /api/v1/vendors/products/:id
+func (h *ProductHandler) DeleteProduct(c *gin.Context) {
+	productID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid product ID", "id must be a valid UUID")
+		return
+	}
+
+	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)
+	vendorID, _ := vendorIDVal.(uuid.UUID)
+
+	if err := h.useCase.DeleteProduct(c.Request.Context(), vendorID, productID); err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "product deleted successfully", nil)
+}
+
 // ListProducts handles GET /api/v1/vendors/products
 func (h *ProductHandler) ListProducts(c *gin.Context) {
 	vendorIDVal, _ := c.Get(middleware.ContextKeyVendorID)

@@ -32,8 +32,8 @@ const (
 type MessageType string
 
 const (
-	TypeChatMessage  MessageType = "chat_message"
-	TypeTicketUpdate MessageType = "ticket_update"
+	TypeChatMessage         MessageType = "chat_message"
+	TypeTicketUpdate        MessageType = "ticket_update"
 	TypeNotificationCreated MessageType = "notification.created"
 )
 

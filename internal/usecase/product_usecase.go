@@ -15,6 +15,7 @@ type productUseCase struct {
 	productRepo  domain.ProductRepository
 	vendorRepo   domain.VendorRepository
 	categoryRepo domain.CategoryRepository
+	addressRepo  domain.AddressRepository
 	storage      domain.StorageProvider
 }
 
@@ -23,12 +24,14 @@ func NewProductUseCase(
 	productRepo domain.ProductRepository,
 	vendorRepo domain.VendorRepository,
 	categoryRepo domain.CategoryRepository,
+	addressRepo domain.AddressRepository,
 	storage domain.StorageProvider,
 ) domain.ProductUseCase {
 	return &productUseCase{
 		productRepo:  productRepo,
 		vendorRepo:   vendorRepo,
 		categoryRepo: categoryRepo,
+		addressRepo:  addressRepo,
 		storage:      storage,
 	}
 }
@@ -46,7 +49,16 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		return nil, ErrVendorNotActive
 	}
 
-	// 2. Parse and validate category.
+	// 2. Validate vendor has a warehouse address (default address with district).
+	warehouseAddr, err := uc.addressRepo.FindDefaultByUserID(ctx, vendor.OwnerUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check vendor warehouse address: %w", err)
+	}
+	if warehouseAddr == nil || warehouseAddr.DistrictID == nil || *warehouseAddr.DistrictID == "" {
+		return nil, ErrVendorNoWarehouseAddress
+	}
+
+	// 3. Parse and validate category.
 	categoryID, err := uuid.Parse(req.CategoryID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid category_id: %w", err)
@@ -100,7 +112,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 	productID := uuid.New()
 
 	// 7. Build default variant.
-	defaultSKU := generateSKU(vendor.DisplayName, req.Name, int(productCount), 0)
+	defaultSKU := generateSKU(vendorDisplayNameOrEmpty(vendor), req.Name, int(productCount), 0)
 	defaultVariant := domain.ProductVariant{
 		ID:          uuid.New(),
 		ProductID:   productID,
@@ -118,7 +130,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 
 	// 8. Build additional variants.
 	for i, v := range req.Variants {
-		sku := generateSKU(vendor.DisplayName, req.Name, int(productCount), i+1)
+		sku := generateSKU(vendorDisplayNameOrEmpty(vendor), req.Name, int(productCount), i+1)
 		variant := domain.ProductVariant{
 			ID:          uuid.New(),
 			ProductID:   productID,
@@ -486,7 +498,7 @@ func (uc *productUseCase) UpdateProduct(ctx context.Context, vendorID uuid.UUID,
 	for i, v := range req.Variants {
 		if v.ID == nil {
 			// New variant.
-			sku := generateSKU(vendor.DisplayName, req.Name, int(productCount), len(existingVariants)+i)
+			sku := generateSKU(vendorDisplayNameOrEmpty(vendor), req.Name, int(productCount), len(existingVariants)+i)
 			variantsToUpsert = append(variantsToUpsert, domain.ProductVariant{
 				ID:          uuid.New(),
 				ProductID:   productID,
@@ -713,3 +725,105 @@ func (uc *productUseCase) ListProducts(ctx context.Context, vendorID uuid.UUID, 
 	return items, meta, nil
 }
 
+func (uc *productUseCase) GetProductByID(ctx context.Context, vendorID uuid.UUID, productID uuid.UUID) (*domain.VendorProductDetailResponse, error) {
+	// 1. Load and authorize product.
+	product, err := uc.productRepo.FindByID(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find product: %w", err)
+	}
+	if product == nil {
+		return nil, ErrProductNotFound
+	}
+	if product.VendorID != vendorID {
+		return nil, ErrProductNotOwned
+	}
+
+	// 2. Load variants.
+	variants, err := uc.productRepo.FindVariantsByProductID(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load variants: %w", err)
+	}
+
+	// 3. Load images.
+	images, err := uc.productRepo.FindImagesByProductID(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load images: %w", err)
+	}
+
+	// 4. Extract default variant fields for top-level price/stock/weight.
+	var price float64
+	var stock int
+	var weightGram *int
+	for _, v := range variants {
+		if v.IsDefault {
+			price = v.Price
+			stock = v.StockOnHand
+			weightGram = v.WeightGram
+			break
+		}
+	}
+
+	// 5. Build variant responses.
+	variantResponses := make([]domain.ProductVariantResponse, len(variants))
+	for i, v := range variants {
+		variantResponses[i] = domain.ProductVariantResponse{
+			ID:            v.ID,
+			SKU:           v.SKU,
+			VariantName:   v.VariantName,
+			Price:         v.Price,
+			OriginalPrice: v.Price,
+			Currency:      v.Currency,
+			StockOnHand:   v.StockOnHand,
+			WeightGram:    v.WeightGram,
+			IsDefault:     v.IsDefault,
+			IsActive:      v.IsActive,
+		}
+	}
+
+	// 6. Build image responses.
+	imageItems := make([]domain.VendorProductDetailImageItem, len(images))
+	for i, img := range images {
+		imageItems[i] = domain.VendorProductDetailImageItem{
+			ID:        img.ID,
+			URL:       img.ImageURL,
+			IsPrimary: img.IsPrimary,
+			SortOrder: img.SortOrder,
+		}
+	}
+
+	return &domain.VendorProductDetailResponse{
+		ID:            product.ID,
+		VendorID:      product.VendorID,
+		CategoryID:    product.CategoryID,
+		Name:          product.Name,
+		Slug:          product.Slug,
+		Description:   product.Description,
+		Status:        product.Status,
+		HalalAIStatus: product.HalalAIStatus,
+		IsActive:      product.Status == domain.ProductStatusPublished,
+		Price:         price,
+		Stock:         stock,
+		WeightGram:    weightGram,
+		Variants:      variantResponses,
+		Images:        imageItems,
+		CreatedAt:     product.CreatedAt,
+		UpdatedAt:     product.UpdatedAt,
+	}, nil
+}
+
+func (uc *productUseCase) DeleteProduct(ctx context.Context, vendorID uuid.UUID, productID uuid.UUID) error {
+	product, err := uc.productRepo.FindByID(ctx, productID)
+	if err != nil {
+		return fmt.Errorf("failed to find product: %w", err)
+	}
+	if product == nil {
+		return ErrProductNotFound
+	}
+	if product.VendorID != vendorID {
+		return ErrProductNotOwned
+	}
+	if err := uc.productRepo.DeleteProduct(ctx, productID); err != nil {
+		return fmt.Errorf("failed to delete product: %w", err)
+	}
+	return nil
+}

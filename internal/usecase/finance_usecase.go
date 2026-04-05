@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -11,14 +12,18 @@ import (
 )
 
 type financeUseCase struct {
-	repo domain.FinanceRepository
+	repo         domain.FinanceRepository
+	xenditPayout domain.XenditPayoutProvider
 }
 
 var wibLocation = time.FixedZone("WIB", 7*60*60)
 
 // NewFinanceUseCase creates a new FinanceUseCase.
-func NewFinanceUseCase(repo domain.FinanceRepository) domain.FinanceUseCase {
-	return &financeUseCase{repo: repo}
+func NewFinanceUseCase(repo domain.FinanceRepository, xenditPayout domain.XenditPayoutProvider) domain.FinanceUseCase {
+	return &financeUseCase{
+		repo:         repo,
+		xenditPayout: xenditPayout,
+	}
 }
 
 func (uc *financeUseCase) GetDashboard(ctx context.Context, month string) (*domain.FinanceDashboardResponse, error) {
@@ -251,8 +256,8 @@ func (uc *financeUseCase) ExportRefunds(ctx context.Context, params domain.Finan
 	return items, nil
 }
 
-func (uc *financeUseCase) UpdateRefundStatus(ctx context.Context, refundID uuid.UUID, status string, actorID uuid.UUID) (*domain.StatusActionResponse, error) {
-	normalized := normalizeRefundStatus(status)
+func (uc *financeUseCase) UpdateRefundStatus(ctx context.Context, refundID uuid.UUID, req domain.UpdateRefundStatusRequest, actorID uuid.UUID) (*domain.StatusActionResponse, error) {
+	normalized := normalizeRefundStatus(req.Status)
 	if !isValidRefundStatus(normalized) {
 		return nil, ErrInvalidRefundStatus
 	}
@@ -269,6 +274,28 @@ func (uc *financeUseCase) UpdateRefundStatus(ctx context.Context, refundID uuid.
 		return nil, ErrInvalidRefundTransition
 	}
 
+	// Option 1 policy:
+	// once an order has been settled into a completed payout batch, refund cannot proceed.
+	if normalized == domain.RefundStatusApproved || normalized == domain.RefundStatusProcessed {
+		isSettled, err := uc.repo.IsOrderSettlementCompleted(ctx, record.OrderID)
+		if err != nil {
+			return nil, err
+		}
+		if isSettled {
+			return nil, ErrRefundBlockedByCompletedSettlement
+		}
+	}
+
+	if normalized == domain.RefundStatusProcessed {
+		if record.Status == domain.RefundStatusProcessed {
+			return &domain.StatusActionResponse{
+				ID:     refundID,
+				Status: domain.RefundStatusProcessed,
+			}, nil
+		}
+		return uc.processRefundDisbursement(ctx, refundID, req, actorID)
+	}
+
 	resp, err := uc.repo.UpdateRefundStatus(ctx, refundID, normalized, actorID)
 	if err != nil {
 		return nil, err
@@ -277,6 +304,83 @@ func (uc *financeUseCase) UpdateRefundStatus(ctx context.Context, refundID uuid.
 		return nil, ErrRefundNotFound
 	}
 	return resp, nil
+}
+
+func (uc *financeUseCase) HandleRefundPayoutWebhook(ctx context.Context, payload domain.XenditPayoutWebhookPayload) error {
+	referenceID := strings.TrimSpace(payload.Data.ReferenceID)
+	if referenceID == "" {
+		return nil
+	}
+
+	payoutStatus := normalizeXenditPayoutWebhookStatus(payload.Event, payload.Data.Status)
+	var failedReason *string
+	if fr := buildPayoutFailureReason(payload); fr != nil {
+		failedReason = fr
+	} else if strings.EqualFold(payload.Event, domain.XenditPayoutWebhookEventFailed) || strings.EqualFold(payload.Event, domain.XenditPayoutWebhookEventReversed) {
+		msg := fmt.Sprintf("xendit payout event: %s", strings.TrimSpace(payload.Event))
+		failedReason = &msg
+	}
+
+	completed := false
+	if strings.EqualFold(payload.Event, domain.XenditPayoutWebhookEventSucceeded) || strings.EqualFold(payload.Data.Status, domain.XenditPayoutStatusSucceeded) {
+		completed = true
+	}
+
+	var completedAt *time.Time
+	if completed {
+		now := time.Now().UTC()
+		completedAt = &now
+	}
+
+	_, err := uc.repo.ApplyRefundPayoutWebhookUpdate(
+		ctx,
+		referenceID,
+		strings.TrimSpace(payload.Data.ID),
+		payoutStatus,
+		failedReason,
+		completedAt,
+	)
+	return err
+}
+
+func (uc *financeUseCase) HandleRefundGatewayWebhook(ctx context.Context, payload domain.XenditRefundWebhookPayload) error {
+	referenceID := strings.TrimSpace(payload.Data.ReferenceID)
+	if referenceID == "" {
+		return nil
+	}
+
+	xenditRefundID := strings.TrimSpace(payload.Data.ID)
+	status := strings.TrimSpace(payload.Data.Status)
+	var failureCode *string
+	if fc := strings.TrimSpace(payload.Data.FailureCode); fc != "" {
+		failureCode = &fc
+	}
+
+	updated, err := uc.repo.ApplyRefundGatewayWebhookUpdate(ctx, referenceID, xenditRefundID, status, failureCode)
+	if err != nil {
+		return fmt.Errorf("failed to apply refund gateway webhook: %w", err)
+	}
+
+	// If refund succeeded, update order payment_status to refunded
+	if updated && status == domain.XenditRefundStatusSucceeded {
+		// Extract order ID from reference ID (format: "refund-<uuid>")
+		refundIDStr := strings.TrimPrefix(referenceID, "refund-")
+		refundID, err := uuid.Parse(refundIDStr)
+		if err != nil {
+			return nil // non-critical
+		}
+
+		record, err := uc.repo.GetRefundRecord(ctx, refundID)
+		if err != nil || record == nil {
+			return nil // non-critical
+		}
+
+		if err := uc.repo.UpdateOrderPaymentStatus(ctx, record.OrderID, domain.PaymentStatusRefunded); err != nil {
+			fmt.Printf("WARN: failed to update order payment status for refund %s: %v\n", refundID, err)
+		}
+	}
+
+	return nil
 }
 
 func (uc *financeUseCase) UpdatePayoutStatus(ctx context.Context, payoutID uuid.UUID, status string, actorID uuid.UUID) (*domain.StatusActionResponse, error) {
@@ -301,6 +405,154 @@ func (uc *financeUseCase) UpdatePayoutStatus(ctx context.Context, payoutID uuid.
 		return nil, ErrPayoutNotFound
 	}
 	return resp, nil
+}
+
+func (uc *financeUseCase) processRefundDisbursement(ctx context.Context, refundID uuid.UUID, req domain.UpdateRefundStatusRequest, actorID uuid.UUID) (*domain.StatusActionResponse, error) {
+	refundCtx, err := uc.repo.GetRefundDisbursementContext(ctx, refundID)
+	if err != nil {
+		return nil, err
+	}
+	if refundCtx == nil {
+		return nil, ErrRefundNotFound
+	}
+
+	if isPayoutStatusProcessing(refundCtx.PayoutStatus) {
+		return nil, ErrRefundPayoutInProgress
+	}
+
+	strategy := resolveRefundStrategy(refundCtx.PaymentMethod, refundCtx.PaymentChannel)
+	if strategy == refundStrategyUnsupported {
+		return nil, ErrRefundStrategyNotSupported
+	}
+
+	useQRFallback := true
+	if req.UseDisbursementFallbackForQR != nil {
+		useQRFallback = *req.UseDisbursementFallbackForQR
+	}
+	useEWalletFallback := true
+	if req.UseDisbursementFallbackForEWallet != nil {
+		useEWalletFallback = *req.UseDisbursementFallbackForEWallet
+	}
+	effectiveStrategy := strategy
+	if strategy == refundStrategyQRGateway && !useQRFallback {
+		return nil, ErrRefundStrategyNotSupported
+	}
+	if strategy == refundStrategyEWalletGateway && !useEWalletFallback {
+		return nil, ErrRefundStrategyNotSupported
+	}
+	if strategy == refundStrategyQRGateway && useQRFallback {
+		effectiveStrategy = refundStrategyQRDisbursementFallback
+	}
+	if strategy == refundStrategyEWalletGateway && useEWalletFallback {
+		effectiveStrategy = refundStrategyEWalletDisbursementFallback
+	}
+
+	// Manual ON_HOLD policy:
+	// if vendor balance is insufficient, hold refund and stop before calling gateway.
+	balanceSnapshot, err := uc.repo.GetRefundVendorBalanceSnapshot(ctx, refundCtx.OrderID)
+	if err != nil {
+		return nil, err
+	}
+	if balanceSnapshot != nil && !balanceSnapshot.Sufficient {
+		reason := fmt.Sprintf(
+			"ON_HOLD: insufficient vendor balance. required %.2f from %s, available %.2f",
+			balanceSnapshot.RequiredAmount,
+			balanceSnapshot.BalanceSource,
+			balanceSnapshot.AvailableAmount,
+		)
+		if err := uc.repo.SetRefundPayoutFailed(ctx, refundID, "ON_HOLD", reason); err != nil {
+			return nil, err
+		}
+		return &domain.StatusActionResponse{
+			ID:     refundID,
+			Status: domain.RefundStatusApproved,
+		}, nil
+	}
+
+	channelCode := strings.TrimSpace(req.DestinationChannelCode)
+	if channelCode == "" {
+		channelCode = strings.TrimSpace(derefString(refundCtx.DestinationChannelCode))
+	}
+	if channelCode == "" {
+		channelCode = domain.PayoutChannelIDBCA
+	}
+	bankName := strings.TrimSpace(req.DestinationBankName)
+	if bankName == "" {
+		bankName = strings.TrimSpace(derefString(refundCtx.DestinationBankName))
+	}
+	accountNumber := strings.TrimSpace(req.DestinationAccountNumber)
+	if accountNumber == "" {
+		accountNumber = strings.TrimSpace(derefString(refundCtx.DestinationAccountNumber))
+	}
+	accountHolderName := strings.TrimSpace(req.DestinationAccountHolderName)
+	if accountHolderName == "" {
+		accountHolderName = strings.TrimSpace(derefString(refundCtx.DestinationAccountHolderName))
+	}
+	if accountNumber == "" || accountHolderName == "" {
+		return nil, ErrRefundDestinationRequired
+	}
+
+	accountLast4 := maskAccountLast4(accountNumber)
+	referenceID := fmt.Sprintf("refund-%s", refundID.String())
+	idempotencyKey := fmt.Sprintf("%s-%d", referenceID, time.Now().UTC().UnixNano())
+	description := fmt.Sprintf("Refund for order %s", refundCtx.OrderID.String())
+
+	payoutReq := domain.XenditPayoutRequest{
+		ReferenceID: referenceID,
+		ChannelCode: channelCode,
+		ChannelProperties: domain.XenditPayoutChannelProperties{
+			AccountNumber:     accountNumber,
+			AccountHolderName: accountHolderName,
+		},
+		Amount:      refundCtx.Amount,
+		Description: description,
+		Currency:    refundCtx.Currency,
+	}
+
+	payoutResp, payoutErr := uc.xenditPayout.CreatePayout(ctx, derefString(refundCtx.VendorXenditAccountID), idempotencyKey, payoutReq)
+	if payoutErr != nil {
+		_ = uc.repo.SetRefundPayoutFailed(ctx, refundID, "FAILED", payoutErr.Error())
+		return nil, fmt.Errorf("%w: %v", ErrRefundDisbursementFailed, payoutErr)
+	}
+
+	payoutID := strings.TrimSpace(payoutResp.ID)
+	payoutStatus := strings.TrimSpace(payoutResp.Status)
+	if payoutStatus == "" {
+		payoutStatus = "PROCESSING"
+	}
+
+	if err := uc.repo.SetRefundPayoutInitiated(
+		ctx,
+		refundID,
+		actorID,
+		effectiveStrategy,
+		referenceID,
+		channelCode,
+		bankName,
+		accountHolderName,
+		accountLast4,
+		&payoutID,
+		payoutStatus,
+	); err != nil {
+		return nil, err
+	}
+
+	if strings.EqualFold(payoutStatus, domain.XenditPayoutStatusSucceeded) {
+		now := time.Now().UTC()
+		if _, err := uc.repo.ApplyRefundPayoutWebhookUpdate(ctx, referenceID, payoutID, payoutStatus, nil, &now); err != nil {
+			return nil, err
+		}
+		return &domain.StatusActionResponse{
+			ID:     refundID,
+			Status: domain.RefundStatusProcessed,
+		}, nil
+	}
+
+	// Refund remains approved until payout webhook marks it succeeded.
+	return &domain.StatusActionResponse{
+		ID:     refundID,
+		Status: domain.RefundStatusApproved,
+	}, nil
 }
 
 func (uc *financeUseCase) parseMonth(month string) (domain.FinancePeriod, string, error) {
@@ -478,6 +730,83 @@ func isValidPayoutStatus(status string) bool {
 		domain.PayoutStatusComplete,
 		domain.PayoutStatusFailed,
 		domain.PayoutStatusOnHold:
+		return true
+	default:
+		return false
+	}
+}
+
+const (
+	refundStrategyVADisbursement              = "va_disbursement"
+	refundStrategyQRGateway                   = "qr_gateway_refund"
+	refundStrategyEWalletGateway              = "ewallet_gateway_refund"
+	refundStrategyQRDisbursementFallback      = "qr_disbursement_fallback"
+	refundStrategyEWalletDisbursementFallback = "ewallet_disbursement_fallback"
+	refundStrategyDisbursementDefault         = "disbursement_default"
+	refundStrategyUnsupported                 = "unsupported"
+)
+
+func resolveRefundStrategy(paymentMethod, paymentChannel *string) string {
+	normMethod := normalizePaymentToken(derefString(paymentMethod))
+	normChannel := normalizePaymentToken(derefString(paymentChannel))
+	combined := normMethod + " " + normChannel
+
+	if strings.Contains(combined, "QRIS") || strings.Contains(combined, "QR CODE") || strings.Contains(combined, "QR_CODE") || strings.Contains(combined, "QR") {
+		return refundStrategyQRGateway
+	}
+
+	if strings.Contains(combined, "EWALLET") ||
+		strings.Contains(combined, "E WALLET") ||
+		strings.Contains(combined, "DANA") ||
+		strings.Contains(combined, "OVO") ||
+		strings.Contains(combined, "GOPAY") ||
+		strings.Contains(combined, "SHOPEEPAY") ||
+		strings.Contains(combined, "LINKAJA") ||
+		strings.Contains(combined, "ASTRAPAY") {
+		return refundStrategyEWalletGateway
+	}
+
+	if strings.Contains(combined, "VIRTUAL ACCOUNT") ||
+		strings.Contains(combined, "VIRTUAL_ACCOUNT") ||
+		strings.Contains(combined, "BANK TRANSFER") ||
+		strings.Contains(combined, "BANK_TRANSFER") ||
+		strings.Contains(combined, "VA") {
+		return refundStrategyVADisbursement
+	}
+
+	if combined == "" {
+		return refundStrategyUnsupported
+	}
+	return refundStrategyDisbursementDefault
+}
+
+func normalizePaymentToken(raw string) string {
+	raw = strings.ToUpper(strings.TrimSpace(raw))
+	raw = strings.ReplaceAll(raw, "-", " ")
+	raw = strings.ReplaceAll(raw, "/", " ")
+	raw = strings.Join(strings.Fields(raw), " ")
+	return raw
+}
+
+func maskAccountLast4(accountNumber string) string {
+	digits := strings.TrimSpace(accountNumber)
+	if len(digits) <= 4 {
+		return digits
+	}
+	return digits[len(digits)-4:]
+}
+
+func derefString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return strings.TrimSpace(*v)
+}
+
+func isPayoutStatusProcessing(status *string) bool {
+	s := strings.ToUpper(strings.TrimSpace(derefString(status)))
+	switch s {
+	case "PROCESSING", "PENDING", "SCHEDULED", "ACCEPTED":
 		return true
 	default:
 		return false

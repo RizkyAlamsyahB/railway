@@ -31,7 +31,7 @@ func setupVendorOrderUseCase(t *testing.T) (
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	vendorRepo := mocks.NewMockVendorRepository(ctrl)
 	rajaOngkir := mocks.NewMockRajaOngkirProvider(ctrl)
-	uc := NewVendorOrderUseCase(vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, vendorRepo, rajaOngkir)
+	uc := NewVendorOrderUseCase(vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, vendorRepo, rajaOngkir, nil, nil, nil, nil)
 	return vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, vendorRepo, rajaOngkir, uc
 }
 
@@ -102,7 +102,7 @@ func TestVendorOrderUseCase_AcceptOrder_NotBelongToVendor(t *testing.T) {
 // --- RejectOrder tests ---
 
 func TestVendorOrderUseCase_RejectOrder_Success_FromPaid(t *testing.T) {
-	vendorOrderRepo, orderRepo, _, _, _, _, _, uc := setupVendorOrderUseCase(t)
+	vendorOrderRepo, orderRepo, _, paymentRepo, _, _, _, uc := setupVendorOrderUseCase(t)
 	ctx := context.Background()
 	vendorID := uuid.New()
 	orderID := uuid.New()
@@ -118,6 +118,7 @@ func TestVendorOrderUseCase_RejectOrder_Success_FromPaid(t *testing.T) {
 	vendorOrderRepo.EXPECT().FindByIDAndVendor(ctx, orderID, vendorID).Return(order, nil)
 	orderRepo.EXPECT().UpdateOrderStatus(ctx, orderID, domain.OrderStatusCanceled, "paid", gomock.Any(), gomock.Any()).Return(nil)
 	orderRepo.EXPECT().RestoreStock(ctx, orderID).Return(nil)
+	paymentRepo.EXPECT().FindInvoiceByOrderID(ctx, orderID).Return(nil, nil)
 
 	res, err := uc.RejectOrder(ctx, vendorID, orderID, userID)
 	if err != nil {
@@ -129,7 +130,7 @@ func TestVendorOrderUseCase_RejectOrder_Success_FromPaid(t *testing.T) {
 }
 
 func TestVendorOrderUseCase_RejectOrder_Success_FromProcessing(t *testing.T) {
-	vendorOrderRepo, orderRepo, _, _, _, _, _, uc := setupVendorOrderUseCase(t)
+	vendorOrderRepo, orderRepo, _, paymentRepo, _, _, _, uc := setupVendorOrderUseCase(t)
 	ctx := context.Background()
 	vendorID := uuid.New()
 	orderID := uuid.New()
@@ -145,6 +146,7 @@ func TestVendorOrderUseCase_RejectOrder_Success_FromProcessing(t *testing.T) {
 	vendorOrderRepo.EXPECT().FindByIDAndVendor(ctx, orderID, vendorID).Return(order, nil)
 	orderRepo.EXPECT().UpdateOrderStatus(ctx, orderID, domain.OrderStatusCanceled, "paid", gomock.Any(), gomock.Any()).Return(nil)
 	orderRepo.EXPECT().RestoreStock(ctx, orderID).Return(nil)
+	paymentRepo.EXPECT().FindInvoiceByOrderID(ctx, orderID).Return(nil, nil)
 
 	res, err := uc.RejectOrder(ctx, vendorID, orderID, userID)
 	if err != nil {
@@ -430,7 +432,8 @@ func TestVendorOrderUseCase_GetOrderDetail_Success(t *testing.T) {
 	orderRepo.EXPECT().FindItemsByOrderID(ctx, orderID).Return([]domain.OrderItem{
 		{ID: uuid.New(), OrderID: orderID, ProductNameSnapshot: "Sajadah", SKUSnapshot: "L", Qty: 1, UnitPrice: 90000, LineTotal: 90000},
 	}, nil)
-	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{ID: vendorID, DisplayName: "Toko Sajadah"}, nil)
+	displayName := "Toko Sajadah"
+	vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{ID: vendorID, DisplayName: &displayName}, nil)
 
 	now := time.Now()
 	shipmentRepo.EXPECT().FindByOrderID(ctx, orderID).Return(&domain.Shipment{

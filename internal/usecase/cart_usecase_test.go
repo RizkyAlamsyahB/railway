@@ -98,7 +98,7 @@ func TestGetCart(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
-					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 2, CreatedAt: now},
+					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 2, IsSelected: true, CreatedAt: now},
 				}, nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(activeVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(publishedProduct(productID), nil)
@@ -137,7 +137,7 @@ func TestGetCart(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
-					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
+					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, IsSelected: true, CreatedAt: now},
 				}, nil)
 				// Variant not found (deleted).
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(nil, nil)
@@ -151,7 +151,7 @@ func TestGetCart(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
-					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
+					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, IsSelected: true, CreatedAt: now},
 				}, nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(activeVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(nil, nil) // product deleted
@@ -168,7 +168,7 @@ func TestGetCart(t *testing.T) {
 
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
-					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 2, CreatedAt: now},
+					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 2, IsSelected: false, CreatedAt: now},
 				}, nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(inactiveVariant, nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(publishedProduct(productID), nil)
@@ -206,7 +206,7 @@ func TestGetCart(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
-					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
+					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, IsSelected: true, CreatedAt: now},
 				}, nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(nil, errDB)
 			},
@@ -217,7 +217,7 @@ func TestGetCart(t *testing.T) {
 			setup: func(cr *mocks.MockCartRepository, pr *mocks.MockProductRepository, sp *mocks.MockStorageProvider) {
 				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
 				cr.EXPECT().FindItemsByCartID(gomock.Any(), cartID).Return([]domain.CartItem{
-					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, CreatedAt: now},
+					{ID: itemID, CartID: cartID, ProductVariantID: variantID, Qty: 1, IsSelected: true, CreatedAt: now},
 				}, nil)
 				pr.EXPECT().FindVariantByID(gomock.Any(), variantID).Return(activeVariant(variantID, productID), nil)
 				pr.EXPECT().FindByID(gomock.Any(), productID).Return(nil, errDB)
@@ -641,6 +641,96 @@ func TestUpdateItem(t *testing.T) {
 			}
 			if resp.ItemID != tc.itemID {
 				t.Errorf("expected item ID %s, got %s", tc.itemID, resp.ItemID)
+			}
+		})
+	}
+}
+
+// ============================================================
+// UpdateItemSelection
+// ============================================================
+
+func TestUpdateItemSelection(t *testing.T) {
+	userID, cartID, variantID, _, itemID := fixtureIDs()
+	otherCartID := uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
+
+	tests := []struct {
+		name    string
+		req     domain.UpdateCartItemSelectionRequest
+		setup   func(cr *mocks.MockCartRepository)
+		wantErr error
+	}{
+		{
+			name: "success",
+			req:  domain.UpdateCartItemSelectionRequest{IsSelected: false},
+			setup: func(cr *mocks.MockCartRepository) {
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
+				cr.EXPECT().FindItemByID(gomock.Any(), itemID).Return(
+					&domain.CartItem{ID: itemID, CartID: cartID, ProductVariantID: variantID, IsSelected: true}, nil,
+				)
+				cr.EXPECT().UpdateItemSelection(gomock.Any(), itemID, false).Return(nil)
+			},
+		},
+		{
+			name: "error - item not found",
+			req:  domain.UpdateCartItemSelectionRequest{IsSelected: true},
+			setup: func(cr *mocks.MockCartRepository) {
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
+				cr.EXPECT().FindItemByID(gomock.Any(), itemID).Return(nil, nil)
+			},
+			wantErr: ErrCartItemNotFound,
+		},
+		{
+			name: "error - item not owned",
+			req:  domain.UpdateCartItemSelectionRequest{IsSelected: true},
+			setup: func(cr *mocks.MockCartRepository) {
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
+				cr.EXPECT().FindItemByID(gomock.Any(), itemID).Return(
+					&domain.CartItem{ID: itemID, CartID: otherCartID, ProductVariantID: variantID}, nil,
+				)
+			},
+			wantErr: ErrCartItemNotOwned,
+		},
+		{
+			name: "error - cart lookup fails",
+			req:  domain.UpdateCartItemSelectionRequest{IsSelected: true},
+			setup: func(cr *mocks.MockCartRepository) {
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, errDB)
+			},
+			wantErr: errDB,
+		},
+		{
+			name: "error - update fails",
+			req:  domain.UpdateCartItemSelectionRequest{IsSelected: false},
+			setup: func(cr *mocks.MockCartRepository) {
+				cr.EXPECT().FindByUserID(gomock.Any(), userID).Return(activeCart(cartID, userID), nil)
+				cr.EXPECT().FindItemByID(gomock.Any(), itemID).Return(
+					&domain.CartItem{ID: itemID, CartID: cartID, ProductVariantID: variantID, IsSelected: true}, nil,
+				)
+				cr.EXPECT().UpdateItemSelection(gomock.Any(), itemID, false).Return(errDB)
+			},
+			wantErr: errDB,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cartRepo, _, _, uc := setupCartUseCase(t)
+			tc.setup(cartRepo)
+
+			resp, err := uc.UpdateItemSelection(context.Background(), userID, itemID, tc.req)
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Errorf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if resp.CartID != cartID || resp.ItemID != itemID {
+				t.Fatalf("unexpected response: %+v", resp)
 			}
 		})
 	}

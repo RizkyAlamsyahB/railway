@@ -48,16 +48,25 @@ func (uc *adminVendorUseCase) List(ctx context.Context, params domain.VendorList
 	items := make([]domain.AdminVendorListItem, len(vendors))
 	for i, v := range vendors {
 		item := domain.AdminVendorListItem{
-			ID:          v.ID,
-			DisplayName: v.DisplayName,
-			LegalName:   v.LegalName,
-			VendorType:  v.VendorType,
-			Status:      v.Status,
-			StatusReason:          v.StatusReason,
-			XenditAccountID:       v.XenditAccountID,
-			RegisteredAddress:     v.RegisteredAddress,
-			CreatedAt:             v.CreatedAt,
-			UpdatedAt:             v.UpdatedAt,
+			ID:              v.ID,
+			DisplayName:     v.DisplayName,
+			LegalName:       v.LegalName,
+			VendorType:      v.VendorType,
+			Status:          v.Status,
+			StatusReason:    v.StatusReason,
+			XenditAccountID: v.XenditAccountID,
+			ProvinceID:      v.ProvinceID,
+			ProvinceName:    v.ProvinceName,
+			CityID:          v.CityID,
+			CityName:        v.CityName,
+			DistrictID:      v.DistrictID,
+			DistrictName:    v.DistrictName,
+			SubdistrictID:   v.SubdistrictID,
+			SubdistrictName: v.SubdistrictName,
+			PostalCode:      v.PostalCode,
+			AddressLine:     v.AddressLine,
+			CreatedAt:       v.CreatedAt,
+			UpdatedAt:       v.UpdatedAt,
 		}
 
 		owner, err := uc.userRepo.FindByID(ctx, v.OwnerUserID)
@@ -136,14 +145,14 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	docResponses := make([]domain.AdminVendorDocumentResponse, len(documents))
 	for i, doc := range documents {
 		docResp := domain.AdminVendorDocumentResponse{
-			ID:                 doc.ID,
-			DocType:            doc.DocType,
-			FileURL:            doc.FileURL,
-			MimeType:           doc.MimeType,
-			FileSizeBytes:      doc.FileSizeBytes,
-			VerifiedAt:         doc.VerifiedAt,
-			CreatedAt:          doc.CreatedAt,
-			UpdatedAt:          doc.UpdatedAt,
+			ID:            doc.ID,
+			DocType:       doc.DocType,
+			FileURL:       doc.FileURL,
+			MimeType:      doc.MimeType,
+			FileSizeBytes: doc.FileSizeBytes,
+			VerifiedAt:    doc.VerifiedAt,
+			CreatedAt:     doc.CreatedAt,
+			UpdatedAt:     doc.UpdatedAt,
 		}
 
 		// Only generate presigned URL if the document has been uploaded.
@@ -159,21 +168,30 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	}
 
 	return &domain.AdminVendorDetailResponse{
-		ID:          vendor.ID,
-		VendorType:  vendor.VendorType,
-		DisplayName: vendor.DisplayName,
-		LegalName:   vendor.LegalName,
-		Description: vendor.Description,
-		RegisteredAddress:     vendor.RegisteredAddress,
-		Status:                vendor.Status,
-		StatusReason:          vendor.StatusReason,
-		ApprovedAt:            vendor.ApprovedAt,
-		XenditAccountID:       vendor.XenditAccountID,
-		CreatedAt:             vendor.CreatedAt,
-		UpdatedAt:             vendor.UpdatedAt,
-		Owner:                 ownerResp,
-		BankAccount:           bankAccountResp,
-		Documents:             docResponses,
+		ID:              vendor.ID,
+		VendorType:      vendor.VendorType,
+		DisplayName:     vendor.DisplayName,
+		LegalName:       vendor.LegalName,
+		Description:     vendor.Description,
+		ProvinceID:      vendor.ProvinceID,
+		ProvinceName:    vendor.ProvinceName,
+		CityID:          vendor.CityID,
+		CityName:        vendor.CityName,
+		DistrictID:      vendor.DistrictID,
+		DistrictName:    vendor.DistrictName,
+		SubdistrictID:   vendor.SubdistrictID,
+		SubdistrictName: vendor.SubdistrictName,
+		PostalCode:      vendor.PostalCode,
+		AddressLine:     vendor.AddressLine,
+		Status:          vendor.Status,
+		StatusReason:    vendor.StatusReason,
+		ApprovedAt:      vendor.ApprovedAt,
+		XenditAccountID: vendor.XenditAccountID,
+		CreatedAt:       vendor.CreatedAt,
+		UpdatedAt:       vendor.UpdatedAt,
+		Owner:           ownerResp,
+		BankAccount:     bankAccountResp,
+		Documents:       docResponses,
 	}, nil
 }
 
@@ -204,7 +222,7 @@ func (uc *adminVendorUseCase) Approve(ctx context.Context, vendorID uuid.UUID, a
 		Email: owner.Email,
 		Type:  "OWNED",
 		PublicProfile: &domain.XenPlatformPublicProfile{
-			BusinessName: vendor.DisplayName,
+			BusinessName: vendorDisplayNameOrFallback(vendor, owner.Email),
 		},
 	})
 	if err != nil {

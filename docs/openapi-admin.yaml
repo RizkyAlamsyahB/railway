@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: UmrahMart - Admin API
+  title: Admin API
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint admin (autentikasi admin, manajemen user, dan review vendor).
 servers:
@@ -15,6 +15,18 @@ tags:
     description: Operasi review dan manajemen vendor untuk role admin.
   - name: Admin Payments
     description: Operasi listing dan monitoring pembayaran untuk role admin.
+  - name: Admin Settings - Banners
+    description: Manajemen banner halaman utama (upload presign, konfirmasi, CRUD).
+  - name: Admin Settings - Categories
+    description: Manajemen master data kategori produk.
+  - name: Admin Settings - Return Reasons
+    description: Manajemen master data alasan pengembalian produk.
+  - name: Admin Settings - Contacts
+    description: Manajemen data kontak admin yang ditampilkan ke publik.
+  - name: Admin Settings - FAQ
+    description: Manajemen FAQ (Pusat Bantuan) yang ditampilkan ke customer.
+  - name: Admin Chat
+    description: Operasi manajemen percakapan chat untuk role admin.
 security:
   - BearerAuth: []
 paths:
@@ -1081,13 +1093,22 @@ paths:
                   - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                     display_name: Toko Oleh-Oleh Haji Mabrur
                     legal_name: PT Mabrur Sejahtera
-                    vendor_type: souvenir_store
+                    vendor_type: null
                     status: submitted
                     status_reason: null
                     xendit_account_id: null
                     owner_name: Budi Santoso
                     owner_email: budi@example.com
-                    registered_address: "Jl. Raya Bogor No. 123, Jakarta Timur"
+                    province_id: "31"
+                    province_name: DKI Jakarta
+                    city_id: "3171"
+                    city_name: Jakarta Pusat
+                    district_id: "317101"
+                    district_name: Menteng
+                    subdistrict_id: "3171011001"
+                    subdistrict_name: Pegangsaan
+                    postal_code: "10320"
+                    address_line: Jl. Pegangsaan Barat No. 12
                     created_at: "2026-02-10T08:00:00Z"
                     updated_at: "2026-02-10T09:30:00Z"
                   - id: b2c3d4e5-f6a7-8901-bcde-f12345678901
@@ -1099,7 +1120,16 @@ paths:
                     xendit_account_id: null
                     owner_name: Siti Aminah
                     owner_email: siti@example.com
-                    registered_address: null
+                    province_id: null
+                    province_name: null
+                    city_id: null
+                    city_name: null
+                    district_id: null
+                    district_name: null
+                    subdistrict_id: null
+                    subdistrict_name: null
+                    postal_code: null
+                    address_line: null
                     created_at: "2026-02-09T14:00:00Z"
                     updated_at: "2026-02-09T15:00:00Z"
                 errors: null
@@ -1185,11 +1215,20 @@ paths:
                 message: vendor retrieved successfully
                 data:
                   id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  vendor_type: souvenir_store
+                  vendor_type: null
                   display_name: Toko Oleh-Oleh Haji Mabrur
                   legal_name: PT Mabrur Sejahtera
                   description: Toko oleh-oleh haji terlengkap di Jakarta
-                  registered_address: "Jl. Raya Bogor No. 123, Jakarta Timur"
+                  province_id: "31"
+                  province_name: DKI Jakarta
+                  city_id: "3171"
+                  city_name: Jakarta Pusat
+                  district_id: "317101"
+                  district_name: Menteng
+                  subdistrict_id: "3171011001"
+                  subdistrict_name: Pegangsaan
+                  postal_code: "10320"
+                  address_line: Jl. Pegangsaan Barat No. 12
                   status: submitted
                   status_reason: null
                   approved_at: null
@@ -1225,11 +1264,22 @@ paths:
                       created_at: "2026-02-10T08:00:00Z"
                       updated_at: "2026-02-10T09:30:00Z"
                     - id: f6a7b8c9-d0e1-2345-fabc-456789012345
-                      doc_type: business_npwp
-                      file_url: vendors/a1b2c3d4/documents/business_npwp/uuid2
-                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/business_npwp/uuid2?X-Amz-Signature=..."
+                      doc_type: business_nib
+                      file_url: vendors/a1b2c3d4/documents/business_nib/uuid2
+                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/business_nib/uuid2?X-Amz-Signature=..."
                       mime_type: application/pdf
                       file_size_bytes: 102400
+                      verification_status: pending
+                      rejection_reason: null
+                      verified_at: null
+                      created_at: "2026-02-10T08:00:00Z"
+                      updated_at: "2026-02-10T09:30:00Z"
+                    - id: a7b8c9d0-e1f2-3456-abcd-567890123456
+                      doc_type: halal_certificate
+                      file_url: vendors/a1b2c3d4/documents/halal_certificate/uuid3
+                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/halal_certificate/uuid3?X-Amz-Signature=..."
+                      mime_type: application/pdf
+                      file_size_bytes: 204800
                       verification_status: pending
                       rejection_reason: null
                       verified_at: null
@@ -2014,12 +2064,1465 @@ paths:
                 data: null
                 errors: "failed to list payments: database timeout"
                 meta: null
+  /api/v1/admin/settings/banners:
+    post:
+      tags:
+        - Admin Settings - Banners
+      summary: Create Banner (Presign Upload)
+      description: |
+        Membuat banner baru dan menghasilkan presigned URL untuk upload gambar ke S3.
+        Setelah upload berhasil, konfirmasi dengan endpoint `POST /api/v1/admin/settings/banners/{id}/confirm`.
+      operationId: createAdminBanner
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BannerCreateRequest"
+            example:
+              title: Promo Haji 2026
+              content_type: image/jpeg
+      responses:
+        "201":
+          description: Banner dibuat, gunakan upload_url untuk mengunggah gambar ke S3.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessBannerPresignEnvelope"
+              example:
+                success: true
+                message: banner created, upload image using the presigned URL
+                data:
+                  banner_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  upload_url: "https://s3.amazonaws.com/bucket/banners/a1b2c3d4.jpg?X-Amz-Signature=..."
+                  object_key: banners/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+                  expires_in: 900
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: validation failed
+                data: null
+                errors: "content_type must be one of: image/jpeg, image/png, image/webp"
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags:
+        - Admin Settings - Banners
+      summary: List Banners (Admin)
+      description: Mengambil daftar semua banner (termasuk yang belum aktif).
+      operationId: listAdminBanners
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar banner berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessBannerListEnvelope"
+              example:
+                success: true
+                message: banners loaded
+                data:
+                  - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    title: Promo Haji 2026
+                    image_url: "https://cdn.umrahmart.com/banners/a1b2c3d4.jpg"
+                    created_at: "2026-03-04T10:00:00Z"
+                    updated_at: "2026-03-04T10:05:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/banners/{id}:
+    get:
+      tags:
+        - Admin Settings - Banners
+      summary: Get Banner Detail
+      operationId: getAdminBannerById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Detail banner berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessBannerEnvelope"
+              example:
+                success: true
+                message: banner loaded
+                data:
+                  id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  title: Promo Haji 2026
+                  image_url: "https://cdn.umrahmart.com/banners/a1b2c3d4.jpg"
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:05:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Banner tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: banner not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags:
+        - Admin Settings - Banners
+      summary: Update Banner
+      operationId: updateAdminBanner
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BannerUpdateRequest"
+            example:
+              title: "Promo Haji 2026 — Updated"
+      responses:
+        "200":
+          description: Banner berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessBannerEnvelope"
+              example:
+                success: true
+                message: banner updated
+                data:
+                  id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  title: "Promo Haji 2026 — Updated"
+                  image_url: "https://cdn.umrahmart.com/banners/a1b2c3d4.jpg"
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:10:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Banner tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: banner not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Admin Settings - Banners
+      summary: Delete Banner
+      operationId: deleteAdminBanner
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Banner berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNoDataEnvelope"
+              example:
+                success: true
+                message: banner deleted
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Banner tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: banner not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/banners/{id}/confirm:
+    post:
+      tags:
+        - Admin Settings - Banners
+      summary: Confirm Banner Upload
+      description: Mengonfirmasi bahwa gambar banner telah berhasil diunggah ke S3 menggunakan presigned URL.
+      operationId: confirmAdminBanner
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BannerConfirmRequest"
+            example:
+              object_key: banners/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+      responses:
+        "200":
+          description: Upload gambar banner dikonfirmasi.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessBannerEnvelope"
+              example:
+                success: true
+                message: banner image confirmed
+                data:
+                  id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  title: Promo Haji 2026
+                  image_url: "https://cdn.umrahmart.com/banners/a1b2c3d4.jpg"
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:01:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: object_key tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: validation failed
+                data: null
+                errors: "object_key is required"
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Banner tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: banner not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/categories:
+    post:
+      tags:
+        - Admin Settings - Categories
+      summary: Create Category
+      operationId: createAdminCategory
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryCreateRequest"
+            example:
+              name: Perlengkapan Haji
+      responses:
+        "201":
+          description: Kategori berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCategoryEnvelope"
+              example:
+                success: true
+                message: category created
+                data:
+                  id: c1d2e3f4-a5b6-7890-cdef-123456789012
+                  name: Perlengkapan Haji
+                  slug: perlengkapan-haji
+                  is_active: true
+                errors: null
+                meta: null
+        "409":
+          description: Slug kategori sudah ada.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: category slug already exists
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags:
+        - Admin Settings - Categories
+      summary: List Categories (Admin)
+      operationId: listAdminCategories
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar kategori berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCategoryListEnvelope"
+              example:
+                success: true
+                message: categories loaded
+                data:
+                  - id: c1d2e3f4-a5b6-7890-cdef-123456789012
+                    name: Perlengkapan Haji
+                    slug: perlengkapan-haji
+                    is_active: true
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/categories/{id}:
+    patch:
+      tags:
+        - Admin Settings - Categories
+      summary: Update Category
+      operationId: updateAdminCategory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryUpdateRequest"
+            example:
+              name: Perlengkapan Haji & Umroh
+              is_active: true
+      responses:
+        "200":
+          description: Kategori berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCategoryEnvelope"
+              example:
+                success: true
+                message: category updated
+                data:
+                  id: c1d2e3f4-a5b6-7890-cdef-123456789012
+                  name: Perlengkapan Haji & Umroh
+                  slug: perlengkapan-haji-umroh
+                  is_active: true
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Kategori tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: category not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Admin Settings - Categories
+      summary: Delete Category
+      operationId: deleteAdminCategory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Kategori berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNoDataEnvelope"
+              example:
+                success: true
+                message: category deleted
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Kategori tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: category not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/return-reasons:
+    post:
+      tags:
+        - Admin Settings - Return Reasons
+      summary: Create Return Reason
+      operationId: createAdminReturnReason
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnReasonCreateRequest"
+            example:
+              reason: Barang tidak sesuai deskripsi
+      responses:
+        "201":
+          description: Alasan return berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessReturnReasonEnvelope"
+              example:
+                success: true
+                message: return reason created
+                data:
+                  id: 1
+                  reason: Barang tidak sesuai deskripsi
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:00:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags:
+        - Admin Settings - Return Reasons
+      summary: List Return Reasons (Admin)
+      operationId: listAdminReturnReasons
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar alasan return berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessReturnReasonListEnvelope"
+              example:
+                success: true
+                message: return reasons loaded
+                data:
+                  - id: 1
+                    reason: Barang tidak sesuai deskripsi
+                    created_at: "2026-03-04T10:00:00Z"
+                    updated_at: "2026-03-04T10:00:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/return-reasons/{id}:
+    patch:
+      tags:
+        - Admin Settings - Return Reasons
+      summary: Update Return Reason
+      operationId: updateAdminReturnReason
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnReasonUpdateRequest"
+            example:
+              reason: Barang tidak sesuai dengan deskripsi produk
+      responses:
+        "200":
+          description: Alasan return berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessReturnReasonEnvelope"
+              example:
+                success: true
+                message: return reason updated
+                data:
+                  id: 1
+                  reason: Barang tidak sesuai dengan deskripsi produk
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:15:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Alasan return tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: return reason not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Admin Settings - Return Reasons
+      summary: Delete Return Reason
+      operationId: deleteAdminReturnReason
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: Alasan return berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNoDataEnvelope"
+              example:
+                success: true
+                message: return reason deleted
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Alasan return tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: return reason not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/contacts:
+    post:
+      tags:
+        - Admin Settings - Contacts
+      summary: Create Admin Contact
+      operationId: createAdminContact
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminContactCreateRequest"
+            example:
+              content: "WhatsApp CS: +6281234567890"
+      responses:
+        "201":
+          description: Kontak admin berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAdminContactEnvelope"
+              example:
+                success: true
+                message: admin contact created
+                data:
+                  id: 1
+                  content: "WhatsApp CS: +6281234567890"
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:00:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags:
+        - Admin Settings - Contacts
+      summary: List Admin Contacts
+      operationId: listAdminContacts
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar kontak admin berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAdminContactListEnvelope"
+              example:
+                success: true
+                message: admin contacts loaded
+                data:
+                  - id: 1
+                    content: "WhatsApp CS: +6281234567890"
+                    created_at: "2026-03-04T10:00:00Z"
+                    updated_at: "2026-03-04T10:00:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/contacts/{id}:
+    patch:
+      tags:
+        - Admin Settings - Contacts
+      summary: Update Admin Contact
+      operationId: updateAdminContact
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminContactUpdateRequest"
+            example:
+              content: "WhatsApp CS UmrahMart: +6289876543210"
+      responses:
+        "200":
+          description: Kontak admin berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAdminContactEnvelope"
+              example:
+                success: true
+                message: admin contact updated
+                data:
+                  id: 1
+                  content: "WhatsApp CS UmrahMart: +6289876543210"
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:20:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Kontak tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: admin contact not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Admin Settings - Contacts
+      summary: Delete Admin Contact
+      operationId: deleteAdminContact
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: Kontak admin berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNoDataEnvelope"
+              example:
+                success: true
+                message: admin contact deleted
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Kontak tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: admin contact not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/faq:
+    post:
+      tags:
+        - Admin Settings - FAQ
+      summary: Create FAQ
+      description: |
+        Membuat FAQ baru. Field `category` harus salah satu dari:
+        `Akun`, `Produk`, `Pemesanan`, `Pembayaran`, `Pengiriman`,
+        `Pengembalian & Refund`, `Promo & Voucher`, `Chat & Customer Service`,
+        `Keamanan & Privasi`, `Vendor/UMKM`, `Teknis/Aplikasi`, `Lainnya`.
+      operationId: createAdminFAQ
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FAQCreateRequest"
+            example:
+              category: Pemesanan
+              question: Bagaimana cara memesan produk di UmrahMart?
+              answer: Pilih produk yang diinginkan, tambahkan ke keranjang, lalu lanjutkan ke pembayaran.
+      responses:
+        "201":
+          description: FAQ berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFAQEnvelope"
+              example:
+                success: true
+                message: FAQ created
+                data:
+                  id: 1
+                  category: Pemesanan
+                  question: Bagaimana cara memesan produk di UmrahMart?
+                  answer: Pilih produk yang diinginkan, tambahkan ke keranjang, lalu lanjutkan ke pembayaran.
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:00:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Kategori FAQ tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid FAQ category
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags:
+        - Admin Settings - FAQ
+      summary: List FAQs (Admin)
+      operationId: listAdminFAQs
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar FAQ berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFAQListEnvelope"
+              example:
+                success: true
+                message: FAQs loaded
+                data:
+                  - id: 1
+                    category: Pemesanan
+                    question: Bagaimana cara memesan produk di UmrahMart?
+                    answer: Pilih produk yang diinginkan, tambahkan ke keranjang, lalu lanjutkan ke pembayaran.
+                    created_at: "2026-03-04T10:00:00Z"
+                    updated_at: "2026-03-04T10:00:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/settings/faq/{id}:
+    patch:
+      tags:
+        - Admin Settings - FAQ
+      summary: Update FAQ
+      operationId: updateAdminFAQ
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FAQUpdateRequest"
+            example:
+              question: Bagaimana cara memesan produk haji & umroh di UmrahMart?
+              answer: Cari produk melalui katalog atau pencarian, tambahkan ke keranjang, pilih metode pengiriman, lalu selesaikan pembayaran.
+      responses:
+        "200":
+          description: FAQ berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFAQEnvelope"
+              example:
+                success: true
+                message: FAQ updated
+                data:
+                  id: 1
+                  category: Pemesanan
+                  question: Bagaimana cara memesan produk haji & umroh di UmrahMart?
+                  answer: Cari produk melalui katalog atau pencarian, tambahkan ke keranjang, pilih metode pengiriman, lalu selesaikan pembayaran.
+                  created_at: "2026-03-04T10:00:00Z"
+                  updated_at: "2026-03-04T10:25:00Z"
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: FAQ tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: FAQ not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Admin Settings - FAQ
+      summary: Delete FAQ
+      operationId: deleteAdminFAQ
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: FAQ berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNoDataEnvelope"
+              example:
+                success: true
+                message: FAQ deleted
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: FAQ tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: FAQ not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/chat:
+    get:
+      tags:
+        - Admin Chat
+      summary: List Conversations
+      description: Mengambil daftar percakapan chat yang melibatkan admin. Dapat difilter berdasarkan role peserta.
+      operationId: listAdminConversations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: search
+          in: query
+          description: Cari berdasarkan nama peserta.
+          required: false
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: Filter berdasarkan role peserta.
+          required: false
+          schema:
+            type: string
+            enum:
+              - umkm
+              - admin
+              - cs
+              - finance
+      responses:
+        "200":
+          description: Daftar percakapan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationListEnvelope"
+              example:
+                success: true
+                message: conversations retrieved
+                data:
+                  - id: f1a2b3c4-d5e6-7890-f123-456789abcdef
+                    initiator_id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    participant_id: d4e5f6a7-b8c9-0123-def4-567890abcdef
+                    last_message_at: "2026-03-02T09:00:00Z"
+                    created_at: "2026-03-01T14:00:00Z"
+                    updated_at: "2026-03-02T09:00:00Z"
+                    user_name: Toko Umrah Jaya
+                    user_role: umkm
+                    last_message: Mohon review dokumen izin usaha
+                    last_message_time: "2026-03-02T09:00:00Z"
+                    unread_count: 1
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 2
+                  total_pages: 1
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/chat/{conversationId}:
+    get:
+      tags:
+        - Admin Chat
+      summary: Get Conversation Detail
+      operationId: getAdminConversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Detail percakapan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationEnvelope"
+              example:
+                success: true
+                message: conversation retrieved
+                data:
+                  id: f1a2b3c4-d5e6-7890-f123-456789abcdef
+                  initiator_id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                  participant_id: d4e5f6a7-b8c9-0123-def4-567890abcdef
+                  last_message_at: "2026-03-02T09:00:00Z"
+                  created_at: "2026-03-01T14:00:00Z"
+                  updated_at: "2026-03-02T09:00:00Z"
+                  user_name: Toko Umrah Jaya
+                  user_role: umkm
+                  last_message: Mohon review dokumen izin usaha
+                  last_message_time: "2026-03-02T09:00:00Z"
+                  unread_count: 1
+                errors: null
+                meta: null
+        "400":
+          description: ID percakapan tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid conversation id
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Admin bukan peserta percakapan ini.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: you are not a participant of this conversation
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: conversation not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/chat/{conversationId}/read:
+    patch:
+      tags:
+        - Admin Chat
+      summary: Mark Messages as Read
+      description: Menandai semua pesan dalam percakapan sebagai sudah dibaca oleh admin.
+      operationId: markAdminConversationRead
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Pesan berhasil ditandai sebagai sudah dibaca.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNoDataEnvelope"
+              example:
+                success: true
+                message: messages marked as read
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID percakapan tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid conversation id
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Admin bukan peserta percakapan ini.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: you are not a participant of this conversation
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: conversation not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  responses:
+    Unauthorized:
+      description: Token tidak ada, format salah, atau token expired/invalid.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestIDHeader"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            success: false
+            message: invalid or expired token
+            data: null
+            errors: null
+            meta: null
+    Forbidden:
+      description: User tidak memiliki izin role admin.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestIDHeader"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            success: false
+            message: insufficient permissions
+            data: null
+            errors: null
+            meta: null
+    InternalServerError:
+      description: Internal server error.
+      headers:
+        X-Request-ID:
+          $ref: "#/components/headers/RequestIDHeader"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+          example:
+            success: false
+            message: internal server error
+            data: null
+            errors: null
+            meta: null
   headers:
     RequestIDHeader:
       description: ID unik request dari middleware RequestID.
@@ -2448,6 +3951,7 @@ components:
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         display_name:
           type: string
+          nullable: true
           example: Toko Oleh-Oleh Haji Mabrur
         legal_name:
           type: string
@@ -2455,6 +3959,7 @@ components:
           example: PT Mabrur Sejahtera
         vendor_type:
           type: string
+          nullable: true
           enum:
             - souvenir_store
             - ppiu
@@ -2488,11 +3993,46 @@ components:
           format: email
           description: Email pemilik vendor (dari tabel users).
           example: budi@example.com
-        registered_address:
+        province_id:
           type: string
           nullable: true
-          description: Alamat perusahaan terdaftar. Null jika belum diisi saat pendaftaran.
-          example: "Jl. Raya Bogor No. 123, Jakarta Timur"
+          example: "31"
+        province_name:
+          type: string
+          nullable: true
+          example: DKI Jakarta
+        city_id:
+          type: string
+          nullable: true
+          example: "3171"
+        city_name:
+          type: string
+          nullable: true
+          example: Jakarta Pusat
+        district_id:
+          type: string
+          nullable: true
+          example: "317101"
+        district_name:
+          type: string
+          nullable: true
+          example: Menteng
+        subdistrict_id:
+          type: string
+          nullable: true
+          example: "3171011001"
+        subdistrict_name:
+          type: string
+          nullable: true
+          example: Pegangsaan
+        postal_code:
+          type: string
+          nullable: true
+          example: "10320"
+        address_line:
+          type: string
+          nullable: true
+          example: Jl. Pegangsaan Barat No. 12
         created_at:
           type: string
           format: date-time
@@ -2598,7 +4138,9 @@ components:
           description: Tipe dokumen vendor.
           enum:
             - owner_document_id
+            - business_nib
             - business_npwp
+            - halal_certificate
             - store_photo
             - bank_account_proof
             - business_logo
@@ -2655,6 +4197,7 @@ components:
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         vendor_type:
           type: string
+          nullable: true
           enum:
             - souvenir_store
             - ppiu
@@ -2662,6 +4205,7 @@ components:
           example: souvenir_store
         display_name:
           type: string
+          nullable: true
           example: Toko Oleh-Oleh Haji Mabrur
         legal_name:
           type: string
@@ -2671,11 +4215,46 @@ components:
           type: string
           nullable: true
           example: Toko oleh-oleh haji terlengkap di Jakarta
-        registered_address:
+        province_id:
           type: string
           nullable: true
-          description: Alamat perusahaan terdaftar. Null jika vendor perorangan atau belum diisi.
-          example: "Jl. Raya Bogor No. 123, Jakarta Timur"
+          example: "31"
+        province_name:
+          type: string
+          nullable: true
+          example: DKI Jakarta
+        city_id:
+          type: string
+          nullable: true
+          example: "3171"
+        city_name:
+          type: string
+          nullable: true
+          example: Jakarta Pusat
+        district_id:
+          type: string
+          nullable: true
+          example: "317101"
+        district_name:
+          type: string
+          nullable: true
+          example: Menteng
+        subdistrict_id:
+          type: string
+          nullable: true
+          example: "3171011001"
+        subdistrict_name:
+          type: string
+          nullable: true
+          example: Pegangsaan
+        postal_code:
+          type: string
+          nullable: true
+          example: "10320"
+        address_line:
+          type: string
+          nullable: true
+          example: Jl. Pegangsaan Barat No. 12
         status:
           type: string
           enum:
@@ -2901,5 +4480,635 @@ components:
         errors:
           nullable: true
           description: Selalu null pada response sukses.
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+    # --- Banners ---
+    BannerCreateRequest:
+      type: object
+      required:
+        - title
+        - content_type
+      properties:
+        title:
+          type: string
+          description: Judul banner.
+          example: Promo Haji 2026
+        content_type:
+          type: string
+          description: MIME type gambar yang akan diunggah.
+          enum:
+            - image/jpeg
+            - image/png
+            - image/webp
+          example: image/jpeg
+    BannerConfirmRequest:
+      type: object
+      required:
+        - object_key
+      properties:
+        object_key:
+          type: string
+          description: Object key S3 yang diterima saat membuat banner.
+          example: banners/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+    BannerUpdateRequest:
+      type: object
+      description: Semua field opsional.
+      properties:
+        title:
+          type: string
+          description: Judul banner baru.
+          example: "Promo Haji 2026 — Updated"
+    BannerResponse:
+      type: object
+      required:
+        - id
+        - title
+        - image_url
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        title:
+          type: string
+          example: Promo Haji 2026
+        image_url:
+          type: string
+          nullable: true
+          description: URL gambar banner. Null jika gambar belum dikonfirmasi.
+          example: "https://cdn.umrahmart.com/banners/a1b2c3d4.jpg"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-04T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-04T10:05:00Z"
+    BannerPresignResponse:
+      type: object
+      required:
+        - banner_id
+        - upload_url
+        - object_key
+        - expires_in
+      properties:
+        banner_id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        upload_url:
+          type: string
+          description: Presigned PUT URL untuk upload gambar ke S3 (berlaku 15 menit).
+          example: "https://s3.amazonaws.com/bucket/banners/a1b2c3d4.jpg?X-Amz-Signature=..."
+        object_key:
+          type: string
+          description: Object key S3 yang perlu dikirim kembali saat konfirmasi.
+          example: banners/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
+        expires_in:
+          type: integer
+          format: int32
+          description: Durasi validitas URL dalam detik.
+          example: 900
+    SuccessBannerPresignEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: banner created, upload image using the presigned URL
+        data:
+          $ref: "#/components/schemas/BannerPresignResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessBannerEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: banner loaded
+        data:
+          $ref: "#/components/schemas/BannerResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessBannerListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: banners loaded
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BannerResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    # --- Categories ---
+    CategoryCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Nama kategori.
+          example: Perlengkapan Haji
+    CategoryUpdateRequest:
+      type: object
+      description: Semua field opsional.
+      properties:
+        name:
+          type: string
+          description: Nama kategori baru.
+          example: Perlengkapan Haji & Umroh
+        is_active:
+          type: boolean
+          description: Status aktif kategori.
+          example: true
+    CategoryResponse:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - is_active
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: c1d2e3f4-a5b6-7890-cdef-123456789012
+        name:
+          type: string
+          example: Perlengkapan Haji
+        slug:
+          type: string
+          example: perlengkapan-haji
+        is_active:
+          type: boolean
+          example: true
+    SuccessCategoryEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: category created
+        data:
+          $ref: "#/components/schemas/CategoryResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessCategoryListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: categories loaded
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    # --- Return Reasons ---
+    ReturnReasonCreateRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          description: Teks alasan pengembalian.
+          example: Barang tidak sesuai deskripsi
+    ReturnReasonUpdateRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          description: Teks alasan pengembalian baru.
+          example: Barang tidak sesuai dengan deskripsi produk
+    ReturnReasonResponse:
+      type: object
+      required:
+        - id
+        - reason
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int32
+          example: 1
+        reason:
+          type: string
+          example: Barang tidak sesuai deskripsi
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-04T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-04T10:00:00Z"
+    SuccessReturnReasonEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: return reason created
+        data:
+          $ref: "#/components/schemas/ReturnReasonResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessReturnReasonListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: return reasons loaded
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReturnReasonResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    # --- Admin Contacts ---
+    AdminContactCreateRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: Isi kontak (teks bebas, misal nomor WA, email, alamat).
+          example: "WhatsApp CS: +6281234567890"
+    AdminContactUpdateRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: Isi kontak baru.
+          example: "WhatsApp CS UmrahMart: +6289876543210"
+    AdminContactResponse:
+      type: object
+      required:
+        - id
+        - content
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int32
+          example: 1
+        content:
+          type: string
+          example: "WhatsApp CS: +6281234567890"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-04T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-04T10:00:00Z"
+    SuccessAdminContactEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: admin contact created
+        data:
+          $ref: "#/components/schemas/AdminContactResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessAdminContactListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: admin contacts loaded
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminContactResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    # --- FAQ ---
+    FAQCreateRequest:
+      type: object
+      required:
+        - category
+        - question
+        - answer
+      properties:
+        category:
+          type: string
+          description: |
+            Kategori FAQ. Nilai yang diizinkan: Akun, Produk, Pemesanan, Pembayaran,
+            Pengiriman, Pengembalian & Refund, Promo & Voucher, Chat & Customer Service,
+            Keamanan & Privasi, Vendor/UMKM, Teknis/Aplikasi, Lainnya.
+          example: Pemesanan
+        question:
+          type: string
+          description: Pertanyaan FAQ.
+          example: Bagaimana cara memesan produk di UmrahMart?
+        answer:
+          type: string
+          description: Jawaban FAQ.
+          example: Pilih produk yang diinginkan, tambahkan ke keranjang, lalu lanjutkan ke pembayaran.
+    FAQUpdateRequest:
+      type: object
+      description: Semua field opsional.
+      properties:
+        category:
+          type: string
+          description: Kategori FAQ baru.
+          example: Pemesanan
+        question:
+          type: string
+          description: Pertanyaan baru.
+          example: Bagaimana cara memesan produk haji & umroh di UmrahMart?
+        answer:
+          type: string
+          description: Jawaban baru.
+          example: Cari produk melalui katalog atau pencarian, tambahkan ke keranjang, pilih metode pengiriman, lalu selesaikan pembayaran.
+    FAQResponse:
+      type: object
+      required:
+        - id
+        - category
+        - question
+        - answer
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int32
+          example: 1
+        category:
+          type: string
+          example: Pemesanan
+        question:
+          type: string
+          example: Bagaimana cara memesan produk di UmrahMart?
+        answer:
+          type: string
+          example: Pilih produk yang diinginkan, tambahkan ke keranjang, lalu lanjutkan ke pembayaran.
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-04T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-04T10:00:00Z"
+    SuccessFAQEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: FAQ created
+        data:
+          $ref: "#/components/schemas/FAQResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessFAQListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: FAQs loaded
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FAQResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    # --- Chat ---
+    ConversationResponse:
+      type: object
+      required:
+        - id
+        - initiator_id
+        - participant_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: f1a2b3c4-d5e6-7890-f123-456789abcdef
+        initiator_id:
+          type: string
+          format: uuid
+          example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+        participant_id:
+          type: string
+          format: uuid
+          example: d4e5f6a7-b8c9-0123-def4-567890abcdef
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-02T09:00:00Z"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-01T14:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-02T09:00:00Z"
+        user_name:
+          type: string
+          description: Nama peserta percakapan (bukan diri sendiri).
+          example: Toko Umrah Jaya
+        user_role:
+          type: string
+          description: Role peserta percakapan.
+          example: umkm
+        last_message:
+          type: string
+          nullable: true
+          description: Teks pesan terakhir dalam percakapan.
+          example: Mohon review dokumen izin usaha
+        last_message_time:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-02T09:00:00Z"
+        unread_count:
+          type: integer
+          format: int32
+          description: Jumlah pesan yang belum dibaca.
+          example: 1
+    SuccessConversationEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: conversation retrieved
+        data:
+          $ref: "#/components/schemas/ConversationResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessConversationListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: conversations retrieved
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationResponse"
+        errors:
+          nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"

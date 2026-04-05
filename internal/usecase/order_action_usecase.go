@@ -13,12 +13,18 @@ import (
 )
 
 type orderActionUseCase struct {
-	orderRepo    domain.OrderRepository
-	shipmentRepo domain.ShipmentRepository
-	paymentRepo  domain.PaymentRepository
-	vendorRepo   domain.VendorRepository
-	productRepo  domain.ProductRepository
-	rajaOngkir   domain.RajaOngkirProvider
+	orderRepo        domain.OrderRepository
+	shipmentRepo     domain.ShipmentRepository
+	paymentRepo      domain.PaymentRepository
+	refundRepo       domain.CustomerRefundRepository
+	returnReasonRepo domain.ReturnReasonRepository
+	vendorRepo       domain.VendorRepository
+	productRepo      domain.ProductRepository
+	rajaOngkir       domain.RajaOngkirProvider
+	storage          domain.StorageProvider
+	xenditRefund     domain.XenditRefundProvider
+	bankAccountRepo  domain.UserBankAccountRepository
+	financeRepo      domain.FinanceRepository
 }
 
 // NewOrderActionUseCase creates a new OrderActionUseCase.
@@ -26,17 +32,29 @@ func NewOrderActionUseCase(
 	orderRepo domain.OrderRepository,
 	shipmentRepo domain.ShipmentRepository,
 	paymentRepo domain.PaymentRepository,
+	refundRepo domain.CustomerRefundRepository,
+	returnReasonRepo domain.ReturnReasonRepository,
 	vendorRepo domain.VendorRepository,
 	productRepo domain.ProductRepository,
 	rajaOngkir domain.RajaOngkirProvider,
+	storage domain.StorageProvider,
+	xenditRefund domain.XenditRefundProvider,
+	bankAccountRepo domain.UserBankAccountRepository,
+	financeRepo domain.FinanceRepository,
 ) domain.OrderActionUseCase {
 	return &orderActionUseCase{
-		orderRepo:    orderRepo,
-		shipmentRepo: shipmentRepo,
-		paymentRepo:  paymentRepo,
-		vendorRepo:   vendorRepo,
-		productRepo:  productRepo,
-		rajaOngkir:   rajaOngkir,
+		orderRepo:        orderRepo,
+		shipmentRepo:     shipmentRepo,
+		paymentRepo:      paymentRepo,
+		refundRepo:       refundRepo,
+		returnReasonRepo: returnReasonRepo,
+		vendorRepo:       vendorRepo,
+		productRepo:      productRepo,
+		rajaOngkir:       rajaOngkir,
+		storage:          storage,
+		xenditRefund:     xenditRefund,
+		bankAccountRepo:  bankAccountRepo,
+		financeRepo:      financeRepo,
 	}
 }
 
@@ -102,10 +120,215 @@ func (uc *orderActionUseCase) CancelByCustomer(ctx context.Context, userID, orde
 		fmt.Printf("WARN: failed to restore stock for order %s: %v\n", orderID, err)
 	}
 
-	return &domain.CancelOrderResponse{
+	resp := &domain.CancelOrderResponse{
 		OrderID:     orderID,
 		OrderStatus: domain.OrderStatusCanceled,
 		CanceledAt:  time.Now(),
+	}
+
+	// Auto-refund for paid orders
+	if order.PaymentStatus == domain.PaymentStatusPaid {
+		refundInfo := uc.initiateAutoRefund(ctx, order, "Order canceled by customer")
+		if refundInfo != nil {
+			resp.RefundInfo = refundInfo
+		}
+	}
+
+	return resp, nil
+}
+
+func (uc *orderActionUseCase) RequestRefundByCustomer(ctx context.Context, userID, orderID uuid.UUID, req domain.CreateOrderRefundRequest) (*domain.CreateOrderRefundResponse, error) {
+	order, err := uc.orderRepo.FindByID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find order: %w", err)
+	}
+	if order == nil {
+		return nil, ErrOrderNotFound
+	}
+	if order.UserID != userID {
+		return nil, ErrOrderNotOwned
+	}
+
+	if !isOrderEligibleForRefundRequest(order) {
+		return nil, ErrOrderRefundNotEligible
+	}
+
+	if uc.refundRepo == nil || uc.returnReasonRepo == nil || uc.storage == nil {
+		return nil, fmt.Errorf("refund dependencies are not configured")
+	}
+
+	hasOpenRefund, err := uc.refundRepo.HasOpenRefundByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing refund request: %w", err)
+	}
+	if hasOpenRefund {
+		return nil, ErrRefundAlreadyRequested
+	}
+
+	invoice, err := uc.paymentRepo.FindInvoiceByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find payment invoice: %w", err)
+	}
+	if invoice == nil {
+		return nil, ErrInvoiceNotFound
+	}
+
+	returnReason, err := uc.returnReasonRepo.FindByID(ctx, req.ReturnReasonID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find return reason: %w", err)
+	}
+	if returnReason == nil {
+		return nil, ErrRefundReasonNotFound
+	}
+
+	channelCode := strings.TrimSpace(req.DestinationChannelCode)
+	if channelCode == "" {
+		channelCode = domain.PayoutChannelIDBCA
+	}
+
+	reason := strings.TrimSpace(returnReason.Reason)
+	description := strings.TrimSpace(req.Description)
+	var descriptionPtr *string
+	if description != "" {
+		descriptionPtr = &description
+	}
+
+	accountNumber := strings.TrimSpace(req.DestinationAccountNumber)
+	accountHolderName := strings.TrimSpace(req.DestinationAccountHolderName)
+	bankName := strings.TrimSpace(req.DestinationBankName)
+	if accountNumber == "" || accountHolderName == "" || bankName == "" {
+		return nil, ErrRefundDestinationRequired
+	}
+
+	evidences := make([]domain.CreateCustomerRefundEvidenceInput, 0, len(req.ImageObjectKeys)+1)
+	imageURLs := make([]string, 0, len(req.ImageObjectKeys))
+	for i, objectKey := range req.ImageObjectKeys {
+		key := strings.TrimSpace(objectKey)
+		if key == "" {
+			continue
+		}
+
+		info, err := uc.storage.HeadObject(ctx, key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify refund image object: %w", err)
+		}
+		if info == nil {
+			return nil, ErrRefundEvidenceNotUploaded
+		}
+
+		contentType := normalizeContentType(info.ContentType)
+		if !isRefundEvidenceImageContentType(contentType) {
+			return nil, ErrInvalidRefundEvidenceContentType
+		}
+		if info.ContentLength > RefundEvidenceMaxBytes {
+			return nil, ErrRefundEvidenceTooLarge
+		}
+
+		fileSize := int(info.ContentLength)
+		evidences = append(evidences, domain.CreateCustomerRefundEvidenceInput{
+			ObjectKey:     key,
+			MimeType:      contentType,
+			FileSizeBytes: fileSize,
+			MediaType:     "image",
+			SortOrder:     i,
+		})
+		imageURLs = append(imageURLs, uc.storage.GetURL(key))
+	}
+	if len(evidences) > 5 {
+		return nil, ErrTooManyRefundEvidenceImages
+	}
+
+	var videoURL *string
+	if req.VideoObjectKey != nil && strings.TrimSpace(*req.VideoObjectKey) != "" {
+		key := strings.TrimSpace(*req.VideoObjectKey)
+		info, err := uc.storage.HeadObject(ctx, key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify refund video object: %w", err)
+		}
+		if info == nil {
+			return nil, ErrRefundEvidenceNotUploaded
+		}
+
+		contentType := normalizeContentType(info.ContentType)
+		if !isRefundEvidenceVideoContentType(contentType) {
+			return nil, ErrInvalidRefundEvidenceContentType
+		}
+		if info.ContentLength > RefundEvidenceMaxBytes {
+			return nil, ErrRefundEvidenceTooLarge
+		}
+
+		fileSize := int(info.ContentLength)
+		evidences = append(evidences, domain.CreateCustomerRefundEvidenceInput{
+			ObjectKey:     key,
+			MimeType:      contentType,
+			FileSizeBytes: fileSize,
+			MediaType:     "video",
+			SortOrder:     len(evidences),
+		})
+		url := uc.storage.GetURL(key)
+		videoURL = &url
+	}
+
+	now := time.Now().UTC()
+	resp, err := uc.refundRepo.CreateRefundRequest(ctx, domain.CreateCustomerRefundInput{
+		OrderID:                       orderID,
+		PaymentInvoiceID:              invoice.ID,
+		Amount:                        order.GrandTotal,
+		ReturnReasonID:                req.ReturnReasonID,
+		Reason:                        reason,
+		Description:                   descriptionPtr,
+		RequestedBy:                   userID,
+		RequestedAt:                   now,
+		DestinationChannelCode:        channelCode,
+		DestinationBankName:           bankName,
+		DestinationAccountNumber:      accountNumber,
+		DestinationAccountHolderName:  accountHolderName,
+		DestinationAccountNumberLast4: maskAccountLast4(accountNumber),
+		Evidences:                     evidences,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if resp != nil {
+		resp.ImageURLs = imageURLs
+		resp.VideoURL = videoURL
+	}
+
+	return resp, nil
+}
+
+func (uc *orderActionUseCase) PresignRefundEvidenceByCustomer(ctx context.Context, userID, orderID uuid.UUID, req domain.PresignRefundEvidenceRequest) (*domain.PresignRefundEvidenceResponse, error) {
+	order, err := uc.orderRepo.FindByID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find order: %w", err)
+	}
+	if order == nil {
+		return nil, ErrOrderNotFound
+	}
+	if order.UserID != userID {
+		return nil, ErrOrderNotOwned
+	}
+	if uc.storage == nil {
+		return nil, fmt.Errorf("storage dependency is not configured")
+	}
+
+	ct := normalizeContentType(req.ContentType)
+	if !isAllowedRefundEvidenceContentType(ct) {
+		return nil, ErrInvalidRefundEvidenceContentType
+	}
+
+	objectKey := fmt.Sprintf("refund-evidences/%s/%s/%s", orderID.String(), time.Now().Format("2006/01/02"), uuid.New().String())
+	uploadURL, err := uc.storage.GeneratePresignedUploadURL(ctx, objectKey, ct, PresignedUploadExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refund evidence presigned upload URL: %w", err)
+	}
+
+	return &domain.PresignRefundEvidenceResponse{
+		UploadURL:   uploadURL,
+		ObjectKey:   objectKey,
+		ContentType: ct,
+		ExpiresIn:   int(PresignedUploadExpiry.Seconds()),
 	}, nil
 }
 
@@ -133,12 +356,13 @@ func (uc *orderActionUseCase) GetOrderDetail(ctx context.Context, userID, orderI
 	items := make([]domain.CustomerOrderDetailItem, 0, len(rawItems))
 	for _, it := range rawItems {
 		items = append(items, domain.CustomerOrderDetailItem{
-			Name:     it.ProductNameSnapshot,
-			Variant:  it.SKUSnapshot,
-			ImageURL: imageMap[it.ProductVariantID],
-			Price:    it.UnitPrice,
-			Qty:      it.Qty,
-			Subtotal: it.LineTotal,
+			OrderItemID: it.ID,
+			Name:        it.ProductNameSnapshot,
+			Variant:     it.SKUSnapshot,
+			ImageURL:    imageMap[it.ProductVariantID],
+			Price:       it.UnitPrice,
+			Qty:         it.Qty,
+			Subtotal:    it.LineTotal,
 		})
 	}
 
@@ -146,7 +370,8 @@ func (uc *orderActionUseCase) GetOrderDetail(ctx context.Context, userID, orderI
 	store := domain.CustomerOrderDetailStore{VendorID: order.VendorID}
 	vendor, err := uc.vendorRepo.FindByID(ctx, order.VendorID)
 	if err == nil && vendor != nil {
-		store.Name = vendor.DisplayName
+		store.Name = vendorDisplayNameOrEmpty(vendor)
+		store.OwnerUserID = vendor.OwnerUserID
 	}
 
 	// Parse recipient address.
@@ -196,6 +421,53 @@ func (uc *orderActionUseCase) GetOrderDetail(ctx context.Context, userID, orderI
 		CanContact:  order.OrderStatus != domain.OrderStatusPendingPayment && order.OrderStatus != domain.OrderStatusCanceled,
 	}
 
+	// Build refund info (if any) — applies to canceled, received, and completed orders.
+	var refundInfo *domain.CustomerOrderDetailRefund
+	if order.OrderStatus == domain.OrderStatusCanceled ||
+		order.OrderStatus == domain.OrderStatusReceived ||
+		order.OrderStatus == domain.OrderStatusCompleted {
+		refundDetail, _ := uc.refundRepo.FindLatestByOrderID(ctx, orderID)
+		if refundDetail != nil {
+			method := ""
+			if refundDetail.RefundMethod != nil {
+				method = *refundDetail.RefundMethod
+			}
+			info := &domain.CustomerOrderDetailRefund{
+				RefundID:     refundDetail.ID,
+				Status:       refundDetail.Status,
+				RefundMethod: method,
+				Amount:       refundDetail.Amount,
+			}
+			switch refundDetail.Status {
+			case domain.RefundStatusAwaitingDestination:
+				info.Message = "Silakan pilih rekening tujuan untuk refund"
+				actions.NeedsRefundDestination = true
+			case domain.RefundStatusProcessing:
+				info.Message = "Refund sedang diproses"
+			case domain.RefundStatusRequested:
+				info.Message = "Refund sedang ditinjau"
+			case domain.RefundStatusProcessed:
+				info.Message = "Refund telah berhasil diproses"
+			case domain.RefundStatusRejected:
+				info.Message = "Refund ditolak"
+			default:
+				info.Message = "Refund sedang diproses"
+			}
+			if refundDetail.DestinationBankName != nil {
+				info.DestinationBankName = *refundDetail.DestinationBankName
+			}
+			if refundDetail.DestinationAccountNumberLast4 != nil {
+				info.DestinationAccountNumberLast4 = *refundDetail.DestinationAccountNumberLast4
+			}
+			refundInfo = info
+		}
+
+		// Set CanRefund: order is eligible and no open refund exists yet.
+		if isOrderEligibleForRefundRequest(order) && refundDetail == nil {
+			actions.CanRefund = true
+		}
+	}
+
 	return &domain.CustomerOrderDetailResponse{
 		Shipping: shipping,
 		Address:  address,
@@ -207,6 +479,8 @@ func (uc *orderActionUseCase) GetOrderDetail(ctx context.Context, userID, orderI
 		},
 		Order: domain.CustomerOrderDetailMeta{
 			OrderNo:       order.OrderNo,
+			Status:        order.OrderStatus,
+			PaymentStatus: order.PaymentStatus,
 			OrderTime:     order.PlacedAt,
 			PaymentTime:   paidAt,
 			ShippingTime:  shippedAt,
@@ -219,6 +493,7 @@ func (uc *orderActionUseCase) GetOrderDetail(ctx context.Context, userID, orderI
 			GrandTotal:  order.GrandTotal,
 		},
 		Actions: actions,
+		Refund:  refundInfo,
 	}, nil
 }
 
@@ -431,11 +706,12 @@ func (uc *orderActionUseCase) ListByCustomer(ctx context.Context, userID uuid.UU
 		}
 
 		result = append(result, domain.CustomerOrderListItem{
-			OrderID:      order.ID,
-			Items:        items,
-			TotalPayment: order.GrandTotal,
-			OrderDate:    order.PlacedAt,
-			Status:       order.OrderStatus,
+			OrderID:       order.ID,
+			Items:         items,
+			TotalPayment:  order.GrandTotal,
+			OrderDate:     order.PlacedAt,
+			Status:        order.OrderStatus,
+			PaymentStatus: order.PaymentStatus,
 		})
 	}
 
@@ -446,6 +722,16 @@ func (uc *orderActionUseCase) ListOrderStatuses(_ context.Context) []string {
 	result := make([]string, len(domain.OrderStatuses))
 	copy(result, domain.OrderStatuses)
 	return result
+}
+
+func isOrderEligibleForRefundRequest(order *domain.Order) bool {
+	if order == nil {
+		return false
+	}
+	if order.PaymentStatus != domain.PaymentStatusPaid {
+		return false
+	}
+	return order.OrderStatus == domain.OrderStatusReceived || order.OrderStatus == domain.OrderStatusCompleted
 }
 
 // --- helpers ---
@@ -658,4 +944,178 @@ func isValidOrderStatus(status string) bool {
 		}
 	}
 	return false
+}
+
+// initiateAutoRefund creates a refund record and, for gateway-eligible payment methods,
+// calls the Xendit Refund API. For VA payments, if the customer has a default bank account
+// it stays awaiting_destination so they can confirm destination.
+// This is a best-effort helper — errors are logged but do not fail the parent operation.
+func (uc *orderActionUseCase) initiateAutoRefund(ctx context.Context, order *domain.Order, reason string) *domain.CancelOrderRefundInfo {
+	invoice, err := uc.paymentRepo.FindInvoiceByOrderID(ctx, order.ID)
+	if err != nil || invoice == nil {
+		fmt.Printf("WARN: failed to find invoice for order %s: %v\n", order.ID, err)
+		return nil
+	}
+
+	strategy := resolveRefundStrategy(invoice.PaymentMethod, invoice.PaymentChannel)
+
+	refundInput := domain.CreateCustomerRefundInput{
+		OrderID:          order.ID,
+		PaymentInvoiceID: invoice.ID,
+		Amount:           order.GrandTotal,
+		Reason:           reason,
+		RequestedBy:      order.UserID,
+		RequestedAt:      time.Now().UTC(),
+	}
+
+	switch {
+	case strategy == refundStrategyQRGateway || strategy == refundStrategyEWalletGateway:
+		// Gateway refund via Xendit Refund API
+		refundInput.Status = domain.RefundStatusProcessing
+		refundInput.RefundMethod = domain.RefundMethodGateway
+
+		resp, err := uc.refundRepo.CreateRefundRequest(ctx, refundInput)
+		if err != nil {
+			fmt.Printf("WARN: failed to create refund record for order %s: %v\n", order.ID, err)
+			return nil
+		}
+
+		// Call Xendit Refund API
+		gatewayInfo := uc.callXenditGatewayRefund(ctx, order, invoice, resp.RefundID)
+		if gatewayInfo != nil {
+			return gatewayInfo
+		}
+
+		return &domain.CancelOrderRefundInfo{
+			RefundID:     resp.RefundID,
+			RefundMethod: domain.RefundMethodGateway,
+			Status:       domain.RefundStatusProcessing,
+			Message:      "Refund sedang diproses melalui metode pembayaran asal",
+		}
+
+	default:
+		// VA / bank transfer / other: disbursement path
+		refundInput.Status = domain.RefundStatusAwaitingDestination
+		refundInput.RefundMethod = domain.RefundMethodDisbursement
+
+		resp, err := uc.refundRepo.CreateRefundRequest(ctx, refundInput)
+		if err != nil {
+			fmt.Printf("WARN: failed to create refund record for order %s: %v\n", order.ID, err)
+			return nil
+		}
+
+		return &domain.CancelOrderRefundInfo{
+			RefundID:     resp.RefundID,
+			RefundMethod: domain.RefundMethodDisbursement,
+			Status:       domain.RefundStatusAwaitingDestination,
+			Message:      "Silakan pilih rekening tujuan untuk refund",
+		}
+	}
+}
+
+// callXenditGatewayRefund calls the Xendit Refund API for gateway-eligible payments.
+func (uc *orderActionUseCase) callXenditGatewayRefund(ctx context.Context, order *domain.Order, invoice *domain.PaymentInvoice, refundID uuid.UUID) *domain.CancelOrderRefundInfo {
+	vendor, err := uc.vendorRepo.FindByID(ctx, order.VendorID)
+	if err != nil || vendor == nil || vendor.XenditAccountID == nil {
+		fmt.Printf("WARN: cannot get vendor xendit account for order %s: %v\n", order.ID, err)
+		return nil
+	}
+
+	referenceID := fmt.Sprintf("refund-%s", refundID.String())
+	idempotencyKey := fmt.Sprintf("%s-%d", referenceID, time.Now().UTC().UnixNano())
+
+	xenditReq := domain.XenditRefundRequest{
+		InvoiceID:   strings.TrimSpace(derefString(invoice.XenditInvoiceID)),
+		ReferenceID: referenceID,
+		Amount:      order.GrandTotal,
+		Currency:    invoice.Currency,
+		Reason:      "CANCELLATION",
+	}
+
+	resp, err := uc.xenditRefund.CreateRefund(ctx, *vendor.XenditAccountID, idempotencyKey, xenditReq)
+	if err != nil {
+		fmt.Printf("WARN: xendit refund API failed for order %s: %v\n", order.ID, err)
+		return nil
+	}
+
+	// Update refund record with xendit refund ID
+	if err := uc.financeRepo.SetRefundGatewayInitiated(ctx, refundID, resp.ID, domain.RefundMethodGateway, referenceID); err != nil {
+		fmt.Printf("WARN: failed to update refund gateway initiated for order %s: %v\n", order.ID, err)
+	}
+
+	// Update order payment_status to refunded if already succeeded
+	if resp.Status == domain.XenditRefundStatusSucceeded {
+		if err := uc.financeRepo.UpdateOrderPaymentStatus(ctx, order.ID, domain.PaymentStatusRefunded); err != nil {
+			fmt.Printf("WARN: failed to update payment status for order %s: %v\n", order.ID, err)
+		}
+	}
+
+	return nil
+}
+
+func (uc *orderActionUseCase) SubmitRefundDestination(ctx context.Context, userID, orderID uuid.UUID, req domain.SubmitRefundDestinationRequest) (*domain.SubmitRefundDestinationResponse, error) {
+	order, err := uc.orderRepo.FindByID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find order: %w", err)
+	}
+	if order == nil {
+		return nil, ErrOrderNotFound
+	}
+	if order.UserID != userID {
+		return nil, ErrOrderNotOwned
+	}
+
+	refund, err := uc.refundRepo.FindAwaitingDestinationByOrderAndUser(ctx, orderID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find refund: %w", err)
+	}
+	if refund == nil {
+		return nil, ErrRefundNotFound
+	}
+
+	var channelCode, bankName, accountNumber, accountHolderName, accountLast4 string
+	var bankAccountID *uuid.UUID
+
+	if req.UserBankAccountID != nil {
+		// Use existing saved bank account
+		ba, err := uc.bankAccountRepo.FindByID(ctx, *req.UserBankAccountID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find bank account: %w", err)
+		}
+		if ba == nil {
+			return nil, ErrBankAccountNotFound
+		}
+		if ba.UserID != userID {
+			return nil, ErrBankAccountNotOwned
+		}
+		channelCode = ba.ChannelCode
+		bankName = ba.BankName
+		accountNumber = ba.AccountNumber
+		accountHolderName = ba.AccountHolderName
+		accountLast4 = ba.AccountLast4
+		bankAccountID = req.UserBankAccountID
+	} else {
+		// Manual entry
+		channelCode = strings.TrimSpace(req.DestinationChannelCode)
+		bankName = strings.TrimSpace(req.DestinationBankName)
+		accountNumber = strings.TrimSpace(req.DestinationAccountNumber)
+		accountHolderName = strings.TrimSpace(req.DestinationAccountHolderName)
+		if accountNumber == "" || accountHolderName == "" {
+			return nil, ErrRefundDestinationRequired
+		}
+		accountLast4 = accountNumber
+		if len(accountLast4) > 4 {
+			accountLast4 = accountLast4[len(accountLast4)-4:]
+		}
+	}
+
+	if err := uc.refundRepo.SubmitRefundDestination(ctx, refund.ID, channelCode, bankName, accountNumber, accountHolderName, accountLast4, bankAccountID); err != nil {
+		return nil, fmt.Errorf("failed to submit refund destination: %w", err)
+	}
+
+	return &domain.SubmitRefundDestinationResponse{
+		RefundID: refund.ID,
+		Status:   domain.RefundStatusRequested,
+		Message:  "Refund destination submitted, pending processing",
+	}, nil
 }

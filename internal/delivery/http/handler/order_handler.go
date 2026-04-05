@@ -66,6 +66,93 @@ func (h *OrderActionHandler) Cancel(c *gin.Context) {
 	response.OK(c, "order canceled successfully", res)
 }
 
+// RequestRefund handles POST /api/v1/users/orders/:orderId/refunds.
+func (h *OrderActionHandler) RequestRefund(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("orderId"))
+	if err != nil {
+		response.BadRequest(c, "invalid order ID", "orderId must be a valid UUID")
+		return
+	}
+
+	var req domain.CreateOrderRefundRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	res, err := h.useCase.RequestRefundByCustomer(c.Request.Context(), userID, orderID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "refund request submitted successfully", res)
+}
+
+// SubmitRefundDestination handles POST /api/v1/users/orders/:orderId/refunds/destination.
+func (h *OrderActionHandler) SubmitRefundDestination(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("orderId"))
+	if err != nil {
+		response.BadRequest(c, "invalid order ID", "orderId must be a valid UUID")
+		return
+	}
+
+	var req domain.SubmitRefundDestinationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	res, err := h.useCase.SubmitRefundDestination(c.Request.Context(), userID, orderID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "refund destination submitted", res)
+}
+
+// PresignRefundEvidence handles POST /api/v1/users/orders/:orderId/refunds/evidence/presign.
+func (h *OrderActionHandler) PresignRefundEvidence(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	orderID, err := uuid.Parse(c.Param("orderId"))
+	if err != nil {
+		response.BadRequest(c, "invalid order ID", "orderId must be a valid UUID")
+		return
+	}
+
+	var req domain.PresignRefundEvidenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	res, err := h.useCase.PresignRefundEvidenceByCustomer(c.Request.Context(), userID, orderID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "refund evidence upload URL generated", res)
+}
+
 // GetOrderDetail handles GET /api/v1/users/orders/:orderId.
 func (h *OrderActionHandler) GetOrderDetail(c *gin.Context) {
 	userID, ok := extractUserID(c)

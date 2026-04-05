@@ -92,6 +92,14 @@ func Initialize() (*App, error) {
 
 	log.Println("xendit payout provider initialized")
 
+	// Initialize Xendit Refund provider
+	xenditRefundProvider, err := newXenditRefundProvider(cfg.Xendit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize xendit refund provider: %w", err)
+	}
+
+	log.Println("xendit refund provider initialized")
+
 	fieldCipher, err := newSensitiveDataCipher(cfg.Sensitive)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize sensitive data protection: %w", err)
@@ -141,11 +149,21 @@ func Initialize() (*App, error) {
 	adminVendorUseCase := usecase.NewAdminVendorUseCase(vendorRepo, userRepo, storageProvider, xenPlatformProvider)
 	adminVendorHandler := handler.NewAdminVendorHandler(adminVendorUseCase)
 
+	// Address management (shared by customer + vendor)
+	addressRepo := repository.NewAddressRepository(db)
+	addressUseCase := usecase.NewAddressUseCase(addressRepo)
+	addressHandler := handler.NewAddressHandler(addressUseCase)
+
+	// User Bank Account management
+	userBankAccountRepo := repository.NewUserBankAccountRepository(db, fieldCipher)
+	userBankAccountUseCase := usecase.NewUserBankAccountUseCase(userBankAccountRepo)
+	userBankAccountHandler := handler.NewUserBankAccountHandler(userBankAccountUseCase)
+
 	// Product & catalog feature
 	categoryRepo := repository.NewCategoryRepository(db)
 	productRepo := repository.NewProductRepository(db)
 
-	productUseCase := usecase.NewProductUseCase(productRepo, vendorRepo, categoryRepo, storageProvider)
+	productUseCase := usecase.NewProductUseCase(productRepo, vendorRepo, categoryRepo, addressRepo, storageProvider)
 	productHandler := handler.NewProductHandler(productUseCase)
 
 	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, productRepo, storageProvider)
@@ -167,8 +185,8 @@ func Initialize() (*App, error) {
 	wishlistHandler := handler.NewWishlistHandler(wishlistUseCase)
 
 	// Finance feature
-	financeRepo := repository.NewFinanceRepository(db)
-	financeUseCase := usecase.NewFinanceUseCase(financeRepo)
+	financeRepo := repository.NewFinanceRepository(db, fieldCipher)
+	financeUseCase := usecase.NewFinanceUseCase(financeRepo, xenditPayoutProvider)
 	financeHandler := handler.NewFinanceHandler(financeUseCase)
 
 	// Notifications feature
@@ -205,11 +223,6 @@ func Initialize() (*App, error) {
 	vendorVoucherRepo := repository.NewVendorVoucherRepository(db)
 	vendorVoucherUseCase := usecase.NewVendorVoucherUseCase(vendorVoucherRepo, productRepo)
 	vendorVoucherHandler := handler.NewVendorVoucherHandler(vendorVoucherUseCase)
-
-	// Address management (shared by customer + vendor)
-	addressRepo := repository.NewAddressRepository(db)
-	addressUseCase := usecase.NewAddressUseCase(addressRepo)
-	addressHandler := handler.NewAddressHandler(addressUseCase)
 
 	// Shipping location lookup (RajaOngkir)
 	rajaOngkirProvider, err := newRajaOngkirProvider(cfg.RajaOngkir)
@@ -248,6 +261,7 @@ func Initialize() (*App, error) {
 
 	orderRepo := repository.NewOrderRepository(db)
 	paymentRepo := repository.NewPaymentRepository(db)
+	customerRefundRepo := repository.NewCustomerRefundRepository(db, fieldCipher)
 
 	// Admin payment listing
 	adminPaymentUseCase := usecase.NewAdminPaymentUseCase(paymentRepo)
@@ -277,19 +291,24 @@ func Initialize() (*App, error) {
 	shipmentRepo := repository.NewShipmentRepository(db)
 	checkoutUseCase := usecase.NewCheckoutUseCase(cartRepo, productRepo, vendorRepo, orderRepo, paymentRepo, ledgerRepo, userRepo, addressRepo, vendorCourierRepo, shipmentRepo, rajaOngkirProvider, storageProvider, xenditInvoiceProvider, cfg.App.FrontendURL, cfg.Xendit.WebhookURL)
 	checkoutHandler := handler.NewCheckoutHandler(checkoutUseCase, cfg.Xendit.WebhookVerificationToken, cfg.Xendit.Bypass)
-	orderActionUseCase := usecase.NewOrderActionUseCase(orderRepo, shipmentRepo, paymentRepo, vendorRepo, productRepo, rajaOngkirProvider)
+	orderActionUseCase := usecase.NewOrderActionUseCase(orderRepo, shipmentRepo, paymentRepo, customerRefundRepo, returnReasonRepo, vendorRepo, productRepo, rajaOngkirProvider, storageProvider, xenditRefundProvider, userBankAccountRepo, financeRepo)
 	orderActionHandler := handler.NewOrderActionHandler(orderActionUseCase)
 	orderSettlementScheduler := usecase.NewOrderSettlementScheduler(orderRepo)
 
 	// Vendor Order management
 	vendorOrderRepo := repository.NewVendorOrderRepository(db)
-	vendorOrderUseCase := usecase.NewVendorOrderUseCase(vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, vendorRepo, rajaOngkirProvider)
+	vendorOrderUseCase := usecase.NewVendorOrderUseCase(vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, vendorRepo, rajaOngkirProvider, xenditRefundProvider, customerRefundRepo, userBankAccountRepo, financeRepo)
 	vendorOrderHandler := handler.NewVendorOrderHandler(vendorOrderUseCase)
 
 	reviewRepo := repository.NewReviewRepository(db)
+
+	// Store detail (public endpoint)
+	storeUseCase := usecase.NewStoreUseCase(vendorRepo, productRepo, vendorBannerRepo, reviewRepo, storageProvider)
+	storeHandler := handler.NewStoreHandler(storeUseCase)
+
 	reviewUseCase := usecase.NewReviewUseCase(reviewRepo, orderRepo, productRepo, storageProvider)
 	reviewHandler := handler.NewReviewHandler(reviewUseCase)
-	xenditWebhookHandler := handler.NewXenditWebhookHandler(vendorUseCase, cfg.Xendit.WebhookVerificationToken)
+	xenditWebhookHandler := handler.NewXenditWebhookHandler(vendorUseCase, financeUseCase, cfg.Xendit.WebhookVerificationToken)
 
 	// IMAP inbox poller (optional, enabled via IMAP_ENABLED=true)
 	var imapWorker *usecase.IMAPWorker
@@ -346,7 +365,9 @@ func Initialize() (*App, error) {
 		shippingHandler,
 		vendorCourierHandler,
 		vendorOrderHandler,
+		storeHandler,
 		adminPaymentHandler,
+		userBankAccountHandler,
 		wsHandler,
 		cfg.JWT.Secret,
 		cfg.App.CORSAllowedOrigins,
@@ -412,6 +433,27 @@ func newSensitiveDataCipher(cfg config.SensitiveDataConfig) (*sensitivedata.Fiel
 // newRajaOngkirProvider creates the RajaOngkir API client from config.
 func newRajaOngkirProvider(cfg config.RajaOngkirConfig) (domain.RajaOngkirProvider, error) {
 	return shipping.NewRajaOngkirClient(cfg)
+}
+
+// newXenditRefundProvider creates the Xendit Refund API client from config.
+func newXenditRefundProvider(cfg config.XenditConfig) (domain.XenditRefundProvider, error) {
+	if cfg.Bypass {
+		return &noopXenditRefundClient{}, nil
+	}
+	return payment.NewXenditRefundClient(cfg)
+}
+
+// noopXenditRefundClient is a no-op implementation for local development.
+type noopXenditRefundClient struct{}
+
+func (n *noopXenditRefundClient) CreateRefund(ctx context.Context, forUserID string, idempotencyKey string, req domain.XenditRefundRequest) (*domain.XenditRefundResponse, error) {
+	return &domain.XenditRefundResponse{
+		ID:          "refund_noop_" + req.ReferenceID,
+		Status:      domain.XenditRefundStatusPending,
+		ReferenceID: req.ReferenceID,
+		Amount:      req.Amount,
+		Currency:    req.Currency,
+	}, nil
 }
 
 // Close cleans up application resources.

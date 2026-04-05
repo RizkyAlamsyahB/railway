@@ -28,6 +28,7 @@ type cartItemModel struct {
 	CartID           string    `gorm:"column:cart_id"`
 	ProductVariantID string    `gorm:"column:product_variant_id"`
 	Qty              int       `gorm:"column:qty"`
+	IsSelected       bool      `gorm:"column:is_selected"`
 	CreatedAt        time.Time `gorm:"column:created_at"`
 }
 
@@ -61,6 +62,22 @@ func (r *cartRepository) Create(ctx context.Context, cart *domain.Cart) error {
 func (r *cartRepository) FindItemsByCartID(ctx context.Context, cartID uuid.UUID) ([]domain.CartItem, error) {
 	var models []cartItemModel
 	if err := r.db.WithContext(ctx).Where("cart_id = ?", cartID.String()).Order("created_at ASC").Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]domain.CartItem, len(models))
+	for i, m := range models {
+		items[i] = *toDomainCartItem(&m)
+	}
+	return items, nil
+}
+
+func (r *cartRepository) FindSelectedItemsByCartID(ctx context.Context, cartID uuid.UUID) ([]domain.CartItem, error) {
+	var models []cartItemModel
+	if err := r.db.WithContext(ctx).
+		Where("cart_id = ? AND is_selected = ?", cartID.String(), true).
+		Order("created_at ASC").
+		Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -149,6 +166,29 @@ func (r *cartRepository) UpdateItemQty(ctx context.Context, itemID uuid.UUID, qt
 	})
 }
 
+func (r *cartRepository) UpdateItemSelection(ctx context.Context, itemID uuid.UUID, isSelected bool) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var model cartItemModel
+		if err := tx.Where("id = ?", itemID.String()).First(&model).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&cartItemModel{}).
+			Where("id = ?", itemID.String()).
+			Update("is_selected", isSelected).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&cartModel{}).
+			Where("id = ?", model.CartID).
+			Update("updated_at", time.Now()).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
 func (r *cartRepository) DeleteItem(ctx context.Context, itemID uuid.UUID) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Get the item to find its cart_id.
@@ -191,13 +231,29 @@ func (r *cartRepository) ClearItems(ctx context.Context, cartID uuid.UUID) error
 	})
 }
 
-func (r *cartRepository) UpdateStatus(ctx context.Context, cartID uuid.UUID, status string) error {
-	return r.db.WithContext(ctx).Model(&cartModel{}).
-		Where("id = ?", cartID.String()).
-		Updates(map[string]interface{}{
-			"status":     status,
-			"updated_at": time.Now(),
-		}).Error
+func (r *cartRepository) DeleteItemsByIDs(ctx context.Context, cartID uuid.UUID, itemIDs []uuid.UUID) error {
+	if len(itemIDs) == 0 {
+		return nil
+	}
+
+	ids := make([]string, 0, len(itemIDs))
+	for _, id := range itemIDs {
+		ids = append(ids, id.String())
+	}
+
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("cart_id = ? AND id IN ?", cartID.String(), ids).Delete(&cartItemModel{}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&cartModel{}).
+			Where("id = ?", cartID.String()).
+			Update("updated_at", time.Now()).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 // Mapper helpers.
@@ -231,6 +287,7 @@ func toCartItemModel(i *domain.CartItem) cartItemModel {
 		CartID:           i.CartID.String(),
 		ProductVariantID: i.ProductVariantID.String(),
 		Qty:              i.Qty,
+		IsSelected:       i.IsSelected,
 		CreatedAt:        i.CreatedAt,
 	}
 }
@@ -245,6 +302,7 @@ func toDomainCartItem(m *cartItemModel) *domain.CartItem {
 		CartID:           cartID,
 		ProductVariantID: variantID,
 		Qty:              m.Qty,
+		IsSelected:       m.IsSelected,
 		CreatedAt:        m.CreatedAt,
 	}
 }

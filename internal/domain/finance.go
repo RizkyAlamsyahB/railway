@@ -81,7 +81,7 @@ type FinanceTransactionItem struct {
 	Date     time.Time `json:"date"`
 	Invoice  string    `json:"invoice"`
 	Customer string    `json:"customer"`
-	Vendor   string    `json:"vendor"`
+	Vendor   *string   `json:"vendor"`
 	Method   *string   `json:"method,omitempty"`
 	Amount   float64   `json:"amount"`
 	Status   string    `json:"status"`
@@ -100,8 +100,8 @@ type FinanceTransactionSummary struct {
 // FinancePayoutItem represents a row in the settlement & payout table.
 type FinancePayoutItem struct {
 	ID             uuid.UUID `json:"id"`
-	Vendor         string    `json:"vendor"`
-	VendorType     string    `json:"vendor_type"`
+	Vendor         *string   `json:"vendor"`
+	VendorType     *string   `json:"vendor_type"`
 	OrderCompleted int       `json:"order_completed"`
 	Nominal        float64   `json:"nominal"`
 	Commission     float64   `json:"commission"`
@@ -123,7 +123,7 @@ type FinancePayoutSummary struct {
 type FinanceRefundItem struct {
 	ID       uuid.UUID `json:"id"`
 	Customer string    `json:"customer"`
-	Vendor   string    `json:"vendor"`
+	Vendor   *string   `json:"vendor"`
 	OrderID  uuid.UUID `json:"order_id"`
 	Reason   *string   `json:"reason,omitempty"`
 	Amount   float64   `json:"amount"`
@@ -155,7 +155,13 @@ type PayoutRecord struct {
 
 // UpdateRefundStatusRequest is the input DTO for updating a refund status.
 type UpdateRefundStatusRequest struct {
-	Status string `json:"status" binding:"required"`
+	Status                            string `json:"status" binding:"required"`
+	DestinationChannelCode            string `json:"destination_channel_code,omitempty"`
+	DestinationBankName               string `json:"destination_bank_name,omitempty"`
+	DestinationAccountNumber          string `json:"destination_account_number,omitempty"`
+	DestinationAccountHolderName      string `json:"destination_account_holder_name,omitempty"`
+	UseDisbursementFallbackForQR      *bool  `json:"use_disbursement_fallback_for_qr,omitempty"`
+	UseDisbursementFallbackForEWallet *bool  `json:"use_disbursement_fallback_for_ewallet,omitempty"`
 }
 
 // UpdatePayoutStatusRequest is the input DTO for updating a payout status.
@@ -167,6 +173,33 @@ type UpdatePayoutStatusRequest struct {
 type StatusActionResponse struct {
 	ID     uuid.UUID `json:"id"`
 	Status string    `json:"status"`
+}
+
+// RefundDisbursementContext holds data required to process refund payout.
+type RefundDisbursementContext struct {
+	RefundID                     uuid.UUID
+	OrderID                      uuid.UUID
+	Amount                       float64
+	Currency                     string
+	Status                       string
+	PaymentMethod                *string
+	PaymentChannel               *string
+	VendorXenditAccountID        *string
+	PayoutReferenceID            *string
+	PayoutStatus                 *string
+	DestinationChannelCode       *string
+	DestinationBankName          *string
+	DestinationAccountNumber     *string
+	DestinationAccountHolderName *string
+	DestinationAccountLast4      *string
+}
+
+// RefundVendorBalanceSnapshot is a pre-check snapshot for refund processing.
+type RefundVendorBalanceSnapshot struct {
+	Sufficient      bool
+	BalanceSource   string
+	RequiredAmount  float64
+	AvailableAmount float64
 }
 
 // --- Repository Interface ---
@@ -186,9 +219,18 @@ type FinanceRepository interface {
 	GetRefundSummary(ctx context.Context, period FinancePeriod) (*FinanceRefundSummary, error)
 
 	GetRefundRecord(ctx context.Context, refundID uuid.UUID) (*RefundRecord, error)
+	GetRefundDisbursementContext(ctx context.Context, refundID uuid.UUID) (*RefundDisbursementContext, error)
+	GetRefundVendorBalanceSnapshot(ctx context.Context, orderID uuid.UUID) (*RefundVendorBalanceSnapshot, error)
 	GetPayoutRecord(ctx context.Context, payoutID uuid.UUID) (*PayoutRecord, error)
+	IsOrderSettlementCompleted(ctx context.Context, orderID uuid.UUID) (bool, error)
+	SetRefundPayoutInitiated(ctx context.Context, refundID uuid.UUID, actorID uuid.UUID, strategy string, referenceID string, channelCode string, bankName string, accountHolderName string, accountLast4 string, payoutID *string, payoutStatus string) error
+	SetRefundPayoutFailed(ctx context.Context, refundID uuid.UUID, payoutStatus string, failedReason string) error
+	ApplyRefundPayoutWebhookUpdate(ctx context.Context, referenceID string, payoutID string, payoutStatus string, failedReason *string, completedAt *time.Time) (bool, error)
 	UpdateRefundStatus(ctx context.Context, refundID uuid.UUID, status string, actorID uuid.UUID) (*StatusActionResponse, error)
 	UpdatePayoutStatus(ctx context.Context, payoutID uuid.UUID, status string, actorID uuid.UUID) (*StatusActionResponse, error)
+	SetRefundGatewayInitiated(ctx context.Context, refundID uuid.UUID, xenditRefundID string, refundMethod string, payoutReferenceID string) error
+	ApplyRefundGatewayWebhookUpdate(ctx context.Context, referenceID string, xenditRefundID string, status string, failureCode *string) (bool, error)
+	UpdateOrderPaymentStatus(ctx context.Context, orderID uuid.UUID, paymentStatus string) error
 }
 
 // --- Usecase Interface ---
@@ -208,6 +250,8 @@ type FinanceUseCase interface {
 	ExportPayouts(ctx context.Context, params FinanceListParams) ([]FinancePayoutItem, error)
 	ExportRefunds(ctx context.Context, params FinanceListParams) ([]FinanceRefundItem, error)
 
-	UpdateRefundStatus(ctx context.Context, refundID uuid.UUID, status string, actorID uuid.UUID) (*StatusActionResponse, error)
+	UpdateRefundStatus(ctx context.Context, refundID uuid.UUID, req UpdateRefundStatusRequest, actorID uuid.UUID) (*StatusActionResponse, error)
 	UpdatePayoutStatus(ctx context.Context, payoutID uuid.UUID, status string, actorID uuid.UUID) (*StatusActionResponse, error)
+	HandleRefundPayoutWebhook(ctx context.Context, payload XenditPayoutWebhookPayload) error
+	HandleRefundGatewayWebhook(ctx context.Context, payload XenditRefundWebhookPayload) error
 }

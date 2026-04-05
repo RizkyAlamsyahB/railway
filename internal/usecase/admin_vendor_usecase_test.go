@@ -34,16 +34,38 @@ func setupAdminVendorUseCase(t *testing.T) (
 func dummyVendor(id uuid.UUID, status string) *domain.Vendor {
 	ownerID := uuid.New()
 	now := time.Now()
+	vendorType := domain.VendorTypeSouvenirStore
+	displayName := "Toko Oleh-Oleh Haji"
+	provinceID := "31"
+	provinceName := "DKI Jakarta"
+	cityID := "3171"
+	cityName := "Jakarta Pusat"
+	districtID := "317101"
+	districtName := "Menteng"
+	subdistrictID := "3171011001"
+	subdistrictName := "Pegangsaan"
+	postalCode := "10320"
+	addressLine := "Jl. Pegangsaan Barat No. 12"
 	return &domain.Vendor{
-		ID:                    id,
-		OwnerUserID:           ownerID,
-		VendorType:  domain.VendorTypeSouvenirStore,
-		DisplayName: "Toko Oleh-Oleh Haji",
-		LegalName:   ptrString("PT Toko Haji"),
-		Description: ptrString("Toko oleh-oleh haji terlengkap"),
-		Status:                status,
-		CreatedAt:             now,
-		UpdatedAt:             now,
+		ID:              id,
+		OwnerUserID:     ownerID,
+		VendorType:      &vendorType,
+		DisplayName:     &displayName,
+		LegalName:       ptrString("PT Toko Haji"),
+		Description:     ptrString("Toko oleh-oleh haji terlengkap"),
+		ProvinceID:      &provinceID,
+		ProvinceName:    &provinceName,
+		CityID:          &cityID,
+		CityName:        &cityName,
+		DistrictID:      &districtID,
+		DistrictName:    &districtName,
+		SubdistrictID:   &subdistrictID,
+		SubdistrictName: &subdistrictName,
+		PostalCode:      &postalCode,
+		AddressLine:     &addressLine,
+		Status:          status,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 }
 
@@ -85,22 +107,22 @@ func dummyDocuments(vendorID uuid.UUID) []domain.VendorDocument {
 	uploaderID := uuid.New()
 	return []domain.VendorDocument{
 		{
-			ID:                 uuid.New(),
-			VendorID:           vendorID,
-			DocType:            "owner_document_id",
-			FileURL:            "vendors/doc1.jpg",
-			MimeType:           ptrString("image/jpeg"),
-			UploadedBy:         &uploaderID,
-			CreatedAt:          now,
-			UpdatedAt:          now,
+			ID:         uuid.New(),
+			VendorID:   vendorID,
+			DocType:    "owner_document_id",
+			FileURL:    "vendors/doc1.jpg",
+			MimeType:   ptrString("image/jpeg"),
+			UploadedBy: &uploaderID,
+			CreatedAt:  now,
+			UpdatedAt:  now,
 		},
 		{
-			ID:                 uuid.New(),
-			VendorID:           vendorID,
-			DocType:            "store_photo",
-			FileURL:            "",
-			CreatedAt:          now,
-			UpdatedAt:          now,
+			ID:        uuid.New(),
+			VendorID:  vendorID,
+			DocType:   "store_photo",
+			FileURL:   "",
+			CreatedAt: now,
+			UpdatedAt: now,
 		},
 	}
 }
@@ -151,6 +173,9 @@ func TestAdminVendorList(t *testing.T) {
 				}
 				if items[0].OwnerName != "Owner Name" {
 					t.Errorf("expected owner name 'Owner Name', got %s", items[0].OwnerName)
+				}
+				if items[0].ProvinceName == nil || *items[0].ProvinceName != "DKI Jakarta" {
+					t.Errorf("expected province name DKI Jakarta, got %v", items[0].ProvinceName)
 				}
 				if items[0].XenditAccountID != nil {
 					t.Errorf("expected nil xendit_account_id for submitted vendor, got %v", *items[0].XenditAccountID)
@@ -315,6 +340,9 @@ func TestAdminVendorGetByID(t *testing.T) {
 				if resp.Documents[0].DownloadURL != "https://signed-url.example.com/doc1.jpg" {
 					t.Errorf("expected presigned download URL, got %s", resp.Documents[0].DownloadURL)
 				}
+				if resp.AddressLine == nil || *resp.AddressLine != "Jl. Pegangsaan Barat No. 12" {
+					t.Errorf("expected structured address line, got %v", resp.AddressLine)
+				}
 				if resp.Documents[1].DownloadURL != "" {
 					t.Errorf("expected empty download URL for non-uploaded doc, got %s", resp.Documents[1].DownloadURL)
 				}
@@ -379,13 +407,13 @@ func TestAdminVendorGetByID(t *testing.T) {
 				uploaderID := uuid.New()
 				docs := []domain.VendorDocument{
 					{
-						ID:                 uuid.New(),
-						VendorID:           vendorID,
-						DocType:            "owner_document_id",
-						FileURL:            "vendors/doc1.jpg",
-						UploadedBy:         &uploaderID,
-									CreatedAt:          time.Now(),
-						UpdatedAt:          time.Now(),
+						ID:         uuid.New(),
+						VendorID:   vendorID,
+						DocType:    "owner_document_id",
+						FileURL:    "vendors/doc1.jpg",
+						UploadedBy: &uploaderID,
+						CreatedAt:  time.Now(),
+						UpdatedAt:  time.Now(),
 					},
 				}
 

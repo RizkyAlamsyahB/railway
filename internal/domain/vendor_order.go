@@ -170,9 +170,10 @@ type ShipOrderRequest struct {
 
 // AcceptRejectOrderResponse is the output DTO for accept/reject actions.
 type AcceptRejectOrderResponse struct {
-	OrderID     uuid.UUID `json:"order_id"`
-	OrderStatus string    `json:"order_status"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	OrderID     uuid.UUID              `json:"order_id"`
+	OrderStatus string                 `json:"order_status"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+	RefundInfo  *CancelOrderRefundInfo `json:"refund_info,omitempty"`
 }
 
 // ShipOrderResponse is the output DTO for ship action (input resi).

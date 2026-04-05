@@ -3,21 +3,29 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/sensitivedata"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type financeRepository struct {
-	db *gorm.DB
+	db          *gorm.DB
+	fieldCipher *sensitivedata.FieldCipher
 }
 
 // NewFinanceRepository creates a new FinanceRepository backed by GORM.
-func NewFinanceRepository(db *gorm.DB) domain.FinanceRepository {
-	return &financeRepository{db: db}
+func NewFinanceRepository(db *gorm.DB, fieldCipher *sensitivedata.FieldCipher) domain.FinanceRepository {
+	return &financeRepository{
+		db:          db,
+		fieldCipher: fieldCipher,
+	}
 }
 
 type sumResult struct {
@@ -213,7 +221,7 @@ func (r *financeRepository) ListTransactions(ctx context.Context, period domain.
 		Date     time.Time      `gorm:"column:date"`
 		Invoice  string         `gorm:"column:invoice"`
 		Customer string         `gorm:"column:customer"`
-		Vendor   string         `gorm:"column:vendor"`
+		Vendor   *string        `gorm:"column:vendor"`
 		Method   sql.NullString `gorm:"column:method"`
 		Amount   float64        `gorm:"column:amount"`
 		Status   string         `gorm:"column:status"`
@@ -331,8 +339,8 @@ func (r *financeRepository) ListPayouts(ctx context.Context, period domain.Finan
 
 	type row struct {
 		ID             string  `gorm:"column:id"`
-		Vendor         string  `gorm:"column:vendor"`
-		VendorType     string  `gorm:"column:vendor_type"`
+		Vendor         *string `gorm:"column:vendor"`
+		VendorType     *string `gorm:"column:vendor_type"`
 		OrderCompleted int64   `gorm:"column:order_completed"`
 		Nominal        float64 `gorm:"column:nominal"`
 		Commission     float64 `gorm:"column:commission"`
@@ -445,7 +453,7 @@ func (r *financeRepository) ListRefunds(ctx context.Context, period domain.Finan
 	type row struct {
 		ID       string         `gorm:"column:id"`
 		Customer string         `gorm:"column:customer"`
-		Vendor   string         `gorm:"column:vendor"`
+		Vendor   *string        `gorm:"column:vendor"`
 		OrderID  string         `gorm:"column:order_id"`
 		Reason   sql.NullString `gorm:"column:reason"`
 		Amount   float64        `gorm:"column:amount"`
@@ -577,6 +585,134 @@ func (r *financeRepository) GetRefundRecord(ctx context.Context, refundID uuid.U
 	}, nil
 }
 
+func (r *financeRepository) GetRefundDisbursementContext(ctx context.Context, refundID uuid.UUID) (*domain.RefundDisbursementContext, error) {
+	type row struct {
+		RefundID                     string         `gorm:"column:refund_id"`
+		OrderID                      string         `gorm:"column:order_id"`
+		Amount                       float64        `gorm:"column:amount"`
+		Status                       string         `gorm:"column:status"`
+		Currency                     sql.NullString `gorm:"column:currency"`
+		PaymentMethod                sql.NullString `gorm:"column:payment_method"`
+		PaymentChannel               sql.NullString `gorm:"column:payment_channel"`
+		VendorXenditAccountID        sql.NullString `gorm:"column:vendor_xendit_account_id"`
+		PayoutReferenceID            sql.NullString `gorm:"column:payout_reference_id"`
+		PayoutStatus                 sql.NullString `gorm:"column:payout_status"`
+		DestinationChannelCode       sql.NullString `gorm:"column:destination_channel_code"`
+		DestinationBankName          sql.NullString `gorm:"column:destination_bank_name"`
+		DestinationAccountNumber     sql.NullString `gorm:"column:destination_account_number"`
+		DestinationAccountHolderName sql.NullString `gorm:"column:destination_account_holder_name"`
+		DestinationAccountLast4      sql.NullString `gorm:"column:destination_account_last4"`
+	}
+
+	var result row
+	err := r.db.WithContext(ctx).
+		Table("refunds r").
+		Joins("JOIN payment_invoices pi ON pi.id = r.payment_invoice_id").
+		Joins("JOIN orders o ON o.id = r.order_id").
+		Joins("JOIN vendors v ON v.id = o.vendor_id").
+		Select(`
+			r.id AS refund_id,
+			r.order_id AS order_id,
+			r.amount AS amount,
+			r.status AS status,
+			pi.currency AS currency,
+			pi.payment_method AS payment_method,
+			pi.payment_channel AS payment_channel,
+			v.xendit_account_id AS vendor_xendit_account_id,
+			r.payout_reference_id AS payout_reference_id,
+			r.payout_status AS payout_status,
+			r.destination_channel_code AS destination_channel_code,
+			r.destination_bank_name AS destination_bank_name,
+			r.destination_account_number AS destination_account_number,
+			r.destination_account_holder_name AS destination_account_holder_name,
+			r.destination_account_last4 AS destination_account_last4
+		`).
+		Where("r.id = ?", refundID.String()).
+		Take(&result).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	refundUUID, _ := uuid.Parse(result.RefundID)
+	orderUUID, _ := uuid.Parse(result.OrderID)
+	currency := "IDR"
+	if result.Currency.Valid && strings.TrimSpace(result.Currency.String) != "" {
+		currency = result.Currency.String
+	}
+
+	ctxResult := &domain.RefundDisbursementContext{
+		RefundID: refundUUID,
+		OrderID:  orderUUID,
+		Amount:   result.Amount,
+		Currency: currency,
+		Status:   result.Status,
+	}
+
+	if result.PaymentMethod.Valid {
+		v := result.PaymentMethod.String
+		ctxResult.PaymentMethod = &v
+	}
+	if result.PaymentChannel.Valid {
+		v := result.PaymentChannel.String
+		ctxResult.PaymentChannel = &v
+	}
+	if result.VendorXenditAccountID.Valid {
+		v := result.VendorXenditAccountID.String
+		ctxResult.VendorXenditAccountID = &v
+	}
+	if result.PayoutReferenceID.Valid {
+		v := result.PayoutReferenceID.String
+		ctxResult.PayoutReferenceID = &v
+	}
+	if result.PayoutStatus.Valid {
+		v := result.PayoutStatus.String
+		ctxResult.PayoutStatus = &v
+	}
+	if result.DestinationChannelCode.Valid {
+		v := strings.TrimSpace(result.DestinationChannelCode.String)
+		if v != "" {
+			ctxResult.DestinationChannelCode = &v
+		}
+	}
+	if result.DestinationBankName.Valid {
+		v := strings.TrimSpace(result.DestinationBankName.String)
+		if v != "" {
+			ctxResult.DestinationBankName = &v
+		}
+	}
+	if result.DestinationAccountHolderName.Valid {
+		v := strings.TrimSpace(result.DestinationAccountHolderName.String)
+		if v != "" {
+			ctxResult.DestinationAccountHolderName = &v
+		}
+	}
+	if result.DestinationAccountLast4.Valid {
+		v := strings.TrimSpace(result.DestinationAccountLast4.String)
+		if v != "" {
+			ctxResult.DestinationAccountLast4 = &v
+		}
+	}
+	if result.DestinationAccountNumber.Valid && strings.TrimSpace(result.DestinationAccountNumber.String) != "" {
+		decrypted := result.DestinationAccountNumber.String
+		if r.fieldCipher != nil {
+			var err error
+			decrypted, err = r.fieldCipher.DecryptString(result.DestinationAccountNumber.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt refund destination account number: %w", err)
+			}
+		}
+		decrypted = strings.TrimSpace(decrypted)
+		if decrypted != "" {
+			ctxResult.DestinationAccountNumber = &decrypted
+		}
+	}
+
+	return ctxResult, nil
+}
+
 func (r *financeRepository) GetPayoutRecord(ctx context.Context, payoutID uuid.UUID) (*domain.PayoutRecord, error) {
 	type row struct {
 		ID     string `gorm:"column:id"`
@@ -601,6 +737,165 @@ func (r *financeRepository) GetPayoutRecord(ctx context.Context, payoutID uuid.U
 		ID:     id,
 		Status: result.Status,
 	}, nil
+}
+
+func (r *financeRepository) SetRefundPayoutInitiated(ctx context.Context, refundID uuid.UUID, actorID uuid.UUID, strategy string, referenceID string, channelCode string, bankName string, accountHolderName string, accountLast4 string, payoutID *string, payoutStatus string) error {
+	updates := map[string]interface{}{
+		"payout_strategy":                        strategy,
+		"payout_reference_id":                    referenceID,
+		"payout_channel_code":                    channelCode,
+		"payout_destination_bank_name":           bankName,
+		"payout_destination_account_holder_name": accountHolderName,
+		"payout_destination_account_last4":       accountLast4,
+		"payout_status":                          payoutStatus,
+		"payout_failed_reason":                   nil,
+		"payout_requested_by":                    actorID.String(),
+		"payout_requested_at":                    time.Now().UTC(),
+	}
+	if payoutID != nil && strings.TrimSpace(*payoutID) != "" {
+		updates["payout_id"] = strings.TrimSpace(*payoutID)
+	}
+
+	return r.db.WithContext(ctx).
+		Table("refunds").
+		Where("id = ?", refundID.String()).
+		Updates(updates).Error
+}
+
+func (r *financeRepository) SetRefundPayoutFailed(ctx context.Context, refundID uuid.UUID, payoutStatus string, failedReason string) error {
+	return r.db.WithContext(ctx).
+		Table("refunds").
+		Where("id = ?", refundID.String()).
+		Updates(map[string]interface{}{
+			"payout_status":        payoutStatus,
+			"payout_failed_reason": failedReason,
+		}).Error
+}
+
+func (r *financeRepository) ApplyRefundPayoutWebhookUpdate(ctx context.Context, referenceID string, payoutID string, payoutStatus string, failedReason *string, completedAt *time.Time) (bool, error) {
+	applied := false
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var refund struct {
+			ID      string         `gorm:"column:id"`
+			OrderID string         `gorm:"column:order_id"`
+			Reason  sql.NullString `gorm:"column:payout_failed_reason"`
+		}
+
+		if err := tx.Table("refunds").
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id, order_id, payout_failed_reason").
+			Where("payout_reference_id = ?", referenceID).
+			First(&refund).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+
+		var adjustment refundBalanceAdjustmentResult
+		if completedAt != nil {
+			var err error
+			adjustment, err = r.applyRefundSettlementBalanceAdjustment(tx, refund.OrderID)
+			if err != nil {
+				return err
+			}
+		}
+
+		updates := map[string]interface{}{
+			"payout_status": payoutStatus,
+		}
+		if strings.TrimSpace(payoutID) != "" {
+			updates["payout_id"] = strings.TrimSpace(payoutID)
+		}
+		if failedReason != nil {
+			updates["payout_failed_reason"] = *failedReason
+		}
+		if completedAt != nil {
+			updates["status"] = domain.RefundStatusProcessed
+			updates["processed_at"] = *completedAt
+			updates["payout_completed_at"] = *completedAt
+			if adjustment.Shortfall > 0 {
+				updates["payout_failed_reason"] = buildRefundBalanceShortfallReason(adjustment)
+			} else {
+				updates["payout_failed_reason"] = nil
+			}
+		}
+
+		if err := tx.Table("refunds").
+			Where("id = ?", refund.ID).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return applied, nil
+}
+
+func (r *financeRepository) IsOrderSettlementCompleted(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Table("payout_items pi").
+		Joins("JOIN payout_batches pb ON pb.id = pi.payout_batch_id").
+		Where("pi.order_id = ?", orderID.String()).
+		Where("pb.status = ?", domain.PayoutStatusComplete).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *financeRepository) GetRefundVendorBalanceSnapshot(ctx context.Context, orderID uuid.UUID) (*domain.RefundVendorBalanceSnapshot, error) {
+	type row struct {
+		OrderStatus      string  `gorm:"column:order_status"`
+		Subtotal         float64 `gorm:"column:subtotal"`
+		AvailableBalance float64 `gorm:"column:available_balance"`
+		EscrowBalance    float64 `gorm:"column:escrow_balance"`
+	}
+
+	var result row
+	if err := r.db.WithContext(ctx).
+		Table("orders o").
+		Joins("LEFT JOIN vendor_balances vb ON vb.vendor_id = o.vendor_id").
+		Select(`
+			o.order_status AS order_status,
+			o.subtotal AS subtotal,
+			COALESCE(vb.available_balance, 0) AS available_balance,
+			COALESCE(vb.escrow_balance, 0) AS escrow_balance
+		`).
+		Where("o.id = ?", orderID.String()).
+		Take(&result).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	snapshot := &domain.RefundVendorBalanceSnapshot{
+		Sufficient:      true,
+		BalanceSource:   "none",
+		RequiredAmount:  result.Subtotal,
+		AvailableAmount: 0,
+	}
+
+	switch result.OrderStatus {
+	case domain.OrderStatusCompleted:
+		snapshot.BalanceSource = "available_balance"
+		snapshot.AvailableAmount = result.AvailableBalance
+		snapshot.Sufficient = result.AvailableBalance >= result.Subtotal
+	case domain.OrderStatusReceived:
+		snapshot.BalanceSource = "escrow_balance"
+		snapshot.AvailableAmount = result.EscrowBalance
+		snapshot.Sufficient = result.EscrowBalance >= result.Subtotal
+	}
+
+	return snapshot, nil
 }
 
 func (r *financeRepository) UpdateRefundStatus(ctx context.Context, refundID uuid.UUID, status string, actorID uuid.UUID) (*domain.StatusActionResponse, error) {
@@ -632,18 +927,20 @@ func (r *financeRepository) updateRefundTransaction(ctx context.Context, refundI
 			return err
 		}
 
+		if status == domain.RefundStatusProcessed {
+			adjustment, err := r.applyRefundSettlementBalanceAdjustment(tx, refund.OrderID)
+			if err != nil {
+				return err
+			}
+			if adjustment.Shortfall > 0 {
+				updates["payout_failed_reason"] = buildRefundBalanceShortfallReason(adjustment)
+			}
+		}
+
 		if err := tx.Table("refunds").
 			Where("id = ?", refundID.String()).
 			Updates(updates).Error; err != nil {
 			return err
-		}
-
-		if status == domain.RefundStatusProcessed {
-			if err := tx.Table("orders").
-				Where("id = ?", refund.OrderID).
-				Update("payment_status", domain.PaymentInvoiceStatusRefunded).Error; err != nil {
-				return err
-			}
 		}
 
 		id, _ := uuid.Parse(refund.ID)
@@ -707,4 +1004,186 @@ func (r *financeRepository) UpdatePayoutStatus(ctx context.Context, payoutID uui
 	}
 
 	return resp, nil
+}
+
+func (r *financeRepository) SetRefundGatewayInitiated(ctx context.Context, refundID uuid.UUID, xenditRefundID string, refundMethod string, payoutReferenceID string) error {
+	return r.db.WithContext(ctx).Table("refunds").
+		Where("id = ?", refundID.String()).
+		Updates(map[string]interface{}{
+			"xendit_refund_id":    xenditRefundID,
+			"refund_method":       refundMethod,
+			"payout_reference_id": payoutReferenceID,
+			"status":              domain.RefundStatusProcessing,
+		}).Error
+}
+
+func (r *financeRepository) ApplyRefundGatewayWebhookUpdate(ctx context.Context, referenceID string, xenditRefundID string, status string, failureCode *string) (bool, error) {
+	applied := false
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var refund struct {
+			ID      string `gorm:"column:id"`
+			OrderID string `gorm:"column:order_id"`
+		}
+		if err := tx.Table("refunds").
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id, order_id").
+			Where("payout_reference_id = ?", referenceID).
+			First(&refund).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+
+		updates := map[string]interface{}{
+			"xendit_refund_id": xenditRefundID,
+		}
+
+		switch status {
+		case "SUCCEEDED":
+			now := time.Now().UTC()
+			adjustment, err := r.applyRefundSettlementBalanceAdjustment(tx, refund.OrderID)
+			if err != nil {
+				return err
+			}
+			updates["status"] = domain.RefundStatusProcessed
+			updates["processed_at"] = now
+			if adjustment.Shortfall > 0 {
+				updates["payout_failed_reason"] = buildRefundBalanceShortfallReason(adjustment)
+			}
+		case "FAILED":
+			updates["status"] = domain.RefundStatusRejected
+			if failureCode != nil {
+				updates["payout_failed_reason"] = "Gateway refund failed: " + *failureCode
+			}
+		default:
+			return nil
+		}
+
+		if err := tx.Table("refunds").
+			Where("id = ?", refund.ID).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+
+		applied = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return applied, nil
+}
+
+type refundBalanceAdjustmentResult struct {
+	Expected  float64
+	Deducted  float64
+	Shortfall float64
+	Source    string
+}
+
+func (r *financeRepository) applyRefundSettlementBalanceAdjustment(tx *gorm.DB, orderID string) (refundBalanceAdjustmentResult, error) {
+	result := refundBalanceAdjustmentResult{}
+
+	var order struct {
+		ID            string  `gorm:"column:id"`
+		VendorID      string  `gorm:"column:vendor_id"`
+		OrderStatus   string  `gorm:"column:order_status"`
+		PaymentStatus string  `gorm:"column:payment_status"`
+		Subtotal      float64 `gorm:"column:subtotal"`
+	}
+	if err := tx.Table("orders").
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id, vendor_id, order_status, payment_status, subtotal").
+		Where("id = ?", orderID).
+		First(&order).Error; err != nil {
+		return result, err
+	}
+
+	if order.PaymentStatus == domain.PaymentStatusRefunded || order.PaymentStatus == domain.PaymentInvoiceStatusRefunded {
+		return result, nil
+	}
+
+	var balance struct {
+		AvailableBalance float64 `gorm:"column:available_balance"`
+		EscrowBalance    float64 `gorm:"column:escrow_balance"`
+	}
+	if err := tx.Table("vendor_balances").
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("available_balance, escrow_balance").
+		Where("vendor_id = ?", order.VendorID).
+		First(&balance).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return result, fmt.Errorf("vendor balance not found for vendor %s", order.VendorID)
+		}
+		return result, err
+	}
+
+	now := time.Now().UTC()
+	result.Expected = order.Subtotal
+
+	switch order.OrderStatus {
+	case domain.OrderStatusCompleted:
+		result.Source = "available_balance"
+		result.Deducted = math.Min(balance.AvailableBalance, order.Subtotal)
+		result.Shortfall = math.Max(order.Subtotal-result.Deducted, 0)
+		if result.Deducted > 0 {
+			res := tx.Table("vendor_balances").
+				Where("vendor_id = ?", order.VendorID).
+				Updates(map[string]interface{}{
+					"available_balance": gorm.Expr("available_balance - ?", result.Deducted),
+					"total_earned":      gorm.Expr("GREATEST(total_earned - ?, 0)", result.Deducted),
+					"updated_at":        now,
+				})
+			if res.Error != nil {
+				return result, fmt.Errorf("failed to reverse vendor available balance for refund: %w", res.Error)
+			}
+		}
+	case domain.OrderStatusReceived:
+		result.Source = "escrow_balance"
+		result.Deducted = math.Min(balance.EscrowBalance, order.Subtotal)
+		result.Shortfall = math.Max(order.Subtotal-result.Deducted, 0)
+		if result.Deducted > 0 {
+			res := tx.Table("vendor_balances").
+				Where("vendor_id = ?", order.VendorID).
+				Updates(map[string]interface{}{
+					"escrow_balance": gorm.Expr("escrow_balance - ?", result.Deducted),
+					"total_earned":   gorm.Expr("GREATEST(total_earned - ?, 0)", result.Deducted),
+					"updated_at":     now,
+				})
+			if res.Error != nil {
+				return result, fmt.Errorf("failed to reverse vendor escrow balance for refund: %w", res.Error)
+			}
+		}
+	}
+
+	if err := tx.Table("orders").
+		Where("id = ?", order.ID).
+		Updates(map[string]interface{}{
+			"payment_status": domain.PaymentInvoiceStatusRefunded,
+			"updated_at":     now,
+		}).Error; err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
+func buildRefundBalanceShortfallReason(adjustment refundBalanceAdjustmentResult) string {
+	source := strings.TrimSpace(adjustment.Source)
+	if source == "" {
+		source = "vendor_balance"
+	}
+	return fmt.Sprintf(
+		"gateway/webhook succeeded so refund cannot be put on hold: deducted %.2f from %s, unrecovered %.2f",
+		adjustment.Deducted,
+		source,
+		adjustment.Shortfall,
+	)
+}
+
+func (r *financeRepository) UpdateOrderPaymentStatus(ctx context.Context, orderID uuid.UUID, paymentStatus string) error {
+	return r.db.WithContext(ctx).Table("orders").
+		Where("id = ?", orderID.String()).
+		Update("payment_status", paymentStatus).Error
 }

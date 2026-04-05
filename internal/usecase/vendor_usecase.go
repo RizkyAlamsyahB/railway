@@ -122,20 +122,14 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	imageURL := ""
-	if user.ImageURL != nil {
-		imageURL = *user.ImageURL
-	}
-
 	return &domain.VendorLoginResponse{
-		Token:        token,
+		AccessToken:  token,
 		VendorID:     vendor.ID,
-		ImageURL:     imageURL,
 		Email:        user.Email,
-		Name:         user.FullName,
+		ImageURL:     user.ImageURL,
+		StoreName:    vendor.DisplayName,
 		VendorType:   vendor.VendorType,
 		VendorStatus: vendor.Status,
-		DisplayName:  vendor.DisplayName,
 	}, nil
 }
 
@@ -162,13 +156,23 @@ func (uc *vendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain
 	}
 
 	return &domain.VendorProfileResponse{
-		VendorID:     vendor.ID,
-		ImageURL:     imageURL,
-		Email:        user.Email,
-		Name:         user.FullName,
-		VendorType:   vendor.VendorType,
-		VendorStatus: vendor.Status,
-		DisplayName:  vendor.DisplayName,
+		VendorID:        vendor.ID,
+		ImageURL:        imageURL,
+		Email:           user.Email,
+		Name:            user.FullName,
+		VendorType:      vendor.VendorType,
+		VendorStatus:    vendor.Status,
+		DisplayName:     vendor.DisplayName,
+		ProvinceID:      vendor.ProvinceID,
+		ProvinceName:    vendor.ProvinceName,
+		CityID:          vendor.CityID,
+		CityName:        vendor.CityName,
+		DistrictID:      vendor.DistrictID,
+		DistrictName:    vendor.DistrictName,
+		SubdistrictID:   vendor.SubdistrictID,
+		SubdistrictName: vendor.SubdistrictName,
+		PostalCode:      vendor.PostalCode,
+		AddressLine:     vendor.AddressLine,
 	}, nil
 }
 
@@ -313,7 +317,7 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 	// 8. Create withdrawal record.
 	now := time.Now()
 	withdrawalID := uuid.New()
-	description := fmt.Sprintf("Withdrawal for vendor %s", vendor.DisplayName)
+	description := fmt.Sprintf("Withdrawal for vendor %s", vendorDisplayNameOrFallback(vendor))
 
 	withdrawal := &domain.VendorWithdrawal{
 		ID:            withdrawalID,

@@ -18,6 +18,7 @@ func setupProductUseCase(t *testing.T) (
 	*mocks.MockProductRepository,
 	*mocks.MockVendorRepository,
 	*mocks.MockCategoryRepository,
+	*mocks.MockAddressRepository,
 	*mocks.MockStorageProvider,
 	domain.ProductUseCase,
 ) {
@@ -26,17 +27,20 @@ func setupProductUseCase(t *testing.T) (
 	productRepo := mocks.NewMockProductRepository(ctrl)
 	vendorRepo := mocks.NewMockVendorRepository(ctrl)
 	categoryRepo := mocks.NewMockCategoryRepository(ctrl)
+	addressRepo := mocks.NewMockAddressRepository(ctrl)
 	storage := mocks.NewMockStorageProvider(ctrl)
-	uc := NewProductUseCase(productRepo, vendorRepo, categoryRepo, storage)
-	return productRepo, vendorRepo, categoryRepo, storage, uc
+	uc := NewProductUseCase(productRepo, vendorRepo, categoryRepo, addressRepo, storage)
+	return productRepo, vendorRepo, categoryRepo, addressRepo, storage, uc
 }
 
 func activeVendor(id uuid.UUID) *domain.Vendor {
+	vendorType := domain.VendorTypeSouvenirStore
+	displayName := "Toko Haji"
 	return &domain.Vendor{
 		ID:          id,
 		OwnerUserID: uuid.New(),
-		VendorType:  domain.VendorTypeSouvenirStore,
-		DisplayName: "Toko Haji",
+		VendorType:  &vendorType,
+		DisplayName: &displayName,
 		Status:      "active",
 	}
 }
@@ -48,6 +52,20 @@ func activeCategory(id uuid.UUID) *domain.Category {
 		Slug:     "oleh-oleh",
 		IsActive: true,
 	}
+}
+
+func warehouseAddress() *domain.Address {
+	districtID := "151"
+	return &domain.Address{
+		ID:         uuid.New(),
+		IsDefault:  true,
+		DistrictID: &districtID,
+	}
+}
+
+// expectWarehouseExists sets up expectations so the vendor has a valid warehouse address.
+func expectWarehouseExists(addressRepo *mocks.MockAddressRepository, ctx context.Context) {
+	addressRepo.EXPECT().FindDefaultByUserID(ctx, gomock.Any()).Return(warehouseAddress(), nil)
 }
 
 func validCreateProductRequest(categoryID string) domain.CreateProductRequest {
@@ -94,7 +112,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 		{
 			name: "draft",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, storage, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, storage, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -104,6 +122,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 				req.IsActive = false
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugUnique(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
@@ -149,7 +168,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 		{
 			name: "published",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, storage, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, storage, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -159,6 +178,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 				req.IsActive = true
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugUnique(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
@@ -177,7 +197,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 		{
 			name: "with additional variants",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, storage, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, storage, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -191,6 +211,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 				}
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugUnique(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(5), nil)
@@ -221,7 +242,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 		{
 			name: "no images",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -231,6 +252,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 				req.Images = nil
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugUnique(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
@@ -248,7 +270,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 		{
 			name: "slug collision",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, storage, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, storage, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -257,6 +279,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 				req := validCreateProductRequest(categoryID.String())
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugCollision(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
@@ -275,7 +298,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 		{
 			name: "variant sku generation",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, storage, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, storage, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -286,6 +309,7 @@ func TestCreate_SuccessCases(t *testing.T) {
 				}
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugUnique(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(3), nil)
@@ -324,7 +348,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "vendor not found",
 			run: func(t *testing.T) {
-				_, vendorRepo, _, _, uc := setupProductUseCase(t)
+				_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -340,7 +364,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "vendor repo error",
 			run: func(t *testing.T) {
-				_, vendorRepo, _, _, uc := setupProductUseCase(t)
+				_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -356,7 +380,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "vendor not active",
 			run: func(t *testing.T) {
-				_, vendorRepo, _, _, uc := setupProductUseCase(t)
+				_, vendorRepo, _, _, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -374,14 +398,67 @@ func TestCreate_ErrorCases(t *testing.T) {
 			},
 		},
 		{
+			name: "vendor no warehouse address",
+			run: func(t *testing.T) {
+				_, vendorRepo, _, addressRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				req := validCreateProductRequest(uuid.New().String())
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				addressRepo.EXPECT().FindDefaultByUserID(ctx, gomock.Any()).Return(nil, nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrVendorNoWarehouseAddress) {
+					t.Errorf("expected ErrVendorNoWarehouseAddress, got %v", err)
+				}
+			},
+		},
+		{
+			name: "vendor warehouse address no district",
+			run: func(t *testing.T) {
+				_, vendorRepo, _, addressRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				req := validCreateProductRequest(uuid.New().String())
+				addrNoDistrict := &domain.Address{ID: uuid.New(), IsDefault: true}
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				addressRepo.EXPECT().FindDefaultByUserID(ctx, gomock.Any()).Return(addrNoDistrict, nil)
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if !errors.Is(err, ErrVendorNoWarehouseAddress) {
+					t.Errorf("expected ErrVendorNoWarehouseAddress, got %v", err)
+				}
+			},
+		},
+		{
+			name: "address repo error",
+			run: func(t *testing.T) {
+				_, vendorRepo, _, addressRepo, _, uc := setupProductUseCase(t)
+				ctx := context.Background()
+
+				vendorID := uuid.New()
+				req := validCreateProductRequest(uuid.New().String())
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				addressRepo.EXPECT().FindDefaultByUserID(ctx, gomock.Any()).Return(nil, errors.New("db error"))
+
+				_, err := uc.Create(ctx, vendorID, req)
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+			},
+		},
+		{
 			name: "invalid category id",
 			run: func(t *testing.T) {
-				_, vendorRepo, _, _, uc := setupProductUseCase(t)
+				_, vendorRepo, _, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
 				req := validCreateProductRequest("not-a-uuid")
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 
 				_, err := uc.Create(ctx, vendorID, req)
 				if err == nil {
@@ -392,7 +469,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "category not found",
 			run: func(t *testing.T) {
-				_, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				_, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -400,6 +477,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				req := validCreateProductRequest(categoryID.String())
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(nil, nil)
 
 				_, err := uc.Create(ctx, vendorID, req)
@@ -411,7 +489,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "category not active",
 			run: func(t *testing.T) {
-				_, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				_, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -422,6 +500,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				inactiveCat.IsActive = false
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(inactiveCat, nil)
 
 				_, err := uc.Create(ctx, vendorID, req)
@@ -433,7 +512,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "category repo error",
 			run: func(t *testing.T) {
-				_, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				_, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -441,6 +520,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				req := validCreateProductRequest(categoryID.String())
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(nil, errors.New("db error"))
 
 				_, err := uc.Create(ctx, vendorID, req)
@@ -452,7 +532,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "too many images",
 			run: func(t *testing.T) {
-				_, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				_, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -469,6 +549,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				req.Images = images
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 
 				_, err := uc.Create(ctx, vendorID, req)
@@ -480,7 +561,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "no primary image",
 			run: func(t *testing.T) {
-				_, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				_, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -491,6 +572,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				}
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 
 				_, err := uc.Create(ctx, vendorID, req)
@@ -502,7 +584,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "duplicate primary image",
 			run: func(t *testing.T) {
-				_, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				_, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -514,6 +596,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				}
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 
 				_, err := uc.Create(ctx, vendorID, req)
@@ -525,7 +608,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "slug generation error",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -533,6 +616,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				req := validCreateProductRequest(categoryID.String())
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				productRepo.EXPECT().FindBySlug(ctx, gomock.Any()).Return(nil, errors.New("db error"))
 
@@ -545,7 +629,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "count by vendor id error",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, _, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, _, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -553,6 +637,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				req := validCreateProductRequest(categoryID.String())
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugUnique(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), errors.New("db error"))
@@ -566,7 +651,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "presigned upload url error",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, storage, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, storage, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -574,6 +659,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				req := validCreateProductRequest(categoryID.String())
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugUnique(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
@@ -588,7 +674,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 		{
 			name: "product repo create error",
 			run: func(t *testing.T) {
-				productRepo, vendorRepo, categoryRepo, storage, uc := setupProductUseCase(t)
+				productRepo, vendorRepo, categoryRepo, addressRepo, storage, uc := setupProductUseCase(t)
 				ctx := context.Background()
 
 				vendorID := uuid.New()
@@ -596,6 +682,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 				req := validCreateProductRequest(categoryID.String())
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor(vendorID), nil)
+				expectWarehouseExists(addressRepo, ctx)
 				categoryRepo.EXPECT().FindByID(ctx, categoryID).Return(activeCategory(categoryID), nil)
 				expectSlugUnique(productRepo, ctx)
 				productRepo.EXPECT().CountByVendorID(ctx, vendorID).Return(int64(0), nil)
@@ -623,7 +710,7 @@ func TestCreate_ErrorCases(t *testing.T) {
 // ============================================================
 
 func TestConfirmImages_Success(t *testing.T) {
-	productRepo, _, _, storage, uc := setupProductUseCase(t)
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -674,7 +761,7 @@ func TestConfirmImages_Success(t *testing.T) {
 }
 
 func TestConfirmImages_MultipleImages(t *testing.T) {
-	productRepo, _, _, storage, uc := setupProductUseCase(t)
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -723,7 +810,7 @@ func TestConfirmImages_MultipleImages(t *testing.T) {
 }
 
 func TestConfirmImages_ProductNotFound(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -744,7 +831,7 @@ func TestConfirmImages_ProductNotFound(t *testing.T) {
 }
 
 func TestConfirmImages_FindByIDError(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -765,7 +852,7 @@ func TestConfirmImages_FindByIDError(t *testing.T) {
 }
 
 func TestConfirmImages_ProductNotOwned(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -792,7 +879,7 @@ func TestConfirmImages_ProductNotOwned(t *testing.T) {
 }
 
 func TestConfirmImages_FindImagesError(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -816,7 +903,7 @@ func TestConfirmImages_FindImagesError(t *testing.T) {
 }
 
 func TestConfirmImages_InvalidImageID(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -840,7 +927,7 @@ func TestConfirmImages_InvalidImageID(t *testing.T) {
 }
 
 func TestConfirmImages_ImageNotFound(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -866,7 +953,7 @@ func TestConfirmImages_ImageNotFound(t *testing.T) {
 }
 
 func TestConfirmImages_HeadObjectError(t *testing.T) {
-	productRepo, _, _, storage, uc := setupProductUseCase(t)
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -896,7 +983,7 @@ func TestConfirmImages_HeadObjectError(t *testing.T) {
 }
 
 func TestConfirmImages_ImageNotUploaded(t *testing.T) {
-	productRepo, _, _, storage, uc := setupProductUseCase(t)
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -926,7 +1013,7 @@ func TestConfirmImages_ImageNotUploaded(t *testing.T) {
 }
 
 func TestConfirmImages_InvalidContentType(t *testing.T) {
-	productRepo, _, _, storage, uc := setupProductUseCase(t)
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -959,7 +1046,7 @@ func TestConfirmImages_InvalidContentType(t *testing.T) {
 }
 
 func TestConfirmImages_ContentTypeNormalization(t *testing.T) {
-	productRepo, _, _, storage, uc := setupProductUseCase(t)
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -997,7 +1084,7 @@ func TestConfirmImages_ContentTypeNormalization(t *testing.T) {
 }
 
 func TestConfirmImages_ImageSizeOverflow(t *testing.T) {
-	productRepo, _, _, storage, uc := setupProductUseCase(t)
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -1030,7 +1117,7 @@ func TestConfirmImages_ImageSizeOverflow(t *testing.T) {
 }
 
 func TestConfirmImages_UpdateImagesError(t *testing.T) {
-	productRepo, _, _, storage, uc := setupProductUseCase(t)
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -1193,7 +1280,7 @@ func TestIsAllowedImageContentType(t *testing.T) {
 // ============================================================
 
 func TestListProducts_Success(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -1239,7 +1326,7 @@ func TestListProducts_Success(t *testing.T) {
 }
 
 func TestListProducts_PaginationMeta(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -1270,7 +1357,7 @@ func TestListProducts_PaginationMeta(t *testing.T) {
 }
 
 func TestListProducts_RepoError(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -1289,7 +1376,7 @@ func TestListProducts_RepoError(t *testing.T) {
 }
 
 func TestListProducts_DefaultNormalization(t *testing.T) {
-	productRepo, _, _, _, uc := setupProductUseCase(t)
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
 	ctx := context.Background()
 
 	vendorID := uuid.New()
@@ -1318,4 +1405,3 @@ func TestListProducts_DefaultNormalization(t *testing.T) {
 		t.Errorf("expected limit 10 (normalized), got %d", meta.Limit)
 	}
 }
-

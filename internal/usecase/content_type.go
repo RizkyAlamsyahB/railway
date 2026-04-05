@@ -99,3 +99,31 @@ func isAllowedChatAttachmentContentType(contentType string) bool {
 }
 
 const ReviewImageMaxBytes int64 = 5 * 1024 * 1024 // 5 MB
+
+// Allowed MIME types for refund evidence uploads (images + one optional mp4 video).
+var allowedRefundEvidenceContentTypes = map[string]struct{}{
+	"image/png":  {},
+	"image/jpeg": {},
+	"image/webp": {},
+	"video/mp4":  {},
+}
+
+const RefundEvidenceMaxBytes int64 = 10 * 1024 * 1024 // 10 MB per file
+
+func isAllowedRefundEvidenceContentType(contentType string) bool {
+	_, ok := allowedRefundEvidenceContentTypes[contentType]
+	return ok
+}
+
+func isRefundEvidenceImageContentType(contentType string) bool {
+	switch contentType {
+	case "image/png", "image/jpeg", "image/webp":
+		return true
+	default:
+		return false
+	}
+}
+
+func isRefundEvidenceVideoContentType(contentType string) bool {
+	return contentType == "video/mp4"
+}

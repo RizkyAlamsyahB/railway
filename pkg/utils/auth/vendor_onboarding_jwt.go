@@ -19,7 +19,7 @@ type VendorOnboardingClaims struct {
 }
 
 // GenerateVendorOnboardingToken creates a signed JWT for vendor onboarding steps.
-func GenerateVendorOnboardingToken(onboardingID uuid.UUID, email string, secret string, expiry time.Duration, issuer string) (string, time.Time, error) {
+func GenerateVendorOnboardingToken(onboardingID uuid.UUID, email string, secret string, expiry time.Duration, issuer string) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(expiry)
 
@@ -38,10 +38,10 @@ func GenerateVendorOnboardingToken(onboardingID uuid.UUID, email string, secret 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(secret))
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to sign vendor onboarding token: %w", err)
+		return "", fmt.Errorf("failed to sign vendor onboarding token: %w", err)
 	}
 
-	return signed, expiresAt, nil
+	return signed, nil
 }
 
 // ValidateVendorOnboardingToken parses and validates a vendor onboarding JWT string.

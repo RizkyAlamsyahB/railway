@@ -22,6 +22,7 @@ type CartItem struct {
 	CartID           uuid.UUID `json:"cart_id"`
 	ProductVariantID uuid.UUID `json:"product_variant_id"`
 	Qty              int       `json:"qty"`
+	IsSelected       bool      `json:"is_selected"`
 	CreatedAt        time.Time `json:"created_at"`
 }
 
@@ -36,6 +37,11 @@ type AddCartItemRequest struct {
 // UpdateCartItemRequest is the input DTO for updating a cart item's quantity.
 type UpdateCartItemRequest struct {
 	Qty int `json:"qty" binding:"required,min=1"`
+}
+
+// UpdateCartItemSelectionRequest is the input DTO for updating a cart item's selected state.
+type UpdateCartItemSelectionRequest struct {
+	IsSelected bool `json:"is_selected"`
 }
 
 // --- Response DTOs ---
@@ -59,6 +65,7 @@ type CartItemResponse struct {
 	Subtotal         float64   `json:"subtotal"`
 	StockOnHand      int       `json:"stock_on_hand"`
 	IsAvailable      bool      `json:"is_available"`
+	IsSelected       bool      `json:"is_selected"`
 	CreatedAt        time.Time `json:"created_at"`
 }
 
@@ -92,6 +99,9 @@ type CartRepository interface {
 	// FindItemsByCartID returns all items in a cart.
 	FindItemsByCartID(ctx context.Context, cartID uuid.UUID) ([]CartItem, error)
 
+	// FindSelectedItemsByCartID returns selected items in a cart.
+	FindSelectedItemsByCartID(ctx context.Context, cartID uuid.UUID) ([]CartItem, error)
+
 	// FindItemByID returns a single cart item, or nil if not found.
 	FindItemByID(ctx context.Context, itemID uuid.UUID) (*CartItem, error)
 
@@ -104,14 +114,17 @@ type CartRepository interface {
 	// UpdateItemQty updates the qty of a cart item and the cart's updated_at.
 	UpdateItemQty(ctx context.Context, itemID uuid.UUID, qty int) error
 
+	// UpdateItemSelection updates the selected state of a cart item and the cart's updated_at.
+	UpdateItemSelection(ctx context.Context, itemID uuid.UUID, isSelected bool) error
+
 	// DeleteItem removes a cart item and updates the cart's updated_at.
 	DeleteItem(ctx context.Context, itemID uuid.UUID) error
 
 	// ClearItems removes all items from a cart and updates the cart's updated_at.
 	ClearItems(ctx context.Context, cartID uuid.UUID) error
 
-	// UpdateStatus sets the cart's status (used when converting to order).
-	UpdateStatus(ctx context.Context, cartID uuid.UUID, status string) error
+	// DeleteItemsByIDs removes the specified items from a cart and updates the cart's updated_at.
+	DeleteItemsByIDs(ctx context.Context, cartID uuid.UUID, itemIDs []uuid.UUID) error
 }
 
 // --- Usecase Interface ---
@@ -126,6 +139,9 @@ type CartUseCase interface {
 
 	// UpdateItem changes the quantity of a cart item.
 	UpdateItem(ctx context.Context, userID uuid.UUID, itemID uuid.UUID, req UpdateCartItemRequest) (*CartItemActionResponse, error)
+
+	// UpdateItemSelection changes whether a cart item is selected for checkout.
+	UpdateItemSelection(ctx context.Context, userID uuid.UUID, itemID uuid.UUID, req UpdateCartItemSelectionRequest) (*CartItemActionResponse, error)
 
 	// RemoveItem removes a single item from the cart.
 	RemoveItem(ctx context.Context, userID uuid.UUID, itemID uuid.UUID) error

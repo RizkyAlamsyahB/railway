@@ -270,6 +270,35 @@ type VendorProductListItem struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+// VendorProductDetailImageItem is image info in vendor product detail.
+type VendorProductDetailImageItem struct {
+	ID        uuid.UUID `json:"id"`
+	URL       string    `json:"url"`
+	IsPrimary bool      `json:"is_primary"`
+	SortOrder int       `json:"sort_order"`
+}
+
+// VendorProductDetailResponse is the output DTO for vendor product detail.
+// Fields mirror UpdateProductRequest so the client can pre-populate the edit form.
+type VendorProductDetailResponse struct {
+	ID            uuid.UUID                      `json:"id"`
+	VendorID      uuid.UUID                      `json:"vendor_id"`
+	CategoryID    uuid.UUID                      `json:"category_id"`
+	Name          string                         `json:"name"`
+	Slug          string                         `json:"slug"`
+	Description   string                         `json:"description"`
+	Status        string                         `json:"status"`
+	HalalAIStatus string                         `json:"halal_ai_status"`
+	IsActive      bool                           `json:"is_active"`
+	Price         float64                        `json:"price"`
+	Stock         int                            `json:"stock"`
+	WeightGram    *int                           `json:"weight_gram,omitempty"`
+	Variants      []ProductVariantResponse       `json:"variants"`
+	Images        []VendorProductDetailImageItem `json:"images"`
+	CreatedAt     time.Time                      `json:"created_at"`
+	UpdatedAt     time.Time                      `json:"updated_at"`
+}
+
 // --- Repository Interfaces ---
 
 // ProductRepository defines the interface for product data access.
@@ -320,6 +349,14 @@ type ProductRepository interface {
 		variantIDsToDeactivate []uuid.UUID,
 		imageIDsToDelete []uuid.UUID,
 		newImages []ProductImage) error
+
+	// DeleteProduct hard-deletes a product and all its variants and images.
+	DeleteProduct(ctx context.Context, productID uuid.UUID) error
+
+	// ListPublishedByVendorForStore returns published products for a vendor's public
+	// store page. sortBy can be "bestseller" (by total sold desc) or "newest" (by
+	// created_at desc). Each item includes the primary image URL and aggregated sold count.
+	ListPublishedByVendorForStore(ctx context.Context, vendorID uuid.UUID, sortBy string, limit int, offset int) ([]StoreProductItem, int64, error)
 }
 
 // CategoryRepository defines the interface for category data access.
@@ -348,6 +385,12 @@ type ProductUseCase interface {
 	// UpdateProduct updates an existing product owned by the authenticated vendor.
 	UpdateProduct(ctx context.Context, vendorID uuid.UUID, productID uuid.UUID,
 		req UpdateProductRequest) (*UpdateProductResponse, error)
+
+	// GetProductByID returns the full detail of a product owned by the vendor.
+	GetProductByID(ctx context.Context, vendorID uuid.UUID, productID uuid.UUID) (*VendorProductDetailResponse, error)
+
+	// DeleteProduct deletes a product owned by the vendor.
+	DeleteProduct(ctx context.Context, vendorID uuid.UUID, productID uuid.UUID) error
 }
 
 // CatalogUseCase defines the interface for public catalog queries.

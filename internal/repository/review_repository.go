@@ -221,6 +221,97 @@ func (r *reviewRepository) GetStatsByProductID(ctx context.Context, productID uu
 	return toDomainProductReviewStats(&model), nil
 }
 
+func (r *reviewRepository) ListByVendor(ctx context.Context, vendorID uuid.UUID, page, limit int) ([]domain.VendorReviewItem, int64, error) {
+	base := r.db.WithContext(ctx).
+		Table("product_reviews pr").
+		Joins("JOIN products p ON p.id = pr.product_id").
+		Where("p.vendor_id = ?", vendorID.String()).
+		Where("pr.status = ?", domain.ReviewStatusPublished)
+
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	type reviewRow struct {
+		ReviewID       string    `gorm:"column:review_id"`
+		UserID         string    `gorm:"column:user_id"`
+		ReviewerName   string    `gorm:"column:reviewer_name"`
+		AvatarURL      *string   `gorm:"column:image_url"`
+		Rating         int       `gorm:"column:rating"`
+		ReviewText     string    `gorm:"column:review_text"`
+		CreatedAt      time.Time `gorm:"column:created_at"`
+		VariantName    string    `gorm:"column:variant_name"`
+	}
+
+	offset := (page - 1) * limit
+	var rows []reviewRow
+	if err := base.
+		Select("pr.id AS review_id, pr.user_id, u.full_name AS reviewer_name, u.image_url, pr.rating, pr.review_text, pr.created_at, oi.sku_snapshot AS variant_name").
+		Joins("JOIN users u ON u.id = pr.user_id").
+		Joins("JOIN order_items oi ON oi.id = pr.order_item_id").
+		Order("pr.created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if len(rows) == 0 {
+		return []domain.VendorReviewItem{}, total, nil
+	}
+
+	reviewIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		reviewIDs = append(reviewIDs, row.ReviewID)
+	}
+
+	type imageRow struct {
+		ReviewID  string `gorm:"column:review_id"`
+		ObjectKey string `gorm:"column:object_key"`
+	}
+	var imgRows []imageRow
+	if err := r.db.WithContext(ctx).
+		Table("product_review_images").
+		Select("review_id, object_key").
+		Where("review_id IN ?", reviewIDs).
+		Order("sort_order ASC").
+		Scan(&imgRows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	imageMap := make(map[string][]string, len(rows))
+	for _, img := range imgRows {
+		imageMap[img.ReviewID] = append(imageMap[img.ReviewID], img.ObjectKey)
+	}
+
+	items := make([]domain.VendorReviewItem, len(rows))
+	for i, row := range rows {
+		reviewID, _ := uuid.Parse(row.ReviewID)
+		userID, _ := uuid.Parse(row.UserID)
+		avatarUrl := ""
+		if row.AvatarURL != nil {
+			avatarUrl = *row.AvatarURL
+		}
+		items[i] = domain.VendorReviewItem{
+			ID: reviewID,
+			User: domain.VendorReviewUser{
+				ID:        userID,
+				Name:      row.ReviewerName,
+				AvatarURL: avatarUrl,
+			},
+			Rating:    row.Rating,
+			Comment:   row.ReviewText,
+			Variant:   domain.VendorReviewVariant{Name: row.VariantName},
+			ImageKeys: imageMap[row.ReviewID],
+			Images:    []string{}, // Will be populated in usecase
+			CreatedAt: row.CreatedAt,
+		}
+	}
+
+	return items, total, nil
+}
+
 func toProductReviewModel(r *domain.ProductReview) productReviewModel {
 	return productReviewModel{
 		ID:          r.ID.String(),

@@ -56,8 +56,9 @@ var OrderStatuses = []string{
 
 // Payment statuses (on orders).
 const (
-	PaymentStatusUnpaid = "unpaid"
-	PaymentStatusPaid   = "paid"
+	PaymentStatusUnpaid   = "unpaid"
+	PaymentStatusPaid     = "paid"
+	PaymentStatusRefunded = "refunded"
 )
 
 // Payment invoice statuses.

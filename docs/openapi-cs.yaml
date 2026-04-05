@@ -1,21 +1,40 @@
 openapi: 3.0.3
 info:
-  title: UmrahMart - CS API
-  version: 1.0.0
+  title: CS API
+  version: 1.1.0
   description: |
-    Dokumentasi OpenAPI 3 untuk modul Customer Service: autentikasi CS dan manajemen Reply Template.
+    Dokumentasi OpenAPI 3 untuk modul Customer Service.
+
+    Dokumen ini mencakup:
+    - autentikasi CS di `/api/v1/cs/*`
+    - endpoint khusus CS di `/api/v1/customer-service/*`
+    - endpoint bersama yang digunakan workflow CS di `/api/v1/chat/*` dan `/api/v1/notifications/*`
+
+    Sumber kebenaran endpoint CS adalah router aplikasi, terutama grup `/cs` dan `/customer-service`.
 
     **Alur autentikasi:**
-    1. Login via `POST /api/v1/cs/login` → dapatkan `token`
-    2. Gunakan token sebagai `Authorization: Bearer <token>` untuk semua endpoint di bawah `/customer-service`
+    1. Login via `POST /api/v1/cs/login`
+    2. Gunakan `Authorization: Bearer <token>` untuk endpoint terproteksi
 servers:
   - url: http://localhost:8080
     description: Local development server
 tags:
   - name: CS Authentication
     description: Operasi autentikasi untuk akun Customer Service.
+  - name: CS Dashboard
+    description: Ringkasan operasional CS.
+  - name: Ticket
+    description: Manajemen tiket bantuan oleh Customer Service.
   - name: Reply Template
-    description: Manajemen template balasan cepat untuk Customer Service. Membutuhkan autentikasi role `cs`.
+    description: Manajemen shortcut/template balasan cepat oleh Customer Service.
+  - name: Chat
+    description: Endpoint percakapan dan pesan yang digunakan Customer Service.
+  - name: User Data
+    description: Data pengguna yang dapat dilihat oleh Customer Service.
+  - name: Report
+    description: Laporan operasional Customer Service.
+  - name: Notification
+    description: Notifikasi untuk user terautentikasi, termasuk role `cs`.
 
 components:
   securitySchemes:
@@ -30,11 +49,57 @@ components:
       description: ID unik untuk setiap request, berguna untuk tracing.
       schema:
         type: string
-        example: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+        example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      required: false
+      description: Nomor halaman.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+        example: 1
+    Limit10Param:
+      name: limit
+      in: query
+      required: false
+      description: Jumlah item per halaman.
+      schema:
+        type: integer
+        minimum: 1
+        default: 10
+        example: 10
+    Limit20Param:
+      name: limit
+      in: query
+      required: false
+      description: Jumlah item per halaman.
+      schema:
+        type: integer
+        minimum: 1
+        default: 20
+        example: 20
+    IDParam:
+      name: id
+      in: path
+      required: true
+      description: UUID resource.
+      schema:
+        type: string
+        format: uuid
+    ConversationIDParam:
+      name: conversationId
+      in: path
+      required: true
+      description: UUID conversation.
+      schema:
+        type: string
+        format: uuid
 
   schemas:
-    # ──────────── Request Schemas ────────────
-
     CSLoginRequest:
       type: object
       required:
@@ -44,163 +109,28 @@ components:
         email:
           type: string
           format: email
-          description: Alamat email akun Customer Service.
           example: cs@dev.local
         password:
           type: string
-          description: Password akun Customer Service.
           example: Password123!
-
-    CreateReplyTemplateRequest:
-      type: object
-      required:
-        - title
-        - category
-        - sub_key
-        - content
-      properties:
-        title:
-          type: string
-          maxLength: 150
-          description: Judul template. Maksimal 150 karakter.
-          example: Konfirmasi Pesanan Diterima
-        category:
-          type: string
-          description: |
-            Kategori template. Nilai valid:
-            `general`, `order`, `payment`, `refund`, `shipping`, `product`, `account`,
-            `complaint`, `return`, `promo`, `voucher`, `technical`, `verification`,
-            `vendor`, `stock`, `cancellation`, `delivery`, `pickup`, `subscription`,
-            `review`, `fraud`, `other`
-          example: order
-          enum:
-            - general
-            - order
-            - payment
-            - refund
-            - shipping
-            - product
-            - account
-            - complaint
-            - return
-            - promo
-            - voucher
-            - technical
-            - verification
-            - vendor
-            - stock
-            - cancellation
-            - delivery
-            - pickup
-            - subscription
-            - review
-            - fraud
-            - other
-        sub_key:
-          type: string
-          description: |
-            Kunci sub-kategori. Akan di-normalize menjadi bagian dari `shortcut`.
-            Contoh: `"konfirmasi pesanan diterima"` → shortcut: `/order/konfirmasi-pesanan-diterima`
-          example: konfirmasi pesanan diterima
-        content:
-          type: string
-          description: |
-            Isi pesan template. Mendukung placeholder dinamis seperti `{order_number}`, `{customer_name}`, dll.
-          example: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}\nStatus: Menunggu Pembayaran\n\nSilakan selesaikan pembayaran sebelum {expired_at}."
-
-    UpdateReplyTemplateRequest:
-      type: object
-      description: Semua field bersifat opsional (partial update). `category` tidak dapat diubah setelah dibuat.
-      properties:
-        title:
-          type: string
-          maxLength: 150
-          description: Judul baru template.
-          example: Konfirmasi Pesanan Diterima (Revisi)
-        sub_key:
-          type: string
-          description: Jika diubah, `shortcut` akan otomatis di-recalculate.
-          example: order confirmed updated
-        content:
-          type: string
-          description: Isi pesan baru.
-          example: "Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅"
-        is_active:
-          type: boolean
-          description: Status aktif template.
-          example: true
-
-    # ──────────── Response Schemas ────────────
 
     CSLoginResponseData:
       type: object
       properties:
         token:
           type: string
-          description: JWT Bearer Token untuk autentikasi endpoint CS.
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         user_id:
           type: string
           format: uuid
-          description: ID akun Customer Service.
           example: 54f3e380-139d-45f0-b2d9-7f97013d57b8
         full_name:
           type: string
-          description: Nama lengkap Customer Service.
           example: Dev Customer Service
         email:
           type: string
           format: email
-          description: Email akun Customer Service.
           example: cs@dev.local
-
-    ReplyTemplateResponse:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          description: ID unik reply template.
-          example: 6f669159-9740-4cd2-be7d-de966969836f
-        title:
-          type: string
-          description: Judul template.
-          example: Konfirmasi Pesanan Diterima
-        shortcut:
-          type: string
-          description: Shortcut auto-generated dari category + sub_key. Format `/category/sub-key`.
-          example: /order/konfirmasi-pesanan-diterima
-        category:
-          type: string
-          description: Kategori template (immutable setelah dibuat).
-          example: order
-        content:
-          type: string
-          description: Isi pesan template.
-          example: "Alhamdulillah, pesanan Anda telah kami terima! ✅"
-        is_active:
-          type: boolean
-          description: Status aktif template.
-          example: true
-        created_by:
-          type: string
-          format: uuid
-          description: ID CS yang membuat template.
-          example: 54f3e380-139d-45f0-b2d9-7f97013d57b8
-        updated_by:
-          type: string
-          format: uuid
-          nullable: true
-          description: ID CS yang terakhir update template.
-          example: null
-        created_at:
-          type: string
-          format: date-time
-          example: "2026-02-24T07:57:40.193Z"
-        updated_at:
-          type: string
-          format: date-time
-          example: "2026-02-24T07:57:40.193Z"
 
     PaginationMeta:
       type: object
@@ -218,118 +148,6 @@ components:
           type: integer
           example: 6
 
-    # ──────────── Envelope Schemas ────────────
-
-    SuccessCSLoginEnvelope:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: login successful
-        data:
-          $ref: "#/components/schemas/CSLoginResponseData"
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-
-    SuccessCreateTemplateEnvelope:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: template created
-        data:
-          $ref: "#/components/schemas/ReplyTemplateResponse"
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-
-    SuccessGetTemplateEnvelope:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: template retrieved
-        data:
-          $ref: "#/components/schemas/ReplyTemplateResponse"
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-
-    SuccessUpdateTemplateEnvelope:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: template updated
-        data:
-          $ref: "#/components/schemas/ReplyTemplateResponse"
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-
-    SuccessListTemplatesEnvelope:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: templates retrieved
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReplyTemplateResponse"
-        errors:
-          nullable: true
-          example: null
-        meta:
-          $ref: "#/components/schemas/PaginationMeta"
-
-    SuccessDeleteTemplateEnvelope:
-      type: object
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: template deleted
-        data:
-          nullable: true
-          example: null
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-
     ErrorEnvelope:
       type: object
       properties:
@@ -338,29 +156,588 @@ components:
           example: false
         message:
           type: string
-          description: Pesan error.
+          description: Pesan error utama.
+          example: unauthorized
         data:
           nullable: true
           example: null
         errors:
           nullable: true
-          description: Detail error tambahan.
+          description: Detail error tambahan bila ada.
+          example: null
         meta:
           nullable: true
           example: null
 
-paths:
-  # ──────────── CS Authentication ────────────
+    EmptySuccessEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: operation completed
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
 
+    ReplyTemplateCategory:
+      type: string
+      enum:
+        - general
+        - order
+        - payment
+        - refund
+        - shipping
+        - product
+        - account
+        - complaint
+        - return
+        - promo
+        - voucher
+        - technical
+        - verification
+        - vendor
+        - stock
+        - cancellation
+        - delivery
+        - pickup
+        - subscription
+        - review
+        - fraud
+        - other
+      example: order
+
+    CreateReplyTemplateRequest:
+      type: object
+      required:
+        - title
+        - category
+        - sub_key
+        - content
+      properties:
+        title:
+          type: string
+          maxLength: 150
+          example: Konfirmasi Pesanan Diterima
+        category:
+          $ref: "#/components/schemas/ReplyTemplateCategory"
+        sub_key:
+          type: string
+          example: konfirmasi pesanan diterima
+        content:
+          type: string
+          example: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}"
+
+    UpdateReplyTemplateRequest:
+      type: object
+      description: Semua field opsional. `category` tidak dapat diubah setelah dibuat.
+      properties:
+        title:
+          type: string
+          maxLength: 150
+          example: Konfirmasi Pesanan Diterima (Revisi)
+        sub_key:
+          type: string
+          example: order confirmed updated
+        content:
+          type: string
+          example: "Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅"
+        is_active:
+          type: boolean
+          example: true
+
+    ReplyTemplateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          example: Konfirmasi Pesanan Diterima
+        shortcut:
+          type: string
+          example: /order/konfirmasi-pesanan-diterima
+        category:
+          $ref: "#/components/schemas/ReplyTemplateCategory"
+        content:
+          type: string
+          example: "Alhamdulillah, pesanan Anda telah kami terima! ✅"
+        is_active:
+          type: boolean
+          example: true
+        created_by:
+          type: string
+          format: uuid
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    DashboardRecentTicket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+          example: TKT-20260331-0001
+        phone:
+          type: string
+          example: "08123456789"
+        reporter_name:
+          type: string
+          example: Sarah Ahmad
+        subject:
+          type: string
+          example: Pembayaran
+        status:
+          type: string
+          example: open
+        created_at:
+          type: string
+          format: date-time
+
+    CSDashboardResponse:
+      type: object
+      properties:
+        today_tickets:
+          type: integer
+          format: int64
+          example: 14
+        waiting_tickets:
+          type: integer
+          format: int64
+          example: 8
+        done_tickets:
+          type: integer
+          format: int64
+          example: 33
+        recent_tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardRecentTicket"
+
+    UpdateTicketStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [open, on_progress, closed]
+          example: on_progress
+        notes:
+          type: string
+          nullable: true
+          example: Sedang ditindaklanjuti oleh CS.
+
+    AddTicketMessageRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: Mohon tunggu, kami sedang cek status pesanan Anda.
+        is_internal_note:
+          type: boolean
+          example: false
+
+    TicketMessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+        is_from_cs:
+          type: boolean
+          example: true
+        is_internal_note:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+
+    TicketResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+          example: TKT-20260331-0001
+        customer_id:
+          type: string
+          format: uuid
+        customer_email:
+          type: string
+          format: email
+          example: customer@example.com
+        assigned_cs_id:
+          type: string
+          format: uuid
+          nullable: true
+        assigned_cs_name:
+          type: string
+          nullable: true
+          example: Dev Customer Service
+        order_number:
+          type: string
+          example: ORD-20260331-0001
+        order_status:
+          type: string
+          example: paid
+        payment_method:
+          type: string
+          nullable: true
+          example: bank_transfer
+        grand_total:
+          type: number
+          format: double
+          example: 250000
+        phone:
+          type: string
+          example: "08123456789"
+        reporter_name:
+          type: string
+          example: Sarah Ahmad
+        subject:
+          type: string
+          example: Pembayaran
+        detail:
+          type: string
+          example: Saya sudah transfer tetapi status belum berubah.
+        status:
+          type: string
+          example: open
+        source:
+          type: string
+          example: app
+        attachment_url:
+          type: string
+          nullable: true
+          example: https://storage.example.com/tickets/file.jpg
+        attachment_content_type:
+          type: string
+          nullable: true
+          example: image/jpeg
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    StartConversationRequest:
+      type: object
+      required:
+        - participant_id
+      properties:
+        participant_id:
+          type: string
+          format: uuid
+          example: 27d077ac-6cc9-4f36-986b-c6e00d0aa16d
+
+    PresignChatAttachmentRequest:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+          example: image/jpeg
+
+    PresignAttachmentResponse:
+      type: object
+      properties:
+        upload_url:
+          type: string
+          format: uri
+          example: https://storage.example.com/presigned-upload
+        object_key:
+          type: string
+          example: chat/2026/03/31/abc123.jpg
+        content_type:
+          type: string
+          example: image/jpeg
+        expires_in:
+          type: integer
+          example: 900
+
+    SendChatMessageRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: Terima kasih sudah menghubungi CS. Ada yang bisa dibantu?
+        attachment_key:
+          type: string
+          nullable: true
+          example: chat/2026/03/31/abc123.jpg
+
+    ChatableUserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+          example: Vendor Madinah
+        email:
+          type: string
+          format: email
+          example: vendor@example.com
+        role:
+          type: string
+          example: umkm
+
+    ConversationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        initiator_id:
+          type: string
+          format: uuid
+        participant_id:
+          type: string
+          format: uuid
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        user_name:
+          type: string
+          example: Sarah Ahmad
+        user_role:
+          type: string
+          example: customer
+        last_message:
+          type: string
+          example: Mohon bantu cek pesanan saya.
+        last_message_time:
+          type: string
+          format: date-time
+          nullable: true
+        unread_count:
+          type: integer
+          format: int64
+          example: 2
+
+    ChatMessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        sender_name:
+          type: string
+          example: Dev Customer Service
+        sender_role:
+          type: string
+          example: cs
+        message:
+          type: string
+          example: Pesanan Anda sedang kami cek.
+        attachment_url:
+          type: string
+          nullable: true
+          example: https://storage.example.com/chat/file.jpg
+        is_read:
+          type: boolean
+          example: false
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    SubjectCount:
+      type: object
+      properties:
+        subject_id:
+          type: integer
+          example: 2
+        label:
+          type: string
+          example: Pembayaran
+        count:
+          type: integer
+          format: int64
+          example: 18
+
+    DayCount:
+      type: object
+      properties:
+        date:
+          type: string
+          example: 2026-03-15
+        count:
+          type: integer
+          format: int64
+          example: 5
+
+    CSReportResponse:
+      type: object
+      properties:
+        month:
+          type: string
+          example: 2026-03
+        total_tickets:
+          type: integer
+          format: int64
+          example: 57
+        closed_tickets:
+          type: integer
+          format: int64
+          example: 41
+        avg_response_minute:
+          type: number
+          format: double
+          example: 12.5
+        top_subjects:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubjectCount"
+        tickets_per_day:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayCount"
+
+    CSUserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+          example: customer@example.com
+        full_name:
+          type: string
+          example: Sarah Ahmad
+        birth_date:
+          type: string
+          format: date-time
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+          example: "08123456789"
+        status:
+          type: string
+          example: active
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        role:
+          type: string
+          example: customer
+        ticket_count:
+          type: integer
+          format: int64
+          example: 3
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    NotificationItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          example: ticket
+        title:
+          type: string
+          example: Ticket baru masuk
+        message:
+          type: string
+          example: Ada tiket baru yang belum ditangani.
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    NotificationUnreadCount:
+      type: object
+      properties:
+        unread_count:
+          type: integer
+          format: int64
+          example: 4
+
+    NotificationBulkReadResponse:
+      type: object
+      properties:
+        updated:
+          type: integer
+          format: int64
+          example: 4
+
+paths:
   /api/v1/cs/login:
     post:
-      tags:
-        - CS Authentication
+      tags: [CS Authentication]
       summary: Login CS
-      description: |
-        Login untuk akun Customer Service. Mengembalikan JWT Bearer Token yang digunakan untuk semua endpoint CS.
-
-        **Catatan:** Salin nilai `token` dari response ke header `Authorization: Bearer <token>`.
       operationId: loginCS
       security: []
       requestBody:
@@ -369,143 +746,236 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CSLoginRequest"
-            example:
-              email: cs@dev.local
-              password: Password123!
       responses:
         "200":
-          description: Login berhasil. Token JWT dikembalikan.
+          description: Login berhasil.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessCSLoginEnvelope"
-              example:
-                success: true
-                message: login successful
-                data:
-                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-                  user_id: 54f3e380-139d-45f0-b2d9-7f97013d57b8
-                  full_name: Dev Customer Service
-                  email: cs@dev.local
-                errors: null
-                meta: null
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: login successful
+                  data:
+                    $ref: "#/components/schemas/CSLoginResponseData"
+                  errors:
+                    nullable: true
+                    example: null
+                  meta:
+                    nullable: true
+                    example: null
         "400":
-          description: Validasi request gagal (field kosong atau format tidak valid).
+          description: Validasi request gagal.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: "Key: 'CSLoginRequest.Email' Error:Field validation for 'Email' failed on the 'required' tag"
-                data: null
-                errors: null
-                meta: null
         "401":
           description: Email atau password salah.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: invalid email or password
-                data: null
-                errors: null
-                meta: null
         "403":
-          description: Akun ditemukan tapi bukan role CS.
+          description: Akun bukan role CS.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: "access denied: cs only"
-                data: null
-                errors: null
-                meta: null
 
-  # ──────────── Reply Template ────────────
-
-  /api/v1/customer-service/reply-templates:
+  /api/v1/customer-service/dashboard:
     get:
-      tags:
-        - Reply Template
-      summary: List Reply Templates
-      description: |
-        Menampilkan daftar reply template dengan pagination, filter kategori, dan full-text search.
-
-        **Auth:** Bearer Token (Role: `cs`)
-      operationId: listReplyTemplates
+      tags: [CS Dashboard]
+      summary: Get Dashboard
+      operationId: getCSDashboard
+      description: Endpoint dashboard untuk role `cs`.
       security:
         - BearerAuth: []
       parameters:
-        - name: page
+        - name: month
           in: query
-          description: "Nomor halaman (default: 1)."
           required: false
+          description: Bulan 1-12. Default bulan saat ini.
           schema:
             type: integer
             minimum: 1
-            default: 1
-            example: 1
-        - name: limit
+            maximum: 12
+            example: 3
+        - name: year
           in: query
-          description: "Jumlah item per halaman (default: 10, maksimal: 100)."
           required: false
+          description: Tahun 2000-2100. Default tahun saat ini.
           schema:
             type: integer
-            minimum: 1
-            maximum: 100
-            default: 10
-            example: 10
-        - name: category
-          in: query
-          description: |
-            Filter berdasarkan kategori. Nilai valid:
-            `general`, `order`, `payment`, `refund`, `shipping`, `product`, `account`,
-            `complaint`, `return`, `promo`, `voucher`, `technical`, `verification`,
-            `vendor`, `stock`, `cancellation`, `delivery`, `pickup`, `subscription`,
-            `review`, `fraud`, `other`
-          required: false
-          schema:
-            type: string
-            example: order
-        - name: q
-          in: query
-          description: Pencarian berdasarkan `title` atau `shortcut` (case-insensitive).
-          required: false
-          schema:
-            type: string
-            example: konfirmasi
+            minimum: 2000
+            maximum: 2100
+            example: 2026
       responses:
         "200":
-          description: Daftar template berhasil diambil.
+          description: Dashboard berhasil diambil.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessListTemplatesEnvelope"
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/CSDashboardResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
               example:
                 success: true
-                message: templates retrieved
+                message: dashboard retrieved
                 data:
-                  - id: 6f669159-9740-4cd2-be7d-de966969836f
-                    title: Konfirmasi Pesanan Diterima
-                    shortcut: /order/konfirmasi-pesanan-diterima
-                    category: order
-                    content: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}"
-                    is_active: true
-                    created_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
-                    updated_by: null
-                    created_at: "2026-02-24T07:57:40.193Z"
-                    updated_at: "2026-02-24T07:57:40.193Z"
+                  today_tickets: 14
+                  waiting_tickets: 8
+                  done_tickets: 33
+                  recent_tickets:
+                    - id: 4a2dc626-c19c-4b99-8139-8d622e64a99a
+                      ticket_number: TKT-20260331-0001
+                      phone: "08123456789"
+                      reporter_name: Sarah Ahmad
+                      subject: Pembayaran
+                      status: open
+                      created_at: "2026-03-31T08:00:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Query `month` atau `year` tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak valid atau tidak disertakan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Role tidak memiliki akses.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/tickets:
+    get:
+      tags: [Ticket]
+      summary: List Tickets
+      operationId: listTickets
+      description: Daftar tiket bantuan untuk role `cs`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/Limit10Param"
+        - name: status
+          in: query
+          schema:
+            type: string
+            example: open
+        - name: search
+          in: query
+          description: Pencarian tiket.
+          schema:
+            type: string
+            example: Sarah
+        - name: assigned_cs_id
+          in: query
+          description: Filter berdasarkan CS yang menangani tiket.
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          description: Tanggal mulai filter, format `YYYY-MM-DD`.
+          schema:
+            type: string
+            example: 2026-03-01
+        - name: to_date
+          in: query
+          description: Tanggal akhir filter, format `YYYY-MM-DD`.
+          schema:
+            type: string
+            example: 2026-03-31
+        - name: sort_by
+          in: query
+          description: Kolom sorting.
+          schema:
+            type: string
+            enum: [reporter_name, assigned_cs_name, created_at]
+            example: created_at
+        - name: sort_order
+          in: query
+          description: Arah sorting.
+          schema:
+            type: string
+            enum: [asc, desc]
+            example: desc
+      responses:
+        "200":
+          description: Daftar tiket berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TicketResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+              example:
+                success: true
+                message: tickets retrieved
+                data:
+                  - id: 4a2dc626-c19c-4b99-8139-8d622e64a99a
+                    ticket_number: TKT-20260331-0001
+                    customer_id: 94db53b1-dc0e-4edf-8c3d-dcc2b0f1fca4
+                    customer_email: customer@example.com
+                    assigned_cs_id: null
+                    assigned_cs_name: null
+                    order_number: ORD-20260331-0001
+                    order_status: paid
+                    payment_method: bank_transfer
+                    grand_total: 250000
+                    phone: "08123456789"
+                    reporter_name: Sarah Ahmad
+                    subject: Pembayaran
+                    detail: Saya sudah transfer tetapi status belum berubah.
+                    status: open
+                    source: app
+                    attachment_url: null
+                    attachment_content_type: null
+                    closed_at: null
+                    created_at: "2026-03-31T08:00:00Z"
+                    updated_at: "2026-03-31T08:00:00Z"
                 errors: null
                 meta:
                   page: 1
@@ -518,40 +988,357 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: unauthorized
-                data: null
-                errors: null
-                meta: null
-        "403":
-          description: Role tidak memiliki akses (bukan CS).
+
+  /api/v1/customer-service/tickets/export:
+    get:
+      tags: [Ticket]
+      summary: Export Tickets CSV
+      operationId: exportTickets
+      description: Export daftar tiket ke CSV menggunakan filter yang sama dengan endpoint list.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: assigned_cs_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            example: 2026-03-01
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            example: 2026-03-31
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [reporter_name, assigned_cs_name, created_at]
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        "200":
+          description: File CSV berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Token tidak valid atau tidak disertakan.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/tickets/{id}:
+    get:
+      tags: [Ticket]
+      summary: Get Ticket Detail
+      operationId: getTicket
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          description: Detail tiket berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/TicketResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: ID tiket tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Tiket tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/tickets/{id}/take:
+    patch:
+      tags: [Ticket]
+      summary: Take Ticket
+      operationId: takeTicket
+      description: Menetapkan tiket ke CS yang sedang login.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          description: Tiket berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/TicketResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: ID tiket tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Tiket tidak dapat diambil karena konflik state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/tickets/{id}/status:
+    patch:
+      tags: [Ticket]
+      summary: Update Ticket Status
+      operationId: updateTicketStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTicketStatusRequest"
+      responses:
+        "200":
+          description: Status tiket berhasil diubah.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/TicketResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: Request tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Tiket tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/tickets/{id}/messages:
+    get:
+      tags: [Ticket]
+      summary: List Ticket Messages
+      operationId: listTicketMessages
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          description: Pesan tiket berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TicketMessageResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: ID tiket tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    post:
+      tags: [Ticket]
+      summary: Add Ticket Message
+      operationId: addTicketMessage
+      description: Menambahkan pesan tiket. Set `is_internal_note=true` untuk catatan internal.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTicketMessageRequest"
+      responses:
+        "201":
+          description: Pesan tiket berhasil ditambahkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/TicketMessageResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
               example:
-                success: false
-                message: insufficient permissions
-                data: null
+                success: true
+                message: message added
+                data:
+                  id: 6b8b484a-10a0-4a5d-b960-0a2962367374
+                  ticket_id: 4a2dc626-c19c-4b99-8139-8d622e64a99a
+                  sender_id: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+                  message: Mohon tunggu, kami sedang cek status pesanan Anda.
+                  is_from_cs: true
+                  is_internal_note: false
+                  created_at: "2026-03-31T08:15:00Z"
                 errors: null
                 meta: null
+        "400":
+          description: Request tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 
+  /api/v1/customer-service/reply-templates:
+    get:
+      tags: [Reply Template]
+      summary: List Reply Templates
+      operationId: listReplyTemplates
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/Limit10Param"
+        - name: category
+          in: query
+          schema:
+            $ref: "#/components/schemas/ReplyTemplateCategory"
+        - name: q
+          in: query
+          description: Pencarian pada title atau shortcut.
+          schema:
+            type: string
+            example: konfirmasi
+        - name: is_active
+          in: query
+          description: Filter template aktif/nonaktif.
+          schema:
+            type: boolean
+            example: true
+      responses:
+        "200":
+          description: Daftar template berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReplyTemplateResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Token tidak valid atau tidak disertakan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
     post:
-      tags:
-        - Reply Template
+      tags: [Reply Template]
       summary: Create Reply Template
-      description: |
-        Membuat reply template baru.
-
-        **Aturan shortcut auto-generate:**
-        - Format: `/{category}/{normalized_sub_key}`
-        - Normalisasi `sub_key`: lowercase, karakter non-alphanumeric diganti `-`, trim
-        - Contoh: `sub_key: "konfirmasi pesanan diterima"` → `shortcut: /order/konfirmasi-pesanan-diterima`
-        - Shortcut harus unik — jika sudah ada, akan dikembalikan error 409.
-
-        **Auth:** Bearer Token (Role: `cs`)
       operationId: createReplyTemplate
+      description: Membuat template baru. Shortcut dibangkitkan dari `category` dan `sub_key`.
       security:
         - BearerAuth: []
       requestBody:
@@ -560,11 +1347,6 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateReplyTemplateRequest"
-            example:
-              title: Konfirmasi Pesanan Diterima
-              category: order
-              sub_key: konfirmasi pesanan diterima
-              content: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}\nStatus: Menunggu Pembayaran\n\nSilakan selesaikan pembayaran sebelum {expired_at}."
       responses:
         "201":
           description: Template berhasil dibuat.
@@ -574,263 +1356,134 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessCreateTemplateEnvelope"
-              example:
-                success: true
-                message: template created
-                data:
-                  id: 6f669159-9740-4cd2-be7d-de966969836f
-                  title: Konfirmasi Pesanan Diterima
-                  shortcut: /order/konfirmasi-pesanan-diterima
-                  category: order
-                  content: "Alhamdulillah, pesanan Anda telah kami terima! ✅\n\nNomor pesanan Anda: {order_number}"
-                  is_active: true
-                  created_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
-                  updated_by: null
-                  created_at: "2026-02-24T08:00:00.000Z"
-                  updated_at: "2026-02-24T08:00:00.000Z"
-                errors: null
-                meta: null
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/ReplyTemplateResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
         "400":
-          description: Validasi request gagal (field wajib kosong atau terlalu panjang).
+          description: Validasi request gagal.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: "Key: 'CreateReplyTemplateRequest.Title' Error:Field validation for 'Title' failed on the 'required' tag"
-                data: null
-                errors: null
-                meta: null
-        "401":
-          description: Token tidak valid atau tidak disertakan.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: unauthorized
-                data: null
-                errors: null
-                meta: null
         "409":
-          description: Shortcut yang di-generate sudah digunakan oleh template lain.
+          description: Shortcut yang dihasilkan sudah dipakai template lain.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: shortcut already exists
-                data: null
-                errors: null
-                meta: null
-        "422":
-          description: Kategori tidak termasuk dalam daftar kategori yang valid.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: invalid reply template category
-                data: null
-                errors: null
-                meta: null
 
   /api/v1/customer-service/reply-templates/{id}:
     get:
-      tags:
-        - Reply Template
-      summary: Get Reply Template by ID
-      description: |
-        Mendapatkan detail satu reply template berdasarkan UUID-nya.
-
-        **Auth:** Bearer Token (Role: `cs`)
-      operationId: getReplyTemplateByID
+      tags: [Reply Template]
+      summary: Get Reply Template
+      operationId: getReplyTemplate
       security:
         - BearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: UUID reply template.
-          schema:
-            type: string
-            format: uuid
-            example: 6f669159-9740-4cd2-be7d-de966969836f
+        - $ref: "#/components/parameters/IDParam"
       responses:
         "200":
-          description: Detail template berhasil diambil.
+          description: Template berhasil diambil.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessGetTemplateEnvelope"
-              example:
-                success: true
-                message: template retrieved
-                data:
-                  id: 6f669159-9740-4cd2-be7d-de966969836f
-                  title: Konfirmasi Pesanan Diterima
-                  shortcut: /order/konfirmasi-pesanan-diterima
-                  category: order
-                  content: "Alhamdulillah, pesanan Anda telah kami terima! ✅"
-                  is_active: true
-                  created_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
-                  updated_by: null
-                  created_at: "2026-02-24T07:57:40.193Z"
-                  updated_at: "2026-02-24T07:57:40.193Z"
-                errors: null
-                meta: null
-        "401":
-          description: Token tidak valid atau tidak disertakan.
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/ReplyTemplateResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: ID template tidak valid.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: unauthorized
-                data: null
-                errors: null
-                meta: null
         "404":
-          description: Template dengan ID tersebut tidak ditemukan.
+          description: Template tidak ditemukan.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: reply template not found
-                data: null
-                errors: null
-                meta: null
-
     put:
-      tags:
-        - Reply Template
+      tags: [Reply Template]
       summary: Update Reply Template
-      description: |
-        Update reply template secara partial. Semua field opsional.
-
-        **Aturan penting:**
-        - `category` **tidak dapat diubah** setelah template dibuat (immutable).
-        - Jika `sub_key` diubah, `shortcut` akan otomatis di-recalculate menggunakan category lama + sub_key baru.
-        - Jika shortcut hasil recalculate sudah digunakan template lain → 409 Conflict.
-
-        **Auth:** Bearer Token (Role: `cs`)
       operationId: updateReplyTemplate
       security:
         - BearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: UUID reply template yang akan diupdate.
-          schema:
-            type: string
-            format: uuid
-            example: 6f669159-9740-4cd2-be7d-de966969836f
+        - $ref: "#/components/parameters/IDParam"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateReplyTemplateRequest"
-            example:
-              title: Konfirmasi Pesanan Diterima (Revisi)
-              sub_key: order confirmed updated
-              content: "Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅"
-              is_active: true
       responses:
         "200":
-          description: Template berhasil diupdate.
+          description: Template berhasil diperbarui.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessUpdateTemplateEnvelope"
-              example:
-                success: true
-                message: template updated
-                data:
-                  id: 6f669159-9740-4cd2-be7d-de966969836f
-                  title: Konfirmasi Pesanan Diterima (Revisi)
-                  shortcut: /order/order-confirmed-updated
-                  category: order
-                  content: "Alhamdulillah, pesanan Anda telah kami terima dan sedang diproses! ✅"
-                  is_active: true
-                  created_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
-                  updated_by: 54f3e380-139d-45f0-b2d9-7f97013d57b8
-                  created_at: "2026-02-24T07:57:40.193Z"
-                  updated_at: "2026-02-24T09:00:00.000Z"
-                errors: null
-                meta: null
-        "401":
-          description: Token tidak valid atau tidak disertakan.
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/ReplyTemplateResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: Request atau ID tidak valid.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: unauthorized
-                data: null
-                errors: null
-                meta: null
         "404":
-          description: Template dengan ID tersebut tidak ditemukan.
+          description: Template tidak ditemukan.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: reply template not found
-                data: null
-                errors: null
-                meta: null
         "409":
-          description: Shortcut hasil recalculate sudah digunakan template lain.
+          description: Shortcut hasil update berbenturan dengan template lain.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: shortcut already exists
-                data: null
-                errors: null
-                meta: null
-
     delete:
-      tags:
-        - Reply Template
+      tags: [Reply Template]
       summary: Delete Reply Template
-      description: |
-        Menghapus reply template secara permanen berdasarkan UUID-nya.
-
-        **Auth:** Bearer Token (Role: `cs`)
       operationId: deleteReplyTemplate
       security:
         - BearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: UUID reply template yang akan dihapus.
-          schema:
-            type: string
-            format: uuid
-            example: 6f669159-9740-4cd2-be7d-de966969836f
+        - $ref: "#/components/parameters/IDParam"
       responses:
         "200":
           description: Template berhasil dihapus.
@@ -840,34 +1493,687 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessDeleteTemplateEnvelope"
+                $ref: "#/components/schemas/EmptySuccessEnvelope"
               example:
                 success: true
                 message: template deleted
                 data: null
                 errors: null
                 meta: null
-        "401":
-          description: Token tidak valid atau tidak disertakan.
+        "400":
+          description: ID template tidak valid.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: unauthorized
-                data: null
-                errors: null
-                meta: null
         "404":
-          description: Template dengan ID tersebut tidak ditemukan.
+          description: Template tidak ditemukan.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/chat:
+    get:
+      tags: [Chat]
+      summary: List Conversations
+      operationId: listCSConversations
+      description: Daftar percakapan milik CS yang sedang login.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/Limit10Param"
+        - name: search
+          in: query
+          description: Pencarian berdasarkan nama lawan bicara.
+          schema:
+            type: string
+            example: Sarah
+        - name: role
+          in: query
+          description: Filter berdasarkan role lawan bicara.
+          schema:
+            type: string
+            example: customer
+      responses:
+        "200":
+          description: Daftar percakapan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConversationResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  /api/v1/customer-service/chat/{conversationId}:
+    get:
+      tags: [Chat]
+      summary: Get Conversation Detail
+      operationId: getCSConversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      responses:
+        "200":
+          description: Detail percakapan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/ConversationResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: ID percakapan tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/chat/{conversationId}/read:
+    patch:
+      tags: [Chat]
+      summary: Mark Conversation Messages as Read
+      operationId: markConversationRead
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      responses:
+        "200":
+          description: Pesan berhasil ditandai telah dibaca.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmptySuccessEnvelope"
               example:
-                success: false
-                message: reply template not found
+                success: true
+                message: messages marked as read
                 data: null
                 errors: null
                 meta: null
+        "400":
+          description: ID percakapan tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/users:
+    get:
+      tags: [Chat]
+      summary: Search Chatable Users
+      operationId: searchChatableUsers
+      description: |
+        Endpoint bersama untuk mencari lawan bicara yang valid.
+        Untuk CS, hasil tetap mengikuti validasi usecase.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            example: sarah
+        - name: roles
+          in: query
+          required: false
+          description: Daftar role dipisahkan koma.
+          schema:
+            type: string
+            example: customer,umkm
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/Limit20Param"
+      responses:
+        "200":
+          description: Daftar user berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChatableUserResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  /api/v1/chat:
+    post:
+      tags: [Chat]
+      summary: Start or Get Conversation
+      operationId: startOrGetConversation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartConversationRequest"
+      responses:
+        "201":
+          description: Conversation siap digunakan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/ConversationResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+              example:
+                success: true
+                message: conversation ready
+                data:
+                  id: 4c5382b0-87b4-4824-aae9-cc22f4f1d20d
+                  initiator_id: 54f3e380-139d-45f0-b2d9-7f97013d57b8
+                  participant_id: 27d077ac-6cc9-4f36-986b-c6e00d0aa16d
+                  last_message_at: null
+                  created_at: "2026-03-31T08:20:00Z"
+                  updated_at: "2026-03-31T08:20:00Z"
+                  user_name: Sarah Ahmad
+                  user_role: customer
+                  last_message: ""
+                  last_message_time: null
+                  unread_count: 0
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/attachment/presign:
+    post:
+      tags: [Chat]
+      summary: Presign Chat Attachment Upload
+      operationId: presignChatAttachment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresignChatAttachmentRequest"
+      responses:
+        "200":
+          description: Presigned upload URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/PresignAttachmentResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: Request tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/{conversationId}/messages:
+    get:
+      tags: [Chat]
+      summary: List Chat Messages
+      operationId: listChatMessages
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/Limit20Param"
+      responses:
+        "200":
+          description: Pesan chat berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChatMessageResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+    post:
+      tags: [Chat]
+      summary: Send Chat Message
+      operationId: sendChatMessage
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendChatMessageRequest"
+      responses:
+        "201":
+          description: Pesan berhasil dikirim.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/ChatMessageResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: Request atau ID percakapan tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/users:
+    get:
+      tags: [User Data]
+      summary: List Users
+      operationId: listCSUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/Limit10Param"
+        - name: q
+          in: query
+          description: Pencarian nama atau email.
+          schema:
+            type: string
+            example: sarah
+      responses:
+        "200":
+          description: Daftar user berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CSUserResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  /api/v1/customer-service/users/{id}:
+    get:
+      tags: [User Data]
+      summary: Get User Detail
+      operationId: getCSUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          description: Detail user berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/CSUserResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: ID user tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/users/{id}/tickets:
+    get:
+      tags: [User Data]
+      summary: Get User Tickets
+      operationId: getCSUserTickets
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/Limit10Param"
+      responses:
+        "200":
+          description: Daftar tiket user berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TicketResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "400":
+          description: ID user tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/reports:
+    get:
+      tags: [Report]
+      summary: Get CS Report
+      operationId: getCSReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Bulan laporan dengan format `YYYY-MM`.
+          schema:
+            type: string
+            example: 2026-03
+      responses:
+        "200":
+          description: Laporan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/CSReportResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: Query `month` wajib dan harus valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/customer-service/reports/export:
+    get:
+      tags: [Report]
+      summary: Export CS Report CSV
+      operationId: exportCSReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Bulan laporan dengan format `YYYY-MM`.
+          schema:
+            type: string
+            example: 2026-03
+      responses:
+        "200":
+          description: File CSV laporan berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Query `month` wajib dan harus valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/notifications:
+    get:
+      tags: [Notification]
+      summary: List Notifications
+      operationId: listNotifications
+      description: Endpoint ini dapat diakses oleh role `admin`, `finance`, dan `cs`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/Limit10Param"
+      responses:
+        "200":
+          description: Daftar notifikasi berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/NotificationItem"
+                  errors:
+                    nullable: true
+                  meta:
+                    $ref: "#/components/schemas/PaginationMeta"
+
+  /api/v1/notifications/unread-count:
+    get:
+      tags: [Notification]
+      summary: Get Unread Notification Count
+      operationId: unreadNotificationCount
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Jumlah notifikasi belum dibaca berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/NotificationUnreadCount"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+
+  /api/v1/notifications/read-all:
+    patch:
+      tags: [Notification]
+      summary: Mark All Notifications as Read
+      operationId: markAllNotificationsRead
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Semua notifikasi berhasil ditandai telah dibaca.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/NotificationBulkReadResponse"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+
+  /api/v1/notifications/{id}/read:
+    patch:
+      tags: [Notification]
+      summary: Mark Notification as Read
+      operationId: markNotificationRead
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IDParam"
+      responses:
+        "200":
+          description: Notifikasi berhasil ditandai telah dibaca.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/NotificationItem"
+                  errors:
+                    nullable: true
+                  meta:
+                    nullable: true
+        "400":
+          description: ID notifikasi tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"

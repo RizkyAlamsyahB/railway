@@ -367,6 +367,25 @@ func (r *orderRepository) MarkOrderCompleted(ctx context.Context, orderID uuid.U
 			return errors.New("failed to release escrow balance")
 		}
 
+		// Increment vendor total_sold based on order items.
+		var totalQty int64
+		if err := tx.Model(&orderItemModel{}).
+			Select("COALESCE(SUM(qty), 0)").
+			Where("order_id = ?", orderID.String()).
+			Scan(&totalQty).Error; err != nil {
+			return fmt.Errorf("calculate total sold: %w", err)
+		}
+		if totalQty > 0 {
+			if err := tx.Model(&vendorModel{}).
+				Where("id = ?", current.VendorID).
+				Updates(map[string]interface{}{
+					"total_sold": gorm.Expr("total_sold + ?", totalQty),
+					"updated_at": now,
+				}).Error; err != nil {
+				return fmt.Errorf("increment vendor total sold: %w", err)
+			}
+		}
+
 		applied = true
 		return nil
 	})

@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: UmrahMart - Vendor API
+  title: Vendor API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint vendor/seller (UMKM), termasuk pendaftaran, autentikasi, dokumen, dan manajemen produk.
+  description: Dokumentasi OpenAPI 3 untuk modul vendor/seller (UMKM), termasuk pendaftaran, autentikasi, produk, voucher, saldo, pengiriman, alamat gudang, kurir, order, banner toko, dan chat.
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -19,6 +19,20 @@ tags:
     description: CRUD voucher diskon nominal per item (produk milik vendor).
   - name: Vendor Balance
     description: Operasi saldo dan penarikan vendor (Tokopedia-style self-service).
+  - name: Vendor Shipping
+    description: Lookup lokasi pengiriman dan master kurir untuk kebutuhan vendor.
+  - name: Vendor Locations
+    description: Lookup wilayah Indonesia untuk form alamat umum dan profil vendor.
+  - name: Vendor Addresses
+    description: Manajemen alamat vendor/customer yang dipakai sebagai alamat gudang.
+  - name: Vendor Couriers
+    description: Manajemen kurir aktif yang dipilih vendor.
+  - name: Vendor Orders
+    description: Kelola order vendor, invoice, shipping, export, dan tracking.
+  - name: Vendor Banners
+    description: Manajemen banner toko vendor dan endpoint banner publik toko.
+  - name: Vendor Chat
+    description: Pencarian user, percakapan, pesan, attachment, dan read state untuk alur chat vendor.
   - name: Xendit Webhook
     description: Endpoint callback webhook dari Xendit.
 paths:
@@ -80,7 +94,7 @@ paths:
       tags:
         - Vendor Registration
       summary: 2. Verify OTP
-      description: Memverifikasi OTP dan mengembalikan onboarding JWT untuk step register berikutnya.
+      description: Memverifikasi OTP dan mengembalikan `email_token` untuk step register vendor berikutnya.
       operationId: verifyVendorRegistrationOTP
       security: []
       requestBody:
@@ -94,7 +108,7 @@ paths:
               code: "123456"
       responses:
         "200":
-          description: OTP valid dan onboarding JWT diterbitkan.
+          description: OTP valid dan `email_token` diterbitkan.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
@@ -154,14 +168,27 @@ paths:
               $ref: "#/components/schemas/VendorRegistrationPasswordRequest"
       responses:
         "200":
-          description: Password berhasil disimpan.
+          description: Registrasi vendor selesai dan auth token diterbitkan.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessVendorOnboardingProgressEnvelope"
+                $ref: "#/components/schemas/SuccessVendorLoginEnvelope"
+              example:
+                success: true
+                message: vendor registration completed
+                data:
+                  access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  email: toko.mabrur@example.com
+                  image_url: null
+                  store_name: null
+                  vendor_type: null
+                  vendor_status: draft
+                errors: null
+                meta: null
         "400":
           description: Step onboarding tidak valid atau payload tidak valid.
           headers:
@@ -172,223 +199,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "401":
-          description: Onboarding JWT tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /api/v1/vendors/register/souvenir-store/individual/presign:
-    post:
-      tags:
-        - Vendor Registration
-      summary: 4a. Buat Presigned Upload URL untuk Dokumen Identitas Pribadi (KTP/Paspor)
-      description: Membuat presigned URL untuk upload dokumen identitas pribadi (KTP atau paspor) dalam flow pendaftaran vendor perorangan (`souvenir_store`).
-      operationId: presignVendorRegistrationIndividualDocument
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VendorRegistrationPresignDocumentRequest"
-            example:
-              document_id_type: ktp
-              content_type: image/jpeg
-      responses:
-        "200":
-          description: Presigned URL berhasil dibuat.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessVendorRegistrationIndividualPresignEnvelope"
-        "400":
-          description: Step onboarding tidak valid atau payload tidak valid.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          description: Onboarding JWT tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /api/v1/vendors/register/souvenir-store/individual:
-    post:
-      tags:
-        - Vendor Registration
-      summary: 5a. Submit Registrasi Vendor Perorangan
-      description: |
-        Menyelesaikan pendaftaran vendor tipe **perorangan** (`business_legal_type = perorangan`).
-        Menerima data toko (`store_name`) dan data identitas pribadi (NIK, nama pemilik, tanggal lahir, object key dokumen KTP/paspor).
-        Jika berhasil, mengembalikan auth token vendor langsung.
-      operationId: submitVendorRegistrationIndividual
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VendorRegistrationIndividualLegalRequest"
-            example:
-              store_name: Toko Oleh-Oleh Haji Mabrur
-              document_id_type: ktp
-              nik: "3173000000000001"
-              owner_name: Ahmad Subarkah
-              birth_date: "1990-01-02"
-              document_id_object_key: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
-      responses:
-        "200":
-          description: Registrasi perorangan selesai dan auth token vendor diterbitkan.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessVendorLoginEnvelope"
-        "400":
-          description: Payload tidak valid, step tidak sesuai, atau file dokumen tidak valid.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          description: Onboarding JWT tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "409":
-          description: Email sudah dipakai akun lain.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          description: Internal server error.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /api/v1/vendors/register/souvenir-store/corporate/presign:
-    post:
-      tags:
-        - Vendor Registration
-      summary: 4b. Buat Presigned Upload URL untuk Dokumen NIB Perusahaan
-      description: Membuat presigned URL untuk upload dokumen NIB dalam flow pendaftaran vendor korporasi (`souvenir_store`).
-      operationId: presignVendorRegistrationCorporateDocument
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: Presigned URL berhasil dibuat.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessVendorRegistrationCorporatePresignEnvelope"
-        "400":
-          description: Step onboarding tidak valid.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          description: Onboarding JWT tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /api/v1/vendors/register/souvenir-store/corporate:
-    post:
-      tags:
-        - Vendor Registration
-      summary: 5b. Submit Registrasi Vendor Korporasi
-      description: |
-        Menyelesaikan pendaftaran vendor tipe **korporasi** (`business_legal_type = korporasi`).
-        Menerima data toko (`store_name`) dan data legalitas perusahaan (NIB, nama perusahaan, tanggal berdiri, alamat terdaftar, object key dokumen NIB).
-        Jika berhasil, mengembalikan auth token vendor langsung.
-      operationId: submitVendorRegistrationCorporate
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VendorRegistrationCorporateLegalRequest"
-            example:
-              store_name: Toko Oleh-Oleh Haji Mabrur
-              nib: "1234567890123"
-              company_name: PT Toko Oleh-Oleh Haji Mabrur
-              established_date: "2010-05-20"
-              registered_address: Jl. Sudirman No. 1, Jakarta Pusat
-              nib_document_object_key: vendor-onboardings/6c9f5.../documents/business_nib/f1e2d3...
-      responses:
-        "200":
-          description: Registrasi korporasi selesai dan auth token vendor diterbitkan.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessVendorLoginEnvelope"
-        "400":
-          description: Payload tidak valid, step tidak sesuai, atau file dokumen tidak valid.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "401":
-          description: Onboarding JWT tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "409":
-          description: Email sudah dipakai akun lain.
+          description: Email token tidak valid atau expired.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
@@ -443,14 +254,13 @@ paths:
                 success: true
                 message: login successful
                 data:
-                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                   vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  image_url: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
+                  image_url: null
                   email: toko.mabrur@example.com
-                  name: Abu Bakar Shidiq Basalamah
-                  vendor_type: souvenir_store
+                  store_name: Toko Oleh-Oleh Haji Mabrur
+                  vendor_type: null
                   vendor_status: active
-                  display_name: Toko Oleh-Oleh Haji Mabrur
                 errors: null
                 meta: null
         "400":
@@ -566,9 +376,19 @@ paths:
                   image_url: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
                   email: toko.mabrur@example.com
                   name: Abu Bakar Shidiq Basalamah
-                  vendor_type: souvenir_store
+                  vendor_type: null
                   vendor_status: active
                   display_name: Toko Oleh-Oleh Haji Mabrur
+                  province_id: "31"
+                  province_name: DKI Jakarta
+                  city_id: "3171"
+                  city_name: Jakarta Pusat
+                  district_id: "317101"
+                  district_name: Menteng
+                  subdistrict_id: "3171011001"
+                  subdistrict_name: Pegangsaan
+                  postal_code: "10320"
+                  address_line: Jl. Pegangsaan Barat No. 12
                 errors: null
                 meta: null
         "400":
@@ -668,6 +488,213 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/vendors/register/propose/souvenir_store/presign:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Presign dokumen proposal souvenir store
+      description: |
+        Menghasilkan `object_id` dan `presigned_url` untuk upload 3 dokumen proposal vendor souvenir store:
+        KTP penanggung jawab, NIB, dan sertifikat halal.
+
+        Endpoint ini hanya membuat URL upload ke storage dan belum menyimpan metadata dokumen ke database.
+        `object_id` yang diterima dari response harus dipakai kembali pada endpoint submit proposal.
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Token harus valid dan memiliki role `umkm`.
+        - Vendor harus milik user login dan berada pada status yang diizinkan untuk melengkapi proposal.
+
+        **Aturan MIME:**
+        - Setiap field menerima MIME dokumen yang diizinkan sistem, misalnya `image/jpeg`, `image/png`, `image/webp`, atau `application/pdf`.
+      operationId: presignVendorSouvenirStoreProposalDocuments
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorSouvenirStoreProposalPresignRequest"
+            example:
+              responsible_person_ktp: image/png
+              nib: image/jpeg
+              halal_certificate: application/pdf
+      responses:
+        "200":
+          description: Presigned upload URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessVendorSouvenirStoreProposalPresignEnvelope"
+              example:
+                success: true
+                message: presigned upload URL generated
+                data:
+                  responsible_person_ktp:
+                    object_id: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/8df7708e-fba2-4f2d-9300-3a441a9365c6
+                    presigned_url: https://s3.amazonaws.com/bucket/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/8df7708e-fba2-4f2d-9300-3a441a9365c6?X-Amz-Signature=...
+                  nib:
+                    object_id: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_nib/6c6e6c5d-1cec-4e7f-b676-f8756024d50c
+                    presigned_url: https://s3.amazonaws.com/bucket/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_nib/6c6e6c5d-1cec-4e7f-b676-f8756024d50c?X-Amz-Signature=...
+                  halal_certificate:
+                    object_id: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/halal_certificate/72d95895-02cf-4344-b855-7dd7952eb6b1
+                    presigned_url: https://s3.amazonaws.com/bucket/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/halal_certificate/72d95895-02cf-4344-b855-7dd7952eb6b1?X-Amz-Signature=...
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid atau MIME type dokumen tidak didukung.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Vendor tidak dimiliki user login atau status vendor tidak mengizinkan pengajuan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/register/propose/souvenir_store:
+    post:
+      tags:
+        - Vendor Registration
+      summary: Submit proposal souvenir store
+      description: |
+        Mengirim data profil dan dokumen proposal vendor souvenir store untuk diajukan ke review admin.
+
+        Endpoint ini akan:
+        - memperbarui profil toko vendor,
+        - memperbarui kontak owner user,
+        - menyimpan NIK penanggung jawab,
+        - menyimpan referensi dokumen KTP, NIB, dan sertifikat halal,
+        - lalu mengubah status vendor menjadi `submitted`.
+      operationId: submitVendorSouvenirStoreProposal
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorSouvenirStoreProposalRequest"
+            example:
+              store_name: Toko Oleh-Oleh Haji Mabrur
+              store_description: Menjual aneka oleh-oleh haji dan umrah.
+              address:
+                province_id: "31"
+                city_id: "3171"
+                district_id: "317101"
+                subdistrict_id: "3171011001"
+                postal_code: "10320"
+                address_line: Jl. Pegangsaan Barat No. 12
+              responsible_person:
+                name: Ahmad Fauzi
+                phone: "+6281234567890"
+                email: toko.mabrur@example.com
+                nik: "3175090901010001"
+                ktp_object_id: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/8df7708e-fba2-4f2d-9300-3a441a9365c6
+              other_documents:
+                nib_object_id: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_nib/6c6e6c5d-1cec-4e7f-b676-f8756024d50c
+                halal_certificate_object_id: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/halal_certificate/72d95895-02cf-4344-b855-7dd7952eb6b1
+      responses:
+        "200":
+          description: Proposal vendor berhasil dikirim.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessVendorSouvenirStoreProposalEnvelope"
+              example:
+                success: true
+                message: vendor proposal submitted successfully
+                data:
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  status: submitted
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid atau data dokumen tidak sesuai.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Vendor tidak dimiliki user login atau status vendor tidak mengizinkan pengajuan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Vendor atau owner user tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/products:
     get:
       tags:
@@ -1051,6 +1078,182 @@ paths:
                 errors: null
                 meta: null
   /api/v1/vendors/products/{id}:
+    get:
+      tags:
+        - Vendor Products
+      summary: Get Detail Produk (Vendor)
+      description: |
+        Mengambil detail lengkap satu produk milik vendor yang sedang login.
+        Response mencakup semua field yang dibutuhkan untuk pre-populate form Edit Product,
+        termasuk varian beserta ID-nya dan gambar beserta ID-nya (untuk dipakai di `keep_image_ids`).
+
+        **Aturan:**
+        - Memerlukan autentikasi JWT dengan role `umkm`.
+        - Produk harus milik vendor yang sedang login.
+        - `price`, `stock`, dan `weight_gram` di level atas diambil dari **default variant**.
+        - `is_active` merupakan turunan dari `status == "published"`.
+      operationId: getVendorProductByID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID produk (UUID).
+          schema:
+            type: string
+            format: uuid
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+      responses:
+        "200":
+          description: Detail produk berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessVendorProductDetailEnvelope"
+              example:
+                success: true
+                message: product detail retrieved successfully
+                data:
+                  id: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+                  vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  category_id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                  name: Sajadah Premium Madinah
+                  slug: sajadah-premium-madinah
+                  description: Sajadah premium kualitas terbaik langsung dari Madinah. Bahan lembut dan nyaman digunakan.
+                  status: published
+                  halal_ai_status: pending
+                  is_active: true
+                  price: 150000
+                  stock: 50
+                  weight_gram: 500
+                  variants:
+                    - id: aa11bb22-cc33-dd44-ee55-ff6677889900
+                      sku: TOKOO-SAJAD000-00
+                      variant_name: Default
+                      price: 150000
+                      original_price: 150000
+                      promo_price: null
+                      has_promo: false
+                      currency: IDR
+                      stock_on_hand: 50
+                      weight_gram: 500
+                      is_default: true
+                      is_active: true
+                    - id: bb22cc33-dd44-ee55-ff66-778899001122
+                      sku: TOKOO-SAJAD000-01
+                      variant_name: Merah
+                      price: 150000
+                      original_price: 150000
+                      promo_price: null
+                      has_promo: false
+                      currency: IDR
+                      stock_on_hand: 30
+                      weight_gram: 500
+                      is_default: false
+                      is_active: true
+                  images:
+                    - id: dd44ee55-ff66-7788-9900-112233445566
+                      url: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/dd44ee55-ff66-7788-9900-112233445566/sajadah-depan.jpg
+                      is_primary: true
+                      sort_order: 0
+                    - id: ee55ff66-7788-9900-1122-334455667788
+                      url: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/ee55ff66-7788-9900-1122-334455667788/sajadah-belakang.jpg
+                      is_primary: false
+                      sort_order: 1
+                  created_at: "2026-03-01T10:30:00Z"
+                  updated_at: "2026-03-30T08:00:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: ID produk bukan UUID yang valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid product ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        "403":
+          description: Produk bukan milik vendor ini atau user tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                productNotOwned:
+                  summary: Produk bukan milik vendor yang login
+                  value:
+                    success: false
+                    message: product does not belong to this vendor
+                    data: null
+                    errors: null
+                    meta: null
+                insufficientPermissions:
+                  summary: User tidak memiliki role umkm
+                  value:
+                    success: false
+                    message: insufficient permissions
+                    data: null
+                    errors: null
+                    meta: null
+        "404":
+          description: Produk tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: product not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
     put:
       tags:
         - Vendor Products
@@ -1342,6 +1545,131 @@ paths:
                 data: null
                 errors: null
                 meta: null
+    delete:
+      tags:
+        - Vendor Products
+      summary: Hapus Produk
+      description: |
+        Menghapus produk milik vendor secara permanen beserta seluruh varian dan gambar yang terkait.
+        Operasi ini bersifat **hard delete** — tidak dapat dibatalkan.
+
+        **Aturan:**
+        - Memerlukan autentikasi JWT dengan role `umkm`.
+        - Produk harus milik vendor yang sedang login.
+      operationId: deleteVendorProduct
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID produk (UUID).
+          schema:
+            type: string
+            format: uuid
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+      responses:
+        "200":
+          description: Produk berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+              example:
+                success: true
+                message: product deleted successfully
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID produk bukan UUID yang valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid product ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid or expired token
+                data: null
+                errors: null
+                meta: null
+        "403":
+          description: Produk bukan milik vendor ini atau user tidak memiliki role umkm.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                productNotOwned:
+                  summary: Produk bukan milik vendor yang login
+                  value:
+                    success: false
+                    message: product does not belong to this vendor
+                    data: null
+                    errors: null
+                    meta: null
+                insufficientPermissions:
+                  summary: User tidak memiliki role umkm
+                  value:
+                    success: false
+                    message: insufficient permissions
+                    data: null
+                    errors: null
+                    meta: null
+        "404":
+          description: Produk tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: product not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
   /api/v1/vendors/products/{id}/images/confirm:
     post:
       tags:
@@ -1560,33 +1888,33 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Daftar voucher berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorVoucherListEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorVoucherListEnvelope"
+        "400":
           description: Query parameter tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Token tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
     post:
       tags:
         - Vendor Vouchers
@@ -1600,44 +1928,44 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateVendorVoucherRequest'
+              $ref: "#/components/schemas/CreateVendorVoucherRequest"
       responses:
-        '201':
+        "201":
           description: Voucher berhasil dibuat.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorVoucherEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorVoucherEnvelope"
+        "400":
           description: Payload tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Token tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '409':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
           description: Kode voucher sudah dipakai di vendor ini.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/vouchers/{id}:
     get:
       tags:
@@ -1654,42 +1982,42 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Detail voucher berhasil diambil.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorVoucherEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorVoucherEnvelope"
+        "400":
           description: ID voucher tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Token tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '404':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
           description: Voucher tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
     patch:
       tags:
         - Vendor Vouchers
@@ -1709,53 +2037,53 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateVendorVoucherRequest'
+              $ref: "#/components/schemas/UpdateVendorVoucherRequest"
       responses:
-        '200':
+        "200":
           description: Voucher berhasil diperbarui.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessVendorVoucherEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessVendorVoucherEnvelope"
+        "400":
           description: Payload tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Token tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '404':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
           description: Voucher tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '409':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
           description: Kode voucher sudah dipakai di vendor ini.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
     delete:
       tags:
         - Vendor Vouchers
@@ -1771,42 +2099,42 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
+        "200":
           description: Voucher berhasil dihapus.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope'
-        '400':
+                $ref: "#/components/schemas/SuccessEnvelope"
+        "400":
           description: ID voucher tidak valid.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
           description: Token tidak valid atau expired.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '404':
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
           description: Voucher tidak ditemukan.
           headers:
             X-Request-ID:
-              $ref: '#/components/headers/RequestIDHeader'
+              $ref: "#/components/headers/RequestIDHeader"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/balance:
     get:
       tags:
@@ -2276,39 +2604,2474 @@ paths:
                 $ref: "#/components/schemas/XenditWebhookResponse"
               example:
                 message: invalid callback token
-  /api/v1/vendors/register/status:
+  /api/v1/shipping/provinces:
     get:
       tags:
-        - Vendor Registration
-      summary: Get Vendor Onboarding Status
-      description: Mengambil status draft onboarding vendor berdasarkan onboarding JWT yang dikirim di header `Authorization`.
-      operationId: getVendorRegistrationStatus
+        - Vendor Shipping
+      summary: List provinces
+      description: Mengambil daftar provinsi dari RajaOngkir. Endpoint ini dipakai vendor saat mengisi alamat gudang.
+      operationId: listShippingProvinces
       security:
         - BearerAuth: []
       responses:
         "200":
-          description: Status onboarding berhasil diambil.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
+          description: Provinces loaded.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessVendorOnboardingStatusEnvelope"
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ROProvince"
+              example:
+                success: true
+                message: provinces loaded
+                data:
+                  - id: "1"
+                    name: BALI
+                  - id: "6"
+                    name: DKI JAKARTA
+                errors: null
+                meta: null
         "401":
-          description: Onboarding JWT tidak valid atau expired.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Shipping provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/shipping/cities:
+    get:
+      tags:
+        - Vendor Shipping
+      summary: List cities by province
+      operationId: listShippingCities
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: province_id
+          in: query
+          required: true
+          description: ID provinsi dari endpoint provinces.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cities loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ROCity"
+              example:
+                success: true
+                message: cities loaded
+                data:
+                  - id: "39"
+                    province_id: "6"
+                    name: Jakarta Pusat
+                    type: Kota
+                    postal_code: "10110"
+                errors: null
+                meta: null
+        "400":
+          description: Province ID missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: province_id is required
+                data: null
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Shipping provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/shipping/districts:
+    get:
+      tags:
+        - Vendor Shipping
+      summary: List districts by city
+      operationId: listShippingDistricts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: city_id
+          in: query
+          required: true
+          description: ID kota/kabupaten dari endpoint cities.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Districts loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/RODistrict"
+        "400":
+          description: City ID missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: city_id is required
+                data: null
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Shipping provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/shipping/subdistricts:
+    get:
+      tags:
+        - Vendor Shipping
+      summary: List subdistricts by district
+      operationId: listShippingSubdistricts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: district_id
+          in: query
+          required: true
+          description: ID kecamatan dari endpoint districts.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Subdistricts loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ROSubdistrict"
+        "400":
+          description: District ID missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: district_id is required
+                data: null
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Shipping provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/locations/provinces:
+    get:
+      tags:
+        - Vendor Locations
+      summary: List location provinces
+      description: Alias netral untuk lookup provinsi RajaOngkir. Direkomendasikan untuk form alamat umum dan profil vendor. Route `/api/v1/shipping/provinces` tetap tersedia untuk backward compatibility.
+      operationId: listLocationProvinces
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Provinces loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ROProvince"
+              example:
+                success: true
+                message: provinces loaded
+                data:
+                  - id: "1"
+                    name: BALI
+                  - id: "6"
+                    name: DKI JAKARTA
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Shipping provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/locations/cities:
+    get:
+      tags:
+        - Vendor Locations
+      summary: List location cities by province
+      description: Alias netral untuk lookup kota/kabupaten berdasarkan provinsi. Route `/api/v1/shipping/cities` tetap tersedia untuk backward compatibility.
+      operationId: listLocationCities
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: province_id
+          in: query
+          required: true
+          description: ID provinsi dari endpoint provinces.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cities loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ROCity"
+              example:
+                success: true
+                message: cities loaded
+                data:
+                  - id: "39"
+                    province_id: "6"
+                    name: Jakarta Pusat
+                    type: Kota
+                    postal_code: "10110"
+                errors: null
+                meta: null
+        "400":
+          description: Province ID missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: province_id is required
+                data: null
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Shipping provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/locations/districts:
+    get:
+      tags:
+        - Vendor Locations
+      summary: List location districts by city
+      description: Alias netral untuk lookup kecamatan berdasarkan kota. Route `/api/v1/shipping/districts` tetap tersedia untuk backward compatibility.
+      operationId: listLocationDistricts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: city_id
+          in: query
+          required: true
+          description: ID kota/kabupaten dari endpoint cities.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Districts loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/RODistrict"
+        "400":
+          description: City ID missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: city_id is required
+                data: null
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Shipping provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/locations/subdistricts:
+    get:
+      tags:
+        - Vendor Locations
+      summary: List location subdistricts by district
+      description: Alias netral untuk lookup kelurahan/desa berdasarkan kecamatan. Route `/api/v1/shipping/subdistricts` tetap tersedia untuk backward compatibility.
+      operationId: listLocationSubdistricts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: district_id
+          in: query
+          required: true
+          description: ID kecamatan dari endpoint districts.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Subdistricts loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ROSubdistrict"
+        "400":
+          description: District ID missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: district_id is required
+                data: null
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Shipping provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/shipping/couriers:
+    get:
+      tags:
+        - Vendor Shipping
+      summary: List available couriers
+      operationId: listShippingCouriers
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Couriers loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CourierResponse"
+              example:
+                success: true
+                message: couriers loaded
+                data:
+                  - id: 1
+                    code: jne
+                    name: JNE
+                    logo_url: https://cdn.example.com/couriers/jne.png
+                    is_active: true
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/addresses:
+    post:
+      tags:
+        - Vendor Addresses
+      summary: Create address
+      description: Membuat alamat baru untuk user yang login. Untuk vendor, alamat default dipakai sebagai alamat gudang.
+      operationId: createAddress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAddressRequest"
+      responses:
+        "201":
+          description: Address created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressEnvelope"
+              example:
+                success: true
+                message: address created
+                data:
+                  id: 4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb
+                  user_id: 4f6d1af1-d7ce-4a9c-9221-c0843f8c1a5d
+                  label: Gudang Utama
+                  recipient_name: Toko Mabrur
+                  phone: "081234567890"
+                  province_id: "6"
+                  province_name: DKI Jakarta
+                  city_id: "39"
+                  city_name: Jakarta Pusat
+                  district_id: "531"
+                  district_name: Menteng
+                  subdistrict_id: "6085"
+                  subdistrict_name: Pegangsaan
+                  postal_code: "10320"
+                  address_line: Jl. H. Agus Salim No. 10
+                  notes: Dekat masjid
+                  latitude: -6.196
+                  longitude: 106.832
+                  is_default: true
+                  created_at: "2026-03-31T04:00:00Z"
+                  updated_at: "2026-03-31T04:00:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Invalid request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
+      tags:
+        - Vendor Addresses
+      summary: List addresses
+      operationId: listAddresses
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Addresses loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressListEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/addresses/{id}:
+    get:
+      tags:
+        - Vendor Addresses
+      summary: Get address detail
+      operationId: getAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AddressIDParam"
+      responses:
+        "200":
+          description: Address loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressEnvelope"
+        "400":
+          description: Invalid address ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid address id
+                data: null
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Address not owned by requester.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "404":
-          description: Draft onboarding tidak ditemukan.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
+          description: Address not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      tags:
+        - Vendor Addresses
+      summary: Update address
+      operationId: updateAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AddressIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAddressRequest"
+      responses:
+        "200":
+          description: Address updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressEnvelope"
+        "400":
+          description: Invalid address ID or body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Address not owned by requester.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Address not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      tags:
+        - Vendor Addresses
+      summary: Delete address
+      operationId: deleteAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AddressIDParam"
+      responses:
+        "200":
+          description: Address deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEmptyEnvelope"
+              example:
+                success: true
+                message: address deleted
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: Invalid address ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Address not owned by requester.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Address not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/addresses/{id}/default:
+    patch:
+      tags:
+        - Vendor Addresses
+      summary: Set default address
+      operationId: setDefaultAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AddressIDParam"
+      responses:
+        "200":
+          description: Default address set.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressEnvelope"
+              example:
+                success: true
+                message: default address set
+                data:
+                  id: 4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb
+                  user_id: 4f6d1af1-d7ce-4a9c-9221-c0843f8c1a5d
+                  label: Gudang Utama
+                  recipient_name: Toko Mabrur
+                  phone: "081234567890"
+                  province_id: "6"
+                  province_name: DKI Jakarta
+                  city_id: "39"
+                  city_name: Jakarta Pusat
+                  district_id: "531"
+                  district_name: Menteng
+                  subdistrict_id: "6085"
+                  subdistrict_name: Pegangsaan
+                  postal_code: "10320"
+                  address_line: Jl. H. Agus Salim No. 10
+                  notes: Dekat masjid
+                  latitude: -6.196
+                  longitude: 106.832
+                  is_default: true
+                  created_at: "2026-03-31T04:00:00Z"
+                  updated_at: "2026-03-31T04:10:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Invalid address ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Address not owned by requester.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Address not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/couriers:
+    get:
+      tags:
+        - Vendor Couriers
+      summary: Get vendor couriers
+      operationId: getVendorCouriers
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Vendor couriers loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VendorCourierResponse"
+              example:
+                success: true
+                message: vendor couriers loaded
+                data:
+                  - id: a9e84496-2e37-4d5e-af29-d24d75fb88e8
+                    courier_id: 1
+                    courier_code: jne
+                    courier_name: JNE
+                    logo_url: https://cdn.example.com/couriers/jne.png
+                    is_active: true
+                    created_at: "2026-03-31T03:00:00Z"
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    put:
+      tags:
+        - Vendor Couriers
+      summary: Replace vendor couriers
+      operationId: setVendorCouriers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetVendorCouriersRequest"
+            example:
+              courier_ids:
+                - 1
+                - 2
+      responses:
+        "200":
+          description: Vendor couriers updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VendorCourierResponse"
+              example:
+                success: true
+                message: vendor couriers updated
+                data:
+                  - id: a9e84496-2e37-4d5e-af29-d24d75fb88e8
+                    courier_id: 1
+                    courier_code: jne
+                    courier_name: JNE
+                    logo_url: https://cdn.example.com/couriers/jne.png
+                    is_active: true
+                    created_at: "2026-03-31T03:00:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Validation failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: validation failed
+                data: null
+                errors: "Key: 'SetVendorCouriersRequest.CourierIDs' Error:Field validation for 'CourierIDs' failed on the 'required' tag"
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Courier not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/couriers/{courierId}:
+    delete:
+      tags:
+        - Vendor Couriers
+      summary: Remove vendor courier
+      description: Menghapus satu kurir dari daftar vendor. `courierId` bertipe integer, bukan UUID.
+      operationId: removeVendorCourier
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CourierIDParam"
+      responses:
+        "200":
+          description: Courier removed from vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEmptyEnvelope"
+              example:
+                success: true
+                message: courier removed from vendor
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: Invalid courier ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid courier id
+                data: null
+                errors: null
+                meta: null
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Courier selection not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders:
+    get:
+      tags:
+        - Vendor Orders
+      summary: List vendor orders
+      description: |
+        Mengambil daftar pesanan untuk vendor yang sedang login, dengan opsi filter berdasarkan status, pencarian, rentang tanggal, sorting, dan paginasi.
+
+        Status yang valid untuk filter: `paid`, `processing`, `shipped`, `delivered`, `completed`, `canceled`.
+      operationId: listVendorOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [paid, processing, shipped, delivered, completed, canceled]
+        - name: search
+          in: query
+          description: Search by order number or customer name.
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          description: Format `YYYY-MM-DD`.
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: Format `YYYY-MM-DD`.
+          schema:
+            type: string
+            format: date
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [order_date, customer_name, total_payment]
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        "200":
+          description: Vendor orders retrieved successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VendorOrderListItem"
+                      meta:
+                        $ref: "#/components/schemas/PaginationMeta"
+              example:
+                success: true
+                message: vendor orders retrieved successfully
+                data:
+                  - order_id: "4354c494-d5a1-4f00-b120-abcdef123456"
+                    order_no: "ORD-20260301-ABC1"
+                    order_date: "2026-03-01T10:30:00Z"
+                    customer_name: "Ahmad Rizky"
+                    items:
+                      - product_name: "Kain Ihram Premium"
+                        selected_variant: "Putih - L"
+                        qty: 2
+                        unit_price: 150000
+                        line_total: 300000
+                    total_payment: 325000
+                    status: "paid"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 3
+                  total_pages: 1
+        "400":
+          description: Invalid query values.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/export:
+    get:
+      tags:
+        - Vendor Orders
+      summary: Export vendor orders as CSV
+      operationId: exportVendorOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [paid, processing, shipped, delivered, completed, canceled]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [order_date, customer_name, total_payment]
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        "200":
+          description: CSV file download.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid query values.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/{orderId}:
+    get:
+      tags:
+        - Vendor Orders
+      summary: Get vendor order detail
+      description: |
+        Mengambil detail lengkap satu pesanan milik vendor, termasuk:
+        - Item pesanan (produk, varian, qty, harga)
+        - Ringkasan biaya (subtotal produk, ongkos kirim, biaya layanan, grand total)
+        - Alamat pengiriman / penerima
+        - Informasi pengiriman (kurir, resi, status)
+        - Informasi pembayaran
+      operationId: getVendorOrderDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: Order detail retrieved successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorOrderDetailResponse"
+              example:
+                success: true
+                message: order detail retrieved successfully
+                data:
+                  shipping:
+                    courier: "anteraja"
+                    tracking_number: "11002960818873"
+                    status: "Paket dalam pengiriman"
+                    delivered_at: null
+                  recipient:
+                    name: "Ahmad Rizky"
+                    phone: "081234567890"
+                    address:
+                      street: "Jl. Merdeka No. 10"
+                      district: "Menteng"
+                      city: "Jakarta"
+                      province: "DKI Jakarta"
+                      postal_code: "12345"
+                  store:
+                    name: "Toko Umroh"
+                  items:
+                    - name: "Kain Ihram Premium"
+                      variant: "Putih - L"
+                      price: 150000
+                      quantity: 2
+                      subtotal: 300000
+                  payment:
+                    method: "QRIS"
+                    total_amount: 325000
+                  order:
+                    order_number: "ORD-20260301-ABC1"
+                    order_time: "2026-03-01T10:30:00Z"
+                    payment_time: "2026-03-01T10:35:00Z"
+                    shipping_time: "2026-03-02T08:00:00Z"
+                    delivered_time: null
+                  summary:
+                    items_total: 300000
+                    shipping_fee: 15000
+                    service_fee: 10000
+                    grand_total: 325000
+                errors: null
+                meta: null
+        "400":
+          description: Invalid order ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order does not belong to this vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/{orderId}/accept:
+    post:
+      tags:
+        - Vendor Orders
+      summary: Accept order
+      description: |
+        Mengubah status pesanan dari `paid` ke `processing`.
+
+        Vendor menerima pesanan yang masuk dan mulai memprosesnya.
+        Hanya bisa dilakukan jika status pesanan saat ini adalah `paid`.
+      operationId: acceptVendorOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      requestBody:
+        description: Tidak memerlukan request body.
+        required: false
+        content: {}
+      responses:
+        "200":
+          description: Order accepted successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AcceptRejectOrderResponse"
+              example:
+                success: true
+                message: order accepted successfully
+                data:
+                  order_id: "4354c494-d5a1-4f00-b120-abcdef123456"
+                  order_status: "processing"
+                  updated_at: "2026-03-01T11:00:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Invalid transition or invalid order ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order does not belong to this vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/{orderId}/reject:
+    post:
+      tags:
+        - Vendor Orders
+      summary: Reject order
+      description: |
+        Mengubah status pesanan dari `paid` atau `processing` ke `canceled`.
+
+        Vendor menolak pesanan. Bisa dilakukan saat status `paid` (belum diproses)
+        atau `processing` (sudah diproses tapi vendor membatalkan).
+
+        **Auto-refund:** Jika pesanan sudah dibayar (`paid` / `processing`), sistem
+        otomatis menginisiasi refund ke customer:
+        - **VA / QRIS** → refund via payment gateway (`refund_method: "gateway"`).
+        - **E-Wallet** → refund via disbursement (`refund_method: "disbursement"`);
+          customer perlu mengisi nomor rekening tujuan refund.
+
+        Stok produk juga otomatis dikembalikan.
+      operationId: rejectVendorOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      requestBody:
+        description: Tidak memerlukan request body.
+        required: false
+        content: {}
+      responses:
+        "200":
+          description: Order rejected successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AcceptRejectOrderResponse"
+              examples:
+                paid_order_rejected:
+                  summary: Pesanan yang sudah dibayar — refund otomatis diinisiasi
+                  value:
+                    success: true
+                    message: order rejected successfully
+                    data:
+                      order_id: "4354c494-d5a1-4f00-b120-abcdef123456"
+                      order_status: "canceled"
+                      updated_at: "2026-03-01T11:05:00Z"
+                      refund_info:
+                        refund_id: "b2c3d4e5-f6a7-8901-bcde-f23456789012"
+                        refund_method: "gateway"
+                        status: "pending"
+                        message: "Refund telah diinisiasi dan sedang diproses"
+                    errors: null
+                    meta: null
+                processing_order_rejected:
+                  summary: Pesanan processing (sudah diproses tapi dibatalkan)
+                  value:
+                    success: true
+                    message: order rejected successfully
+                    data:
+                      order_id: "4354c494-d5a1-4f00-b120-abcdef123456"
+                      order_status: "canceled"
+                      updated_at: "2026-03-01T11:05:00Z"
+                      refund_info:
+                        refund_id: "c3d4e5f6-a7b8-9012-cdef-345678901234"
+                        refund_method: "disbursement"
+                        status: "pending"
+                        message: "Refund via disbursement telah diinisiasi. Customer perlu mengisi data rekening tujuan."
+                    errors: null
+                    meta: null
+        "400":
+          description: Invalid transition or invalid order ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order does not belong to this vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/{orderId}/ship:
+    post:
+      tags:
+        - Vendor Orders
+      summary: Ship order
+      description: |
+        Input nomor resi pengiriman dan mengubah status pesanan dari `processing` ke `shipped`.
+
+        Kurir dan jenis layanan sudah dipilih oleh customer saat checkout.
+        Vendor hanya perlu menginput nomor resi (`tracking_no`).
+      operationId: shipVendorOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShipOrderRequest"
+            example:
+              tracking_no: JNT0123456789
+      responses:
+        "200":
+          description: Order shipped successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ShipOrderResponse"
+              example:
+                success: true
+                message: order shipped successfully
+                data:
+                  order_id: "4354c494-d5a1-4f00-b120-abcdef123456"
+                  order_status: "shipped"
+                  tracking_no: "JNT0123456789"
+                  courier_code: "jnt"
+                  shipped_at: "2026-03-01T14:30:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Invalid request body, order ID, or status transition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order does not belong to this vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Shipment or order not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/{orderId}/tracking:
+    get:
+      tags:
+        - Vendor Orders
+      summary: Track waybill
+      description: |
+        Mengambil informasi tracking pengiriman berdasarkan nomor resi yang sudah diinput pada pesanan.
+
+        Pesanan harus sudah memiliki shipment record.
+      operationId: trackVendorOrderWaybill
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: Tracking info retrieved successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TrackWaybillResponse"
+              example:
+                success: true
+                message: tracking info retrieved successfully
+                data:
+                  delivered: false
+                  summary:
+                    courier_code: "jnt"
+                    courier_name: "J&T Express"
+                    waybill_number: "JNT0123456789"
+                    service_code: "EZ"
+                    waybill_date: "2026-03-01"
+                    shipper_name: "Toko Mabrur"
+                    receiver_name: "Ahmad Rizky"
+                    origin: "Jakarta"
+                    destination: "Bandung"
+                    status: "ON PROCESS"
+                  details:
+                    waybill_number: "JNT0123456789"
+                    waybill_date: "2026-03-01"
+                    waybill_time: "14:30"
+                    weight: "1.5"
+                    origin: "Jakarta"
+                    destination: "Bandung"
+                    shipper_name: "Toko Mabrur"
+                    shipper_address1: "Jl. Vendor No. 5"
+                    shipper_address2: ""
+                    shipper_address3: ""
+                    shipper_city: "Jakarta"
+                    receiver_name: "Ahmad Rizky"
+                    receiver_address1: "Jl. Merdeka No. 10"
+                    receiver_address2: ""
+                    receiver_address3: ""
+                    receiver_city: "Bandung"
+                  delivery_status:
+                    status: "ON PROCESS"
+                    pod_receiver: ""
+                    pod_date: ""
+                    pod_time: ""
+                  manifest:
+                    - manifest_code: "101"
+                      manifest_description: "Paket telah diterima di gudang Jakarta"
+                      manifest_date: "2026-03-01"
+                      manifest_time: "14:35"
+                      city_name: "Jakarta"
+                    - manifest_code: "301"
+                      manifest_description: "Paket dalam proses pengiriman ke Bandung"
+                      manifest_date: "2026-03-02"
+                      manifest_time: "08:00"
+                      city_name: "Jakarta"
+                errors: null
+                meta: null
+        "400":
+          description: Invalid order ID or request state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order does not belong to this vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Shipment or order not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "502":
+          description: Tracking provider failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/{orderId}/invoice:
+    get:
+      tags:
+        - Vendor Orders
+      summary: Get invoice data
+      description: |
+        Mengambil data nota/invoice pesanan vendor, termasuk:
+        - Informasi invoice (nomor, tanggal terbit, aksi yang tersedia)
+        - Data customer (nama, telepon, alamat)
+        - Informasi pembayaran (metode, waktu bayar)
+        - Daftar item pesanan (nama, varian, harga, qty, subtotal, gambar)
+        - Ringkasan biaya (subtotal, ongkir, biaya layanan, total, mata uang)
+
+        Data ini bisa digunakan untuk menampilkan nota pesanan di halaman vendor.
+      operationId: getVendorOrderInvoice
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: Invoice retrieved successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorOrderInvoiceResponse"
+              example:
+                success: true
+                message: invoice retrieved successfully
+                data:
+                  invoice:
+                    invoice_number: "INV-20260301-ABC1"
+                    issued_at: "2026-03-01T10:35:00Z"
+                    actions:
+                      can_copy: true
+                      can_print: true
+                      can_download: true
+                  customer:
+                    name: "Ahmad Rizky"
+                    phone: "081234567890"
+                    address:
+                      street: "Jl. Merdeka No. 10"
+                      district: "Menteng"
+                      city: "Jakarta"
+                      province: "DKI Jakarta"
+                      postal_code: "12345"
+                  payment:
+                    method: "QRIS"
+                    paid_at: "2026-03-01T10:35:00Z"
+                  items:
+                    - name: "Kain Ihram Premium"
+                      variant: "Putih - L"
+                      price: 150000
+                      quantity: 2
+                      subtotal: 300000
+                      image_url: "products/abc123/images/img1/kain-ihram.jpg"
+                  summary:
+                    subtotal: 300000
+                    shipping_fee: 15000
+                    service_fee: 10000
+                    total: 325000
+                    currency: "IDR"
+                errors: null
+                meta: null
+        "400":
+          description: Invalid order ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order does not belong to this vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order or payment invoice not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/{orderId}/invoice/download:
+    get:
+      tags:
+        - Vendor Orders
+      summary: Download invoice PDF
+      operationId: downloadVendorOrderInvoice
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: PDF file download.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid order ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order does not belong to this vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order or payment invoice not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: PDF generation failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/orders/{orderId}/shipping:
+    get:
+      tags:
+        - Vendor Orders
+      summary: Get shipping info
+      description: |
+        Mengambil informasi pengiriman pesanan secara visual/timeline, termasuk:
+        - **Estimasi kedatangan** (`estimated_arrival`) — dihitung dari ETD kurir + tanggal kirim.
+        - **Stages** — timeline status pengiriman (pending → shipped → in_transit → delivered).
+          Setiap stage memiliki `completed` (sudah lewat) dan `active` (sedang berlangsung).
+        - **Courier** — info kurir (nama, kode, nomor resi).
+        - **Events** — daftar event tracking dari kurir (waktu, deskripsi, lokasi).
+
+        Endpoint ini cocok untuk menampilkan UI timeline/progress pengiriman.
+        Untuk data tracking mentah dari kurir, gunakan endpoint `/tracking`.
+      operationId: getVendorOrderShippingInfo
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: Shipping info retrieved successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorOrderShippingInfoResponse"
+              example:
+                success: true
+                message: shipping info retrieved successfully
+                data:
+                  estimated_arrival: "2026-04-02"
+                  stages:
+                    - status: "pending"
+                      label: "Pesanan Dibuat"
+                      completed: true
+                      active: false
+                    - status: "shipped"
+                      label: "Dikirim"
+                      completed: true
+                      active: false
+                    - status: "in_transit"
+                      label: "Dalam Pengiriman"
+                      completed: false
+                      active: true
+                    - status: "delivered"
+                      label: "Diterima"
+                      completed: false
+                      active: false
+                  courier:
+                    name: "J&T Express"
+                    code: "jnt"
+                    tracking_no: "JNT0123456789"
+                  events:
+                    - date_time: "2026-03-02T08:00:00Z"
+                      description: "Paket dalam proses pengiriman ke Bandung"
+                      location: "Jakarta"
+                    - date_time: "2026-03-01T14:35:00Z"
+                      description: "Paket telah diterima di gudang Jakarta"
+                      location: "Jakarta"
+                errors: null
+                meta: null
+        "400":
+          description: Invalid order ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order does not belong to this vendor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order or shipment not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/banners:
+    post:
+      tags:
+        - Vendor Banners
+      summary: Create banner and get presigned upload URL
+      operationId: createVendorBanner
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVendorBannerRequest"
+            example:
+              title: Promo Ramadhan
+              content_type: image/jpeg
+      responses:
+        "201":
+          description: Vendor banner created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorBannerPresignResponse"
+              example:
+                success: true
+                message: vendor banner created, upload image using the presigned URL
+                data:
+                  banner_id: 2e681b81-c1c7-417d-b213-8061cda7eff1
+                  upload_url: https://s3.amazonaws.com/bucket/vendor-banners/abc123?X-Amz-Signature=...
+                  object_key: vendor-banners/abc123
+                  expires_in: 1800
+                errors: null
+                meta: null
+        "400":
+          description: Invalid request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid banner content.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
+      tags:
+        - Vendor Banners
+      summary: List vendor banners
+      operationId: listVendorBanners
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Vendor banners loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VendorBannerResponse"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/banners/{id}:
+    get:
+      tags:
+        - Vendor Banners
+      summary: Get vendor banner
+      operationId: getVendorBanner
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/BannerIDParam"
+      responses:
+        "200":
+          description: Vendor banner loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorBannerResponse"
+        "400":
+          description: Invalid banner ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Banner not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      tags:
+        - Vendor Banners
+      summary: Update vendor banner
+      operationId: updateVendorBanner
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/BannerIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVendorBannerRequest"
+            example:
+              title: Promo Musim Haji
+      responses:
+        "200":
+          description: Vendor banner updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorBannerResponse"
+        "400":
+          description: Invalid banner ID or body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Banner not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      tags:
+        - Vendor Banners
+      summary: Delete vendor banner
+      operationId: deleteVendorBanner
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/BannerIDParam"
+      responses:
+        "200":
+          description: Vendor banner deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEmptyEnvelope"
+              example:
+                success: true
+                message: vendor banner deleted
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: Invalid banner ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Banner not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/banners/{id}/confirm:
+    post:
+      tags:
+        - Vendor Banners
+      summary: Confirm vendor banner upload
+      operationId: confirmVendorBanner
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/BannerIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmVendorBannerRequest"
+            example:
+              object_key: vendor-banners/abc123
+      responses:
+        "200":
+          description: Vendor banner image confirmed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorBannerResponse"
+        "400":
+          description: Invalid banner ID or request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Banner not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Uploaded object invalid or missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/{id}/banners:
+    get:
+      tags:
+        - Vendor Banners
+      summary: List public vendor banners
+      operationId: listPublicVendorBanners
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/VendorIDParam"
+      responses:
+        "200":
+          description: Vendor banners loaded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VendorBannerResponse"
+        "400":
+          description: Invalid vendor ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/chat/users:
+    get:
+      tags:
+        - Vendor Chat
+      summary: Search chatable users
+      operationId: searchChatableUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search term for user name or email.
+        - name: roles
+          in: query
+          schema:
+            type: string
+          description: CSV role filter, for example `cs,admin`.
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+      responses:
+        "200":
+          description: Users retrieved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ChatableUserResponse"
+                      meta:
+                        $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Requested role pairing not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/chat/attachment/presign:
+    post:
+      tags:
+        - Vendor Chat
+      summary: Create presigned upload URL for chat attachment
+      operationId: presignChatAttachment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresignChatAttachmentRequest"
+            example:
+              content_type: image/jpeg
+      responses:
+        "200":
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PresignChatAttachmentResponse"
+              example:
+                success: true
+                message: presigned upload URL generated
+                data:
+                  upload_url: https://s3.amazonaws.com/bucket/chat-attachments/2026/03/31/abc123?X-Amz-Signature=...
+                  object_key: chat-attachments/2026/03/31/abc123
+                  content_type: image/jpeg
+                  expires_in: 1800
+                errors: null
+                meta: null
+        "400":
+          description: Invalid request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid attachment type or size.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/chat:
+    post:
+      tags:
+        - Vendor Chat
+      summary: Start or get conversation
+      operationId: startOrGetConversation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartConversationRequest"
+      responses:
+        "201":
+          description: Conversation ready.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ConversationResponse"
+        "400":
+          description: Invalid request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Chat between these roles is not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Participant not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/chat/{conversationId}/messages:
+    post:
+      tags:
+        - Vendor Chat
+      summary: Send chat message
+      operationId: sendChatMessage
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendChatMessageRequest"
+            example:
+              message: Assalamu'alaikum, pesanan Anda sedang kami siapkan.
+              attachment_key: null
+      responses:
+        "201":
+          description: Message sent.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ChatMessageResponse"
+        "400":
+          description: Invalid conversation ID or request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User is not a participant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Conversation not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Attachment invalid or not uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
+      tags:
+        - Vendor Chat
+      summary: List chat messages
+      operationId: listChatMessages
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+      responses:
+        "200":
+          description: Messages retrieved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ChatMessageResponse"
+                      meta:
+                        $ref: "#/components/schemas/PaginationMeta"
+        "400":
+          description: Invalid conversation ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User is not a participant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Conversation not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/chat:
+    get:
+      tags:
+        - Vendor Chat
+      summary: List vendor conversations
+      operationId: listVendorConversations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: Filter by participant role.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Conversations retrieved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ConversationResponse"
+                      meta:
+                        $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/chat/{conversationId}:
+    get:
+      tags:
+        - Vendor Chat
+      summary: Get vendor conversation detail
+      operationId: getVendorConversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      responses:
+        "200":
+          description: Conversation retrieved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ConversationResponse"
+        "400":
+          description: Invalid conversation ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User is not a participant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Conversation not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/chat/{conversationId}/read:
+    patch:
+      tags:
+        - Vendor Chat
+      summary: Mark vendor conversation messages as read
+      operationId: markVendorConversationRead
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      responses:
+        "200":
+          description: Messages marked as read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEmptyEnvelope"
+              example:
+                success: true
+                message: messages marked as read
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: Invalid conversation ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User is not a participant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Conversation not found.
           content:
             application/json:
               schema:
@@ -2325,6 +5088,54 @@ components:
       schema:
         type: string
         example: 9e0d6f87-89ed-4ed5-bf74-b0c7610ce9cf
+  parameters:
+    AddressIDParam:
+      name: id
+      in: path
+      required: true
+      description: UUID address.
+      schema:
+        type: string
+        format: uuid
+    BannerIDParam:
+      name: id
+      in: path
+      required: true
+      description: UUID banner.
+      schema:
+        type: string
+        format: uuid
+    VendorIDParam:
+      name: id
+      in: path
+      required: true
+      description: UUID vendor.
+      schema:
+        type: string
+        format: uuid
+    OrderIDParam:
+      name: orderId
+      in: path
+      required: true
+      description: UUID order.
+      schema:
+        type: string
+        format: uuid
+    ConversationIDParam:
+      name: conversationId
+      in: path
+      required: true
+      description: UUID conversation.
+      schema:
+        type: string
+        format: uuid
+    CourierIDParam:
+      name: courierId
+      in: path
+      required: true
+      description: Integer courier ID.
+      schema:
+        type: integer
   schemas:
     # --- Envelope wrappers ---
     SuccessEnvelope:
@@ -2398,24 +5209,12 @@ components:
     VendorVerifyRegistrationOTPResponse:
       type: object
       required:
-        - onboarding_token
-        - onboarding_expires_at
-        - status
+        - email_token
       properties:
-        onboarding_token:
+        email_token:
           type: string
-          description: JWT onboarding khusus untuk step register vendor berikutnya.
+          description: JWT khusus email verification untuk step register vendor berikutnya.
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        onboarding_expires_at:
-          type: string
-          format: date-time
-        status:
-          type: string
-          enum:
-            - otp_verified
-            - password_set
-            - completed
-          example: otp_verified
     VendorRegistrationPasswordRequest:
       type: object
       required:
@@ -2425,142 +5224,6 @@ components:
           type: string
           minLength: 8
           example: SecurePass123!
-    VendorRegistrationPresignDocumentRequest:
-      type: object
-      required:
-        - document_id_type
-        - content_type
-      properties:
-        document_id_type:
-          type: string
-          enum:
-            - ktp
-            - passport
-          example: ktp
-        content_type:
-          type: string
-          description: MIME type dokumen yang akan di-upload.
-          enum:
-            - image/jpeg
-            - application/pdf
-          example: image/jpeg
-    VendorRegistrationPresignDocumentResponse:
-      type: object
-      required:
-        - upload_url
-        - object_key
-        - expires_at
-        - document_id_type
-        - doc_type
-      properties:
-        upload_url:
-          type: string
-          format: uri
-        object_key:
-          type: string
-          example: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
-        expires_at:
-          type: string
-          format: date-time
-        document_id_type:
-          type: string
-          description: Jenis dokumen identitas. Kosong untuk pendaftaran korporasi.
-          enum:
-            - ktp
-            - passport
-            - ""
-          example: ktp
-        doc_type:
-          type: string
-          enum:
-            - owner_document_id
-            - business_nib
-          example: owner_document_id
-    VendorRegistrationIndividualLegalRequest:
-      type: object
-      required:
-        - store_name
-        - document_id_type
-        - nik
-        - owner_name
-        - birth_date
-        - document_id_object_key
-      properties:
-        store_name:
-          type: string
-          maxLength: 120
-          example: Toko Oleh-Oleh Haji Mabrur
-        document_id_type:
-          type: string
-          enum:
-            - ktp
-            - passport
-          example: ktp
-        nik:
-          type: string
-          maxLength: 32
-          description: Nomor Induk Kependudukan (KTP) atau nomor paspor.
-          example: "3173000000000001"
-        owner_name:
-          type: string
-          maxLength: 120
-          example: Ahmad Subarkah
-        birth_date:
-          type: string
-          description: Tanggal lahir, format `YYYY-MM-DD`.
-          example: "1990-01-02"
-        document_id_object_key:
-          type: string
-          description: Object key di S3 yang didapat dari endpoint presign individual.
-          example: vendor-onboardings/6c9f5.../documents/owner_document_id/f1e2d3...
-    VendorRegistrationCorporateLegalRequest:
-      type: object
-      required:
-        - store_name
-        - nib
-        - company_name
-        - established_date
-        - registered_address
-        - nib_document_object_key
-      properties:
-        store_name:
-          type: string
-          maxLength: 120
-          example: Toko Oleh-Oleh Haji Mabrur
-        nib:
-          type: string
-          maxLength: 32
-          description: Nomor Induk Berusaha perusahaan.
-          example: "1234567890123"
-        company_name:
-          type: string
-          maxLength: 120
-          description: Nama resmi perusahaan sesuai akta.
-          example: PT Toko Oleh-Oleh Haji Mabrur
-        established_date:
-          type: string
-          description: Tanggal berdiri perusahaan, format `YYYY-MM-DD`.
-          example: "2010-05-20"
-        registered_address:
-          type: string
-          description: Alamat terdaftar perusahaan.
-          example: Jl. Sudirman No. 1, Jakarta Pusat
-        nib_document_object_key:
-          type: string
-          description: Object key di S3 yang didapat dari endpoint presign corporate.
-          example: vendor-onboardings/6c9f5.../documents/business_nib/f1e2d3...
-    VendorOnboardingProgressResponse:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum:
-            - otp_verified
-            - password_set
-            - completed
-          example: password_set
     VendorOnboardingStatusResponse:
       type: object
       required:
@@ -2571,9 +5234,8 @@ components:
           type: string
           enum:
             - otp_verified
-            - password_set
             - completed
-          example: password_set
+          example: otp_verified
         email:
           type: string
           format: email
@@ -2596,16 +5258,12 @@ components:
     VendorLoginResponse:
       type: object
       required:
-        - token
+        - access_token
         - vendor_id
-        - image_url
         - email
-        - name
-        - vendor_type
         - vendor_status
-        - display_name
       properties:
-        token:
+        access_token:
           type: string
           description: |
             JWT token untuk autentikasi. Claims berisi `user_id`, `email`, `roles` (`["umkm"]`),
@@ -2618,19 +5276,22 @@ components:
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         image_url:
           type: string
-          description: URL foto profil vendor yang diambil dari `users.image_url` milik owner vendor. Bernilai string kosong jika belum ada foto profil.
+          nullable: true
+          description: URL foto profil vendor yang diambil dari `users.image_url` milik owner vendor. Bernilai `null` jika belum ada foto profil.
           example: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
         email:
           type: string
           format: email
           description: Email akun vendor.
           example: toko.mabrur@example.com
-        name:
+        store_name:
           type: string
-          description: Nama lengkap user pemilik akun vendor.
-          example: Abu Bakar Shidiq Basalamah
+          nullable: true
+          description: Nama toko yang ditampilkan.
+          example: null
         vendor_type:
           type: string
+          nullable: true
           description: Jenis vendor.
           enum:
             - souvenir_store
@@ -2646,10 +5307,6 @@ components:
             - active
             - rejected
           example: active
-        display_name:
-          type: string
-          description: Nama toko yang ditampilkan.
-          example: Toko Oleh-Oleh Haji Mabrur
     VendorProfileResponse:
       type: object
       required:
@@ -2659,7 +5316,6 @@ components:
         - name
         - vendor_type
         - vendor_status
-        - display_name
       properties:
         vendor_id:
           type: string
@@ -2681,6 +5337,7 @@ components:
           example: Abu Bakar Shidiq Basalamah
         vendor_type:
           type: string
+          nullable: true
           description: Jenis vendor.
           enum:
             - souvenir_store
@@ -2699,8 +5356,196 @@ components:
           example: active
         display_name:
           type: string
+          nullable: true
           description: Nama toko yang ditampilkan.
           example: Toko Oleh-Oleh Haji Mabrur
+        province_id:
+          type: string
+          nullable: true
+          example: "31"
+        province_name:
+          type: string
+          nullable: true
+          example: DKI Jakarta
+        city_id:
+          type: string
+          nullable: true
+          example: "3171"
+        city_name:
+          type: string
+          nullable: true
+          example: Jakarta Pusat
+        district_id:
+          type: string
+          nullable: true
+          example: "317101"
+        district_name:
+          type: string
+          nullable: true
+          example: Menteng
+        subdistrict_id:
+          type: string
+          nullable: true
+          example: "3171011001"
+        subdistrict_name:
+          type: string
+          nullable: true
+          example: Pegangsaan
+        postal_code:
+          type: string
+          nullable: true
+          example: "10320"
+        address_line:
+          type: string
+          nullable: true
+          example: Jl. Pegangsaan Barat No. 12
+    VendorSouvenirStoreProposalPresignRequest:
+      type: object
+      required:
+        - responsible_person_ktp
+        - nib
+        - halal_certificate
+      properties:
+        responsible_person_ktp:
+          type: string
+          description: MIME type dokumen KTP penanggung jawab.
+          example: image/png
+        nib:
+          type: string
+          description: MIME type dokumen NIB.
+          example: image/jpeg
+        halal_certificate:
+          type: string
+          description: MIME type dokumen sertifikat halal.
+          example: application/pdf
+    VendorSouvenirStoreProposalPresignItem:
+      type: object
+      required:
+        - object_id
+        - presigned_url
+      properties:
+        object_id:
+          type: string
+          description: Object key yang harus dipakai saat submit proposal.
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/8df7708e-fba2-4f2d-9300-3a441a9365c6
+        presigned_url:
+          type: string
+          description: Presigned URL untuk upload file langsung ke storage.
+          example: https://s3.amazonaws.com/bucket/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/8df7708e-fba2-4f2d-9300-3a441a9365c6?X-Amz-Signature=...
+    VendorSouvenirStoreProposalPresignResponse:
+      type: object
+      required:
+        - responsible_person_ktp
+        - nib
+        - halal_certificate
+      properties:
+        responsible_person_ktp:
+          $ref: "#/components/schemas/VendorSouvenirStoreProposalPresignItem"
+        nib:
+          $ref: "#/components/schemas/VendorSouvenirStoreProposalPresignItem"
+        halal_certificate:
+          $ref: "#/components/schemas/VendorSouvenirStoreProposalPresignItem"
+    VendorSouvenirStoreProposalAddressInput:
+      type: object
+      required:
+        - province_id
+        - city_id
+        - district_id
+        - subdistrict_id
+        - postal_code
+        - address_line
+      properties:
+        province_id:
+          type: string
+          example: "31"
+        city_id:
+          type: string
+          example: "3171"
+        district_id:
+          type: string
+          example: "317101"
+        subdistrict_id:
+          type: string
+          example: "3171011001"
+        postal_code:
+          type: string
+          example: "10320"
+        address_line:
+          type: string
+          example: Jl. Pegangsaan Barat No. 12
+    VendorSouvenirStoreProposalResponsiblePersonInput:
+      type: object
+      required:
+        - name
+        - phone
+        - email
+        - nik
+        - ktp_object_id
+      properties:
+        name:
+          type: string
+          example: Ahmad Fauzi
+        phone:
+          type: string
+          example: "+6281234567890"
+        email:
+          type: string
+          format: email
+          example: toko.mabrur@example.com
+        nik:
+          type: string
+          example: "3175090901010001"
+        ktp_object_id:
+          type: string
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/owner_document_id/8df7708e-fba2-4f2d-9300-3a441a9365c6
+    VendorSouvenirStoreProposalOtherDocumentsInput:
+      type: object
+      required:
+        - nib_object_id
+        - halal_certificate_object_id
+      properties:
+        nib_object_id:
+          type: string
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/business_nib/6c6e6c5d-1cec-4e7f-b676-f8756024d50c
+        halal_certificate_object_id:
+          type: string
+          example: vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/halal_certificate/72d95895-02cf-4344-b855-7dd7952eb6b1
+    VendorSouvenirStoreProposalRequest:
+      type: object
+      required:
+        - store_name
+        - store_description
+        - address
+        - responsible_person
+        - other_documents
+      properties:
+        store_name:
+          type: string
+          example: Toko Oleh-Oleh Haji Mabrur
+        store_description:
+          type: string
+          example: Menjual aneka oleh-oleh haji dan umrah.
+        address:
+          $ref: "#/components/schemas/VendorSouvenirStoreProposalAddressInput"
+        responsible_person:
+          $ref: "#/components/schemas/VendorSouvenirStoreProposalResponsiblePersonInput"
+        other_documents:
+          $ref: "#/components/schemas/VendorSouvenirStoreProposalOtherDocumentsInput"
+    VendorSouvenirStoreProposalResponse:
+      type: object
+      required:
+        - vendor_id
+        - status
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        status:
+          type: string
+          enum:
+            - submitted
+          example: submitted
     SuccessVendorRegisterOTPEnvelope:
       type: object
       required: [success, message, data, errors, meta]
@@ -2755,60 +5600,6 @@ components:
         meta:
           nullable: true
           example: null
-    SuccessVendorOnboardingProgressEnvelope:
-      type: object
-      required: [success, message, data, errors, meta]
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: password saved successfully
-        data:
-          $ref: "#/components/schemas/VendorOnboardingProgressResponse"
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorRegistrationIndividualPresignEnvelope:
-      type: object
-      required: [success, message, data, errors, meta]
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: presigned URL created successfully
-        data:
-          $ref: "#/components/schemas/VendorRegistrationPresignDocumentResponse"
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
-    SuccessVendorRegistrationCorporatePresignEnvelope:
-      type: object
-      required: [success, message, data, errors, meta]
-      properties:
-        success:
-          type: boolean
-          example: true
-        message:
-          type: string
-          example: presigned URL created successfully
-        data:
-          $ref: "#/components/schemas/VendorRegistrationPresignDocumentResponse"
-        errors:
-          nullable: true
-          example: null
-        meta:
-          nullable: true
-          example: null
     SuccessVendorLoginEnvelope:
       type: object
       required: [success, message, data, errors, meta]
@@ -2839,6 +5630,42 @@ components:
           example: vendor profile retrieved successfully
         data:
           $ref: "#/components/schemas/VendorProfileResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorSouvenirStoreProposalPresignEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: presigned upload URL generated
+        data:
+          $ref: "#/components/schemas/VendorSouvenirStoreProposalPresignResponse"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessVendorSouvenirStoreProposalEnvelope:
+      type: object
+      required: [success, message, data, errors, meta]
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor proposal submitted successfully
+        data:
+          $ref: "#/components/schemas/VendorSouvenirStoreProposalResponse"
         errors:
           nullable: true
           example: null
@@ -3989,7 +6816,7 @@ components:
           type: string
           example: voucher retrieved successfully
         data:
-          $ref: '#/components/schemas/VendorVoucherResponse'
+          $ref: "#/components/schemas/VendorVoucherResponse"
         errors:
           nullable: true
           example: null
@@ -4015,12 +6842,12 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/VendorVoucherResponse'
+            $ref: "#/components/schemas/VendorVoucherResponse"
         errors:
           nullable: true
           example: null
         meta:
-          $ref: '#/components/schemas/PaginationMeta'
+          $ref: "#/components/schemas/PaginationMeta"
 
     VendorProductListItem:
       type: object
@@ -4057,3 +6884,1186 @@ components:
           type: string
           format: date-time
           description: Waktu produk dibuat.
+
+    VendorProductDetailImageItem:
+      type: object
+      required:
+        - id
+        - url
+        - is_primary
+        - sort_order
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID gambar. Gunakan nilai ini di `keep_image_ids` saat Edit Product.
+          example: dd44ee55-ff66-7788-9900-112233445566
+        url:
+          type: string
+          description: Object key gambar di S3 storage.
+          example: products/f1a2b3c4-d5e6-7890-abcd-ef1234567890/images/dd44ee55-ff66-7788-9900-112233445566/sajadah-depan.jpg
+        is_primary:
+          type: boolean
+          description: Apakah ini gambar utama produk.
+          example: true
+        sort_order:
+          type: integer
+          description: Urutan tampil gambar (ascending).
+          example: 0
+
+    VendorProductDetailResponse:
+      type: object
+      required:
+        - id
+        - vendor_id
+        - category_id
+        - name
+        - slug
+        - description
+        - status
+        - halal_ai_status
+        - is_active
+        - price
+        - stock
+        - variants
+        - images
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID produk.
+          example: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor pemilik produk.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        category_id:
+          type: string
+          format: uuid
+          description: ID kategori produk.
+          example: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+        name:
+          type: string
+          description: Nama produk.
+          example: Sajadah Premium Madinah
+        slug:
+          type: string
+          description: URL-friendly slug produk.
+          example: sajadah-premium-madinah
+        description:
+          type: string
+          description: Deskripsi produk.
+          example: Sajadah premium kualitas terbaik langsung dari Madinah.
+        status:
+          type: string
+          description: Status produk.
+          enum:
+            - draft
+            - published
+          example: published
+        halal_ai_status:
+          type: string
+          description: Status verifikasi AI halal.
+          enum:
+            - pending
+            - approved
+            - rejected
+          example: pending
+        is_active:
+          type: boolean
+          description: Turunan dari status — `true` jika status `published`, `false` jika `draft`.
+          example: true
+        price:
+          type: number
+          format: double
+          description: Harga default variant (IDR).
+          example: 150000
+        stock:
+          type: integer
+          description: Stok default variant.
+          example: 50
+        weight_gram:
+          type: integer
+          nullable: true
+          description: Berat default variant dalam gram (null jika tidak diisi).
+          example: 500
+        variants:
+          type: array
+          description: Semua varian produk termasuk default variant. Gunakan `id` varian di array `variants` saat Edit Product.
+          items:
+            $ref: "#/components/schemas/ProductVariantResponse"
+        images:
+          type: array
+          description: Semua gambar produk. Gunakan `id` gambar di `keep_image_ids` saat Edit Product.
+          items:
+            $ref: "#/components/schemas/VendorProductDetailImageItem"
+        created_at:
+          type: string
+          format: date-time
+          description: Waktu produk dibuat.
+          example: "2026-03-01T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Waktu terakhir produk diperbarui.
+          example: "2026-03-30T08:00:00Z"
+
+    SuccessVendorProductDetailEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/VendorProductDetailResponse"
+
+    SuccessEmptyEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              nullable: true
+              example: null
+
+    ROProvince:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "6"
+        name:
+          type: string
+          example: DKI JAKARTA
+
+    ROCity:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "39"
+        province_id:
+          type: string
+          example: "6"
+        name:
+          type: string
+          example: Jakarta Pusat
+        type:
+          type: string
+          example: Kota
+        postal_code:
+          type: string
+          example: "10110"
+
+    RODistrict:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "531"
+        city_id:
+          type: string
+          example: "39"
+        name:
+          type: string
+          example: Menteng
+
+    ROSubdistrict:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "6085"
+        district_id:
+          type: string
+          example: "531"
+        name:
+          type: string
+          example: Pegangsaan
+        zip_code:
+          type: string
+          nullable: true
+          example: "10320"
+
+    CreateAddressRequest:
+      type: object
+      required:
+        - address_line
+      properties:
+        label:
+          type: string
+          nullable: true
+          maxLength: 40
+        recipient_name:
+          type: string
+          nullable: true
+          maxLength: 120
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        province_id:
+          type: string
+          nullable: true
+          maxLength: 20
+        province_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        city_id:
+          type: string
+          nullable: true
+          maxLength: 20
+        city_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        district_id:
+          type: string
+          nullable: true
+          maxLength: 20
+        district_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        subdistrict_id:
+          type: string
+          nullable: true
+          maxLength: 20
+        subdistrict_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        postal_code:
+          type: string
+          nullable: true
+          maxLength: 10
+        address_line:
+          type: string
+          example: Jl. H. Agus Salim No. 10
+        notes:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        is_default:
+          type: boolean
+          example: true
+
+    UpdateAddressRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          nullable: true
+          maxLength: 40
+        recipient_name:
+          type: string
+          nullable: true
+          maxLength: 120
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        province_id:
+          type: string
+          nullable: true
+          maxLength: 20
+        province_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        city_id:
+          type: string
+          nullable: true
+          maxLength: 20
+        city_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        district_id:
+          type: string
+          nullable: true
+          maxLength: 20
+        district_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        subdistrict_id:
+          type: string
+          nullable: true
+          maxLength: 20
+        subdistrict_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        postal_code:
+          type: string
+          nullable: true
+          maxLength: 10
+        address_line:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        is_default:
+          type: boolean
+          nullable: true
+
+    AddressResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        label:
+          type: string
+          nullable: true
+        recipient_name:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        province_id:
+          type: string
+          nullable: true
+        province_name:
+          type: string
+          nullable: true
+        city_id:
+          type: string
+          nullable: true
+        city_name:
+          type: string
+          nullable: true
+        district_id:
+          type: string
+          nullable: true
+        district_name:
+          type: string
+          nullable: true
+        subdistrict_id:
+          type: string
+          nullable: true
+        subdistrict_name:
+          type: string
+          nullable: true
+        postal_code:
+          type: string
+          nullable: true
+        address_line:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        is_default:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SuccessAddressEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AddressResponse"
+
+    SuccessAddressListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/SuccessEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/AddressResponse"
+
+    CourierResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: jne
+        name:
+          type: string
+          example: JNE
+        logo_url:
+          type: string
+          nullable: true
+          example: https://cdn.example.com/couriers/jne.png
+        is_active:
+          type: boolean
+          example: true
+
+    VendorCourierResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courier_id:
+          type: integer
+        courier_code:
+          type: string
+        courier_name:
+          type: string
+        logo_url:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    SetVendorCouriersRequest:
+      type: object
+      required:
+        - courier_ids
+      properties:
+        courier_ids:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+
+    VendorOrderProductItem:
+      type: object
+      properties:
+        product_name:
+          type: string
+        selected_variant:
+          type: string
+        qty:
+          type: integer
+        unit_price:
+          type: number
+          format: double
+        line_total:
+          type: number
+          format: double
+
+    VendorOrderListItem:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          description: UUID pesanan.
+        order_no:
+          type: string
+          description: Nomor pesanan yang mudah dibaca.
+          example: "ORD-20260301-ABC1"
+        order_date:
+          type: string
+          format: date-time
+          description: Tanggal pesanan dibuat.
+        customer_name:
+          type: string
+          description: Nama customer yang memesan.
+          example: "Ahmad Rizky"
+        items:
+          type: array
+          description: Daftar item produk dalam pesanan.
+          items:
+            $ref: "#/components/schemas/VendorOrderProductItem"
+        total_payment:
+          type: number
+          format: double
+          description: Total pembayaran pesanan.
+          example: 325000
+        status:
+          type: string
+          description: Status pesanan saat ini.
+          enum: [paid, processing, shipped, delivered, completed, canceled]
+
+    VendorOrderDetailShipping:
+      type: object
+      properties:
+        courier:
+          type: string
+        tracking_number:
+          type: string
+        status:
+          type: string
+        delivered_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    VendorOrderDetailRecipientAddress:
+      type: object
+      properties:
+        street:
+          type: string
+        district:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+        postal_code:
+          type: string
+
+    VendorOrderDetailRecipient:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          $ref: "#/components/schemas/VendorOrderDetailRecipientAddress"
+
+    VendorOrderDetailStore:
+      type: object
+      properties:
+        name:
+          type: string
+
+    VendorOrderDetailItem:
+      type: object
+      properties:
+        name:
+          type: string
+        variant:
+          type: string
+        price:
+          type: number
+          format: double
+        quantity:
+          type: integer
+        subtotal:
+          type: number
+          format: double
+
+    VendorOrderDetailPayment:
+      type: object
+      properties:
+        method:
+          type: string
+        total_amount:
+          type: number
+          format: double
+
+    VendorOrderDetailOrder:
+      type: object
+      properties:
+        order_number:
+          type: string
+        order_time:
+          type: string
+          format: date-time
+        payment_time:
+          type: string
+          format: date-time
+          nullable: true
+        shipping_time:
+          type: string
+          format: date-time
+          nullable: true
+        delivered_time:
+          type: string
+          format: date-time
+          nullable: true
+
+    VendorOrderDetailSummary:
+      type: object
+      properties:
+        items_total:
+          type: number
+          format: double
+        shipping_fee:
+          type: number
+          format: double
+        service_fee:
+          type: number
+          format: double
+        grand_total:
+          type: number
+          format: double
+
+    VendorOrderDetailResponse:
+      type: object
+      description: Detail pesanan vendor (nested structure).
+      properties:
+        shipping:
+          $ref: "#/components/schemas/VendorOrderDetailShipping"
+        recipient:
+          $ref: "#/components/schemas/VendorOrderDetailRecipient"
+        store:
+          $ref: "#/components/schemas/VendorOrderDetailStore"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorOrderDetailItem"
+        payment:
+          $ref: "#/components/schemas/VendorOrderDetailPayment"
+        order:
+          $ref: "#/components/schemas/VendorOrderDetailOrder"
+        summary:
+          $ref: "#/components/schemas/VendorOrderDetailSummary"
+
+    ShipOrderRequest:
+      type: object
+      required:
+        - tracking_no
+      properties:
+        tracking_no:
+          type: string
+          description: Nomor resi pengiriman dari kurir.
+          example: JNT0123456789
+
+    CancelOrderRefundInfo:
+      type: object
+      description: Informasi refund otomatis yang diinisiasi saat pesanan yang sudah dibayar dibatalkan/ditolak.
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+          description: ID refund yang dibuat.
+        refund_method:
+          type: string
+          description: |
+            Metode refund yang digunakan:
+            - `gateway` — refund langsung via payment gateway (VA, QRIS).
+            - `disbursement` — refund via disbursement karena gateway tidak support refund (e-wallet).
+          enum: [gateway, disbursement]
+        status:
+          type: string
+          description: Status refund saat ini.
+          example: pending
+        message:
+          type: string
+          description: Pesan deskriptif tentang proses refund.
+          example: Refund telah diinisiasi dan sedang diproses
+
+    AcceptRejectOrderResponse:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        order_status:
+          type: string
+          description: Status baru pesanan setelah aksi.
+          enum: [processing, canceled]
+        updated_at:
+          type: string
+          format: date-time
+        refund_info:
+          nullable: true
+          description: |
+            Informasi refund otomatis. Hanya muncul saat reject order yang sudah dibayar.
+            `null` jika pesanan belum dibayar atau aksi adalah accept.
+          allOf:
+            - $ref: "#/components/schemas/CancelOrderRefundInfo"
+
+    ShipOrderResponse:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+        order_status:
+          type: string
+          example: shipped
+        tracking_no:
+          type: string
+          description: Nomor resi yang diinput.
+        courier_code:
+          type: string
+          description: Kode kurir dari shipment yang sudah ada.
+        shipped_at:
+          type: string
+          format: date-time
+        etd:
+          type: string
+          example: 2-3
+        estimated_arrival:
+          type: string
+          nullable: true
+          example: 2026-04-02
+
+    TrackWaybillSummary:
+      type: object
+      properties:
+        courier_code:
+          type: string
+        courier_name:
+          type: string
+        waybill_number:
+          type: string
+        service_code:
+          type: string
+        waybill_date:
+          type: string
+        shipper_name:
+          type: string
+        receiver_name:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        status:
+          type: string
+
+    TrackWaybillDetails:
+      type: object
+      properties:
+        waybill_number:
+          type: string
+        waybill_date:
+          type: string
+        waybill_time:
+          type: string
+        weight:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        shipper_name:
+          type: string
+        shipper_address1:
+          type: string
+        shipper_address2:
+          type: string
+        shipper_address3:
+          type: string
+        shipper_city:
+          type: string
+        receiver_name:
+          type: string
+        receiver_address1:
+          type: string
+        receiver_address2:
+          type: string
+        receiver_address3:
+          type: string
+        receiver_city:
+          type: string
+
+    TrackDeliveryStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        pod_receiver:
+          type: string
+        pod_date:
+          type: string
+        pod_time:
+          type: string
+
+    TrackManifestItem:
+      type: object
+      properties:
+        manifest_code:
+          type: string
+        manifest_description:
+          type: string
+        manifest_date:
+          type: string
+        manifest_time:
+          type: string
+        city_name:
+          type: string
+
+    TrackWaybillResponse:
+      type: object
+      properties:
+        delivered:
+          type: boolean
+          description: Apakah paket sudah terkirim.
+        summary:
+          $ref: "#/components/schemas/TrackWaybillSummary"
+        details:
+          $ref: "#/components/schemas/TrackWaybillDetails"
+        delivery_status:
+          $ref: "#/components/schemas/TrackDeliveryStatus"
+        manifest:
+          type: array
+          description: Daftar event atau manifest tracking.
+          items:
+            $ref: "#/components/schemas/TrackManifestItem"
+
+    InvoiceActions:
+      type: object
+      properties:
+        can_copy:
+          type: boolean
+        can_print:
+          type: boolean
+        can_download:
+          type: boolean
+
+    InvoiceInfo:
+      type: object
+      properties:
+        invoice_number:
+          type: string
+        issued_at:
+          type: string
+        actions:
+          $ref: "#/components/schemas/InvoiceActions"
+
+    InvoiceCustomerAddress:
+      type: object
+      properties:
+        street:
+          type: string
+        district:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+        postal_code:
+          type: string
+
+    InvoiceCustomer:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          $ref: "#/components/schemas/InvoiceCustomerAddress"
+
+    InvoicePayment:
+      type: object
+      properties:
+        method:
+          type: string
+        paid_at:
+          type: string
+
+    InvoiceItem:
+      type: object
+      properties:
+        name:
+          type: string
+        variant:
+          type: string
+        price:
+          type: number
+          format: double
+        quantity:
+          type: integer
+        subtotal:
+          type: number
+          format: double
+        image_url:
+          type: string
+          nullable: true
+
+    InvoiceSummary:
+      type: object
+      properties:
+        subtotal:
+          type: number
+          format: double
+        shipping_fee:
+          type: number
+          format: double
+        service_fee:
+          type: number
+          format: double
+        total:
+          type: number
+          format: double
+        currency:
+          type: string
+          example: IDR
+
+    VendorOrderInvoiceResponse:
+      type: object
+      properties:
+        invoice:
+          $ref: "#/components/schemas/InvoiceInfo"
+        customer:
+          $ref: "#/components/schemas/InvoiceCustomer"
+        payment:
+          $ref: "#/components/schemas/InvoicePayment"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceItem"
+        summary:
+          $ref: "#/components/schemas/InvoiceSummary"
+
+    ShippingInfoStage:
+      type: object
+      properties:
+        status:
+          type: string
+        label:
+          type: string
+        completed:
+          type: boolean
+        active:
+          type: boolean
+
+    ShippingInfoCourier:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        tracking_no:
+          type: string
+
+    ShippingInfoEvent:
+      type: object
+      properties:
+        date_time:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+
+    VendorOrderShippingInfoResponse:
+      type: object
+      properties:
+        estimated_arrival:
+          type: string
+          nullable: true
+          example: 2026-04-02
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShippingInfoStage"
+        courier:
+          $ref: "#/components/schemas/ShippingInfoCourier"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShippingInfoEvent"
+
+    CreateVendorBannerRequest:
+      type: object
+      required:
+        - title
+        - content_type
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        content_type:
+          type: string
+          example: image/jpeg
+
+    ConfirmVendorBannerRequest:
+      type: object
+      required:
+        - object_key
+      properties:
+        object_key:
+          type: string
+
+    UpdateVendorBannerRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+          maxLength: 255
+
+    VendorBannerResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vendor_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        image_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    VendorBannerPresignResponse:
+      type: object
+      properties:
+        banner_id:
+          type: string
+          format: uuid
+        upload_url:
+          type: string
+        object_key:
+          type: string
+        expires_in:
+          type: integer
+          example: 1800
+
+    StartConversationRequest:
+      type: object
+      required:
+        - participant_id
+      properties:
+        participant_id:
+          type: string
+          format: uuid
+
+    PresignChatAttachmentRequest:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+          example: image/jpeg
+
+    PresignChatAttachmentResponse:
+      type: object
+      properties:
+        upload_url:
+          type: string
+        object_key:
+          type: string
+        content_type:
+          type: string
+        expires_in:
+          type: integer
+
+    ChatableUserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          example: customer
+
+    ConversationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        initiator_id:
+          type: string
+          format: uuid
+        participant_id:
+          type: string
+          format: uuid
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        user_name:
+          type: string
+        user_role:
+          type: string
+        last_message:
+          type: string
+        last_message_time:
+          type: string
+          format: date-time
+          nullable: true
+        unread_count:
+          type: integer
+          format: int64
+
+    SendChatMessageRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+        attachment_key:
+          type: string
+          nullable: true
+
+    ChatMessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        sender_name:
+          type: string
+        sender_role:
+          type: string
+        message:
+          type: string
+        attachment_url:
+          type: string
+          nullable: true
+        is_read:
+          type: boolean
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time

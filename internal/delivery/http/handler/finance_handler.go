@@ -95,11 +95,15 @@ func (h *FinanceHandler) ExportTransactions(c *gin.Context) {
 		if item.Method != nil {
 			method = *item.Method
 		}
+		vendor := ""
+		if item.Vendor != nil {
+			vendor = *item.Vendor
+		}
 		records = append(records, []string{
 			formatTime(item.Date),
 			item.Invoice,
 			item.Customer,
-			item.Vendor,
+			vendor,
 			method,
 			formatAmount(item.Amount),
 			item.Status,
@@ -146,9 +150,17 @@ func (h *FinanceHandler) ExportPayouts(c *gin.Context) {
 	header := []string{"Vendor", "Kategori", "Order Selesai", "Nominal", "Komisi", "Net Payout", "Status"}
 	records := make([][]string, 0, len(items)+1)
 	for _, item := range items {
+		vendor := ""
+		if item.Vendor != nil {
+			vendor = *item.Vendor
+		}
+		vendorType := ""
+		if item.VendorType != nil {
+			vendorType = *item.VendorType
+		}
 		records = append(records, []string{
-			item.Vendor,
-			item.VendorType,
+			vendor,
+			vendorType,
 			strconv.Itoa(item.OrderCompleted),
 			formatAmount(item.Nominal),
 			formatAmount(item.Commission),
@@ -197,6 +209,10 @@ func (h *FinanceHandler) ExportRefunds(c *gin.Context) {
 	header := []string{"ID", "Customer", "Vendor", "Order ID", "Alasan", "Nominal", "Status"}
 	records := make([][]string, 0, len(items)+1)
 	for _, item := range items {
+		vendor := ""
+		if item.Vendor != nil {
+			vendor = *item.Vendor
+		}
 		reason := ""
 		if item.Reason != nil {
 			reason = *item.Reason
@@ -204,7 +220,7 @@ func (h *FinanceHandler) ExportRefunds(c *gin.Context) {
 		records = append(records, []string{
 			item.ID.String(),
 			item.Customer,
-			item.Vendor,
+			vendor,
 			item.OrderID.String(),
 			reason,
 			formatAmount(item.Amount),
@@ -267,7 +283,7 @@ func (h *FinanceHandler) UpdateRefundStatus(c *gin.Context) {
 	actorID, _ := c.Get(middleware.ContextKeyUserID)
 	actorUUID, _ := actorID.(uuid.UUID)
 
-	result, err := h.useCase.UpdateRefundStatus(c.Request.Context(), id, req.Status, actorUUID)
+	result, err := h.useCase.UpdateRefundStatus(c.Request.Context(), id, req, actorUUID)
 	if err != nil {
 		HandleUsecaseError(c, err)
 		return

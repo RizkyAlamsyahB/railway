@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -187,90 +188,9 @@ func TestVerifyRegistrationOTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if resp == nil || resp.OnboardingToken == "" {
-		t.Fatal("expected onboarding token")
+	if resp == nil || resp.EmailToken == "" {
+		t.Fatal("expected email token")
 	}
-	if resp.Status != domain.VendorOnboardingStatusOTPVerified {
-		t.Fatalf("unexpected status: %s", resp.Status)
-	}
-}
-
-func TestGetRegistrationStatus(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
-		ctx := context.Background()
-		onboardingID := uuid.New()
-
-		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
-			if id != onboardingID {
-				t.Fatalf("unexpected onboarding id: %s", id)
-			}
-			return &domain.VendorOnboarding{
-				ID:     onboardingID,
-				Email:  "vendor@example.com",
-				Status: domain.VendorOnboardingStatusPasswordSet,
-			}, nil
-		}
-
-		resp, err := uc.GetRegistrationStatus(ctx, onboardingID)
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if resp == nil {
-			t.Fatal("expected response")
-		}
-		if resp.Email != "vendor@example.com" {
-			t.Fatalf("unexpected email: %s", resp.Email)
-		}
-		if resp.Status != domain.VendorOnboardingStatusPasswordSet {
-			t.Fatalf("unexpected status: %s", resp.Status)
-		}
-	})
-
-	t.Run("completed onboarding remains readable", func(t *testing.T) {
-		_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
-		ctx := context.Background()
-		onboardingID := uuid.New()
-		completedAt := time.Now()
-
-		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
-			if id != onboardingID {
-				t.Fatalf("unexpected onboarding id: %s", id)
-			}
-			return &domain.VendorOnboarding{
-				ID:          onboardingID,
-				Email:       "vendor@example.com",
-				Status:      domain.VendorOnboardingStatusCompleted,
-				CompletedAt: &completedAt,
-			}, nil
-		}
-
-		resp, err := uc.GetRegistrationStatus(ctx, onboardingID)
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if resp == nil || resp.Status != domain.VendorOnboardingStatusCompleted {
-			t.Fatalf("unexpected response: %+v", resp)
-		}
-	})
-
-	t.Run("onboarding not found", func(t *testing.T) {
-		_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
-		ctx := context.Background()
-		onboardingID := uuid.New()
-
-		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
-			if id != onboardingID {
-				t.Fatalf("unexpected onboarding id: %s", id)
-			}
-			return nil, nil
-		}
-
-		_, err := uc.GetRegistrationStatus(ctx, onboardingID)
-		if !errors.Is(err, ErrVendorOnboardingNotFound) {
-			t.Fatalf("expected ErrVendorOnboardingNotFound, got %v", err)
-		}
-	})
 }
 
 func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
@@ -284,7 +204,7 @@ func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
 		return &domain.VendorOnboarding{
 			ID:     onboardingID,
 			Email:  "vendor@example.com",
-			Status: domain.VendorOnboardingStatusPasswordSet,
+			Status: "invalid_step",
 		}, nil
 	}
 
@@ -294,103 +214,10 @@ func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
 	}
 }
 
-func TestPresignRegistrationIndividualDocument_TableDriven(t *testing.T) {
-	t.Run("success jpeg", func(t *testing.T) {
-		_, _, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
-		ctx := context.Background()
-		onboardingID := uuid.New()
-
-		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
-			if id != onboardingID {
-				t.Fatalf("unexpected onboarding id: %s", id)
-			}
-			return &domain.VendorOnboarding{
-				ID:     onboardingID,
-				Email:  "vendor@example.com",
-				Status: domain.VendorOnboardingStatusPasswordSet,
-			}, nil
-		}
-		storage.EXPECT().
-			GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).
-			Return("https://upload.example.com", nil)
-
-		resp, err := uc.PresignRegistrationIndividualDocument(ctx, onboardingID, domain.VendorRegistrationPresignDocumentRequest{
-			DocumentIDType: domain.VendorDocumentIDTypeKTP,
-			ContentType:    "image/jpeg",
-		})
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if resp == nil || resp.UploadURL == "" {
-			t.Fatal("expected upload url")
-		}
-	})
-
-	t.Run("success normalized pdf", func(t *testing.T) {
-		_, _, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
-		ctx := context.Background()
-		onboardingID := uuid.New()
-
-		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
-			if id != onboardingID {
-				t.Fatalf("unexpected onboarding id: %s", id)
-			}
-			return &domain.VendorOnboarding{
-				ID:     onboardingID,
-				Email:  "vendor@example.com",
-				Status: domain.VendorOnboardingStatusPasswordSet,
-			}, nil
-		}
-		storage.EXPECT().
-			GeneratePresignedUploadURL(ctx, gomock.Any(), "application/pdf", PresignedUploadExpiry).
-			Return("https://upload.example.com", nil)
-
-		resp, err := uc.PresignRegistrationIndividualDocument(ctx, onboardingID, domain.VendorRegistrationPresignDocumentRequest{
-			DocumentIDType: domain.VendorDocumentIDTypePassport,
-			ContentType:    " APPLICATION/PDF ; charset=utf-8 ",
-		})
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if resp == nil || resp.UploadURL == "" {
-			t.Fatal("expected upload url")
-		}
-	})
-
-	t.Run("invalid content type", func(t *testing.T) {
-		_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
-		ctx := context.Background()
-		onboardingID := uuid.New()
-
-		onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
-			if id != onboardingID {
-				t.Fatalf("unexpected onboarding id: %s", id)
-			}
-			return &domain.VendorOnboarding{
-				ID:     onboardingID,
-				Email:  "vendor@example.com",
-				Status: domain.VendorOnboardingStatusPasswordSet,
-			}, nil
-		}
-
-		_, err := uc.PresignRegistrationIndividualDocument(ctx, onboardingID, domain.VendorRegistrationPresignDocumentRequest{
-			DocumentIDType: domain.VendorDocumentIDTypeKTP,
-			ContentType:    "image/png",
-		})
-		if !errors.Is(err, ErrInvalidDocumentContent) {
-			t.Fatalf("expected ErrInvalidDocumentContent, got %v", err)
-		}
-	})
-}
-
-func TestSubmitRegistrationIndividual_Success(t *testing.T) {
-	userRepo, _, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
+func TestSetRegistrationPassword_Success(t *testing.T) {
+	userRepo, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
 	ctx := context.Background()
 	onboardingID := uuid.New()
-	passwordHash, err := auth.HashPassword("password123")
-	if err != nil {
-		t.Fatalf("failed to hash password: %v", err)
-	}
 
 	onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
 		if id != onboardingID {
@@ -399,20 +226,11 @@ func TestSubmitRegistrationIndividual_Success(t *testing.T) {
 		return &domain.VendorOnboarding{
 			ID:            onboardingID,
 			Email:         "vendor@example.com",
-			Status:        domain.VendorOnboardingStatusPasswordSet,
-			PasswordHash:  &passwordHash,
+			Status:        domain.VendorOnboardingStatusOTPVerified,
 			OTPVerifiedAt: time.Now(),
 		}, nil
 	}
-	onboardingRepo.update = func(_ context.Context, onboarding *domain.VendorOnboarding, fields ...string) error {
-		if onboarding.OwnerName == nil || *onboarding.OwnerName != "Ahmad" {
-			t.Fatalf("unexpected owner name: %+v", onboarding.OwnerName)
-		}
-		if len(fields) == 0 {
-			t.Fatal("expected updated fields")
-		}
-		return nil
-	}
+	userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(nil, nil)
 	onboardingRepo.finalizeRegistration = func(_ context.Context, input domain.VendorRegistrationFinalizeInput) error {
 		if input.OnboardingID != onboardingID {
 			t.Fatalf("unexpected onboarding id: %s", input.OnboardingID)
@@ -420,78 +238,255 @@ func TestSubmitRegistrationIndividual_Success(t *testing.T) {
 		if input.UserRole != domain.RoleUMKM {
 			t.Fatalf("unexpected user role: %s", input.UserRole)
 		}
+		if input.User == nil || input.User.PasswordHash == "" {
+			t.Fatal("expected user with password hash")
+		}
+		if input.Vendor == nil || input.Vendor.Status != domain.VendorStatusDraft {
+			t.Fatalf("unexpected vendor: %+v", input.Vendor)
+		}
+		if input.Vendor != nil && input.Vendor.VendorType != nil {
+			t.Fatalf("expected nil vendor type for new vendor, got %+v", input.Vendor.VendorType)
+		}
 		return nil
 	}
 
-	objectKey := buildVendorOnboardingDocumentObjectKey(onboardingID)
-	storage.EXPECT().HeadObject(ctx, objectKey).Return(&domain.ObjectInfo{
-		Key:           objectKey,
-		ContentType:   "image/jpeg",
-		ContentLength: 1024,
-	}, nil)
-	userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(nil, nil)
-
-	resp, err := uc.SubmitRegistrationIndividual(ctx, onboardingID, domain.VendorRegistrationIndividualLegalRequest{
-		StoreName:           "Toko Haji",
-		DocumentIDType:      domain.VendorDocumentIDTypeKTP,
-		NIK:                 "3173000000000001",
-		OwnerName:           "Ahmad",
-		BirthDate:           "1990-01-02",
-		DocumentIDObjectKey: objectKey,
+	resp, err := uc.SetRegistrationPassword(ctx, onboardingID, domain.VendorRegistrationPasswordRequest{
+		Password: "password123",
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if resp == nil || resp.Token == "" {
+	if resp == nil || resp.AccessToken == "" {
 		t.Fatal("expected auth token in response")
 	}
-	if resp.VendorStatus != domain.VendorStatusSubmitted {
+	if resp.ImageURL != nil {
+		t.Fatalf("expected nil image URL, got %v", *resp.ImageURL)
+	}
+	if resp.StoreName != nil {
+		t.Fatalf("expected nil store name, got %v", resp.StoreName)
+	}
+	if resp.VendorType != nil {
+		t.Fatalf("expected nil vendor type, got %v", resp.VendorType)
+	}
+	if resp.VendorStatus != domain.VendorStatusDraft {
 		t.Fatalf("unexpected vendor status: %s", resp.VendorStatus)
 	}
 }
 
-func TestSubmitRegistrationIndividual_InvalidContentType(t *testing.T) {
-	_, _, storage, _, onboardingRepo, uc := setupVendorUseCase(t)
-	ctx := context.Background()
-	onboardingID := uuid.New()
-	passwordHash, err := auth.HashPassword("password123")
-	if err != nil {
-		t.Fatalf("failed to hash password: %v", err)
-	}
-
-	onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
-		if id != onboardingID {
-			t.Fatalf("unexpected onboarding id: %s", id)
+func TestSubmitSouvenirStoreProposal(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		userID := uuid.New()
+		vendor := &domain.Vendor{
+			ID:          vendorID,
+			OwnerUserID: userID,
+			Status:      domain.VendorStatusDraft,
 		}
-		return &domain.VendorOnboarding{
-			ID:            onboardingID,
-			Email:         "vendor@example.com",
-			Status:        domain.VendorOnboardingStatusPasswordSet,
-			PasswordHash:  &passwordHash,
-			OTPVerifiedAt: time.Now(),
-		}, nil
-	}
+		owner := &domain.User{
+			ID:       userID,
+			Email:    "owner@example.com",
+			FullName: "Old Name",
+		}
 
-	objectKey := buildVendorOnboardingDocumentObjectKey(onboardingID)
-	storage.EXPECT().HeadObject(ctx, objectKey).Return(&domain.ObjectInfo{
-		Key:           objectKey,
-		ContentType:   "image/png",
-		ContentLength: 1024,
-	}, nil)
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+		userRepo.EXPECT().FindByID(ctx, userID).Return(owner, nil)
+		userRepo.EXPECT().FindByPhone(ctx, "08123456789").Return(owner, nil)
+		vendorRepo.EXPECT().
+			SubmitSouvenirStoreProposal(ctx, gomock.Any()).
+			DoAndReturn(func(_ context.Context, input domain.SubmitSouvenirStoreProposalInput) error {
+				if input.OwnerUser == nil || input.OwnerUser.FullName != "Ahmad" {
+					t.Fatalf("unexpected owner user: %+v", input.OwnerUser)
+				}
+				if input.OwnerUser.Phone == nil || *input.OwnerUser.Phone != "08123456789" {
+					t.Fatalf("unexpected owner phone: %+v", input.OwnerUser.Phone)
+				}
+				if input.Vendor == nil || input.Vendor.DisplayName == nil || *input.Vendor.DisplayName != "Toko Haji" {
+					t.Fatalf("unexpected vendor payload: %+v", input.Vendor)
+				}
+				if input.Vendor.VendorType == nil || *input.Vendor.VendorType != domain.VendorTypeSouvenirStore {
+					t.Fatalf("unexpected vendor type: %+v", input.Vendor.VendorType)
+				}
+				if input.ResponsiblePerson == nil || input.ResponsiblePerson.NIK != "3173010101010001" {
+					t.Fatalf("unexpected responsible person: %+v", input.ResponsiblePerson)
+				}
+				if len(input.Documents) != 3 {
+					t.Fatalf("expected 3 documents, got %d", len(input.Documents))
+				}
+				docTypes := map[string]string{}
+				for _, doc := range input.Documents {
+					docTypes[doc.DocType] = doc.FileURL
+				}
+				if docTypes[domain.VendorDocumentTypeOwnerDocumentID] != "vendors/docs/ktp" {
+					t.Fatalf("unexpected KTP doc: %+v", docTypes)
+				}
+				if docTypes[domain.VendorDocumentTypeBusinessNIB] != "vendors/docs/nib" {
+					t.Fatalf("unexpected NIB doc: %+v", docTypes)
+				}
+				if docTypes[domain.VendorDocumentTypeHalalCertificate] != "vendors/docs/halal" {
+					t.Fatalf("unexpected halal doc: %+v", docTypes)
+				}
+				return nil
+			})
 
-	_, err = uc.SubmitRegistrationIndividual(ctx, onboardingID, domain.VendorRegistrationIndividualLegalRequest{
-		StoreName:           "Toko Haji",
-		DocumentIDType:      domain.VendorDocumentIDTypeKTP,
-		NIK:                 "3173000000000001",
-		OwnerName:           "Ahmad",
-		BirthDate:           "1990-01-02",
-		DocumentIDObjectKey: objectKey,
+		resp, err := uc.SubmitSouvenirStoreProposal(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalRequest{
+			StoreName:        "Toko Haji",
+			StoreDescription: "Pusat oleh-oleh",
+			Address: domain.VendorSouvenirStoreProposalAddress{
+				ProvinceID:    "31",
+				CityID:        "3171",
+				DistrictID:    "317101",
+				SubdistrictID: "3171011001",
+				PostalCode:    "10110",
+				AddressLine:   "Jl. Wahid Hasyim No. 10",
+			},
+			ResponsiblePerson: domain.VendorSouvenirStoreProposalResponsiblePerson{
+				Name:        "Ahmad",
+				Phone:       "08123456789",
+				Email:       "owner@example.com",
+				NIK:         "3173010101010001",
+				KTPObjectID: "vendors/docs/ktp",
+			},
+			OtherDocuments: domain.VendorSouvenirStoreProposalOtherDocuments{
+				NIBObjectID:              "vendors/docs/nib",
+				HalalCertificateObjectID: "vendors/docs/halal",
+			},
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.Status != domain.VendorStatusSubmitted {
+			t.Fatalf("unexpected response: %+v", resp)
+		}
 	})
-	if !errors.Is(err, ErrInvalidDocumentContent) {
-		t.Fatalf("expected ErrInvalidDocumentContent, got %v", err)
-	}
+
+	t.Run("responsible person email mismatch", func(t *testing.T) {
+		userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		userID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:          vendorID,
+			OwnerUserID: userID,
+			Status:      domain.VendorStatusDraft,
+		}, nil)
+		userRepo.EXPECT().FindByID(ctx, userID).Return(&domain.User{
+			ID:    userID,
+			Email: "owner@example.com",
+		}, nil)
+
+		_, err := uc.SubmitSouvenirStoreProposal(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalRequest{
+			ResponsiblePerson: domain.VendorSouvenirStoreProposalResponsiblePerson{
+				Email: "different@example.com",
+			},
+		})
+		if !errors.Is(err, ErrVendorResponsibleEmail) {
+			t.Fatalf("expected ErrVendorResponsibleEmail, got %v", err)
+		}
+	})
+
+	t.Run("vendor not owned", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		userID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:          vendorID,
+			OwnerUserID: uuid.New(),
+			Status:      domain.VendorStatusDraft,
+		}, nil)
+
+		_, err := uc.SubmitSouvenirStoreProposal(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalRequest{})
+		if !errors.Is(err, ErrVendorNotOwned) {
+			t.Fatalf("expected ErrVendorNotOwned, got %v", err)
+		}
+	})
 }
 
+func TestPresignSouvenirStoreProposalDocuments(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		_, vendorRepo, storage, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		userID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:          vendorID,
+			OwnerUserID: userID,
+			Status:      domain.VendorStatusDraft,
+		}, nil)
+		storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/png", PresignedUploadExpiry).Return("https://presigned.example.com/ktp", nil)
+		storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "image/jpeg", PresignedUploadExpiry).Return("https://presigned.example.com/nib", nil)
+		storage.EXPECT().GeneratePresignedUploadURL(ctx, gomock.Any(), "application/pdf", PresignedUploadExpiry).Return("https://presigned.example.com/halal", nil)
+
+		resp, err := uc.PresignSouvenirStoreProposalDocuments(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalPresignRequest{
+			ResponsiblePersonKTP: "image/png",
+			NIB:                  "image/jpeg",
+			HalalCertificate:     "application/pdf",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("expected response, got nil")
+		}
+		if !strings.Contains(resp.ResponsiblePersonKTP.ObjectID, domain.VendorDocumentTypeOwnerDocumentID) {
+			t.Fatalf("unexpected ktp object id: %s", resp.ResponsiblePersonKTP.ObjectID)
+		}
+		if !strings.Contains(resp.NIB.ObjectID, domain.VendorDocumentTypeBusinessNIB) {
+			t.Fatalf("unexpected nib object id: %s", resp.NIB.ObjectID)
+		}
+		if !strings.Contains(resp.HalalCertificate.ObjectID, domain.VendorDocumentTypeHalalCertificate) {
+			t.Fatalf("unexpected halal object id: %s", resp.HalalCertificate.ObjectID)
+		}
+	})
+
+	t.Run("invalid content type", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		userID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:          vendorID,
+			OwnerUserID: userID,
+			Status:      domain.VendorStatusDraft,
+		}, nil)
+
+		_, err := uc.PresignSouvenirStoreProposalDocuments(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalPresignRequest{
+			ResponsiblePersonKTP: "text/plain",
+			NIB:                  "image/jpeg",
+			HalalCertificate:     "application/pdf",
+		})
+		if !errors.Is(err, ErrInvalidDocumentContent) {
+			t.Fatalf("expected ErrInvalidDocumentContent, got %v", err)
+		}
+	})
+
+	t.Run("vendor not owned", func(t *testing.T) {
+		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+			ID:          vendorID,
+			OwnerUserID: uuid.New(),
+			Status:      domain.VendorStatusDraft,
+		}, nil)
+
+		_, err := uc.PresignSouvenirStoreProposalDocuments(ctx, vendorID, uuid.New(), domain.VendorSouvenirStoreProposalPresignRequest{
+			ResponsiblePersonKTP: "image/png",
+			NIB:                  "image/jpeg",
+			HalalCertificate:     "application/pdf",
+		})
+		if !errors.Is(err, ErrVendorNotOwned) {
+			t.Fatalf("expected ErrVendorNotOwned, got %v", err)
+		}
+	})
+}
 
 func TestLogin_TableDriven(t *testing.T) {
 	type testCase struct {
@@ -531,11 +526,13 @@ func TestLogin_TableDriven(t *testing.T) {
 					PasswordHash: hash,
 					Role:         &domain.Role{Code: domain.RoleUMKM, Name: "UMKM"},
 				}, nil)
+				vendorType := domain.VendorTypeSouvenirStore
+				displayName := "Toko Haji"
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(&domain.Vendor{
 					ID:          vendorID,
 					OwnerUserID: userID,
-					VendorType:  "souvenir_store",
-					DisplayName: "Toko Haji",
+					VendorType:  &vendorType,
+					DisplayName: &displayName,
 					Status:      domain.VendorStatusActive,
 				}, nil)
 			},
@@ -544,29 +541,26 @@ func TestLogin_TableDriven(t *testing.T) {
 				if resp == nil {
 					t.Fatal("expected response, got nil")
 				}
-				if resp.Token == "" {
-					t.Error("expected non-empty token")
+				if resp.AccessToken == "" {
+					t.Error("expected non-empty access token")
 				}
 				if resp.VendorID == uuid.Nil {
 					t.Error("expected non-empty vendor ID")
 				}
-				if resp.ImageURL != "https://cdn.example.com/vendors/profile.jpg" {
-					t.Errorf("expected image URL %q, got %q", "https://cdn.example.com/vendors/profile.jpg", resp.ImageURL)
+				if resp.ImageURL == nil || *resp.ImageURL != "https://cdn.example.com/vendors/profile.jpg" {
+					t.Errorf("expected image URL %q, got %v", "https://cdn.example.com/vendors/profile.jpg", resp.ImageURL)
 				}
 				if resp.Email != "vendor@example.com" {
 					t.Errorf("expected email %q, got %q", "vendor@example.com", resp.Email)
 				}
-				if resp.Name != "Abu Bakar Shidiq Basalamah" {
-					t.Errorf("expected name %q, got %q", "Abu Bakar Shidiq Basalamah", resp.Name)
+				if resp.StoreName == nil || *resp.StoreName != "Toko Haji" {
+					t.Errorf("expected store name %q, got %v", "Toko Haji", resp.StoreName)
 				}
-				if resp.VendorType != "souvenir_store" {
-					t.Errorf("expected vendor type %q, got %q", "souvenir_store", resp.VendorType)
+				if resp.VendorType == nil || *resp.VendorType != "souvenir_store" {
+					t.Errorf("expected vendor type %q, got %v", "souvenir_store", resp.VendorType)
 				}
 				if resp.VendorStatus != domain.VendorStatusActive {
 					t.Errorf("expected status %q, got %q", domain.VendorStatusActive, resp.VendorStatus)
-				}
-				if resp.DisplayName != "Toko Haji" {
-					t.Errorf("expected display name %q, got %q", "Toko Haji", resp.DisplayName)
 				}
 			},
 		},
@@ -591,11 +585,13 @@ func TestLogin_TableDriven(t *testing.T) {
 					PasswordHash: hash,
 					Role:         &domain.Role{Code: domain.RoleUMKM, Name: "UMKM"},
 				}, nil)
+				vendorType := domain.VendorTypePPIU
+				displayName := "Toko Haji"
 				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(&domain.Vendor{
 					ID:          vendorID,
 					OwnerUserID: userID,
-					VendorType:  "ppiu",
-					DisplayName: "Toko Haji",
+					VendorType:  &vendorType,
+					DisplayName: &displayName,
 					Status:      domain.VendorStatusSubmitted,
 				}, nil)
 			},
@@ -604,20 +600,60 @@ func TestLogin_TableDriven(t *testing.T) {
 				if resp == nil {
 					t.Fatal("expected response, got nil")
 				}
-				if resp.ImageURL != "" {
-					t.Errorf("expected empty image URL, got %q", resp.ImageURL)
+				if resp.AccessToken == "" {
+					t.Error("expected non-empty access token")
 				}
-				if resp.Name != "Abu Bakar Shidiq Basalamah" {
-					t.Errorf("expected name %q, got %q", "Abu Bakar Shidiq Basalamah", resp.Name)
+				if resp.ImageURL != nil {
+					t.Errorf("expected nil image URL, got %v", *resp.ImageURL)
 				}
-				if resp.VendorType != "ppiu" {
-					t.Errorf("expected vendor type %q, got %q", "ppiu", resp.VendorType)
+				if resp.StoreName == nil || *resp.StoreName != "Toko Haji" {
+					t.Errorf("expected store name %q, got %v", "Toko Haji", resp.StoreName)
 				}
-				if resp.DisplayName != "Toko Haji" {
-					t.Errorf("expected display name %q, got %q", "Toko Haji", resp.DisplayName)
+				if resp.VendorType == nil || *resp.VendorType != "ppiu" {
+					t.Errorf("expected vendor type %q, got %v", "ppiu", resp.VendorType)
 				}
 				if resp.VendorStatus != domain.VendorStatusSubmitted {
 					t.Errorf("expected status %q, got %q", domain.VendorStatusSubmitted, resp.VendorStatus)
+				}
+			},
+		},
+		{
+			name: "success with nil vendor type",
+			req:  domain.VendorLoginRequest{Email: "vendor@example.com", Password: "password123"},
+			setupMocks: func(
+				ctx context.Context,
+				userRepo *mocks.MockUserRepository,
+				vendorRepo *mocks.MockVendorRepository,
+			) {
+				userID := uuid.New()
+				vendorID := uuid.New()
+				hash, err := hashPasswordForTest("password123")
+				if err != nil {
+					t.Fatalf("failed to hash password for test: %v", err)
+				}
+				userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(&domain.User{
+					ID:           userID,
+					Email:        "vendor@example.com",
+					FullName:     "Abu Bakar Shidiq Basalamah",
+					PasswordHash: hash,
+					Role:         &domain.Role{Code: domain.RoleUMKM, Name: "UMKM"},
+				}, nil)
+				displayName := "Toko Haji"
+				vendorRepo.EXPECT().FindByOwnerUserID(ctx, userID).Return(&domain.Vendor{
+					ID:          vendorID,
+					OwnerUserID: userID,
+					VendorType:  nil,
+					DisplayName: &displayName,
+					Status:      domain.VendorStatusDraft,
+				}, nil)
+			},
+			assertResp: func(t *testing.T, resp *domain.VendorLoginResponse) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected response, got nil")
+				}
+				if resp.VendorType != nil {
+					t.Errorf("expected nil vendor type, got %v", resp.VendorType)
 				}
 			},
 		},
@@ -832,12 +868,20 @@ func TestGetMe_TableDriven(t *testing.T) {
 			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
 				ownerID := uuid.New()
 				imageURL := "https://cdn.example.com/vendors/profile.jpg"
+				vendorType := domain.VendorTypeSouvenirStore
+				displayName := "Toko Mabrur"
+				provinceID := "31"
+				provinceName := "DKI Jakarta"
+				addressLine := "Jl. Pegangsaan Barat No. 12"
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
-					ID:          vendorID,
-					OwnerUserID: ownerID,
-					VendorType:  domain.VendorTypeSouvenirStore,
-					Status:      domain.VendorStatusActive,
-					DisplayName: "Toko Mabrur",
+					ID:           vendorID,
+					OwnerUserID:  ownerID,
+					VendorType:   &vendorType,
+					Status:       domain.VendorStatusActive,
+					DisplayName:  &displayName,
+					ProvinceID:   &provinceID,
+					ProvinceName: &provinceName,
+					AddressLine:  &addressLine,
 				}, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(&domain.User{
 					ID:        ownerID,
@@ -865,14 +909,20 @@ func TestGetMe_TableDriven(t *testing.T) {
 				if resp.Name != "Abu Bakar Shidiq Basalamah" {
 					t.Errorf("expected owner full name, got %s", resp.Name)
 				}
-				if resp.VendorType != domain.VendorTypeSouvenirStore {
-					t.Errorf("expected vendor type %s, got %s", domain.VendorTypeSouvenirStore, resp.VendorType)
+				if resp.VendorType == nil || *resp.VendorType != domain.VendorTypeSouvenirStore {
+					t.Errorf("expected vendor type %s, got %v", domain.VendorTypeSouvenirStore, resp.VendorType)
 				}
 				if resp.VendorStatus != domain.VendorStatusActive {
 					t.Errorf("expected vendor status %s, got %s", domain.VendorStatusActive, resp.VendorStatus)
 				}
-				if resp.DisplayName != "Toko Mabrur" {
-					t.Errorf("expected display name Toko Mabrur, got %s", resp.DisplayName)
+				if resp.DisplayName == nil || *resp.DisplayName != "Toko Mabrur" {
+					t.Errorf("expected display name Toko Mabrur, got %v", resp.DisplayName)
+				}
+				if resp.ProvinceName == nil || *resp.ProvinceName != "DKI Jakarta" {
+					t.Errorf("expected province name DKI Jakarta, got %v", resp.ProvinceName)
+				}
+				if resp.AddressLine == nil || *resp.AddressLine != "Jl. Pegangsaan Barat No. 12" {
+					t.Errorf("expected address line, got %v", resp.AddressLine)
 				}
 			},
 		},
@@ -881,12 +931,14 @@ func TestGetMe_TableDriven(t *testing.T) {
 			vendorID: uuid.New(),
 			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
 				ownerID := uuid.New()
+				vendorType := domain.VendorTypePPIU
+				displayName := "Toko Tanpa Foto"
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
 					ID:          vendorID,
 					OwnerUserID: ownerID,
-					VendorType:  domain.VendorTypePPIU,
+					VendorType:  &vendorType,
 					Status:      domain.VendorStatusSubmitted,
-					DisplayName: "Toko Tanpa Foto",
+					DisplayName: &displayName,
 				}, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(&domain.User{
 					ID:       ownerID,
@@ -905,6 +957,40 @@ func TestGetMe_TableDriven(t *testing.T) {
 				if resp.Name != "Owner Vendor" {
 					t.Errorf("expected owner name, got %s", resp.Name)
 				}
+				if resp.VendorType == nil || *resp.VendorType != domain.VendorTypePPIU {
+					t.Errorf("expected vendor type %s, got %v", domain.VendorTypePPIU, resp.VendorType)
+				}
+			},
+		},
+		{
+			name:     "success with nil vendor type",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:          vendorID,
+					OwnerUserID: ownerID,
+					VendorType:  nil,
+					Status:      domain.VendorStatusDraft,
+					DisplayName: nil,
+				}, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(&domain.User{
+					ID:       ownerID,
+					Email:    "vendor@example.com",
+					FullName: "Owner Vendor",
+				}, nil)
+			},
+			assertResp: func(t *testing.T, resp *domain.VendorProfileResponse, _ uuid.UUID) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected non-nil response")
+				}
+				if resp.VendorType != nil {
+					t.Errorf("expected nil vendor type, got %v", resp.VendorType)
+				}
+				if resp.DisplayName != nil {
+					t.Errorf("expected nil display name, got %v", resp.DisplayName)
+				}
 			},
 		},
 		{
@@ -920,10 +1006,11 @@ func TestGetMe_TableDriven(t *testing.T) {
 			vendorID: uuid.New(),
 			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
 				ownerID := uuid.New()
+				displayName := "Toko Mabrur"
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
 					ID:          vendorID,
 					OwnerUserID: ownerID,
-					DisplayName: "Toko Mabrur",
+					DisplayName: &displayName,
 				}, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(nil, nil)
 			},
@@ -1199,7 +1286,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 	activeVendor := &domain.Vendor{
 		ID:              vendorID,
 		OwnerUserID:     userID,
-		DisplayName:     "Toko Haji",
+		DisplayName:     ptrString("Toko Haji"),
 		Status:          domain.VendorStatusActive,
 		XenditAccountID: &xenditAccountID,
 	}

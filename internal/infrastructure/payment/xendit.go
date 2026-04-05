@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/config"
@@ -228,6 +229,44 @@ func NewXenditPayoutClient(cfg config.XenditConfig) (domain.XenditPayoutProvider
 	return newXenditClientInternal(cfg)
 }
 
+// NewXenditRefundClient creates a new XenditRefundProvider backed by the Xendit REST API.
+func NewXenditRefundClient(cfg config.XenditConfig) (domain.XenditRefundProvider, error) {
+	return newXenditClientInternal(cfg)
+}
+
+// --- XenditRefundProvider implementation ---
+
+func (c *xenditClient) CreateRefund(ctx context.Context, forUserID string, idempotencyKey string, req domain.XenditRefundRequest) (*domain.XenditRefundResponse, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal create refund request: %w", err)
+	}
+
+	headers := map[string]string{
+		"Idempotency-key": idempotencyKey,
+	}
+	if forUserID = strings.TrimSpace(forUserID); forUserID != "" {
+		headers["for-user-id"] = forUserID
+	}
+
+	resp, err := c.doRequestWithHeaders(ctx, http.MethodPost, "/refunds", bytes.NewReader(body), headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Xendit create refund API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	var refund domain.XenditRefundResponse
+	if err := json.NewDecoder(resp.Body).Decode(&refund); err != nil {
+		return nil, fmt.Errorf("failed to decode create refund response: %w", err)
+	}
+
+	return &refund, nil
+}
+
 func (c *xenditClient) ListPayoutChannels(ctx context.Context, params domain.XenditListPayoutChannelsParams) ([]domain.XenditPayoutChannel, error) {
 	query := url.Values{}
 	if params.Currency != "" {
@@ -272,8 +311,10 @@ func (c *xenditClient) CreatePayout(ctx context.Context, forUserID string, idemp
 	}
 
 	headers := map[string]string{
-		"for-user-id":     forUserID,
 		"Idempotency-key": idempotencyKey,
+	}
+	if forUserID = strings.TrimSpace(forUserID); forUserID != "" {
+		headers["for-user-id"] = forUserID
 	}
 
 	resp, err := c.doRequestWithHeaders(ctx, http.MethodPost, "/v2/payouts", bytes.NewReader(body), headers)

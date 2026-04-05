@@ -1,0 +1,1 @@
+ALTER TABLE vendors ADD COLUMN total_sold INT NOT NULL DEFAULT 0;

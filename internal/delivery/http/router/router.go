@@ -47,7 +47,9 @@ func NewRouter(
 	shippingHandler *handler.ShippingHandler,
 	vendorCourierHandler *handler.VendorCourierHandler,
 	vendorOrderHandler *handler.VendorOrderHandler,
+	storeHandler *handler.StoreHandler,
 	adminPaymentHandler *handler.AdminPaymentHandler,
+	userBankAccountHandler *handler.UserBankAccountHandler,
 	wsHandler *ws.Handler,
 	jwtSecret string,
 	corsAllowedOrigins string,
@@ -83,6 +85,10 @@ func NewRouter(
 
 		// Public vendor store banners
 		v1.GET("/vendors/:id/banners", vendorBannerHandler.ListVendorBannersPublic)
+
+		// Public vendor store detail page
+		v1.GET("/vendors/:id", storeHandler.GetStoreDetail)
+		v1.GET("/vendors/:id/reviews", storeHandler.GetStoreReviews)
 
 	}
 
@@ -120,6 +126,7 @@ func NewRouter(
 		userAuth.GET("/cart", cartHandler.GetCart)
 		userAuth.POST("/cart/items", cartHandler.AddItem)
 		userAuth.PATCH("/cart/items/:itemId", cartHandler.UpdateItem)
+		userAuth.PATCH("/cart/items/:itemId/selection", cartHandler.UpdateItemSelection)
 		userAuth.DELETE("/cart/items/:itemId", cartHandler.RemoveItem)
 		userAuth.DELETE("/cart", cartHandler.ClearCart)
 		userAuth.GET("/wishlist", wishlistHandler.ListItems)
@@ -134,8 +141,15 @@ func NewRouter(
 		userAuth.GET("/orders/:orderId/invoice", orderActionHandler.GetOrderInvoice)
 		userAuth.POST("/orders/:orderId/complete", orderActionHandler.Complete)
 		userAuth.POST("/orders/:orderId/cancel", orderActionHandler.Cancel)
+		userAuth.POST("/orders/:orderId/refunds", orderActionHandler.RequestRefund)
+		userAuth.POST("/orders/:orderId/refunds/destination", orderActionHandler.SubmitRefundDestination)
+		userAuth.POST("/orders/:orderId/refunds/evidence/presign", orderActionHandler.PresignRefundEvidence)
 		userAuth.POST("/reviews/presign", reviewHandler.PresignImage)
 		userAuth.POST("/reviews", reviewHandler.Create)
+		userAuth.POST("/bank-accounts", userBankAccountHandler.Create)
+		userAuth.GET("/bank-accounts", userBankAccountHandler.List)
+		userAuth.DELETE("/bank-accounts/:id", userBankAccountHandler.Delete)
+		userAuth.PATCH("/bank-accounts/:id/default", userBankAccountHandler.SetDefault)
 	}
 
 	// Shipping location lookup (RajaOngkir proxy) — accessible by customer + vendor
@@ -148,6 +162,17 @@ func NewRouter(
 		shippingGroup.GET("/districts", shippingHandler.GetDistricts)
 		shippingGroup.GET("/subdistricts", shippingHandler.GetSubdistricts)
 		shippingGroup.GET("/couriers", vendorCourierHandler.ListCouriers)
+	}
+
+	// Location lookup alias — same behavior as /shipping for general address forms
+	locationsGroup := v1.Group("/locations")
+	locationsGroup.Use(middleware.Auth(jwtSecret))
+	locationsGroup.Use(middleware.RequireRoles("customer", "umkm"))
+	{
+		locationsGroup.GET("/provinces", shippingHandler.GetProvinces)
+		locationsGroup.GET("/cities", shippingHandler.GetCities)
+		locationsGroup.GET("/districts", shippingHandler.GetDistricts)
+		locationsGroup.GET("/subdistricts", shippingHandler.GetSubdistricts)
 	}
 
 	// Address management — accessible by customer + vendor
@@ -174,12 +199,7 @@ func NewRouter(
 	vendorOnboarding := v1.Group("/vendors/register")
 	vendorOnboarding.Use(middleware.AuthVendorOnboarding(jwtSecret))
 	{
-		vendorOnboarding.GET("/status", vendorHandler.GetRegistrationStatus)
 		vendorOnboarding.POST("/password", vendorHandler.SetRegistrationPassword)
-		vendorOnboarding.POST("/souvenir-store/individual/presign", vendorHandler.PresignRegistrationIndividualDocument)
-		vendorOnboarding.POST("/souvenir-store/individual", vendorHandler.SubmitRegistrationIndividual)
-		vendorOnboarding.POST("/souvenir-store/corporate/presign", vendorHandler.PresignRegistrationCorporateDocument)
-		vendorOnboarding.POST("/souvenir-store/corporate", vendorHandler.SubmitRegistrationCorporate)
 	}
 
 	// Vendor authenticated routes (requires auth + umkm role)
@@ -188,8 +208,12 @@ func NewRouter(
 	vendorAuth.Use(middleware.RequireRoles("umkm"))
 	{
 		vendorAuth.GET("/me", vendorHandler.GetMe)
+		vendorAuth.POST("/register/propose/souvenir_store/presign", vendorHandler.PresignSouvenirStoreProposalDocuments)
+		vendorAuth.POST("/register/propose/souvenir_store", vendorHandler.SubmitSouvenirStoreProposal)
 		vendorAuth.POST("/products", productHandler.CreateProduct)
 		vendorAuth.GET("/products", productHandler.ListProducts)
+		vendorAuth.GET("/products/:id", productHandler.GetProductByID)
+		vendorAuth.DELETE("/products/:id", productHandler.DeleteProduct)
 		vendorAuth.PUT("/products/:id", productHandler.UpdateProduct)
 		vendorAuth.POST("/products/:id/images/confirm", productHandler.ConfirmImages)
 		vendorAuth.GET("/balance", vendorHandler.GetBalance)
@@ -410,6 +434,8 @@ func NewRouter(
 	{
 		webhooks.POST("/xendit/invoice", checkoutHandler.Webhook)
 		webhooks.POST("/xendit/payout", xenditWebhookHandler.Payout)
+		webhooks.POST("/xendit/refund-payout", xenditWebhookHandler.RefundPayout)
+		webhooks.POST("/xendit/refund", xenditWebhookHandler.RefundGateway)
 	}
 
 	// Dev routes (guarded by XENDIT_BYPASS in handler)

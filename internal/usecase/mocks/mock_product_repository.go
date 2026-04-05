@@ -72,6 +72,20 @@ func (mr *MockProductRepositoryMockRecorder) CountByVendorID(ctx, vendorID any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountByVendorID", reflect.TypeOf((*MockProductRepository)(nil).CountByVendorID), ctx, vendorID)
 }
 
+// DeleteProduct mocks base method.
+func (m *MockProductRepository) DeleteProduct(ctx context.Context, productID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteProduct", ctx, productID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteProduct indicates an expected call of DeleteProduct.
+func (mr *MockProductRepositoryMockRecorder) DeleteProduct(ctx, productID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteProduct", reflect.TypeOf((*MockProductRepository)(nil).DeleteProduct), ctx, productID)
+}
+
 // Create mocks base method.
 func (m *MockProductRepository) Create(ctx context.Context, product *domain.Product, variants []domain.ProductVariant, images []domain.ProductImage) error {
 	m.ctrl.T.Helper()
@@ -234,4 +248,20 @@ func (m *MockProductRepository) UpdateImages(ctx context.Context, images []domai
 func (mr *MockProductRepositoryMockRecorder) UpdateImages(ctx, images any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateImages", reflect.TypeOf((*MockProductRepository)(nil).UpdateImages), ctx, images)
+}
+
+// ListPublishedByVendorForStore mocks base method.
+func (m *MockProductRepository) ListPublishedByVendorForStore(ctx context.Context, vendorID uuid.UUID, sortBy string, limit int, offset int) ([]domain.StoreProductItem, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPublishedByVendorForStore", ctx, vendorID, sortBy, limit, offset)
+	ret0, _ := ret[0].([]domain.StoreProductItem)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListPublishedByVendorForStore indicates an expected call of ListPublishedByVendorForStore.
+func (mr *MockProductRepositoryMockRecorder) ListPublishedByVendorForStore(ctx, vendorID, sortBy, limit, offset any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPublishedByVendorForStore", reflect.TypeOf((*MockProductRepository)(nil).ListPublishedByVendorForStore), ctx, vendorID, sortBy, limit, offset)
 }

@@ -11,10 +11,12 @@ const (
 
 // Refund statuses.
 const (
-	RefundStatusRequested = "requested"
-	RefundStatusApproved  = "approved"
-	RefundStatusRejected  = "rejected"
-	RefundStatusProcessed = "processed"
+	RefundStatusRequested           = "requested"
+	RefundStatusApproved            = "approved"
+	RefundStatusRejected            = "rejected"
+	RefundStatusProcessing          = "processing"
+	RefundStatusProcessed           = "processed"
+	RefundStatusAwaitingDestination = "awaiting_destination"
 )
 
 // Payout batch statuses.

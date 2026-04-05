@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: UmrahMart - Finance API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint finance (dashboard, transaksi, payout, refund).
+  description: Dokumentasi OpenAPI 3 untuk endpoint finance dan chat operasional yang digunakan role finance.
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -19,6 +19,10 @@ tags:
     description: Refund dan dispute.
   - name: Finance Reports
     description: Laporan keuangan bulanan.
+  - name: Finance Chat
+    description: Chat operasional finance untuk komunikasi dengan admin, CS, dan UMKM.
+  - name: Xendit Webhook
+    description: Endpoint callback webhook dari Xendit.
 security:
   - BearerAuth: []
 paths:
@@ -75,6 +79,220 @@ paths:
           $ref: "#/components/responses/UnauthorizedResponse"
         "403":
           $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/users/orders/{orderId}/refunds:
+    post:
+      tags:
+        - Finance Refunds
+      summary: Ajukan refund oleh customer
+      description: |
+        Customer mengajukan refund untuk order miliknya dengan:
+        - memilih alasan refund dari master `return_reasons` (`return_reason_id`),
+        - menyertakan rekening tujuan,
+        - opsional melampirkan bukti (maks. 5 foto + 1 video) via object key hasil presign upload.
+
+        Data rekening ini akan disimpan dan digunakan saat finance memproses refund ke status `processed`.
+      operationId: requestOrderRefundByCustomer
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: ID order (UUID).
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRefundRequest"
+      responses:
+        "200":
+          description: Permintaan refund berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCreateOrderRefundEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "409":
+          description: Sudah ada refund aktif untuk order ini.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: refund request already exists for this order
+                data: null
+                errors: null
+                meta: null
+        "422":
+          description: Order tidak eligible untuk pengajuan refund.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: order is not eligible for refund request
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/users/orders/{orderId}/refunds/evidence/presign:
+    post:
+      tags:
+        - Finance Refunds
+      summary: Presign upload bukti refund oleh customer
+      description: |
+        Membuat URL upload ter-sign untuk bukti refund (foto/video) sebelum submit refund request.
+      operationId: presignOrderRefundEvidenceByCustomer
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: ID order (UUID).
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresignRefundEvidenceRequest"
+      responses:
+        "200":
+          description: Presigned URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessPresignRefundEvidenceEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "422":
+          description: Content-Type evidence tidak didukung.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid refund evidence content type
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/users/orders/{orderId}/refunds/destination:
+    post:
+      tags:
+        - Finance Refunds
+      summary: Submit rekening tujuan refund oleh customer
+      description: |
+        Customer menyerahkan atau memperbarui data rekening bank tujuan refund.
+
+        Endpoint ini digunakan saat refund method = `disbursement` (karena gateway tidak support
+        refund otomatis, contoh: e-wallet) dan status refund masih `awaiting_destination`.
+
+        Customer bisa menggunakan rekening yang sudah tersimpan (`user_bank_account_id`)
+        atau memasukkan data rekening baru secara manual. Jika `save_bank_account: true`,
+        rekening baru akan otomatis disimpan ke profil customer.
+      operationId: submitRefundDestinationByCustomer
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: ID order (UUID).
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitRefundDestinationRequest"
+            example:
+              user_bank_account_id: null
+              destination_channel_code: ID_BCA
+              destination_bank_name: Bank Central Asia
+              destination_account_number: "1234567890"
+              destination_account_holder_name: Budi Santoso
+              save_bank_account: true
+      responses:
+        "200":
+          description: Rekening tujuan refund berhasil disimpan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessSubmitRefundDestinationEnvelope"
+              example:
+                success: true
+                message: refund destination submitted successfully
+                data:
+                  refund_id: 53c9f7e8-2973-4972-9876-c044de07902f
+                  status: requested
+                  message: Data rekening tujuan refund berhasil disimpan. Tim finance akan memproses refund Anda.
+                errors: null
+                meta: null
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundResponse"
+        "409":
+          description: Refund sudah memiliki rekening tujuan atau sudah diproses.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: refund destination already submitted
+                data: null
+                errors: null
+                meta: null
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/dashboard:
@@ -387,7 +605,35 @@ paths:
     patch:
       tags:
         - Finance Refunds
-      summary: Update status refund
+      summary: Update status refund (approve / reject / process)
+      description: |
+        Mengubah status refund oleh finance. Transisi yang diizinkan:
+
+        | Status Awal   | Status Baru   | Aksi                                       |
+        |---------------|---------------|--------------------------------------------|
+        | `requested`   | `approved`    | Menyetujui refund, menunggu proses transfer |
+        | `requested`   | `rejected`    | Menolak pengajuan refund                    |
+        | `approved`    | `processed`   | Menginisiasi transfer refund via Xendit     |
+
+        **Flow Approved → Processed (trigger Xendit disbursement):**
+
+        Saat status diubah ke `processed`, backend akan:
+        1. Mengecek apakah settlement order sudah completed — jika ya, return error 409.
+        2. Mengecek refund strategy berdasarkan `payment_method` dan `payment_channel`.
+        3. Menentukan data rekening tujuan (dari request override atau dari data refund yang ada).
+        4. Menginisiasi **Xendit Payout** (disbursement) ke rekening tujuan.
+        5. Status refund tetap `approved` sampai webhook Xendit mengkonfirmasi.
+
+        **Override data rekening tujuan (opsional untuk status=processed):**
+        - `destination_channel_code` — kode channel Xendit (contoh: `ID_BCA`, `ID_MANDIRI`).
+        - `destination_bank_name` — nama bank.
+        - `destination_account_number` — nomor rekening.
+        - `destination_account_holder_name` — nama pemilik rekening.
+        Jika tidak diisi, menggunakan data rekening yang sudah ada di refund record.
+
+        **Disbursement fallback options:**
+        - `use_disbursement_fallback_for_qr` (default: `true`) — QR refund fallback ke bank disbursement.
+        - `use_disbursement_fallback_for_ewallet` (default: `true`) — e-wallet refund fallback ke bank disbursement.
       operationId: updateFinanceRefundStatus
       parameters:
         - name: id
@@ -403,6 +649,27 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateRefundStatusRequest"
+            examples:
+              approve:
+                summary: Approve refund
+                value:
+                  status: approved
+              reject:
+                summary: Reject refund
+                value:
+                  status: rejected
+              process_with_existing_account:
+                summary: Process refund (gunakan rekening yang sudah ada)
+                value:
+                  status: processed
+              process_with_override:
+                summary: Process refund (override rekening tujuan)
+                value:
+                  status: processed
+                  destination_channel_code: ID_BCA
+                  destination_bank_name: Bank Central Asia
+                  destination_account_number: "1234567890"
+                  destination_account_holder_name: Budi Santoso
       responses:
         "200":
           description: Status refund berhasil diperbarui.
@@ -413,14 +680,119 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessStatusActionEnvelope"
+              examples:
+                approved:
+                  summary: Refund di-approve
+                  value:
+                    success: true
+                    message: refund status updated successfully
+                    data:
+                      id: 53c9f7e8-2973-4972-9876-c044de07902f
+                      status: approved
+                    errors: null
+                    meta: null
+                rejected:
+                  summary: Refund ditolak
+                  value:
+                    success: true
+                    message: refund status updated successfully
+                    data:
+                      id: 53c9f7e8-2973-4972-9876-c044de07902f
+                      status: rejected
+                    errors: null
+                    meta: null
+                processed:
+                  summary: Refund diproses — disbursement diinisiasi, menunggu webhook
+                  value:
+                    success: true
+                    message: refund status updated successfully
+                    data:
+                      id: 53c9f7e8-2973-4972-9876-c044de07902f
+                      status: approved
+                    errors: null
+                    meta: null
         "400":
-          $ref: "#/components/responses/BadRequestResponse"
+          description: |
+            Request tidak valid. Kemungkinan penyebab:
+            - ID refund bukan UUID valid
+            - Status tidak valid (`ErrInvalidRefundStatus`)
+            - Transisi status tidak diizinkan (`ErrInvalidRefundTransition`)
+            - Strategy refund tidak didukung (`ErrRefundStrategyNotSupported`)
+            - Data rekening tujuan belum lengkap (`ErrRefundDestinationRequired`)
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalid_transition:
+                  summary: Transisi status tidak diizinkan
+                  value:
+                    success: false
+                    message: invalid refund status transition
+                    data: null
+                    errors: null
+                    meta: null
+                destination_required:
+                  summary: Rekening tujuan belum lengkap
+                  value:
+                    success: false
+                    message: refund destination account is required
+                    data: null
+                    errors: null
+                    meta: null
         "401":
           $ref: "#/components/responses/UnauthorizedResponse"
         "403":
           $ref: "#/components/responses/ForbiddenResponse"
+        "409":
+          description: |
+            Refund tidak dapat diproses karena:
+            - Settlement order sudah completed (`ErrRefundBlockedByCompletedSettlement`)
+            - Payout refund sedang dalam proses (`ErrRefundPayoutInProgress`)
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                settlement_completed:
+                  summary: Settlement sudah completed
+                  value:
+                    success: false
+                    message: refund cannot be processed because order settlement is already completed
+                    data: null
+                    errors: null
+                    meta: null
+                payout_in_progress:
+                  summary: Payout sudah sedang berjalan
+                  value:
+                    success: false
+                    message: refund payout is already in progress
+                    data: null
+                    errors: null
+                    meta: null
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "502":
+          description: Gagal menginisiasi disbursement refund ke Xendit.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: failed to initiate refund disbursement
+                data: null
+                errors: null
+                meta: null
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/finance/payouts/{id}/status:
@@ -461,6 +833,726 @@ paths:
           $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/webhooks/xendit/refund-payout:
+    post:
+      tags:
+        - Xendit Webhook
+      summary: Xendit Refund Payout Webhook Callback
+      description: |
+        Endpoint callback dari Xendit untuk update status payout refund (disbursement).
+
+        Dipanggil otomatis setelah finance memproses refund ke status `processed`
+        dan Xendit menyelesaikan transfer disbursement ke rekening customer.
+
+        **Event yang diproses:**
+        - `payout.succeeded` — transfer refund berhasil, status refund → `processed`.
+        - `payout.failed` — transfer gagal, status refund ditandai failed.
+        - `payout.reversed` — transfer dibatalkan oleh bank, status refund ditandai failed.
+
+        **Catatan penting:**
+        - Endpoint ini public (tanpa JWT), diverifikasi menggunakan header `x-callback-token`.
+        - `data.reference_id` harus berisi format `refund-{refund_id}`.
+        - Handler bersifat idempotent untuk event duplicate/retry.
+      operationId: xenditRefundPayoutWebhook
+      security: []
+      parameters:
+        - in: header
+          name: x-callback-token
+          required: true
+          schema:
+            type: string
+          description: Token verifikasi webhook dari Xendit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/XenditPayoutWebhookPayload"
+            example:
+              business_id: 62c589ea1f995274c6fd8f47
+              event: payout.succeeded
+              data:
+                id: p-out-f1f6b6a7-c307-4ea8-b650-7499888cf646
+                reference_id: refund-62fe8a4b-52dd-48e4-9b98-7dc99fa288f0
+                amount: 330000
+                currency: IDR
+                status: SUCCEEDED
+                channel_code: ID_BCA
+                failure_code: ""
+                created: "2026-04-01T08:00:00Z"
+                updated: "2026-04-01T08:00:05Z"
+      responses:
+        "200":
+          description: Webhook diterima dan diproses (termasuk no-op/idempotent).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XenditWebhookResponse"
+              examples:
+                processed:
+                  summary: Berhasil diproses
+                  value:
+                    message: webhook processed
+                processedWithErrors:
+                  summary: Diterima tapi ada error bisnis/internal
+                  value:
+                    message: webhook received with errors
+                    error: failed to apply refund payout webhook update
+        "400":
+          description: Payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XenditWebhookResponse"
+              example:
+                message: invalid payload
+        "401":
+          description: Callback token tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XenditWebhookResponse"
+              example:
+                message: invalid callback token
+  /api/v1/webhooks/xendit/refund:
+    post:
+      tags:
+        - Xendit Webhook
+      summary: Xendit Refund Gateway Webhook Callback
+      description: |
+        Endpoint callback dari Xendit untuk update status refund gateway (bukan disbursement).
+
+        Dipanggil otomatis oleh Xendit saat refund via gateway (contoh: VA, QRIS)
+        berhasil atau gagal diproses.
+
+        **Event yang diproses:**
+        - `refund.succeeded` — refund gateway berhasil, payment_status order → `refunded`.
+        - `refund.failed` — refund gateway gagal, ditandai failed dengan `failure_code`.
+
+        **Catatan penting:**
+        - Endpoint ini public (tanpa JWT), diverifikasi menggunakan header `x-callback-token`.
+        - `data.reference_id` harus berisi format `refund-{refund_id}`.
+        - Handler bersifat idempotent.
+        - Jika refund berhasil, backend juga mengupdate `payment_status` order menjadi `refunded`.
+      operationId: xenditRefundGatewayWebhook
+      security: []
+      parameters:
+        - in: header
+          name: x-callback-token
+          required: true
+          schema:
+            type: string
+          description: Token verifikasi webhook dari Xendit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/XenditRefundWebhookPayload"
+            example:
+              event: refund.succeeded
+              business_id: 62c589ea1f995274c6fd8f47
+              created: "2026-04-01T10:00:00Z"
+              data:
+                id: rfd_abc123def456
+                payment_id: pymnt_abc123
+                invoice_id: inv_abc123
+                amount: 114000
+                payment_method_type: VIRTUAL_ACCOUNT
+                channel_code: BCA
+                currency: IDR
+                status: SUCCEEDED
+                reason: REQUESTED_BY_CUSTOMER
+                reference_id: refund-53c9f7e8-2973-4972-9876-c044de07902f
+                failure_code: ""
+                created: "2026-04-01T09:30:00Z"
+                updated: "2026-04-01T10:00:00Z"
+      responses:
+        "200":
+          description: Webhook diterima dan diproses.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XenditWebhookResponse"
+              examples:
+                processed:
+                  summary: Berhasil diproses
+                  value:
+                    message: webhook processed
+                processedWithErrors:
+                  summary: Diterima tapi ada error
+                  value:
+                    message: webhook received with errors
+                    error: failed to apply refund gateway webhook
+        "400":
+          description: Payload tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XenditWebhookResponse"
+              example:
+                message: invalid payload
+        "401":
+          description: Callback token tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XenditWebhookResponse"
+              example:
+                message: invalid callback token
+  /api/v1/finance/chat:
+    get:
+      tags:
+        - Finance Chat
+      summary: Daftar conversation finance
+      description: Daftar percakapan milik user finance dengan filter nama participant dan role participant.
+      operationId: listFinanceConversations
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - name: limit
+          in: query
+          description: Jumlah item per halaman untuk daftar percakapan (default 10).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: search
+          in: query
+          description: Cari berdasarkan nama participant.
+          required: false
+          schema:
+            type: string
+        - name: role
+          in: query
+          description: Filter role participant.
+          required: false
+          schema:
+            type: string
+            enum:
+              - umkm
+              - admin
+              - cs
+              - finance
+      responses:
+        "200":
+          description: Daftar percakapan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationListEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/finance/chat/{conversationId}:
+    get:
+      tags:
+        - Finance Chat
+      summary: Detail conversation finance
+      description: Detail satu conversation. Hanya dapat diakses oleh participant percakapan.
+      operationId: getFinanceConversation
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      responses:
+        "200":
+          description: Detail percakapan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationEnvelope"
+        "400":
+          description: ID percakapan tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid conversation id
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          description: User finance bukan participant percakapan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: you are not a participant of this conversation
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: conversation not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/finance/chat/{conversationId}/read:
+    patch:
+      tags:
+        - Finance Chat
+      summary: Tandai pesan conversation finance sudah dibaca
+      description: Menandai semua pesan dari lawan bicara dalam conversation sebagai sudah dibaca.
+      operationId: markFinanceConversationRead
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      responses:
+        "200":
+          description: Pesan berhasil ditandai sebagai sudah dibaca.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEmptyEnvelope"
+              example:
+                success: true
+                message: messages marked as read
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID percakapan tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid conversation id
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          description: User finance bukan participant percakapan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: you are not a participant of this conversation
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: conversation not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/chat/users:
+    get:
+      tags:
+        - Finance Chat
+      summary: Cari user yang dapat diajak chat
+      description: Cari user yang dapat diajak chat oleh finance. Filter `roles` menggunakan daftar role CSV.
+      operationId: searchFinanceChatableUsers
+      parameters:
+        - name: q
+          in: query
+          description: Keyword pencarian berdasarkan nama atau email.
+          required: false
+          schema:
+            type: string
+        - name: roles
+          in: query
+          description: Filter role dalam format CSV, misalnya `umkm,admin,cs,finance`.
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Nomor halaman (default 1).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Jumlah item per halaman untuk pencarian user chat (default 20).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 20
+      responses:
+        "200":
+          description: User yang dapat diajak chat berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessChatableUserListEnvelope"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/chat/attachment/presign:
+    post:
+      tags:
+        - Finance Chat
+      summary: Generate presigned upload URL untuk lampiran chat
+      operationId: presignFinanceChatAttachment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresignChatAttachmentRequest"
+            example:
+              content_type: image/jpeg
+      responses:
+        "200":
+          description: Presigned upload URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessPresignChatAttachmentEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          $ref: "#/components/responses/ForbiddenResponse"
+        "422":
+          description: Content type lampiran chat tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "invalid chat attachment content type; allowed: image/png, image/jpeg, video/mp4"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/chat:
+    post:
+      tags:
+        - Finance Chat
+      summary: Mulai atau ambil conversation
+      description: Membuat conversation baru atau mengembalikan conversation yang sudah ada antara finance dan participant.
+      operationId: startOrGetFinanceConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartConversationRequest"
+            example:
+              participant_id: f6a7b8c9-d0e1-2345-fa67-890bcdef1234
+      responses:
+        "201":
+          description: Conversation siap digunakan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationEnvelope"
+              example:
+                success: true
+                message: conversation ready
+                data:
+                  id: c4d5e6f7-a8b9-0123-c456-789012defabc
+                  initiator_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                  participant_id: f6a7b8c9-d0e1-2345-fa67-890bcdef1234
+                  last_message_at: "2026-03-02T09:00:00Z"
+                  created_at: "2026-03-01T14:00:00Z"
+                  updated_at: "2026-03-02T09:00:00Z"
+                  user_name: Toko Umrah Jaya
+                  user_role: umkm
+                  last_message: Mohon proses pencairan dana penjualan
+                  last_message_time: "2026-03-02T09:00:00Z"
+                  unread_count: 0
+                errors: null
+                meta: null
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          description: Kombinasi role tidak diizinkan untuk chat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: chat between these roles is not allowed
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Participant tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: participant not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+  /api/v1/chat/{conversationId}/messages:
+    post:
+      tags:
+        - Finance Chat
+      summary: Kirim pesan chat
+      operationId: sendFinanceChatMessage
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendChatMessageRequest"
+            example:
+              message: Halo, ini pesan dari finance
+              attachment_key: null
+      responses:
+        "201":
+          description: Pesan berhasil dikirim.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessChatMessageEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          description: User finance bukan participant percakapan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: you are not a participant of this conversation
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: conversation not found
+                data: null
+                errors: null
+                meta: null
+        "422":
+          description: Attachment tidak valid atau file belum di-upload.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid attachment
+                data: null
+                errors: null
+                meta: null
+        "500":
+          $ref: "#/components/responses/InternalServerErrorResponse"
+    get:
+      tags:
+        - Finance Chat
+      summary: Daftar pesan dalam conversation
+      operationId: listFinanceChatMessages
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+        - name: page
+          in: query
+          description: Nomor halaman (default 1).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Jumlah item per halaman untuk daftar pesan (default 20).
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            default: 20
+      responses:
+        "200":
+          description: Pesan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessChatMessageListEnvelope"
+        "400":
+          description: ID percakapan tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid conversation id
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedResponse"
+        "403":
+          description: User finance bukan participant percakapan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: you are not a participant of this conversation
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: conversation not found
+                data: null
+                errors: null
+                meta: null
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
 components:
@@ -530,6 +1622,14 @@ components:
       required: false
       schema:
         type: string
+    ConversationIDParam:
+      name: conversationId
+      in: path
+      description: UUID conversation.
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     BadRequestResponse:
       description: Request tidak valid.
@@ -607,6 +1707,181 @@ components:
             errors: null
             meta: null
   schemas:
+    StartConversationRequest:
+      type: object
+      required:
+        - participant_id
+      properties:
+        participant_id:
+          type: string
+          format: uuid
+          example: f6a7b8c9-d0e1-2345-fa67-890bcdef1234
+    PresignChatAttachmentRequest:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+          example: image/jpeg
+    PresignChatAttachmentResponse:
+      type: object
+      required:
+        - upload_url
+        - object_key
+        - content_type
+        - expires_in
+      properties:
+        upload_url:
+          type: string
+          example: https://s3.amazonaws.com/bucket/chat-attachments/2026/03/31/abc123?X-Amz-Signature=...
+        object_key:
+          type: string
+          example: chat-attachments/2026/03/31/abc123
+        content_type:
+          type: string
+          example: image/jpeg
+        expires_in:
+          type: integer
+          example: 1800
+    ChatableUserResponse:
+      type: object
+      required:
+        - id
+        - full_name
+        - email
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: b2c3d4e5-f6a7-8901-bcde-f12345678901
+        full_name:
+          type: string
+          example: Toko Umrah Jaya
+        email:
+          type: string
+          format: email
+          example: user@dev.local
+        role:
+          type: string
+          example: umkm
+    ConversationResponse:
+      type: object
+      required:
+        - id
+        - initiator_id
+        - participant_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: c4d5e6f7-a8b9-0123-c456-789012defabc
+        initiator_id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        participant_id:
+          type: string
+          format: uuid
+          example: f6a7b8c9-d0e1-2345-fa67-890bcdef1234
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-02T09:00:00Z"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-01T14:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-02T09:00:00Z"
+        user_name:
+          type: string
+          description: Nama participant lawan bicara.
+          example: Toko Umrah Jaya
+        user_role:
+          type: string
+          description: Role participant lawan bicara.
+          example: umkm
+        last_message:
+          type: string
+          nullable: true
+          example: Mohon proses pencairan dana penjualan
+        last_message_time:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-03-02T09:00:00Z"
+        unread_count:
+          type: integer
+          format: int64
+          example: 1
+    SendChatMessageRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: Halo, ini pesan dari finance
+        attachment_key:
+          type: string
+          nullable: true
+          example: chat-attachments/2026/03/31/abc123
+    ChatMessageResponse:
+      type: object
+      required:
+        - id
+        - conversation_id
+        - sender_id
+        - sender_name
+        - sender_role
+        - message
+        - is_read
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: e5f6a7b8-c9d0-1234-e567-890123456789
+        conversation_id:
+          type: string
+          format: uuid
+          example: c4d5e6f7-a8b9-0123-c456-789012defabc
+        sender_id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        sender_name:
+          type: string
+          example: Dev Finance
+        sender_role:
+          type: string
+          example: finance
+        message:
+          type: string
+          example: Halo, ini pesan dari finance
+        attachment_url:
+          type: string
+          nullable: true
+          example: null
+        is_read:
+          type: boolean
+          example: false
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-02T10:16:00Z"
     FinanceDashboardSummary:
       type: object
       required:
@@ -704,6 +1979,7 @@ components:
           example: Kristin Watson
         vendor:
           type: string
+          nullable: true
           example: Barone LLC.
         method:
           type: string
@@ -822,9 +2098,11 @@ components:
           format: uuid
         vendor:
           type: string
+          nullable: true
           example: Barone LLC.
         vendor_type:
           type: string
+          nullable: true
           enum:
             - souvenir_store
             - ppiu
@@ -907,6 +2185,7 @@ components:
           example: Devon Lane
         vendor:
           type: string
+          nullable: true
           example: Barone LLC.
         order_id:
           type: string
@@ -1016,6 +2295,286 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FinanceReportDailyItem"
+    CreateOrderRefundRequest:
+      type: object
+      required:
+        - return_reason_id
+        - destination_bank_name
+        - destination_account_number
+        - destination_account_holder_name
+      properties:
+        return_reason_id:
+          type: integer
+          minimum: 1
+          description: ID alasan refund dari master `return_reasons`.
+          example: 1
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          example: Kemasan penyok dan isi pecah saat diterima.
+        destination_channel_code:
+          type: string
+          maxLength: 40
+          example: ID_BCA
+        destination_bank_name:
+          type: string
+          maxLength: 80
+          example: Bank Central Asia
+        destination_account_number:
+          type: string
+          maxLength: 64
+          example: "1234567890"
+        destination_account_holder_name:
+          type: string
+          maxLength: 120
+          example: Budi Santoso
+        image_object_keys:
+          type: array
+          maxItems: 5
+          description: Daftar object key bukti gambar hasil endpoint presign.
+          items:
+            type: string
+            example: refund-evidences/19594be3-d0fe-425e-aa6b-0e73b354c32f/2026/04/01/c4f34f8e-7512-4de2-b91a-3d4d9fda76fa
+        video_object_key:
+          type: string
+          nullable: true
+          description: Object key bukti video hasil endpoint presign (maksimal 1).
+          example: refund-evidences/19594be3-d0fe-425e-aa6b-0e73b354c32f/2026/04/01/3f954fee-f2f9-4263-9d26-74a9d2fae17f
+    CreateOrderRefundResponse:
+      type: object
+      required:
+        - refund_id
+        - order_id
+        - status
+        - amount
+        - return_reason_id
+        - reason
+        - destination_channel_code
+        - destination_bank_name
+        - destination_account_holder_name
+        - destination_account_number_last4
+        - requested_at
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - requested
+            - approved
+            - rejected
+            - processed
+          example: requested
+        amount:
+          type: number
+          format: double
+          example: 452500
+        return_reason_id:
+          type: integer
+          example: 1
+        reason:
+          type: string
+          example: Barang rusak
+        description:
+          type: string
+          nullable: true
+          example: Kemasan penyok dan isi pecah saat diterima.
+        destination_channel_code:
+          type: string
+          example: ID_BCA
+        destination_bank_name:
+          type: string
+          example: Bank Central Asia
+        destination_account_holder_name:
+          type: string
+          example: Budi Santoso
+        destination_account_number_last4:
+          type: string
+          example: "7890"
+        image_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+          example:
+            - https://cdn.example.com/refund-evidences/19594be3-d0fe-425e-aa6b-0e73b354c32f/image-1.jpg
+            - https://cdn.example.com/refund-evidences/19594be3-d0fe-425e-aa6b-0e73b354c32f/image-2.jpg
+        video_url:
+          type: string
+          format: uri
+          nullable: true
+          example: https://cdn.example.com/refund-evidences/19594be3-d0fe-425e-aa6b-0e73b354c32f/video-1.mp4
+        requested_at:
+          type: string
+          format: date-time
+          example: "2026-04-01T10:00:00Z"
+    PresignRefundEvidenceRequest:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+          description: |
+            MIME type file yang akan di-upload.
+            Allowed: `image/png`, `image/jpeg`, `image/webp`, `video/mp4`.
+          example: image/jpeg
+    PresignRefundEvidenceResponse:
+      type: object
+      required:
+        - upload_url
+        - object_key
+        - content_type
+        - expires_in
+      properties:
+        upload_url:
+          type: string
+          format: uri
+          example: https://s3.example.com/bucket/refund-evidences/.../upload-signature
+        object_key:
+          type: string
+          example: refund-evidences/19594be3-d0fe-425e-aa6b-0e73b354c32f/2026/04/01/c4f34f8e-7512-4de2-b91a-3d4d9fda76fa
+        content_type:
+          type: string
+          example: image/jpeg
+        expires_in:
+          type: integer
+          format: int32
+          example: 900
+    SubmitRefundDestinationRequest:
+      type: object
+      properties:
+        user_bank_account_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            ID rekening bank customer yang sudah tersimpan.
+            Jika diisi, data rekening dari profil customer akan digunakan
+            dan field manual di bawah diabaikan.
+          example: null
+        destination_channel_code:
+          type: string
+          maxLength: 40
+          description: Kode channel Xendit (contoh ID_BCA, ID_MANDIRI).
+          example: ID_BCA
+        destination_bank_name:
+          type: string
+          maxLength: 80
+          description: Nama bank tujuan.
+          example: Bank Central Asia
+        destination_account_number:
+          type: string
+          maxLength: 64
+          description: Nomor rekening tujuan.
+          example: "1234567890"
+        destination_account_holder_name:
+          type: string
+          maxLength: 120
+          description: Nama pemilik rekening.
+          example: Budi Santoso
+        save_bank_account:
+          type: boolean
+          description: Jika true, rekening baru akan disimpan ke profil customer.
+          default: false
+          example: true
+    SubmitRefundDestinationResponse:
+      type: object
+      required:
+        - refund_id
+        - status
+        - message
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          example: requested
+        message:
+          type: string
+          example: Data rekening tujuan refund berhasil disimpan. Tim finance akan memproses refund Anda.
+    XenditRefundWebhookData:
+      type: object
+      description: Data object dari Xendit refund gateway webhook.
+      properties:
+        id:
+          type: string
+          description: ID refund dari Xendit.
+          example: rfd_abc123def456
+        payment_id:
+          type: string
+          description: ID payment dari Xendit.
+          example: pymnt_abc123
+        invoice_id:
+          type: string
+          description: ID invoice dari Xendit.
+          example: inv_abc123
+        amount:
+          type: number
+          format: double
+          example: 114000
+        payment_method_type:
+          type: string
+          description: Tipe metode pembayaran (VIRTUAL_ACCOUNT, EWALLET, QR_CODE, dll).
+          example: VIRTUAL_ACCOUNT
+        channel_code:
+          type: string
+          example: BCA
+        currency:
+          type: string
+          example: IDR
+        status:
+          type: string
+          description: Status refund dari Xendit.
+          enum:
+            - SUCCEEDED
+            - FAILED
+          example: SUCCEEDED
+        reason:
+          type: string
+          example: REQUESTED_BY_CUSTOMER
+        reference_id:
+          type: string
+          description: ID referensi internal (format `refund-{refund_id}`).
+          example: refund-53c9f7e8-2973-4972-9876-c044de07902f
+        failure_code:
+          type: string
+          nullable: true
+          example: null
+        created:
+          type: string
+          format: date-time
+        updated:
+          type: string
+          format: date-time
+    XenditRefundWebhookPayload:
+      type: object
+      required:
+        - event
+        - data
+      properties:
+        event:
+          type: string
+          description: Event refund webhook.
+          enum:
+            - refund.succeeded
+            - refund.failed
+          example: refund.succeeded
+        business_id:
+          type: string
+          description: ID bisnis Xendit pengirim webhook.
+          example: 62c589ea1f995274c6fd8f47
+        created:
+          type: string
+          format: date-time
+        data:
+          $ref: "#/components/schemas/XenditRefundWebhookData"
     UpdateRefundStatusRequest:
       type: object
       required:
@@ -1023,13 +2582,41 @@ components:
       properties:
         status:
           type: string
-          description: Status refund. Alias "pending" akan dipetakan ke "requested".
+          description: |
+            Status refund. Alias "pending" akan dipetakan ke "requested".
+            Jika status = processed, backend akan menginisiasi transfer refund (disbursement).
           enum:
             - requested
             - approved
             - rejected
             - processed
           example: approved
+        destination_channel_code:
+          type: string
+          description: Kode channel payout Xendit (contoh ID_BCA). Digunakan saat status=processed.
+          example: ID_BCA
+        destination_bank_name:
+          type: string
+          description: Nama bank tujuan refund. Digunakan saat status=processed.
+          example: Bank Central Asia
+        destination_account_number:
+          type: string
+          description: Nomor rekening tujuan refund. Digunakan saat status=processed.
+          example: "1234567890"
+        destination_account_holder_name:
+          type: string
+          description: Nama pemilik rekening tujuan refund. Digunakan saat status=processed.
+          example: Budi Santoso
+        use_disbursement_fallback_for_qr:
+          type: boolean
+          description: |
+            Jika true (default), QR refund yang belum terintegrasi gateway akan fallback ke disbursement.
+          example: true
+        use_disbursement_fallback_for_ewallet:
+          type: boolean
+          description: |
+            Jika true (default), eWallet refund yang belum terintegrasi gateway akan fallback ke disbursement.
+          example: true
     UpdatePayoutStatusRequest:
       type: object
       required:
@@ -1044,6 +2631,78 @@ components:
             - failed
             - on_hold
           example: schedule
+    XenditPayoutWebhookData:
+      type: object
+      required:
+        - reference_id
+      properties:
+        id:
+          type: string
+          description: ID payout dari Xendit.
+          example: p-out-f1f6b6a7-c307-4ea8-b650-7499888cf646
+        reference_id:
+          type: string
+          description: ID referensi internal dari sistem (format `refund-{refund_id}`).
+          example: refund-62fe8a4b-52dd-48e4-9b98-7dc99fa288f0
+        amount:
+          type: number
+          format: double
+          description: Nominal payout.
+          example: 330000
+        currency:
+          type: string
+          example: IDR
+        status:
+          type: string
+          description: Status payout dari Xendit.
+          example: SUCCEEDED
+        channel_code:
+          type: string
+          example: ID_BCA
+        failure_code:
+          type: string
+          nullable: true
+          example: null
+        created:
+          type: string
+          format: date-time
+          nullable: true
+        updated:
+          type: string
+          format: date-time
+          nullable: true
+    XenditPayoutWebhookPayload:
+      type: object
+      required:
+        - event
+        - data
+      properties:
+        business_id:
+          type: string
+          description: ID bisnis Xendit pengirim webhook.
+          example: 62c589ea1f995274c6fd8f47
+        event:
+          type: string
+          description: Event payout webhook.
+          enum:
+            - payout.succeeded
+            - payout.failed
+            - payout.reversed
+          example: payout.succeeded
+        data:
+          $ref: "#/components/schemas/XenditPayoutWebhookData"
+    XenditWebhookResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: webhook processed
+        error:
+          type: string
+          nullable: true
+          example: failed to apply refund payout webhook update
     StatusActionResponse:
       type: object
       required:
@@ -1169,6 +2828,162 @@ components:
         meta:
           nullable: true
           example: null
+    SuccessEmptyEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: messages marked as read
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+    SuccessChatableUserListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: users retrieved
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatableUserResponse"
+        errors:
+          nullable: true
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+    SuccessPresignChatAttachmentEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: presigned upload URL generated
+        data:
+          $ref: "#/components/schemas/PresignChatAttachmentResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessConversationEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: conversation retrieved
+        data:
+          $ref: "#/components/schemas/ConversationResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessConversationListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: conversations retrieved
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationResponse"
+        errors:
+          nullable: true
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+    SuccessChatMessageEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: message sent
+        data:
+          $ref: "#/components/schemas/ChatMessageResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessChatMessageListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: messages retrieved
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessageResponse"
+        errors:
+          nullable: true
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
     SuccessFinanceTransactionListEnvelope:
       type: object
       required:
@@ -1270,6 +3085,69 @@ components:
           example: status updated successfully
         data:
           $ref: "#/components/schemas/StatusActionResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessCreateOrderRefundEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: refund request submitted successfully
+        data:
+          $ref: "#/components/schemas/CreateOrderRefundResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessPresignRefundEvidenceEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: refund evidence upload URL generated
+        data:
+          $ref: "#/components/schemas/PresignRefundEvidenceResponse"
+        errors:
+          nullable: true
+        meta:
+          nullable: true
+    SuccessSubmitRefundDestinationEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: refund destination submitted successfully
+        data:
+          $ref: "#/components/schemas/SubmitRefundDestinationResponse"
         errors:
           nullable: true
         meta:

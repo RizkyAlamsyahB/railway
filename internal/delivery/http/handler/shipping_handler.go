@@ -8,7 +8,7 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/response"
 )
 
-// ShippingHandler handles HTTP requests for shipping location lookups (RajaOngkir proxy).
+// ShippingHandler handles HTTP requests for RajaOngkir-backed location lookups.
 type ShippingHandler struct {
 	uc domain.ShippingUseCase
 }
@@ -18,8 +18,7 @@ func NewShippingHandler(uc domain.ShippingUseCase) *ShippingHandler {
 	return &ShippingHandler{uc: uc}
 }
 
-// GetProvinces godoc
-// GET /api/v1/shipping/provinces
+// GetProvinces returns province lookups for /api/v1/shipping/provinces and /api/v1/locations/provinces.
 func (h *ShippingHandler) GetProvinces(c *gin.Context) {
 	provinces, err := h.uc.GetProvinces(c.Request.Context())
 	if err != nil {
@@ -30,8 +29,7 @@ func (h *ShippingHandler) GetProvinces(c *gin.Context) {
 	response.Success(c, http.StatusOK, "provinces loaded", provinces)
 }
 
-// GetCities godoc
-// GET /api/v1/shipping/cities?province_id=
+// GetCities returns city lookups for /api/v1/shipping/cities and /api/v1/locations/cities.
 func (h *ShippingHandler) GetCities(c *gin.Context) {
 	provinceID := c.Query("province_id")
 	if provinceID == "" {
@@ -48,8 +46,7 @@ func (h *ShippingHandler) GetCities(c *gin.Context) {
 	response.Success(c, http.StatusOK, "cities loaded", cities)
 }
 
-// GetDistricts godoc
-// GET /api/v1/shipping/districts?city_id=
+// GetDistricts returns district lookups for /api/v1/shipping/districts and /api/v1/locations/districts.
 func (h *ShippingHandler) GetDistricts(c *gin.Context) {
 	cityID := c.Query("city_id")
 	if cityID == "" {
@@ -66,8 +63,7 @@ func (h *ShippingHandler) GetDistricts(c *gin.Context) {
 	response.Success(c, http.StatusOK, "districts loaded", districts)
 }
 
-// GetSubdistricts godoc
-// GET /api/v1/shipping/subdistricts?district_id=
+// GetSubdistricts returns subdistrict lookups for /api/v1/shipping/subdistricts and /api/v1/locations/subdistricts.
 func (h *ShippingHandler) GetSubdistricts(c *gin.Context) {
 	districtID := c.Query("district_id")
 	if districtID == "" {

@@ -70,6 +70,8 @@ var errorRules = []errorRule{
 	{usecase.ErrVendorAccountBlocked, http.StatusForbidden, "vendor account is blocked"},
 	{usecase.ErrNotVendor, http.StatusForbidden, "vendor access required"},
 	{usecase.ErrNoVendorProfile, http.StatusForbidden, "no vendor profile found"},
+	{usecase.ErrVendorNotOwned, http.StatusForbidden, "vendor does not belong to this user"},
+	{usecase.ErrVendorResponsibleEmail, http.StatusBadRequest, "responsible person email must match owner account email"},
 	{usecase.ErrInvalidStatusTransition, http.StatusBadRequest, ""},
 
 	// Xendit
@@ -87,6 +89,7 @@ var errorRules = []errorRule{
 
 	// Product
 	{usecase.ErrVendorNotActive, http.StatusForbidden, "vendor is not active"},
+	{usecase.ErrVendorNoWarehouseAddress, http.StatusUnprocessableEntity, ""},
 	{usecase.ErrCategoryNotFound, http.StatusBadRequest, "category not found"},
 	{usecase.ErrProductNotFound, http.StatusNotFound, "product not found"},
 	{usecase.ErrProductNotOwned, http.StatusForbidden, "product does not belong to this vendor"},
@@ -105,6 +108,7 @@ var errorRules = []errorRule{
 	{usecase.ErrVariantNotActive, http.StatusBadRequest, "product variant is not active"},
 	{usecase.ErrProductNotAvailable, http.StatusBadRequest, "product is not available"},
 	{usecase.ErrInsufficientStock, http.StatusConflict, "insufficient stock for requested quantity"},
+	{usecase.ErrNoSelectedCartItems, http.StatusBadRequest, "no selected cart items"},
 
 	// Checkout
 	{usecase.ErrCartEmpty, http.StatusBadRequest, "cart is empty"},
@@ -133,7 +137,20 @@ var errorRules = []errorRule{
 	{usecase.ErrInvalidRefundStatus, http.StatusBadRequest, "invalid refund status"},
 	{usecase.ErrInvalidPayoutStatus, http.StatusBadRequest, "invalid payout status"},
 	{usecase.ErrInvalidRefundTransition, http.StatusBadRequest, "invalid refund status transition"},
+	{usecase.ErrRefundBlockedByCompletedSettlement, http.StatusConflict, "refund cannot be processed because order settlement is already completed"},
+	{usecase.ErrRefundDestinationRequired, http.StatusBadRequest, "destination account data is required for disbursement refund"},
+	{usecase.ErrRefundPayoutInProgress, http.StatusConflict, "refund payout is already in progress"},
+	{usecase.ErrRefundDisbursementFailed, http.StatusBadGateway, "failed to initiate refund disbursement"},
+	{usecase.ErrRefundStrategyNotSupported, http.StatusBadRequest, "refund strategy for this payment channel is not supported"},
 	{usecase.ErrRefundNotFound, http.StatusNotFound, "refund not found"},
+	{usecase.ErrRefundAlreadyRequested, http.StatusConflict, "refund request already exists for this order"},
+	{usecase.ErrOrderRefundNotEligible, http.StatusUnprocessableEntity, "order is not eligible for refund request"},
+	{usecase.ErrRefundReasonNotFound, http.StatusBadRequest, "return reason not found"},
+	{usecase.ErrInvalidRefundEvidenceContentType, http.StatusUnprocessableEntity, "invalid refund evidence content type; allowed: image/png, image/jpeg, image/webp, video/mp4"},
+	{usecase.ErrRefundEvidenceTooLarge, http.StatusUnprocessableEntity, "refund evidence exceeds maximum size of 10 MB"},
+	{usecase.ErrRefundEvidenceNotUploaded, http.StatusUnprocessableEntity, "refund evidence not found in storage; upload it first"},
+	{usecase.ErrTooManyRefundEvidenceImages, http.StatusBadRequest, "maximum 5 images for refund evidence"},
+	{usecase.ErrTooManyRefundEvidenceVideos, http.StatusBadRequest, "maximum 1 video for refund evidence"},
 	{usecase.ErrPayoutNotFound, http.StatusNotFound, "payout batch not found"},
 
 	// Notifications
@@ -212,6 +229,8 @@ var errorRules = []errorRule{
 	// Address
 	{usecase.ErrAddressNotFound, http.StatusNotFound, "address not found"},
 	{usecase.ErrAddressNotOwned, http.StatusForbidden, "address does not belong to this user"},
+	{usecase.ErrCannotDeleteDefaultAddr, http.StatusUnprocessableEntity, ""},
+	{usecase.ErrCannotDeleteLastAddr, http.StatusUnprocessableEntity, ""},
 
 	// Courier
 	{usecase.ErrCourierNotFound, http.StatusNotFound, "courier not found"},
@@ -230,6 +249,10 @@ var errorRules = []errorRule{
 	{usecase.ErrShipmentNotFound, http.StatusNotFound, "shipment not found for this order"},
 	{usecase.ErrTrackingFailed, http.StatusBadGateway, ""},
 	{usecase.ErrInvalidOrderCancelTransition, http.StatusBadRequest, ""},
+
+	// User Bank Account
+	{usecase.ErrBankAccountNotFound, http.StatusNotFound, "bank account not found"},
+	{usecase.ErrBankAccountNotOwned, http.StatusForbidden, "bank account does not belong to this user"},
 }
 
 // HandleUsecaseError maps a usecase error to the appropriate HTTP response.

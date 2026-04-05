@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: UmrahMart - Users API
+  title: Users API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint user/customer, termasuk pendaftaran, verifikasi email, login, profil user, checkout cart, complete order, dan review produk.
+  description: Dokumentasi OpenAPI 3 untuk customer module, termasuk pendaftaran, autentikasi, profil, alamat, checkout, pesanan, FAQ, tiket bantuan, chat, dan review produk.
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -13,10 +13,20 @@ tags:
     description: Operasi autentikasi user (login).
   - name: User Profile
     description: Operasi profil user yang memerlukan autentikasi.
+  - name: Wishlist
+    description: Operasi wishlist customer yang memerlukan autentikasi.
   - name: Checkout
     description: Operasi checkout cart customer dan pembuatan invoice pembayaran Xendit.
   - name: Orders
     description: Operasi lifecycle order oleh customer.
+  - name: Addresses
+    description: Operasi pengelolaan alamat customer yang memerlukan autentikasi.
+  - name: FAQ
+    description: Operasi pusat bantuan customer yang memerlukan autentikasi.
+  - name: Tickets
+    description: Operasi pembuatan tiket bantuan customer.
+  - name: Chat
+    description: Operasi chat customer dengan user lain yang diizinkan, termasuk CS.
   - name: Reviews
     description: Operasi review produk oleh customer (presign gambar dan submit review).
 paths:
@@ -767,6 +777,407 @@ paths:
                 errors: null
                 meta: null
 
+  /api/v1/users/wishlist:
+    get:
+      tags:
+        - Wishlist
+      summary: Get Wishlist Items
+      description: |
+        Mengembalikan daftar produk dalam wishlist milik customer yang sedang login.
+
+        Endpoint ini mendukung pagination melalui query `page` dan `limit`.
+        Jika `page < 1`, sistem akan menggunakan `page = 1`.
+        Jika `limit < 1` atau `limit > 100`, sistem akan menggunakan `limit = 10`.
+
+        Field `is_available` bernilai `true` jika produk berstatus `published`.
+        Field `image_url`, `price`, dan `currency` dapat bernilai `null`
+        jika data turunan produk tidak tersedia.
+      operationId: listWishlistItems
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Nomor halaman hasil wishlist (dimulai dari 1).
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          description: Jumlah item per halaman (maksimum 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          example: 10
+      responses:
+        "200":
+          description: Daftar wishlist berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessWishlistListEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "invalid or expired token"
+                data: null
+                errors: null
+                meta: null
+        "403":
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/wishlist/items:
+    post:
+      tags:
+        - Wishlist
+      summary: Add Product to Wishlist
+      description: |
+        Menambahkan satu produk ke wishlist customer.
+
+        Operasi ini idempotent terhadap pasangan `user_id + product_id`.
+        Jika produk sudah ada di wishlist, request tetap sukses dan field
+        `already_exists` akan bernilai `true`.
+
+        Validasi utama:
+        - `product_id` wajib berformat UUID.
+        - Produk harus ada.
+        - Produk harus berstatus `published`.
+      operationId: addWishlistItem
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        description: Payload untuk menambahkan produk ke wishlist.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddWishlistItemRequest"
+            example:
+              product_id: "0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2"
+      responses:
+        "200":
+          description: Produk berhasil ditambahkan ke wishlist.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessWishlistAddEnvelope"
+        "400":
+          description: Request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "validation failed"
+                data: null
+                errors: "product_id is required"
+                meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "invalid or expired token"
+                data: null
+                errors: null
+                meta: null
+        "403":
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Produk tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "product not found"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/wishlist/products/{productId}:
+    delete:
+      tags:
+        - Wishlist
+      summary: Remove Product from Wishlist
+      description: |
+        Menghapus satu produk dari wishlist customer.
+
+        Operasi ini idempotent: jika item wishlist tidak ada,
+        endpoint tetap mengembalikan respons sukses.
+      operationId: removeWishlistItem
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIDParam"
+      responses:
+        "200":
+          description: Produk berhasil dihapus dari wishlist.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNullDataEnvelope"
+              example:
+                success: true
+                message: "item removed from wishlist"
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID produk tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "validation failed"
+                data: null
+                errors: "invalid product id"
+                meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "invalid or expired token"
+                data: null
+                errors: null
+                meta: null
+        "403":
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/wishlist/products/{productId}/status:
+    get:
+      tags:
+        - Wishlist
+      summary: Check Wishlist Product Status
+      description: |
+        Mengecek apakah sebuah produk sudah ada di wishlist customer.
+
+        Endpoint juga mengembalikan `is_available` untuk menunjukkan
+        apakah produk saat ini berstatus `published`.
+      operationId: getWishlistProductStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIDParam"
+      responses:
+        "200":
+          description: Status wishlist berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessWishlistStatusEnvelope"
+        "400":
+          description: ID produk tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "validation failed"
+                data: null
+                errors: "invalid product id"
+                meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "invalid or expired token"
+                data: null
+                errors: null
+                meta: null
+        "403":
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Produk tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "product not found"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
   /api/v1/users/orders:
     get:
       tags:
@@ -909,23 +1320,25 @@ paths:
         - Checkout
       summary: Checkout Cart
       description: |
-        Melakukan checkout untuk seluruh item pada cart aktif customer yang sedang login.
+        Melakukan checkout hanya untuk item yang sedang dipilih (`is_selected = true`) pada cart aktif customer yang sedang login.
         Endpoint ini akan membuat order per vendor, lalu membuat invoice Xendit untuk setiap order.
 
         **Alur checkout:**
         1. Backend mengambil cart aktif milik user dari JWT.
-        2. Backend memvalidasi semua item cart (variant aktif, product published, stok mencukupi).
-        3. Item dikelompokkan per vendor.
-        4. Untuk setiap vendor:
+        2. Backend mengambil hanya item cart yang `is_selected = true`.
+        3. Backend memvalidasi semua item terpilih (variant aktif, product published, stok mencukupi).
+        4. Item terpilih dikelompokkan per vendor.
+        5. Untuk setiap vendor:
            - Order dibuat dengan status `pending_payment`.
            - Invoice Xendit dibuat atas nama sub-account vendor.
            - `invoice_url` disimpan dan dikembalikan ke client.
-        5. Jika sukses, cart diubah statusnya menjadi `converted`.
+        6. Jika sukses, item terpilih yang berhasil diproses dihapus dari cart aktif.
 
         **Catatan penting:**
         - Satu checkout dapat menghasilkan lebih dari satu order (multi-vendor).
+        - Item cart yang tidak dipilih tidak ikut di-checkout dan tetap berada di cart aktif.
         - Request body wajib berisi `address_id` dan `shipping_choices`.
-        - `shipping_choices` harus berisi pilihan kurir untuk setiap vendor yang muncul pada hasil endpoint preview.
+        - `shipping_choices` harus berisi pilihan kurir untuk setiap vendor yang muncul pada hasil endpoint preview item terpilih.
         - Ongkir tidak diterima dari client; backend menghitung ulang ongkir berdasarkan `courier_code` dan `service` yang dipilih.
         - Response berisi URL invoice Xendit yang bisa langsung dipakai customer untuk pembayaran.
       operationId: checkoutCart
@@ -972,7 +1385,7 @@ paths:
                 errors: null
                 meta: null
         "400":
-          description: Request tidak valid (misalnya body tidak lengkap, cart kosong, atau user ID tidak valid pada context auth).
+          description: Request tidak valid (misalnya body tidak lengkap, tidak ada item cart yang dipilih, atau user ID tidak valid pada context auth).
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
@@ -981,11 +1394,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
               examples:
-                cartEmpty:
-                  summary: Cart kosong
+                noSelectedItems:
+                  summary: Tidak ada item cart yang dipilih
                   value:
                     success: false
-                    message: "cart is empty"
+                    message: "no selected cart items"
                     data: null
                     errors: null
                     meta: null
@@ -1118,24 +1531,28 @@ paths:
     post:
       tags:
         - Orders
-      summary: Complete Order
+      summary: Pesanan Diterima (Selesai)
       description: |
-        Menandai order customer menjadi `completed`.
+        Mengkonfirmasi bahwa customer sudah menerima barang pesanan.
+        Status order berubah menjadi `completed` dan dana diteruskan ke penjual.
 
         **Validasi:**
         - Order harus milik customer yang login.
         - Status order harus salah satu dari: `paid`, `packed`, atau `shipped`.
+
+        **Side effects:**
+        - Status order → `completed`
+        - Record `order_status_history` dibuat
+        - Saldo vendor akan diproses untuk settlement
+
+        **Konfirmasi di client:**
+        Tampilkan dialog konfirmasi dengan pesan:
+        "Konfirmasi barang sudah diterima? Status akan berubah menjadi 'Selesai' dan dana diteruskan ke penjual."
       operationId: completeOrderByCustomer
       security:
         - BearerAuth: []
       parameters:
-        - name: orderId
-          in: path
-          required: true
-          description: ID order yang akan ditandai selesai.
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/OrderIDParam"
       responses:
         "200":
           description: Order berhasil ditandai selesai.
@@ -1605,6 +2022,2594 @@ paths:
                 errors: null
                 meta: null
 
+  /api/v1/addresses:
+    post:
+      tags:
+        - Addresses
+      summary: Create Address
+      description: |
+        Membuat alamat baru untuk customer yang sedang login.
+        Alamat dapat langsung ditandai sebagai default dengan `is_default=true`.
+      operationId: createCustomerAddress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAddressRequest"
+            example:
+              label: Rumah
+              recipient_name: Ahmad Fauzi
+              phone: "081234567890"
+              province_id: "31"
+              province_name: DKI Jakarta
+              city_id: "3171"
+              city_name: Jakarta Selatan
+              district_id: "3171020"
+              district_name: Kebayoran Baru
+              subdistrict_id: "3171020001"
+              subdistrict_name: Selong
+              postal_code: "12110"
+              address_line: Jl. Sisingamangaraja No. 10
+              notes: Dekat pintu masuk utama
+              latitude: -6.244669
+              longitude: 106.799004
+              is_default: true
+      responses:
+        "201":
+          description: Alamat berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressEnvelope"
+        "400":
+          description: Request body tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
+      tags:
+        - Addresses
+      summary: List Addresses
+      description: Mengambil seluruh alamat milik customer yang sedang login.
+      operationId: listCustomerAddresses
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar alamat berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressListEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/addresses/{id}:
+    get:
+      tags:
+        - Addresses
+      summary: Get Address Detail
+      operationId: getCustomerAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AddressIDParam"
+      responses:
+        "200":
+          description: Detail alamat berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressEnvelope"
+        "400":
+          description: ID alamat tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Alamat bukan milik requester atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Alamat tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      tags:
+        - Addresses
+      summary: Update Address
+      operationId: updateCustomerAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AddressIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAddressRequest"
+            example:
+              recipient_name: Ahmad Fauzi Updated
+              notes: Titip ke satpam bila tidak ada di rumah
+      responses:
+        "200":
+          description: Alamat berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressEnvelope"
+        "400":
+          description: ID alamat atau request body tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Alamat bukan milik requester atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Alamat tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      tags:
+        - Addresses
+      summary: Delete Address
+      operationId: deleteCustomerAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AddressIDParam"
+      responses:
+        "200":
+          description: Alamat berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNullDataEnvelope"
+              example:
+                success: true
+                message: "address deleted"
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID alamat tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Alamat bukan milik requester atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Alamat tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/addresses/{id}/default:
+    patch:
+      tags:
+        - Addresses
+      summary: Set Default Address
+      operationId: setDefaultCustomerAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AddressIDParam"
+      responses:
+        "200":
+          description: Alamat default berhasil diatur.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAddressEnvelope"
+        "400":
+          description: ID alamat tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Alamat bukan milik requester atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Alamat tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/checkout/preview:
+    post:
+      tags:
+        - Checkout
+      summary: Checkout Preview
+      description: |
+        Menghasilkan ringkasan checkout untuk alamat tertentu berdasarkan item cart yang sedang dipilih (`is_selected = true`).
+        Response berisi grup vendor, subtotal, dan opsi pengiriman yang tersedia hanya untuk item terpilih.
+      operationId: previewCheckout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutPreviewRequest"
+            example:
+              address_id: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+      responses:
+        "200":
+          description: Preview checkout berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCheckoutPreviewEnvelope"
+        "400":
+          description: Request body tidak valid atau tidak ada item cart yang dipilih.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                noSelectedItems:
+                  summary: Tidak ada item cart yang dipilih
+                  value:
+                    success: false
+                    message: "no selected cart items"
+                    data: null
+                    errors: null
+                    meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Alamat atau cart terkait tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Preview checkout tidak dapat dibuat karena aturan bisnis.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/orders/{orderId}:
+    get:
+      tags:
+        - Orders
+      summary: Detail Pesanan
+      description: |
+        Mengembalikan detail lengkap pesanan termasuk:
+        - **Informasi pengiriman** (kurir, no resi, status) — `shipping`
+        - **Alamat penerima** (nama, telepon, alamat lengkap) — `address`
+        - **Informasi toko** (nama toko, vendor ID, owner user ID untuk chat) — `store`
+        - **Daftar item** (nama produk, varian, harga, qty, subtotal) — `items`
+        - **Informasi pembayaran** (metode, invoice ID) — `payment`
+        - **Metadata order** (nomor order, status, payment status, tanggal-tanggal) — `order`
+        - **Ringkasan biaya** (subtotal, ongkir, biaya layanan, grand total) — `summary`
+        - **Aksi yang tersedia** (can_cancel, can_complete, can_review, can_refund, dll) — `actions`
+        - **Informasi refund** (jika ada refund terkait order) — `refund`
+
+        Field `actions` menentukan tombol/aksi yang ditampilkan di client:
+        - `can_cancel` → tombol "Batalkan"
+        - `can_complete` → tombol "Pesanan Diterima"
+        - `can_review` → tombol "Beri Review"
+        - `can_contact` → tombol "Hubungi Penjual"
+        - `can_refund` → tombol "Ajukan Pengembalian"
+        - `needs_refund_destination` → modal "Pilih Tujuan Refund"
+      operationId: getCustomerOrderDetail
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: Detail order berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCustomerOrderDetailEnvelope"
+        "400":
+          description: ID order tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order bukan milik customer atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/orders/{orderId}/shipping:
+    get:
+      tags:
+        - Orders
+      summary: Info Pengiriman
+      description: |
+        Mengembalikan informasi pengiriman pesanan termasuk:
+        - **Stages** — daftar tahap pengiriman (dikemas, dikirim, diterima) dengan status `completed`/`active`.
+        - **Courier** — nama kurir, kode kurir, nomor resi.
+        - **Events** — riwayat tracking paket (tanggal, deskripsi, lokasi).
+        - **Estimated arrival** — perkiraan tanggal sampai.
+
+        Data tracking diambil dari API RajaOngkir berdasarkan kurir dan nomor resi.
+      operationId: getCustomerOrderShippingInfo
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: Informasi pengiriman berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessOrderShippingInfoEnvelope"
+        "400":
+          description: ID order tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order bukan milik customer atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order atau shipment tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/orders/{orderId}/invoice:
+    get:
+      tags:
+        - Orders
+      summary: Nota Pesanan
+      description: |
+        Mengembalikan nota/invoice pesanan untuk keperluan cetak atau unduh.
+        Response berisi:
+        - **Invoice** — nomor invoice, tanggal terbit, aksi (copy, print, download).
+        - **Customer** — nama, telepon, alamat penerima.
+        - **Payment** — metode pembayaran, tanggal bayar.
+        - **Items** — daftar item (nama, varian, harga, qty, subtotal, gambar).
+        - **Summary** — subtotal, ongkir, biaya layanan, total, currency.
+      operationId: getCustomerOrderInvoice
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: Invoice order berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessOrderInvoiceEnvelope"
+        "400":
+          description: ID order tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order bukan milik customer atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order atau invoice tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/orders/{orderId}/cancel:
+    post:
+      tags:
+        - Orders
+      summary: Batalkan Pesanan
+      description: |
+        Membatalkan pesanan customer. Endpoint ini mengubah status order menjadi `canceled`,
+        mengembalikan stok produk, dan otomatis mem-proses refund jika order sudah dibayar.
+
+        **Status yang diizinkan untuk dibatalkan:**
+        - `pending_payment` — belum dibayar, langsung dibatalkan tanpa refund.
+        - `paid` — sudah dibayar, otomatis buat refund.
+        - `processing` — sedang diproses vendor, otomatis buat refund.
+
+        **Status yang TIDAK bisa dibatalkan:**
+        - `packed`, `shipped`, `received`, `completed`, `canceled`, `refunded`
+
+        **Auto-refund logic (jika `payment_status = paid`):**
+        - **QR / E-Wallet** → refund langsung dikirim ke Xendit Refund API,
+          status refund: `processing`, method: `gateway`.
+        - **VA / Bank Transfer** → buat record refund dengan status `awaiting_destination`,
+          method: `disbursement`. Customer harus pilih rekening tujuan via
+          `POST /api/v1/users/orders/:orderId/refunds/destination`.
+
+        **Side effects:**
+        1. Status order → `canceled`
+        2. Stok produk dikembalikan (restore stock)
+        3. Record `order_status_history` dibuat dengan notes "Order canceled by customer"
+        4. Record refund dibuat (jika sudah dibayar)
+      operationId: cancelCustomerOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      responses:
+        "200":
+          description: Order berhasil dibatalkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCancelOrderEnvelope"
+              examples:
+                cancelUnpaid:
+                  summary: Batalkan pesanan yang belum dibayar
+                  value:
+                    success: true
+                    message: "order canceled successfully"
+                    data:
+                      order_id: "11111111-2222-3333-4444-555555555555"
+                      order_status: canceled
+                      canceled_at: "2026-03-06T09:10:00Z"
+                      refund_info: null
+                    errors: null
+                    meta: null
+                cancelPaidVA:
+                  summary: Batalkan pesanan yang sudah dibayar (VA/Bank Transfer)
+                  value:
+                    success: true
+                    message: "order canceled successfully"
+                    data:
+                      order_id: "11111111-2222-3333-4444-555555555555"
+                      order_status: canceled
+                      canceled_at: "2026-03-06T09:10:00Z"
+                      refund_info:
+                        refund_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                        refund_method: disbursement
+                        status: awaiting_destination
+                        message: "Silakan pilih rekening tujuan untuk refund"
+                    errors: null
+                    meta: null
+                cancelPaidEWallet:
+                  summary: Batalkan pesanan yang sudah dibayar (QR/E-Wallet)
+                  value:
+                    success: true
+                    message: "order canceled successfully"
+                    data:
+                      order_id: "11111111-2222-3333-4444-555555555555"
+                      order_status: canceled
+                      canceled_at: "2026-03-06T09:10:00Z"
+                      refund_info:
+                        refund_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                        refund_method: gateway
+                        status: processing
+                        message: "Refund sedang diproses melalui metode pembayaran asal"
+                    errors: null
+                    meta: null
+        "400":
+          description: |
+            Request tidak valid. Kemungkinan:
+            - ID order bukan UUID valid
+            - Status order tidak bisa dibatalkan (`order can only be canceled when status is pending_payment, paid, or processing`)
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalidOrderID:
+                  summary: ID order tidak valid
+                  value:
+                    success: false
+                    message: "invalid order id"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidTransition:
+                  summary: Status order tidak bisa dibatalkan
+                  value:
+                    success: false
+                    message: "order can only be canceled when status is pending_payment, paid, or processing"
+                    data: null
+                    errors: null
+                    meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order bukan milik customer atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "order does not belong to this user"
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Order tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "order not found"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/orders/{orderId}/refunds:
+    post:
+      tags:
+        - Refunds
+      summary: Ajukan Pengembalian Dana
+      description: |
+        Membuat permintaan pengembalian dana (refund) untuk order yang sudah diterima.
+        Customer harus menyertakan alasan pengembalian, rekening tujuan, dan bukti foto/video opsional.
+
+        **Syarat order eligible:**
+        - Order milik customer yang login.
+        - Status order memenuhi syarat refund (biasanya `completed` atau `received`).
+        - Belum ada refund request terbuka untuk order ini.
+
+        **Upload bukti:**
+        - Gunakan `POST /api/v1/users/orders/:orderId/refunds/evidence/presign` untuk mendapatkan presigned upload URL.
+        - Upload file, lalu kirim `object_key` yang didapat ke field `image_object_keys` atau `video_object_key`.
+        - Maksimal 5 gambar dan 1 video.
+
+        **Rekening tujuan:**
+        - `destination_channel_code`: kode channel bank (contoh: `ID_BCA`, `ID_BNI`).
+          Jika tidak diisi, default `ID_BCA`.
+        - `destination_bank_name`, `destination_account_number`, `destination_account_holder_name` wajib diisi.
+      operationId: requestOrderRefund
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRefundRequest"
+            example:
+              return_reason_id: 1
+              description: "Barang tidak sesuai deskripsi"
+              destination_channel_code: "ID_BNI"
+              destination_bank_name: "BNI"
+              destination_account_number: "1234567890"
+              destination_account_holder_name: "RIZKY ALAMSYAH"
+              image_object_keys:
+                - "refund-evidence/abc123.jpg"
+              video_object_key: null
+      responses:
+        "200":
+          description: Permintaan refund berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCreateOrderRefundEnvelope"
+              example:
+                success: true
+                message: "refund request created"
+                data:
+                  refund_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                  order_id: "11111111-2222-3333-4444-555555555555"
+                  status: requested
+                  amount: 113000
+                  return_reason_id: 1
+                  reason: "Barang tidak sesuai deskripsi"
+                  description: "Barang tidak sesuai deskripsi"
+                  destination_channel_code: "ID_BNI"
+                  destination_bank_name: "BNI"
+                  destination_account_holder_name: "RIZKY ALAMSYAH"
+                  destination_account_number_last4: "7890"
+                  image_urls:
+                    - "https://storage.example.com/refund-evidence/abc123.jpg"
+                  requested_at: "2026-04-02T08:30:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid (validasi gagal atau alasan tidak ditemukan).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                validationFailed:
+                  summary: Validasi body gagal
+                  value:
+                    success: false
+                    message: "Invalid request body"
+                    data: null
+                    errors: "Key: 'CreateOrderRefundRequest.ReturnReasonID' Error:Field validation for 'ReturnReasonID' failed on the 'required' tag"
+                    meta: null
+                reasonNotFound:
+                  summary: Alasan pengembalian tidak ditemukan
+                  value:
+                    success: false
+                    message: "return reason not found"
+                    data: null
+                    errors: null
+                    meta: null
+                destinationRequired:
+                  summary: Rekening tujuan wajib diisi
+                  value:
+                    success: false
+                    message: "destination account data is required for disbursement refund"
+                    data: null
+                    errors: null
+                    meta: null
+                tooManyImages:
+                  summary: Terlalu banyak gambar bukti
+                  value:
+                    success: false
+                    message: "maximum 5 images for refund evidence"
+                    data: null
+                    errors: null
+                    meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order bukan milik customer atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Sudah ada refund request terbuka untuk order ini.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "refund request already exists for this order"
+                data: null
+                errors: null
+                meta: null
+        "422":
+          description: Order tidak eligible untuk refund.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                notEligible:
+                  summary: Order tidak eligible
+                  value:
+                    success: false
+                    message: "order is not eligible for refund request"
+                    data: null
+                    errors: null
+                    meta: null
+                evidenceNotUploaded:
+                  summary: Bukti belum diupload
+                  value:
+                    success: false
+                    message: "refund evidence not found in storage; upload it first"
+                    data: null
+                    errors: null
+                    meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/orders/{orderId}/refunds/destination:
+    post:
+      tags:
+        - Refunds
+      summary: Kirim Tujuan Refund
+      description: |
+        Mengirimkan data rekening tujuan untuk refund yang berstatus `awaiting_destination`.
+        Flow ini terjadi ketika:
+        1. Customer membatalkan order yang dibayar via VA/Bank Transfer.
+        2. Auto-refund membuat record dengan status `awaiting_destination`.
+        3. Customer membuka modal "Pilih Tujuan Refund".
+        4. Customer memilih rekening tersimpan (`user_bank_account_id`) atau input manual.
+        5. Submit via endpoint ini.
+
+        **Pilihan input:**
+        - Kirim `user_bank_account_id` untuk menggunakan rekening tersimpan.
+        - ATAU kirim `destination_channel_code`, `destination_bank_name`,
+          `destination_account_number`, `destination_account_holder_name` secara manual.
+        - Set `save_bank_account: true` untuk menyimpan rekening manual untuk penggunaan berikutnya.
+      operationId: submitRefundDestination
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitRefundDestinationRequest"
+            examples:
+              useSavedAccount:
+                summary: Gunakan rekening tersimpan
+                value:
+                  user_bank_account_id: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+                  save_bank_account: false
+              useManualAccount:
+                summary: Input rekening manual + simpan
+                value:
+                  destination_channel_code: "ID_BCA"
+                  destination_bank_name: "BCA"
+                  destination_account_number: "1234567890"
+                  destination_account_holder_name: "John Doe"
+                  save_bank_account: true
+      responses:
+        "200":
+          description: Tujuan refund berhasil dikirim.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessSubmitRefundDestinationEnvelope"
+              example:
+                success: true
+                message: "refund destination submitted"
+                data:
+                  refund_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                  status: requested
+                  message: "Tujuan refund berhasil disimpan, menunggu proses finance"
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid (data rekening tidak lengkap).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order bukan milik customer atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Order atau refund tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/orders/{orderId}/refunds/evidence/presign:
+    post:
+      tags:
+        - Refunds
+      summary: Presign Upload URL Bukti Refund
+      description: |
+        Menghasilkan presigned upload URL untuk bukti refund (gambar atau video).
+
+        **Content-type yang diterima:**
+        - `image/png`, `image/jpeg`, `image/webp` (maks 5 file, maks 10MB per file)
+        - `video/mp4` (maks 1 file, maks 10MB)
+
+        Setelah upload selesai, kirim `object_key` ke field `image_object_keys`
+        atau `video_object_key` pada request `POST /api/v1/users/orders/:orderId/refunds`.
+      operationId: presignRefundEvidence
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresignRefundEvidenceRequest"
+            example:
+              content_type: image/jpeg
+      responses:
+        "200":
+          description: Presigned URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessPresignRefundEvidenceEnvelope"
+              example:
+                success: true
+                message: "presigned url generated"
+                data:
+                  upload_url: "https://storage.example.com/presigned-upload?..."
+                  object_key: "refund-evidence/abc123.jpg"
+                  content_type: image/jpeg
+                  expires_in: 3600
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Order bukan milik customer atau role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Content-type tidak didukung atau file terlalu besar.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalidContentType:
+                  summary: Content-type tidak didukung
+                  value:
+                    success: false
+                    message: "invalid refund evidence content type; allowed: image/png, image/jpeg, image/webp, video/mp4"
+                    data: null
+                    errors: null
+                    meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/bank-accounts:
+    post:
+      tags:
+        - Bank Accounts
+      summary: Tambah Rekening Bank
+      description: |
+        Menambahkan rekening bank baru untuk customer.
+        Rekening ini digunakan sebagai tujuan refund dana.
+        Jika `is_default: true`, rekening sebelumnya yang default akan di-unset.
+      operationId: createUserBankAccount
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBankAccountRequest"
+            example:
+              channel_code: "ID_BNI"
+              bank_name: "BNI"
+              account_number: "0123456789917"
+              account_holder_name: "RIZKY ALAMSYAH BIMANTARA"
+              is_default: true
+      responses:
+        "201":
+          description: Rekening bank berhasil ditambahkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCreateBankAccountEnvelope"
+              example:
+                success: true
+                message: "bank account created"
+                data:
+                  id: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+                  channel_code: "ID_BNI"
+                  bank_name: "BNI"
+                  account_holder_name: "RIZKY ALAMSYAH BIMANTARA"
+                  account_last4: "9917"
+                  is_default: true
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid (validasi gagal).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                missingAccountNumber:
+                  summary: Nomor rekening wajib diisi
+                  value:
+                    success: false
+                    message: "Invalid request body"
+                    data: null
+                    errors: "Key: 'CreateUserBankAccountRequest.AccountNumber' Error:Field validation for 'AccountNumber' failed on the 'required' tag"
+                    meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
+      tags:
+        - Bank Accounts
+      summary: List Rekening Bank
+      description: |
+        Mengambil daftar semua rekening bank milik customer yang sedang login.
+        Nomor rekening ditampilkan dalam format masked (4 digit terakhir saja).
+      operationId: listUserBankAccounts
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar rekening bank berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessListBankAccountEnvelope"
+              example:
+                success: true
+                message: "bank accounts retrieved"
+                data:
+                  - id: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+                    channel_code: "ID_BNI"
+                    bank_name: "BNI"
+                    account_holder_name: "RIZKY ALAMSYAH BIMANTARA"
+                    account_last4: "9917"
+                    is_default: true
+                errors: null
+                meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan (bukan customer).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/bank-accounts/{id}:
+    delete:
+      tags:
+        - Bank Accounts
+      summary: Hapus Rekening Bank
+      description: |
+        Menghapus rekening bank milik customer.
+        Hanya bisa menghapus rekening milik sendiri.
+      operationId: deleteUserBankAccount
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/BankAccountIDParam"
+      responses:
+        "200":
+          description: Rekening bank berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNullDataEnvelope"
+              example:
+                success: true
+                message: "bank account deleted"
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID rekening tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Rekening bukan milik customer ini.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "bank account does not belong to this user"
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Rekening tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "bank account not found"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/users/bank-accounts/{id}/default:
+    patch:
+      tags:
+        - Bank Accounts
+      summary: Set Rekening Utama
+      description: |
+        Menandai rekening bank sebagai rekening utama (default).
+        Rekening default sebelumnya akan di-unset otomatis.
+      operationId: setDefaultUserBankAccount
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/BankAccountIDParam"
+      responses:
+        "200":
+          description: Rekening berhasil ditandai sebagai utama.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNullDataEnvelope"
+              example:
+                success: true
+                message: "bank account set as default"
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID rekening tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Rekening bukan milik customer ini.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Rekening tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/faq:
+    get:
+      tags:
+        - FAQ
+      summary: List FAQs
+      description: |
+        Mengambil daftar FAQ yang dikelompokkan berdasarkan kategori.
+        Dapat difilter dengan query `category` dan `search`.
+      operationId: listCustomerFaqs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter kategori FAQ.
+          example: Pembayaran
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Kata kunci pencarian untuk pertanyaan atau jawaban.
+          example: refund
+      responses:
+        "200":
+          description: FAQ berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFAQGroupListEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/faq/categories:
+    get:
+      tags:
+        - FAQ
+      summary: List FAQ Categories
+      operationId: listCustomerFaqCategories
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Kategori FAQ berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFAQCategoriesEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/tickets/subjects:
+    get:
+      tags:
+        - Tickets
+      summary: List Ticket Subjects
+      operationId: listTicketSubjects
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar subject tiket berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessTicketSubjectListEnvelope"
+              example:
+                success: true
+                message: "ticket subjects retrieved"
+                data:
+                  - id: 1
+                    label: Pembayaran
+                    is_active: true
+                  - id: 2
+                    label: Pengiriman
+                    is_active: true
+                errors: null
+                meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/tickets/attachment/presign:
+    post:
+      tags:
+        - Tickets
+      summary: Presign Ticket Attachment Upload
+      description: |
+        Membuat presigned upload URL untuk lampiran tiket bantuan.
+        Content-Type yang diizinkan: `image/png`, `image/jpeg`, `video/mp4`.
+      operationId: presignTicketAttachment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresignTicketAttachmentRequest"
+            example:
+              content_type: image/jpeg
+      responses:
+        "200":
+          description: Presigned upload URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessPresignTicketAttachmentEnvelope"
+        "400":
+          description: Request body tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Content-Type tidak didukung.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/tickets:
+    post:
+      tags:
+        - Tickets
+      summary: Create Ticket
+      description: |
+        Membuat tiket bantuan baru untuk customer yang sedang login.
+        `attachment_key` wajib berasal dari endpoint presign dan objek harus sudah terunggah ke storage.
+      operationId: createCustomerTicket
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTicketRequest"
+            example:
+              order_number: ORD-20260331-0001
+              phone: "081234567890"
+              reporter_name: Ahmad Fauzi
+              subject_id: 2
+              detail: Pesanan belum saya terima padahal status di aplikasi sudah shipped.
+              source: app
+              attachment_key: ticket-attachments/2026/03/31/abc123
+      responses:
+        "201":
+          description: Tiket berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessTicketEnvelope"
+        "400":
+          description: Request body tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Subject tiket tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Lampiran tidak valid atau belum diunggah.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/users:
+    get:
+      tags:
+        - Chat
+      summary: Search Chatable Users
+      description: |
+        Mencari user yang dapat dihubungi customer berdasarkan role yang diizinkan oleh usecase.
+        Untuk customer, role target yang valid adalah `umkm` dan `cs`.
+      operationId: searchChatableUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Kata kunci nama atau email.
+          example: sarah
+        - name: roles
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter role dipisahkan koma, misalnya `cs,umkm`.
+          example: cs
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+          example: 20
+      responses:
+        "200":
+          description: Daftar user berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessChatableUserListEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Kombinasi role chat tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat:
+    post:
+      tags:
+        - Chat
+      summary: Start or Get Conversation
+      operationId: startOrGetConversation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartConversationRequest"
+            example:
+              participant_id: "27d077ac-6cc9-4f36-986b-c6e00d0aa16d"
+      responses:
+        "201":
+          description: Percakapan siap digunakan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationEnvelope"
+        "400":
+          description: Request body tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Chat antara kedua role tidak diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Participant tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
+      tags:
+        - Chat
+      summary: List Conversations
+      operationId: listConversations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+          example: 10
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter berdasarkan nama participant lawan bicara.
+          example: toko
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter role participant lawan bicara.
+          example: umkm
+      responses:
+        "200":
+          description: Daftar percakapan berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationListEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/cs:
+    post:
+      tags:
+        - Chat
+      summary: Start Chat with Customer Service
+      description: Menghubungkan customer ke agen CS yang tersedia, atau mengembalikan conversation yang sudah ada.
+      operationId: startChatWithCS
+      security:
+        - BearerAuth: []
+      responses:
+        "201":
+          description: Customer berhasil terhubung ke CS.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: Tidak ada CS yang tersedia.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/attachment/presign:
+    post:
+      tags:
+        - Chat
+      summary: Presign Chat Attachment Upload
+      description: |
+        Membuat presigned upload URL untuk lampiran chat.
+        Content-Type yang diizinkan: `image/png`, `image/jpeg`, `video/mp4`.
+      operationId: presignChatAttachment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresignChatAttachmentRequest"
+            example:
+              content_type: image/jpeg
+      responses:
+        "200":
+          description: Presigned upload URL berhasil dibuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessPresignChatAttachmentEnvelope"
+        "400":
+          description: Request body tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Content-Type tidak didukung.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/{conversationId}:
+    get:
+      tags:
+        - Chat
+      summary: Get Conversation Detail
+      operationId: getConversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      responses:
+        "200":
+          description: Detail percakapan berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessConversationEnvelope"
+        "400":
+          description: ID percakapan tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User bukan participant percakapan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/{conversationId}/messages:
+    post:
+      tags:
+        - Chat
+      summary: Send Chat Message
+      operationId: sendChatMessage
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendChatMessageRequest"
+            example:
+              message: Assalamu'alaikum, saya ingin menanyakan status pesanan saya.
+              attachment_key: null
+      responses:
+        "201":
+          description: Pesan berhasil dikirim.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessChatMessageEnvelope"
+        "400":
+          description: ID percakapan atau request body tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User bukan participant percakapan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Lampiran chat tidak valid atau belum diunggah.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
+      tags:
+        - Chat
+      summary: List Chat Messages
+      operationId: listChatMessages
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          example: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+          example: 20
+      responses:
+        "200":
+          description: Pesan berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessChatMessageListEnvelope"
+        "400":
+          description: ID percakapan tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User bukan participant percakapan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/chat/{conversationId}/read:
+    patch:
+      tags:
+        - Chat
+      summary: Mark Conversation Messages as Read
+      operationId: markConversationRead
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ConversationIDParam"
+      responses:
+        "200":
+          description: Pesan dalam percakapan berhasil ditandai sudah dibaca.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNullDataEnvelope"
+              example:
+                success: true
+                message: "messages marked as read"
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID percakapan tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User bukan participant percakapan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Percakapan tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1620,6 +4625,53 @@ components:
         type: string
         format: uuid
       example: 550e8400-e29b-41d4-a716-446655440000
+
+  parameters:
+    AddressIDParam:
+      in: path
+      name: id
+      required: true
+      description: ID alamat.
+      schema:
+        type: string
+        format: uuid
+      example: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+    OrderIDParam:
+      in: path
+      name: orderId
+      required: true
+      description: ID order customer.
+      schema:
+        type: string
+        format: uuid
+      example: "11111111-2222-3333-4444-555555555555"
+    ConversationIDParam:
+      in: path
+      name: conversationId
+      required: true
+      description: ID percakapan chat.
+      schema:
+        type: string
+        format: uuid
+      example: "4c5382b0-87b4-4824-aae9-cc22f4f1d20d"
+    ProductIDParam:
+      in: path
+      name: productId
+      required: true
+      description: ID produk.
+      schema:
+        type: string
+        format: uuid
+      example: "0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2"
+    BankAccountIDParam:
+      in: path
+      name: id
+      required: true
+      description: ID rekening bank customer.
+      schema:
+        type: string
+        format: uuid
+      example: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
 
   schemas:
     # ──────────── Request Schemas ────────────
@@ -1818,15 +4870,175 @@ components:
           type: array
           minItems: 1
           description: |
-            Daftar pilihan kurir per vendor. Setiap vendor yang muncul di hasil preview harus memiliki satu entri.
+            Daftar pilihan kurir per vendor. Setiap vendor yang muncul di hasil preview item terpilih harus memiliki satu entri.
             Biaya kirim tidak dikirim dari client; backend menghitung ulang berdasarkan kurir dan service.
           items:
             $ref: "#/components/schemas/CheckoutShippingChoiceRequest"
         notes:
           type: string
           nullable: true
-          description: Catatan opsional customer untuk checkout.
+          description: Catatan opsional customer untuk checkout. Saat ini field diterima tetapi belum diproses lebih lanjut oleh backend.
           example: Tolong kirim di jam kerja.
+
+    AddWishlistItemRequest:
+      type: object
+      description: Payload request untuk menambahkan item wishlist.
+      required:
+        - product_id
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          description: ID produk yang akan ditambahkan ke wishlist.
+          example: "0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2"
+
+    # ──────────── Bank Account Request Schemas ────────────
+
+    CreateUserBankAccountRequest:
+      type: object
+      required:
+        - channel_code
+        - bank_name
+        - account_number
+        - account_holder_name
+      properties:
+        channel_code:
+          type: string
+          maxLength: 40
+          description: |
+            Kode channel bank sesuai format Xendit Payout.
+            Contoh: `ID_BCA`, `ID_BNI`, `ID_MANDIRI`, `ID_BRI`.
+          example: "ID_BNI"
+        bank_name:
+          type: string
+          maxLength: 80
+          description: Nama bank tampilan.
+          example: "BNI"
+        account_number:
+          type: string
+          maxLength: 64
+          description: Nomor rekening lengkap. Disimpan terenkripsi di server.
+          example: "0123456789917"
+        account_holder_name:
+          type: string
+          maxLength: 120
+          description: Nama pemilik rekening.
+          example: "RIZKY ALAMSYAH BIMANTARA"
+        is_default:
+          type: boolean
+          description: Tandai sebagai rekening utama. Default `false`.
+          default: false
+
+    # ──────────── Refund Request Schemas ────────────
+
+    CreateOrderRefundRequest:
+      type: object
+      required:
+        - return_reason_id
+        - destination_bank_name
+        - destination_account_number
+        - destination_account_holder_name
+      properties:
+        return_reason_id:
+          type: integer
+          minimum: 1
+          description: |
+            ID alasan pengembalian dari daftar return reasons.
+            Dapatkan daftar alasan via `GET /api/v1/return-reasons`.
+          example: 1
+        description:
+          type: string
+          maxLength: 1000
+          description: Deskripsi tambahan dari customer (opsional).
+          example: "Barang tidak sesuai deskripsi"
+        destination_channel_code:
+          type: string
+          maxLength: 40
+          description: Kode channel bank tujuan refund. Default `ID_BCA` jika kosong.
+          example: "ID_BNI"
+        destination_bank_name:
+          type: string
+          maxLength: 80
+          description: Nama bank tujuan refund.
+          example: "BNI"
+        destination_account_number:
+          type: string
+          maxLength: 64
+          description: Nomor rekening tujuan refund.
+          example: "1234567890"
+        destination_account_holder_name:
+          type: string
+          maxLength: 120
+          description: Nama pemilik rekening tujuan.
+          example: "RIZKY ALAMSYAH"
+        image_object_keys:
+          type: array
+          maxItems: 5
+          description: |
+            Daftar `object_key` gambar bukti refund (dari presign endpoint).
+            Maksimal 5 gambar.
+          items:
+            type: string
+          example:
+            - "refund-evidence/abc123.jpg"
+        video_object_key:
+          type: string
+          nullable: true
+          description: |
+            `object_key` video bukti refund (dari presign endpoint).
+            Maksimal 1 video.
+          example: null
+
+    SubmitRefundDestinationRequest:
+      type: object
+      description: |
+        Data rekening tujuan refund. Kirim salah satu:
+        - `user_bank_account_id` untuk menggunakan rekening tersimpan, ATAU
+        - `destination_*` fields untuk input manual.
+      properties:
+        user_bank_account_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID rekening bank tersimpan milik customer.
+          example: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+        destination_channel_code:
+          type: string
+          maxLength: 40
+          description: Kode channel bank (jika input manual).
+          example: "ID_BCA"
+        destination_bank_name:
+          type: string
+          maxLength: 80
+          description: Nama bank (jika input manual).
+          example: "BCA"
+        destination_account_number:
+          type: string
+          maxLength: 64
+          description: Nomor rekening (jika input manual).
+          example: "1234567890"
+        destination_account_holder_name:
+          type: string
+          maxLength: 120
+          description: Nama pemilik rekening (jika input manual).
+          example: "John Doe"
+        save_bank_account:
+          type: boolean
+          description: Simpan rekening manual untuk penggunaan berikutnya.
+          default: false
+
+    PresignRefundEvidenceRequest:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+          description: |
+            MIME type file yang akan diupload.
+            Diterima: `image/png`, `image/jpeg`, `image/webp`, `video/mp4`.
+          enum: [image/png, image/jpeg, image/webp, video/mp4]
+          example: image/jpeg
 
     # ──────────── Response Data Schemas ────────────
 
@@ -2185,6 +5397,94 @@ components:
           type: integer
           example: 1
 
+    WishlistItem:
+      type: object
+      description: Data satu item wishlist pada hasil listing.
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          description: ID produk.
+          example: "0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2"
+        product_name:
+          type: string
+          description: Nama produk.
+          example: Sajadah Premium Madinah
+        product_slug:
+          type: string
+          description: Slug produk untuk URL.
+          example: sajadah-premium-madinah
+        vendor_id:
+          type: string
+          format: uuid
+          description: ID vendor pemilik produk.
+          example: "f7b2c7bd-35b0-4ae4-a447-5e0e15f6af8e"
+        vendor_name:
+          type: string
+          description: Nama tampilan vendor.
+          example: Toko Harmoni Ibadah
+        image_url:
+          type: string
+          nullable: true
+          description: URL gambar utama produk (dapat null jika belum ada).
+          example: https://cdn.example.com/products/img-001.jpg
+        price:
+          type: number
+          format: double
+          nullable: true
+          description: Harga minimum variant aktif produk (dapat null).
+          example: 150000
+        currency:
+          type: string
+          nullable: true
+          description: Mata uang harga produk (contoh IDR, dapat null).
+          example: IDR
+        is_available:
+          type: boolean
+          description: Bernilai true jika produk berstatus published.
+          example: true
+        added_at:
+          type: string
+          format: date-time
+          description: Waktu produk ditambahkan ke wishlist.
+          example: "2026-03-05T10:15:30Z"
+
+    WishlistAddData:
+      type: object
+      description: Data hasil operasi tambah item ke wishlist.
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          description: ID produk target.
+          example: "0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2"
+        is_in_wishlist:
+          type: boolean
+          description: Menunjukkan produk ada di wishlist setelah operasi.
+          example: true
+        already_exists:
+          type: boolean
+          description: Bernilai true jika item sudah ada sebelumnya (idempotent).
+          example: false
+
+    WishlistStatusData:
+      type: object
+      description: Data status wishlist untuk satu produk.
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          description: ID produk yang dicek.
+          example: "0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2"
+        is_in_wishlist:
+          type: boolean
+          description: Bernilai true jika produk sudah ada di wishlist customer.
+          example: true
+        is_available:
+          type: boolean
+          description: Bernilai true jika produk berstatus published.
+          example: true
+
     OrderStatusesResponseData:
       type: array
       items:
@@ -2408,6 +5708,1740 @@ components:
           example: "review created successfully"
         data:
           $ref: "#/components/schemas/CreateProductReviewResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    CreateAddressRequest:
+      type: object
+      required:
+        - address_line
+      properties:
+        label:
+          type: string
+          nullable: true
+          maxLength: 40
+          example: Rumah
+        recipient_name:
+          type: string
+          nullable: true
+          maxLength: 120
+          example: Ahmad Fauzi
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+          example: "081234567890"
+        province_id:
+          type: string
+          nullable: true
+          maxLength: 20
+          example: "31"
+        province_name:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: DKI Jakarta
+        city_id:
+          type: string
+          nullable: true
+          maxLength: 20
+          example: "3171"
+        city_name:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: Jakarta Selatan
+        district_id:
+          type: string
+          nullable: true
+          maxLength: 20
+          example: "3171020"
+        district_name:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: Kebayoran Baru
+        subdistrict_id:
+          type: string
+          nullable: true
+          maxLength: 20
+          example: "3171020001"
+        subdistrict_name:
+          type: string
+          nullable: true
+          maxLength: 100
+          example: Selong
+        postal_code:
+          type: string
+          nullable: true
+          maxLength: 10
+          example: "12110"
+        address_line:
+          type: string
+          example: Jl. Sisingamangaraja No. 10
+        notes:
+          type: string
+          nullable: true
+          example: Dekat pintu masuk utama
+        latitude:
+          type: number
+          format: double
+          nullable: true
+          example: -6.244669
+        longitude:
+          type: number
+          format: double
+          nullable: true
+          example: 106.799004
+        is_default:
+          type: boolean
+          example: true
+
+    UpdateAddressRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          nullable: true
+          maxLength: 40
+        recipient_name:
+          type: string
+          nullable: true
+          maxLength: 120
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        province_id:
+          type: string
+          nullable: true
+        province_name:
+          type: string
+          nullable: true
+        city_id:
+          type: string
+          nullable: true
+        city_name:
+          type: string
+          nullable: true
+        district_id:
+          type: string
+          nullable: true
+        district_name:
+          type: string
+          nullable: true
+        subdistrict_id:
+          type: string
+          nullable: true
+        subdistrict_name:
+          type: string
+          nullable: true
+        postal_code:
+          type: string
+          nullable: true
+        address_line:
+          type: string
+          nullable: true
+          example: Jl. Sisingamangaraja No. 12
+        notes:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+          nullable: true
+        longitude:
+          type: number
+          format: double
+          nullable: true
+        is_default:
+          type: boolean
+          nullable: true
+
+    CheckoutPreviewRequest:
+      type: object
+      required:
+        - address_id
+      properties:
+        address_id:
+          type: string
+          format: uuid
+          description: ID alamat pengiriman untuk menghitung preview item cart yang sedang dipilih.
+          example: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+
+    PresignTicketAttachmentRequest:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+          example: image/jpeg
+
+    CreateTicketRequest:
+      type: object
+      required:
+        - order_number
+        - phone
+        - reporter_name
+        - subject_id
+        - detail
+        - source
+        - attachment_key
+      properties:
+        order_number:
+          type: string
+          example: ORD-20260331-0001
+        phone:
+          type: string
+          example: "081234567890"
+        reporter_name:
+          type: string
+          example: Ahmad Fauzi
+        subject_id:
+          type: integer
+          minimum: 1
+          example: 2
+        detail:
+          type: string
+          example: Pesanan belum saya terima padahal status di aplikasi sudah shipped.
+        source:
+          type: string
+          enum: [app, web]
+          example: app
+        attachment_key:
+          type: string
+          example: ticket-attachments/2026/03/31/abc123
+
+    StartConversationRequest:
+      type: object
+      required:
+        - participant_id
+      properties:
+        participant_id:
+          type: string
+          format: uuid
+          example: "27d077ac-6cc9-4f36-986b-c6e00d0aa16d"
+
+    PresignChatAttachmentRequest:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+          example: image/jpeg
+
+    SendChatMessageRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: Assalamu'alaikum, saya ingin menanyakan status pesanan saya.
+        attachment_key:
+          type: string
+          nullable: true
+          example: null
+
+    CancelOrderRefundInfo:
+      type: object
+      description: |
+        Informasi refund yang otomatis dibuat saat order yang sudah dibayar dibatalkan.
+        Hanya muncul jika `payment_status` order adalah `paid`.
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+          example: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        refund_method:
+          type: string
+          description: |
+            Metode refund yang digunakan:
+            - `gateway` — refund otomatis via Xendit (QR/E-Wallet)
+            - `disbursement` — transfer manual ke rekening customer (VA/Bank Transfer)
+          enum: [gateway, disbursement]
+          example: disbursement
+        status:
+          type: string
+          description: |
+            Status refund:
+            - `processing` — sedang diproses via gateway
+            - `awaiting_destination` — menunggu customer pilih rekening tujuan
+          enum: [processing, awaiting_destination]
+          example: awaiting_destination
+        message:
+          type: string
+          example: "Silakan pilih rekening tujuan untuk refund"
+
+    CancelOrderResponseData:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          example: "11111111-2222-3333-4444-555555555555"
+        order_status:
+          type: string
+          example: canceled
+        canceled_at:
+          type: string
+          format: date-time
+          example: "2026-03-06T09:10:00Z"
+        refund_info:
+          allOf:
+            - $ref: "#/components/schemas/CancelOrderRefundInfo"
+          nullable: true
+          description: Informasi auto-refund. Hanya ada jika order sudah dibayar (`payment_status = paid`).
+
+    # ──────────── Bank Account Response Schemas ────────────
+
+    CreateUserBankAccountResponseData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+        channel_code:
+          type: string
+          example: "ID_BNI"
+        bank_name:
+          type: string
+          example: "BNI"
+        account_holder_name:
+          type: string
+          example: "RIZKY ALAMSYAH BIMANTARA"
+        account_last4:
+          type: string
+          description: 4 digit terakhir nomor rekening.
+          example: "9917"
+        is_default:
+          type: boolean
+          example: true
+
+    UserBankAccountListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "4d4f8b5d-7b19-4b7d-bfe4-fc2f43c9d8bb"
+        channel_code:
+          type: string
+          example: "ID_BNI"
+        bank_name:
+          type: string
+          example: "BNI"
+        account_holder_name:
+          type: string
+          example: "RIZKY ALAMSYAH BIMANTARA"
+        account_last4:
+          type: string
+          description: 4 digit terakhir nomor rekening.
+          example: "9917"
+        is_default:
+          type: boolean
+          example: true
+
+    # ──────────── Refund Response Schemas ────────────
+
+    CreateOrderRefundResponseData:
+      type: object
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [requested, awaiting_destination]
+          example: requested
+        amount:
+          type: number
+          format: double
+          example: 113000
+        return_reason_id:
+          type: integer
+          example: 1
+        reason:
+          type: string
+          example: "Barang tidak sesuai deskripsi"
+        description:
+          type: string
+          nullable: true
+          example: "Barang tidak sesuai deskripsi"
+        destination_channel_code:
+          type: string
+          example: "ID_BNI"
+        destination_bank_name:
+          type: string
+          example: "BNI"
+        destination_account_holder_name:
+          type: string
+          example: "RIZKY ALAMSYAH"
+        destination_account_number_last4:
+          type: string
+          description: 4 digit terakhir nomor rekening tujuan.
+          example: "7890"
+        image_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+          example:
+            - "https://storage.example.com/refund-evidence/abc123.jpg"
+        video_url:
+          type: string
+          format: uri
+          nullable: true
+          example: null
+        requested_at:
+          type: string
+          format: date-time
+
+    SubmitRefundDestinationResponseData:
+      type: object
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          example: requested
+        message:
+          type: string
+          example: "Tujuan refund berhasil disimpan, menunggu proses finance"
+
+    PresignRefundEvidenceResponseData:
+      type: object
+      properties:
+        upload_url:
+          type: string
+          format: uri
+          description: Presigned URL untuk upload langsung ke storage.
+          example: "https://storage.example.com/presigned-upload?..."
+        object_key:
+          type: string
+          description: |
+            Key objek di storage. Kirim nilai ini ke field
+            `image_object_keys` atau `video_object_key` saat submit refund.
+          example: "refund-evidence/abc123.jpg"
+        content_type:
+          type: string
+          example: image/jpeg
+        expires_in:
+          type: integer
+          description: Durasi validitas URL dalam detik.
+          example: 3600
+
+    AddressResponseData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        label:
+          type: string
+          nullable: true
+          example: Rumah
+        recipient_name:
+          type: string
+          nullable: true
+          example: Ahmad Fauzi
+        phone:
+          type: string
+          nullable: true
+          example: "081234567890"
+        province_id:
+          type: string
+          nullable: true
+          example: "31"
+        province_name:
+          type: string
+          nullable: true
+          example: DKI Jakarta
+        city_id:
+          type: string
+          nullable: true
+          example: "3171"
+        city_name:
+          type: string
+          nullable: true
+          example: Jakarta Selatan
+        district_id:
+          type: string
+          nullable: true
+          example: "3171020"
+        district_name:
+          type: string
+          nullable: true
+          example: Kebayoran Baru
+        subdistrict_id:
+          type: string
+          nullable: true
+          example: "3171020001"
+        subdistrict_name:
+          type: string
+          nullable: true
+          example: Selong
+        postal_code:
+          type: string
+          nullable: true
+          example: "12110"
+        address_line:
+          type: string
+          example: Jl. Sisingamangaraja No. 10
+        notes:
+          type: string
+          nullable: true
+          example: Dekat pintu masuk utama
+        latitude:
+          type: number
+          format: double
+          nullable: true
+          example: -6.244669
+        longitude:
+          type: number
+          format: double
+          nullable: true
+          example: 106.799004
+        is_default:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-31T04:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-31T04:10:00Z"
+
+    ShippingCostOption:
+      type: object
+      properties:
+        name:
+          type: string
+          example: JNE
+        code:
+          type: string
+          example: jne
+        service:
+          type: string
+          example: REG
+        description:
+          type: string
+          example: Layanan Reguler
+        cost:
+          type: integer
+          example: 18000
+        etd:
+          type: string
+          example: 2-3 hari
+
+    CheckoutPreviewVendorItem:
+      type: object
+      properties:
+        product_variant_id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+        variant_name:
+          type: string
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+        price:
+          type: number
+          format: double
+        original_price:
+          type: number
+          format: double
+        promo_price:
+          type: number
+          format: double
+          nullable: true
+        has_promo:
+          type: boolean
+        qty:
+          type: integer
+        subtotal:
+          type: number
+          format: double
+        weight_gram:
+          type: integer
+
+    CheckoutPreviewVendorGroup:
+      type: object
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+        vendor_name:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CheckoutPreviewVendorItem"
+        subtotal:
+          type: number
+          format: double
+        total_weight_gram:
+          type: integer
+        shipping_options:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShippingCostOption"
+
+    CheckoutPreviewResponseData:
+      type: object
+      properties:
+        address:
+          $ref: "#/components/schemas/AddressResponseData"
+        vendors:
+          type: array
+          items:
+            $ref: "#/components/schemas/CheckoutPreviewVendorGroup"
+        platform_fee:
+          type: number
+          format: double
+          example: 2500
+
+    CustomerOrderDetailShipping:
+      type: object
+      properties:
+        courier:
+          type: string
+          example: JNE REG
+        tracking_number:
+          type: string
+          example: JNE1234567890
+        status:
+          type: string
+          example: shipped
+        status_date:
+          type: string
+          nullable: true
+          example: "2026-03-05 10:00 WIB"
+
+    CustomerOrderDetailAddress:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        street:
+          type: string
+        district:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+        postal_code:
+          type: string
+
+    CustomerOrderDetailStore:
+      type: object
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+        owner_user_id:
+          type: string
+          format: uuid
+          description: User ID pemilik toko (untuk fitur chat dengan penjual).
+        name:
+          type: string
+
+    CustomerOrderDetailItem:
+      type: object
+      properties:
+        order_item_id:
+          type: string
+          format: uuid
+          description: ID item order (digunakan untuk review).
+        name:
+          type: string
+        variant:
+          type: string
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+        price:
+          type: number
+          format: double
+        qty:
+          type: integer
+        subtotal:
+          type: number
+          format: double
+
+    CustomerOrderDetailPayment:
+      type: object
+      properties:
+        method:
+          type: string
+          example: VA BCA
+        invoice_id:
+          type: string
+          nullable: true
+          example: inv-um-001
+
+    CustomerOrderDetailMeta:
+      type: object
+      properties:
+        order_no:
+          type: string
+          example: ORD-20260331-0001
+        status:
+          type: string
+          description: Status order saat ini.
+          enum: [pending_payment, paid, processing, packed, shipped, received, completed, canceled, refunded]
+          example: paid
+        payment_status:
+          type: string
+          description: Status pembayaran order.
+          enum: [unpaid, paid, refunded]
+          example: paid
+        order_time:
+          type: string
+          format: date-time
+        payment_time:
+          type: string
+          format: date-time
+          nullable: true
+        shipping_time:
+          type: string
+          format: date-time
+          nullable: true
+        delivered_time:
+          type: string
+          format: date-time
+          nullable: true
+
+    CustomerOrderDetailSummary:
+      type: object
+      properties:
+        subtotal:
+          type: number
+          format: double
+        shipping_fee:
+          type: number
+          format: double
+        service_fee:
+          type: number
+          format: double
+        grand_total:
+          type: number
+          format: double
+
+    CustomerOrderActions:
+      type: object
+      properties:
+        can_cancel:
+          type: boolean
+          description: |
+            `true` jika status order: `pending_payment`, `paid`, atau `processing`.
+        can_complete:
+          type: boolean
+          description: |
+            `true` jika status order: `paid`, `packed`, atau `shipped`.
+        can_review:
+          type: boolean
+          description: |
+            `true` jika status order: `completed`.
+        can_contact:
+          type: boolean
+          description: Selalu `true` — customer bisa menghubungi penjual.
+        can_refund:
+          type: boolean
+          description: |
+            `true` jika order eligible untuk ajukan pengembalian dana.
+        needs_refund_destination:
+          type: boolean
+          description: |
+            `true` jika ada refund dengan status `awaiting_destination`
+            (customer perlu pilih rekening tujuan refund).
+
+    CustomerOrderDetailRefund:
+      type: object
+      description: Informasi refund yang terkait order (jika ada).
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [requested, approved, rejected, processing, processed, awaiting_destination]
+          example: awaiting_destination
+        refund_method:
+          type: string
+          enum: [gateway, disbursement]
+          example: disbursement
+        amount:
+          type: number
+          format: double
+          example: 113000
+        message:
+          type: string
+          example: "Silakan pilih rekening tujuan untuk refund"
+        destination_bank_name:
+          type: string
+          example: BNI
+        destination_account_number_last4:
+          type: string
+          example: "9917"
+
+    CustomerOrderDetailResponseData:
+      type: object
+      properties:
+        shipping:
+          allOf:
+            - $ref: "#/components/schemas/CustomerOrderDetailShipping"
+          nullable: true
+        address:
+          $ref: "#/components/schemas/CustomerOrderDetailAddress"
+        store:
+          $ref: "#/components/schemas/CustomerOrderDetailStore"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerOrderDetailItem"
+        payment:
+          $ref: "#/components/schemas/CustomerOrderDetailPayment"
+        order:
+          $ref: "#/components/schemas/CustomerOrderDetailMeta"
+        summary:
+          $ref: "#/components/schemas/CustomerOrderDetailSummary"
+        actions:
+          $ref: "#/components/schemas/CustomerOrderActions"
+        refund:
+          allOf:
+            - $ref: "#/components/schemas/CustomerOrderDetailRefund"
+          nullable: true
+          description: Informasi refund terkait order. `null` jika tidak ada refund.
+
+    InvoiceActions:
+      type: object
+      properties:
+        can_copy:
+          type: boolean
+        can_print:
+          type: boolean
+        can_download:
+          type: boolean
+
+    InvoiceInfo:
+      type: object
+      properties:
+        invoice_number:
+          type: string
+          example: INV-20260331-0001
+        issued_at:
+          type: string
+          example: "2026-03-31 08:30 WIB"
+        actions:
+          $ref: "#/components/schemas/InvoiceActions"
+
+    InvoiceCustomerAddress:
+      type: object
+      properties:
+        street:
+          type: string
+        district:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+        postal_code:
+          type: string
+
+    InvoiceCustomer:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          $ref: "#/components/schemas/InvoiceCustomerAddress"
+
+    InvoicePayment:
+      type: object
+      properties:
+        method:
+          type: string
+          example: VA BCA
+        paid_at:
+          type: string
+          example: "2026-03-31 08:45 WIB"
+
+    InvoiceItem:
+      type: object
+      properties:
+        name:
+          type: string
+        variant:
+          type: string
+        price:
+          type: number
+          format: double
+        quantity:
+          type: integer
+        subtotal:
+          type: number
+          format: double
+        image_url:
+          type: string
+          format: uri
+          nullable: true
+
+    InvoiceSummary:
+      type: object
+      properties:
+        subtotal:
+          type: number
+          format: double
+        shipping_fee:
+          type: number
+          format: double
+        service_fee:
+          type: number
+          format: double
+        total:
+          type: number
+          format: double
+        currency:
+          type: string
+          example: IDR
+
+    OrderInvoiceResponseData:
+      type: object
+      properties:
+        invoice:
+          $ref: "#/components/schemas/InvoiceInfo"
+        customer:
+          $ref: "#/components/schemas/InvoiceCustomer"
+        payment:
+          $ref: "#/components/schemas/InvoicePayment"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceItem"
+        summary:
+          $ref: "#/components/schemas/InvoiceSummary"
+
+    ShippingInfoStage:
+      type: object
+      properties:
+        status:
+          type: string
+        label:
+          type: string
+        completed:
+          type: boolean
+        active:
+          type: boolean
+
+    ShippingInfoCourier:
+      type: object
+      properties:
+        name:
+          type: string
+          example: JNE
+        code:
+          type: string
+          example: jne
+        tracking_no:
+          type: string
+          example: JNE1234567890
+
+    ShippingInfoEvent:
+      type: object
+      properties:
+        date_time:
+          type: string
+          example: "2026-03-05 10:00 WIB"
+        description:
+          type: string
+          example: Paket sedang dalam perjalanan ke kota tujuan
+        location:
+          type: string
+          example: Jakarta
+
+    OrderShippingInfoResponseData:
+      type: object
+      properties:
+        estimated_arrival:
+          type: string
+          nullable: true
+          example: "2026-03-07"
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShippingInfoStage"
+        courier:
+          $ref: "#/components/schemas/ShippingInfoCourier"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShippingInfoEvent"
+
+    FAQResponseData:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+        category:
+          type: string
+          example: Pembayaran
+        question:
+          type: string
+          example: Bagaimana cara melakukan refund?
+        answer:
+          type: string
+          example: Refund diproses setelah verifikasi CS dan status transaksi sesuai.
+
+    FAQCategoryGroup:
+      type: object
+      properties:
+        category:
+          type: string
+          example: Pembayaran
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FAQResponseData"
+
+    FAQCategoriesResponseData:
+      type: array
+      items:
+        type: string
+      example:
+        - Akun
+        - Produk
+        - Pembayaran
+        - Pengiriman
+
+    TicketSubjectResponseData:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        label:
+          type: string
+          example: Pembayaran
+        is_active:
+          type: boolean
+          example: true
+
+    PresignTicketAttachmentResponseData:
+      type: object
+      properties:
+        upload_url:
+          type: string
+          format: uri
+        object_key:
+          type: string
+        content_type:
+          type: string
+        expires_in:
+          type: integer
+          example: 1800
+
+    TicketResponseData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+          example: TKT-20260331-0001
+        customer_id:
+          type: string
+          format: uuid
+        customer_email:
+          type: string
+          example: ahmad.fauzi@example.com
+        assigned_cs_id:
+          type: string
+          format: uuid
+          nullable: true
+        assigned_cs_name:
+          type: string
+          nullable: true
+        order_number:
+          type: string
+          example: ORD-20260331-0001
+        order_status:
+          type: string
+          example: shipped
+        payment_method:
+          type: string
+          nullable: true
+          example: VA BCA
+        grand_total:
+          type: number
+          format: double
+          example: 206000
+        phone:
+          type: string
+          example: "081234567890"
+        reporter_name:
+          type: string
+          example: Ahmad Fauzi
+        subject:
+          type: string
+          example: Pengiriman
+        detail:
+          type: string
+        status:
+          type: string
+          example: open
+        source:
+          type: string
+          example: app
+        attachment_url:
+          type: string
+          format: uri
+          nullable: true
+        attachment_content_type:
+          type: string
+          nullable: true
+          example: image/jpeg
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ChatableUserResponseData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+          example: Sarah Ahmad
+        email:
+          type: string
+          example: sarah@example.com
+        role:
+          type: string
+          example: cs
+
+    PresignChatAttachmentResponseData:
+      type: object
+      properties:
+        upload_url:
+          type: string
+          format: uri
+        object_key:
+          type: string
+        content_type:
+          type: string
+        expires_in:
+          type: integer
+          example: 1800
+
+    ConversationResponseData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        initiator_id:
+          type: string
+          format: uuid
+        participant_id:
+          type: string
+          format: uuid
+        last_message_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        user_name:
+          type: string
+          example: Customer Service Aisyah
+        user_role:
+          type: string
+          example: cs
+        last_message:
+          type: string
+          example: Baik, kami bantu cek pesanan Anda.
+        last_message_time:
+          type: string
+          format: date-time
+          nullable: true
+        unread_count:
+          type: integer
+          format: int64
+          example: 0
+
+    ChatMessageResponseData:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversation_id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        sender_name:
+          type: string
+          example: Ahmad Fauzi
+        sender_role:
+          type: string
+          example: customer
+        message:
+          type: string
+          example: Mohon bantu cek status pesanan saya.
+        attachment_url:
+          type: string
+          format: uri
+          nullable: true
+        is_read:
+          type: boolean
+          example: false
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    SuccessNullDataEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: success
+        data:
+          nullable: true
+          example: null
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessAddressEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: address loaded
+        data:
+          $ref: "#/components/schemas/AddressResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessAddressListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: addresses loaded
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AddressResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessWishlistListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: wishlist retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WishlistItem"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    SuccessWishlistAddEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: item added to wishlist
+        data:
+          $ref: "#/components/schemas/WishlistAddData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessWishlistStatusEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: wishlist status retrieved successfully
+        data:
+          $ref: "#/components/schemas/WishlistStatusData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCheckoutPreviewEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: checkout preview generated
+        data:
+          $ref: "#/components/schemas/CheckoutPreviewResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCancelOrderEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "order canceled successfully"
+        data:
+          $ref: "#/components/schemas/CancelOrderResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessCustomerOrderDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "order detail retrieved successfully"
+        data:
+          $ref: "#/components/schemas/CustomerOrderDetailResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessOrderInvoiceEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "order invoice retrieved successfully"
+        data:
+          $ref: "#/components/schemas/OrderInvoiceResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessOrderShippingInfoEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "shipping info retrieved successfully"
+        data:
+          $ref: "#/components/schemas/OrderShippingInfoResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessFAQGroupListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "FAQ loaded"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FAQCategoryGroup"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessFAQCategoriesEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "FAQ categories loaded"
+        data:
+          $ref: "#/components/schemas/FAQCategoriesResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessTicketSubjectListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "ticket subjects retrieved"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketSubjectResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessPresignTicketAttachmentEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "presigned upload URL generated"
+        data:
+          $ref: "#/components/schemas/PresignTicketAttachmentResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessTicketEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "ticket created"
+        data:
+          $ref: "#/components/schemas/TicketResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessChatableUserListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "users retrieved"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatableUserResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    SuccessPresignChatAttachmentEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "presigned upload URL generated"
+        data:
+          $ref: "#/components/schemas/PresignChatAttachmentResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessConversationEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "conversation ready"
+        data:
+          $ref: "#/components/schemas/ConversationResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessConversationListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "conversations retrieved"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    SuccessChatMessageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "message sent"
+        data:
+          $ref: "#/components/schemas/ChatMessageResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessChatMessageListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "messages retrieved"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessageResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
+
+    # ──────────── Bank Account Envelopes ────────────
+
+    SuccessCreateBankAccountEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "bank account created"
+        data:
+          $ref: "#/components/schemas/CreateUserBankAccountResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessListBankAccountEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "bank accounts retrieved"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserBankAccountListItem"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    # ──────────── Refund Envelopes ────────────
+
+    SuccessCreateOrderRefundEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "refund request created"
+        data:
+          $ref: "#/components/schemas/CreateOrderRefundResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessSubmitRefundDestinationEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "refund destination submitted"
+        data:
+          $ref: "#/components/schemas/SubmitRefundDestinationResponseData"
+        errors:
+          nullable: true
+          example: null
+        meta:
+          nullable: true
+          example: null
+
+    SuccessPresignRefundEvidenceEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "presigned url generated"
+        data:
+          $ref: "#/components/schemas/PresignRefundEvidenceResponseData"
         errors:
           nullable: true
           example: null

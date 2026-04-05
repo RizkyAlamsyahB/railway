@@ -183,6 +183,21 @@ func (mr *MockVendorRepositoryMockRecorder) FindBankAccountByVendorID(ctx, vendo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindBankAccountByVendorID", reflect.TypeOf((*MockVendorRepository)(nil).FindBankAccountByVendorID), ctx, vendorID)
 }
 
+// FindResponsiblePersonByVendorID mocks base method.
+func (m *MockVendorRepository) FindResponsiblePersonByVendorID(ctx context.Context, vendorID uuid.UUID) (*domain.VendorResponsiblePerson, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindResponsiblePersonByVendorID", ctx, vendorID)
+	ret0, _ := ret[0].(*domain.VendorResponsiblePerson)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindResponsiblePersonByVendorID indicates an expected call of FindResponsiblePersonByVendorID.
+func (mr *MockVendorRepositoryMockRecorder) FindResponsiblePersonByVendorID(ctx, vendorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindResponsiblePersonByVendorID", reflect.TypeOf((*MockVendorRepository)(nil).FindResponsiblePersonByVendorID), ctx, vendorID)
+}
+
 // UpsertBankAccount mocks base method.
 func (m *MockVendorRepository) UpsertBankAccount(ctx context.Context, bankAccount *domain.VendorBankAccount) error {
 	m.ctrl.T.Helper()
@@ -317,6 +332,20 @@ func (mr *MockVendorRepositoryMockRecorder) List(ctx, params any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockVendorRepository)(nil).List), ctx, params)
 }
 
+// SubmitSouvenirStoreProposal mocks base method.
+func (m *MockVendorRepository) SubmitSouvenirStoreProposal(ctx context.Context, input domain.SubmitSouvenirStoreProposalInput) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SubmitSouvenirStoreProposal", ctx, input)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SubmitSouvenirStoreProposal indicates an expected call of SubmitSouvenirStoreProposal.
+func (mr *MockVendorRepositoryMockRecorder) SubmitSouvenirStoreProposal(ctx, input any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SubmitSouvenirStoreProposal", reflect.TypeOf((*MockVendorRepository)(nil).SubmitSouvenirStoreProposal), ctx, input)
+}
+
 // UpdatePayoutBatch mocks base method.
 func (m *MockVendorRepository) UpdatePayoutBatch(ctx context.Context, batch *domain.PayoutBatch) error {
 	m.ctrl.T.Helper()
@@ -357,4 +386,49 @@ func (m *MockVendorRepository) UpdateWithdrawal(ctx context.Context, withdrawal 
 func (mr *MockVendorRepositoryMockRecorder) UpdateWithdrawal(ctx, withdrawal any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWithdrawal", reflect.TypeOf((*MockVendorRepository)(nil).UpdateWithdrawal), ctx, withdrawal)
+}
+
+// IncrementTotalSold mocks base method.
+func (m *MockVendorRepository) IncrementTotalSold(ctx context.Context, vendorID uuid.UUID, qty int) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IncrementTotalSold", ctx, vendorID, qty)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// IncrementTotalSold indicates an expected call of IncrementTotalSold.
+func (mr *MockVendorRepositoryMockRecorder) IncrementTotalSold(ctx, vendorID, qty any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementTotalSold", reflect.TypeOf((*MockVendorRepository)(nil).IncrementTotalSold), ctx, vendorID, qty)
+}
+
+// FindDocumentByVendorIDAndDocType mocks base method.
+func (m *MockVendorRepository) FindDocumentByVendorIDAndDocType(ctx context.Context, vendorID uuid.UUID, docType string) (*domain.VendorDocument, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindDocumentByVendorIDAndDocType", ctx, vendorID, docType)
+	ret0, _ := ret[0].(*domain.VendorDocument)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindDocumentByVendorIDAndDocType indicates an expected call of FindDocumentByVendorIDAndDocType.
+func (mr *MockVendorRepositoryMockRecorder) FindDocumentByVendorIDAndDocType(ctx, vendorID, docType any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindDocumentByVendorIDAndDocType", reflect.TypeOf((*MockVendorRepository)(nil).FindDocumentByVendorIDAndDocType), ctx, vendorID, docType)
+}
+
+// GetVendorAggregatedRating mocks base method.
+func (m *MockVendorRepository) GetVendorAggregatedRating(ctx context.Context, vendorID uuid.UUID) (float64, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVendorAggregatedRating", ctx, vendorID)
+	ret0, _ := ret[0].(float64)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetVendorAggregatedRating indicates an expected call of GetVendorAggregatedRating.
+func (mr *MockVendorRepositoryMockRecorder) GetVendorAggregatedRating(ctx, vendorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVendorAggregatedRating", reflect.TypeOf((*MockVendorRepository)(nil).GetVendorAggregatedRating), ctx, vendorID)
 }

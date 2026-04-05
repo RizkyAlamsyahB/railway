@@ -72,23 +72,26 @@ var (
 	ErrVendorAccountBlocked      = errors.New("vendor account is blocked")
 	ErrNotVendor                 = errors.New("user does not have vendor access")
 	ErrNoVendorProfile           = errors.New("no vendor profile found for this user")
+	ErrVendorNotOwned            = errors.New("vendor does not belong to this user")
+	ErrVendorResponsibleEmail    = errors.New("responsible person email must match owner account email")
 	ErrInvalidStatusTransition   = errors.New("invalid status transition")
 )
 
 // --- Product errors ---
 
 var (
-	ErrVendorNotActive         = errors.New("vendor is not active")
-	ErrCategoryNotFound        = errors.New("category not found")
-	ErrProductNotFound         = errors.New("product not found")
-	ErrProductNotOwned         = errors.New("product does not belong to this vendor")
-	ErrImageNotFound           = errors.New("image not found for this product")
-	ErrImageNotUploaded        = errors.New("image not found in storage")
-	ErrInvalidImageContentType = errors.New("invalid image content type")
-	ErrImageSizeOverflow       = errors.New("image file size exceeds supported limit")
-	ErrDuplicatePrimaryImage   = errors.New("only one image can be marked as primary")
-	ErrNoPrimaryImage          = errors.New("at least one image must be marked as primary")
-	ErrTooManyImages           = errors.New("maximum 10 images per product")
+	ErrVendorNotActive          = errors.New("vendor is not active")
+	ErrVendorNoWarehouseAddress = errors.New("vendor must set a default address before adding products")
+	ErrCategoryNotFound         = errors.New("category not found")
+	ErrProductNotFound          = errors.New("product not found")
+	ErrProductNotOwned          = errors.New("product does not belong to this vendor")
+	ErrImageNotFound            = errors.New("image not found for this product")
+	ErrImageNotUploaded         = errors.New("image not found in storage")
+	ErrInvalidImageContentType  = errors.New("invalid image content type")
+	ErrImageSizeOverflow        = errors.New("image file size exceeds supported limit")
+	ErrDuplicatePrimaryImage    = errors.New("only one image can be marked as primary")
+	ErrNoPrimaryImage           = errors.New("at least one image must be marked as primary")
+	ErrTooManyImages            = errors.New("maximum 10 images per product")
 )
 
 // --- Xendit errors ---
@@ -122,6 +125,7 @@ var (
 	ErrVariantNotActive    = errors.New("product variant is not active")
 	ErrProductNotAvailable = errors.New("product is not available")
 	ErrInsufficientStock   = errors.New("insufficient stock")
+	ErrNoSelectedCartItems = errors.New("no selected cart items")
 )
 
 // --- Checkout errors ---
@@ -149,15 +153,28 @@ var (
 // --- Finance errors ---
 
 var (
-	ErrInvalidMonth            = errors.New("invalid month format, expected YYYY-MM")
-	ErrInvalidDate             = errors.New("invalid date format, expected YYYY-MM-DD")
-	ErrInvalidDateRange        = errors.New("invalid date range: date_from must be before or equal to date_to")
-	ErrInvalidPaymentStatus    = errors.New("invalid payment status")
-	ErrInvalidRefundStatus     = errors.New("invalid refund status")
-	ErrInvalidPayoutStatus     = errors.New("invalid payout status")
-	ErrInvalidRefundTransition = errors.New("invalid refund status transition")
-	ErrRefundNotFound          = errors.New("refund not found")
-	ErrPayoutNotFound          = errors.New("payout batch not found")
+	ErrInvalidMonth                       = errors.New("invalid month format, expected YYYY-MM")
+	ErrInvalidDate                        = errors.New("invalid date format, expected YYYY-MM-DD")
+	ErrInvalidDateRange                   = errors.New("invalid date range: date_from must be before or equal to date_to")
+	ErrInvalidPaymentStatus               = errors.New("invalid payment status")
+	ErrInvalidRefundStatus                = errors.New("invalid refund status")
+	ErrInvalidPayoutStatus                = errors.New("invalid payout status")
+	ErrInvalidRefundTransition            = errors.New("invalid refund status transition")
+	ErrRefundBlockedByCompletedSettlement = errors.New("refund cannot be processed because order settlement is already completed")
+	ErrRefundDestinationRequired          = errors.New("destination account data is required for disbursement refund")
+	ErrRefundPayoutInProgress             = errors.New("refund payout is already in progress")
+	ErrRefundDisbursementFailed           = errors.New("failed to initiate refund disbursement")
+	ErrRefundStrategyNotSupported         = errors.New("refund strategy for this payment channel is not supported")
+	ErrRefundNotFound                     = errors.New("refund not found")
+	ErrRefundAlreadyRequested             = errors.New("refund request already exists for this order")
+	ErrOrderRefundNotEligible             = errors.New("order is not eligible for refund request")
+	ErrRefundReasonNotFound               = errors.New("return reason not found")
+	ErrInvalidRefundEvidenceContentType   = errors.New("invalid refund evidence content type; allowed: image/png, image/jpeg, image/webp, video/mp4")
+	ErrRefundEvidenceTooLarge             = errors.New("refund evidence exceeds maximum size of 10 MB")
+	ErrRefundEvidenceNotUploaded          = errors.New("refund evidence not found in storage; upload it first")
+	ErrTooManyRefundEvidenceImages        = errors.New("maximum 5 images for refund evidence")
+	ErrTooManyRefundEvidenceVideos        = errors.New("maximum 1 video for refund evidence")
+	ErrPayoutNotFound                     = errors.New("payout batch not found")
 )
 
 // --- Notification errors ---
@@ -257,8 +274,10 @@ var (
 // --- Address errors ---
 
 var (
-	ErrAddressNotFound = errors.New("address not found")
-	ErrAddressNotOwned = errors.New("address does not belong to this user")
+	ErrAddressNotFound         = errors.New("address not found")
+	ErrAddressNotOwned         = errors.New("address does not belong to this user")
+	ErrCannotDeleteDefaultAddr = errors.New("cannot delete default address; set another address as default first")
+	ErrCannotDeleteLastAddr    = errors.New("cannot delete your last address; at least one address is required")
 )
 
 // --- Courier errors ---
@@ -286,4 +305,11 @@ var (
 	ErrShipmentNotFound             = errors.New("shipment not found for this order")
 	ErrTrackingFailed               = errors.New("failed to track waybill")
 	ErrInvalidOrderCancelTransition = errors.New("order can only be canceled when status is pending_payment, paid, or processing")
+)
+
+// --- User Bank Account errors ---
+
+var (
+	ErrBankAccountNotFound = errors.New("bank account not found")
+	ErrBankAccountNotOwned = errors.New("bank account does not belong to this user")
 )

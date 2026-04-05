@@ -26,13 +26,13 @@ func (ledgerAccountModel) TableName() string { return "ledger_accounts" }
 
 type ledgerJournalModel struct {
 	ID          string    `gorm:"column:id;primaryKey"`
-	JournalNo   string   `gorm:"column:journal_no"`
-	SourceType  string   `gorm:"column:source_type"`
-	SourceID    string   `gorm:"column:source_id"`
+	JournalNo   string    `gorm:"column:journal_no"`
+	SourceType  string    `gorm:"column:source_type"`
+	SourceID    string    `gorm:"column:source_id"`
 	EventTime   time.Time `gorm:"column:event_time"`
-	Description *string  `gorm:"column:description"`
-	Status      string   `gorm:"column:status"`
-	CreatedBy   *string  `gorm:"column:created_by"`
+	Description *string   `gorm:"column:description"`
+	Status      string    `gorm:"column:status"`
+	CreatedBy   *string   `gorm:"column:created_by"`
 	CreatedAt   time.Time `gorm:"column:created_at"`
 }
 
