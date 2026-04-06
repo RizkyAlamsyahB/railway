@@ -105,6 +105,8 @@ func (r *customerRefundRepository) CreateRefundRequest(ctx context.Context, inpu
 		}
 
 		if len(input.Evidences) == 0 {
+			// Best-effort notifications: do not fail refund request if notification insert fails.
+			_ = r.createRefundNotificationsTx(tx, input, status)
 			return nil
 		}
 
@@ -133,7 +135,13 @@ func (r *customerRefundRepository) CreateRefundRequest(ctx context.Context, inpu
 			})
 		}
 
-		return tx.Create(&models).Error
+		if err := tx.Create(&models).Error; err != nil {
+			return err
+		}
+
+		// Best-effort notifications: do not fail refund request if notification insert fails.
+		_ = r.createRefundNotificationsTx(tx, input, status)
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -152,6 +160,56 @@ func (r *customerRefundRepository) CreateRefundRequest(ctx context.Context, inpu
 		DestinationAccountNumberLast4: input.DestinationAccountNumberLast4,
 		RequestedAt:                   input.RequestedAt,
 	}, nil
+}
+
+func (r *customerRefundRepository) createRefundNotificationsTx(tx *gorm.DB, input domain.CreateCustomerRefundInput, status string) error {
+	orderReference := input.OrderID.String()
+
+	var orderRow struct {
+		OrderNo  string `gorm:"column:order_no"`
+		VendorID string `gorm:"column:vendor_id"`
+	}
+	if err := tx.Table("orders").
+		Select("order_no, vendor_id").
+		Where("id = ?", input.OrderID.String()).
+		Take(&orderRow).Error; err == nil {
+		if strings.TrimSpace(orderRow.OrderNo) != "" {
+			orderReference = orderRow.OrderNo
+		}
+	}
+
+	customerTitle, customerMessage := buildCustomerRefundNotification(status, orderReference)
+	if err := createNotificationTx(tx, input.RequestedBy, domain.NotificationTypeRefund, customerTitle, customerMessage); err != nil {
+		return err
+	}
+
+	if orderRow.VendorID == "" {
+		return nil
+	}
+	vendorID, err := uuid.Parse(orderRow.VendorID)
+	if err != nil {
+		return nil
+	}
+
+	ownerID, err := findVendorOwnerUserIDTx(tx, vendorID)
+	if err != nil || ownerID == nil || *ownerID == input.RequestedBy {
+		return err
+	}
+
+	vendorTitle := "Pengajuan Refund Baru"
+	vendorMessage := fmt.Sprintf("Customer mengajukan refund untuk pesanan %s.", orderReference)
+	return createNotificationTx(tx, *ownerID, domain.NotificationTypeRefund, vendorTitle, vendorMessage)
+}
+
+func buildCustomerRefundNotification(status, orderReference string) (title, message string) {
+	switch status {
+	case domain.RefundStatusProcessing:
+		return "Refund Sedang Diproses", fmt.Sprintf("Refund untuk pesanan %s sedang diproses.", orderReference)
+	case domain.RefundStatusAwaitingDestination:
+		return "Refund Menunggu Rekening Tujuan", fmt.Sprintf("Refund untuk pesanan %s memerlukan rekening tujuan.", orderReference)
+	default:
+		return "Pengajuan Refund Diterima", fmt.Sprintf("Pengajuan refund untuk pesanan %s sudah diterima.", orderReference)
+	}
 }
 
 func (r *customerRefundRepository) SubmitRefundDestination(ctx context.Context, refundID uuid.UUID, channelCode, bankName, accountNumber, accountHolderName, accountLast4 string, userBankAccountID *uuid.UUID) error {

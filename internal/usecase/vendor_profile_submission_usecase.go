@@ -125,14 +125,22 @@ func (uc *vendorUseCase) SubmitSouvenirStoreProposal(
 	addressLine := strings.TrimSpace(req.Address.AddressLine)
 	responsibleName := strings.TrimSpace(req.ResponsiblePerson.Name)
 	nik := strings.TrimSpace(req.ResponsiblePerson.NIK)
+	locationNames, err := uc.resolveVendorProposalLocationNames(ctx, provinceID, cityID, districtID, subdistrictID)
+	if err != nil {
+		return nil, err
+	}
 
 	vendor.VendorType = &vendorType
 	vendor.DisplayName = &storeName
 	vendor.Description = &storeDescription
 	vendor.ProvinceID = &provinceID
+	vendor.ProvinceName = &locationNames.ProvinceName
 	vendor.CityID = &cityID
+	vendor.CityName = &locationNames.CityName
 	vendor.DistrictID = &districtID
+	vendor.DistrictName = &locationNames.DistrictName
 	vendor.SubdistrictID = &subdistrictID
+	vendor.SubdistrictName = &locationNames.SubdistrictName
 	vendor.PostalCode = &postalCode
 	vendor.AddressLine = &addressLine
 	vendor.Status = domain.VendorStatusSubmitted
@@ -197,4 +205,76 @@ func (uc *vendorUseCase) SubmitSouvenirStoreProposal(
 		VendorID: vendor.ID,
 		Status:   domain.VendorStatusSubmitted,
 	}, nil
+}
+
+type vendorProposalLocationNames struct {
+	ProvinceName    string
+	CityName        string
+	DistrictName    string
+	SubdistrictName string
+}
+
+func (uc *vendorUseCase) resolveVendorProposalLocationNames(
+	ctx context.Context,
+	provinceID string,
+	cityID string,
+	districtID string,
+	subdistrictID string,
+) (*vendorProposalLocationNames, error) {
+	if uc.shipping == nil {
+		return nil, fmt.Errorf("shipping use case is not configured")
+	}
+
+	provinces, err := uc.shipping.GetProvinces(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load provinces: %w", err)
+	}
+	province, ok := findLocationByID(provinces, provinceID, func(item domain.ROProvince) string { return item.ID })
+	if !ok {
+		return nil, fmt.Errorf("%w: province_id %q not found", ErrInvalidLocationSelection, provinceID)
+	}
+
+	cities, err := uc.shipping.GetCities(ctx, provinceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load cities: %w", err)
+	}
+	city, ok := findLocationByID(cities, cityID, func(item domain.ROCity) string { return item.ID })
+	if !ok {
+		return nil, fmt.Errorf("%w: city_id %q is invalid for province_id %q", ErrInvalidLocationSelection, cityID, provinceID)
+	}
+
+	districts, err := uc.shipping.GetDistricts(ctx, cityID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load districts: %w", err)
+	}
+	district, ok := findLocationByID(districts, districtID, func(item domain.RODistrict) string { return item.ID })
+	if !ok {
+		return nil, fmt.Errorf("%w: district_id %q is invalid for city_id %q", ErrInvalidLocationSelection, districtID, cityID)
+	}
+
+	subdistricts, err := uc.shipping.GetSubdistricts(ctx, districtID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load subdistricts: %w", err)
+	}
+	subdistrict, ok := findLocationByID(subdistricts, subdistrictID, func(item domain.ROSubdistrict) string { return item.ID })
+	if !ok {
+		return nil, fmt.Errorf("%w: subdistrict_id %q is invalid for district_id %q", ErrInvalidLocationSelection, subdistrictID, districtID)
+	}
+
+	return &vendorProposalLocationNames{
+		ProvinceName:    strings.TrimSpace(province.Name),
+		CityName:        strings.TrimSpace(city.Name),
+		DistrictName:    strings.TrimSpace(district.Name),
+		SubdistrictName: strings.TrimSpace(subdistrict.Name),
+	}, nil
+}
+
+func findLocationByID[T any](items []T, targetID string, getID func(T) string) (T, bool) {
+	var zero T
+	for _, item := range items {
+		if strings.TrimSpace(getID(item)) == targetID {
+			return item, true
+		}
+	}
+	return zero, false
 }

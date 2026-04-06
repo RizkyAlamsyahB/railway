@@ -2053,7 +2053,7 @@ paths:
       tags: [Notification]
       summary: List Notifications
       operationId: listNotifications
-      description: Endpoint ini dapat diakses oleh role `admin`, `finance`, dan `cs`.
+      description: Endpoint ini dapat diakses oleh semua user terautentikasi.
       security:
         - BearerAuth: []
       parameters:

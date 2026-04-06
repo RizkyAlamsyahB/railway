@@ -764,12 +764,14 @@
       });
 
       state.uploadRows = (uploadURLs || []).map(function(item) {
+        const matchedImageRow = imageRowsIncluded[item.sort_order] || null;
         return {
           image_id: item.image_id,
           object_key: item.object_key,
           upload_url: item.upload_url,
           sort_order: item.sort_order,
           is_primary: !!item.is_primary,
+          content_type: matchedImageRow ? matchedImageRow.content_type : "application/octet-stream",
           file: bySort[item.sort_order] || null,
           status: "pending",
           error: ""
@@ -880,7 +882,7 @@
       renderUploadRows();
 
       try {
-        const contentType = row.file.type || "application/octet-stream";
+        const contentType = row.content_type || row.file.type || "application/octet-stream";
         const res = await fetch(row.upload_url, {
           method: "PUT",
           headers: { "Content-Type": contentType },

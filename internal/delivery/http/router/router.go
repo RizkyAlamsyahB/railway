@@ -347,10 +347,9 @@ func NewRouter(
 		finance.PATCH("/chat/:conversationId/read", chatHandler.MarkRead)
 	}
 
-	// Notifications routes (requires auth + admin/finance/cs role)
+	// Notifications routes (requires auth; all authenticated roles)
 	notifications := v1.Group("/notifications")
 	notifications.Use(middleware.Auth(jwtSecret))
-	notifications.Use(middleware.RequireRoles(domain.RoleAdmin, domain.RoleFinance, domain.RoleCS))
 	{
 		notifications.GET("", notificationHandler.List)
 		notifications.GET("/unread-count", notificationHandler.UnreadCount)

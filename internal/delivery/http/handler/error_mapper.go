@@ -72,6 +72,7 @@ var errorRules = []errorRule{
 	{usecase.ErrNoVendorProfile, http.StatusForbidden, "no vendor profile found"},
 	{usecase.ErrVendorNotOwned, http.StatusForbidden, "vendor does not belong to this user"},
 	{usecase.ErrInvalidStatusTransition, http.StatusBadRequest, ""},
+	{usecase.ErrInvalidLocationSelection, http.StatusBadRequest, ""},
 
 	// Xendit
 	{usecase.ErrXenditAccountCreation, http.StatusBadGateway, ""},

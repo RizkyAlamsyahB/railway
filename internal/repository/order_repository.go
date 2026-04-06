@@ -107,8 +107,32 @@ func (r *orderRepository) CreateOrderWithItems(ctx context.Context, order *domai
 			return fmt.Errorf("insert status history: %w", err)
 		}
 
+		// Best-effort notifications: do not fail checkout if notification insert fails.
+		_ = r.createOrderCreatedNotificationsTx(tx, order)
+
 		return nil
 	})
+}
+
+func (r *orderRepository) createOrderCreatedNotificationsTx(tx *gorm.DB, order *domain.Order) error {
+	if order == nil {
+		return nil
+	}
+
+	customerTitle := "Pesanan Berhasil Dibuat"
+	customerMessage := fmt.Sprintf("Pesanan %s berhasil dibuat dan menunggu pembayaran.", order.OrderNo)
+	if err := createNotificationTx(tx, order.UserID, domain.NotificationTypeOrder, customerTitle, customerMessage); err != nil {
+		return err
+	}
+
+	ownerID, err := findVendorOwnerUserIDTx(tx, order.VendorID)
+	if err != nil || ownerID == nil || *ownerID == order.UserID {
+		return err
+	}
+
+	vendorTitle := "Pesanan Baru Masuk"
+	vendorMessage := fmt.Sprintf("Ada pesanan baru %s dari customer. Silakan pantau prosesnya.", order.OrderNo)
+	return createNotificationTx(tx, *ownerID, domain.NotificationTypeOrder, vendorTitle, vendorMessage)
 }
 
 func (r *orderRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Order, error) {

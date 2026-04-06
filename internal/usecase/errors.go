@@ -74,6 +74,7 @@ var (
 	ErrNoVendorProfile           = errors.New("no vendor profile found for this user")
 	ErrVendorNotOwned            = errors.New("vendor does not belong to this user")
 	ErrInvalidStatusTransition   = errors.New("invalid status transition")
+	ErrInvalidLocationSelection  = errors.New("invalid location selection")
 )
 
 // --- Product errors ---

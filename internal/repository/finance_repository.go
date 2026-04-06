@@ -756,20 +756,32 @@ func (r *financeRepository) SetRefundPayoutInitiated(ctx context.Context, refund
 		updates["payout_id"] = strings.TrimSpace(*payoutID)
 	}
 
-	return r.db.WithContext(ctx).
-		Table("refunds").
-		Where("id = ?", refundID.String()).
-		Updates(updates).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table("refunds").
+			Where("id = ?", refundID.String()).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+
+		r.notifyRefundProcessingInitiatedTx(tx, refundID.String())
+		return nil
+	})
 }
 
 func (r *financeRepository) SetRefundPayoutFailed(ctx context.Context, refundID uuid.UUID, payoutStatus string, failedReason string) error {
-	return r.db.WithContext(ctx).
-		Table("refunds").
-		Where("id = ?", refundID.String()).
-		Updates(map[string]interface{}{
-			"payout_status":        payoutStatus,
-			"payout_failed_reason": failedReason,
-		}).Error
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table("refunds").
+			Where("id = ?", refundID.String()).
+			Updates(map[string]interface{}{
+				"payout_status":        payoutStatus,
+				"payout_failed_reason": failedReason,
+			}).Error; err != nil {
+			return err
+		}
+
+		r.notifyRefundPayoutFailedTx(tx, refundID.String(), payoutStatus, failedReason)
+		return nil
+	})
 }
 
 func (r *financeRepository) ApplyRefundPayoutWebhookUpdate(ctx context.Context, referenceID string, payoutID string, payoutStatus string, failedReason *string, completedAt *time.Time) (bool, error) {
@@ -778,12 +790,13 @@ func (r *financeRepository) ApplyRefundPayoutWebhookUpdate(ctx context.Context, 
 		var refund struct {
 			ID      string         `gorm:"column:id"`
 			OrderID string         `gorm:"column:order_id"`
+			Status  string         `gorm:"column:status"`
 			Reason  sql.NullString `gorm:"column:payout_failed_reason"`
 		}
 
 		if err := tx.Table("refunds").
 			Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id, order_id, payout_failed_reason").
+			Select("id, order_id, status, payout_failed_reason").
 			Where("payout_reference_id = ?", referenceID).
 			First(&refund).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -825,6 +838,10 @@ func (r *financeRepository) ApplyRefundPayoutWebhookUpdate(ctx context.Context, 
 			Where("id = ?", refund.ID).
 			Updates(updates).Error; err != nil {
 			return err
+		}
+
+		if completedAt != nil && refund.Status != domain.RefundStatusProcessed {
+			r.notifyRefundStatusChangedTx(tx, refund.ID, domain.RefundStatusProcessed)
 		}
 
 		applied = true
@@ -918,10 +935,11 @@ func (r *financeRepository) updateRefundTransaction(ctx context.Context, refundI
 		var refund struct {
 			ID      string `gorm:"column:id"`
 			OrderID string `gorm:"column:order_id"`
+			Status  string `gorm:"column:status"`
 		}
 
 		if err := tx.Table("refunds").
-			Select("id, order_id").
+			Select("id, order_id, status").
 			Where("id = ?", refundID.String()).
 			First(&refund).Error; err != nil {
 			return err
@@ -941,6 +959,10 @@ func (r *financeRepository) updateRefundTransaction(ctx context.Context, refundI
 			Where("id = ?", refundID.String()).
 			Updates(updates).Error; err != nil {
 			return err
+		}
+
+		if refund.Status != status {
+			r.notifyRefundStatusChangedTx(tx, refund.ID, status)
 		}
 
 		id, _ := uuid.Parse(refund.ID)
@@ -1023,10 +1045,11 @@ func (r *financeRepository) ApplyRefundGatewayWebhookUpdate(ctx context.Context,
 		var refund struct {
 			ID      string `gorm:"column:id"`
 			OrderID string `gorm:"column:order_id"`
+			Status  string `gorm:"column:status"`
 		}
 		if err := tx.Table("refunds").
 			Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id, order_id").
+			Select("id, order_id, status").
 			Where("payout_reference_id = ?", referenceID).
 			First(&refund).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -1039,6 +1062,7 @@ func (r *financeRepository) ApplyRefundGatewayWebhookUpdate(ctx context.Context,
 			"xendit_refund_id": xenditRefundID,
 		}
 
+		nextStatus := ""
 		switch status {
 		case "SUCCEEDED":
 			now := time.Now().UTC()
@@ -1046,13 +1070,15 @@ func (r *financeRepository) ApplyRefundGatewayWebhookUpdate(ctx context.Context,
 			if err != nil {
 				return err
 			}
-			updates["status"] = domain.RefundStatusProcessed
+			nextStatus = domain.RefundStatusProcessed
+			updates["status"] = nextStatus
 			updates["processed_at"] = now
 			if adjustment.Shortfall > 0 {
 				updates["payout_failed_reason"] = buildRefundBalanceShortfallReason(adjustment)
 			}
 		case "FAILED":
-			updates["status"] = domain.RefundStatusRejected
+			nextStatus = domain.RefundStatusRejected
+			updates["status"] = nextStatus
 			if failureCode != nil {
 				updates["payout_failed_reason"] = "Gateway refund failed: " + *failureCode
 			}
@@ -1064,6 +1090,10 @@ func (r *financeRepository) ApplyRefundGatewayWebhookUpdate(ctx context.Context,
 			Where("id = ?", refund.ID).
 			Updates(updates).Error; err != nil {
 			return err
+		}
+
+		if nextStatus != "" && nextStatus != refund.Status {
+			r.notifyRefundStatusChangedTx(tx, refund.ID, nextStatus)
 		}
 
 		applied = true

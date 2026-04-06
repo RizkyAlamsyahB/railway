@@ -314,22 +314,7 @@ func (r *vendorRepository) SubmitSouvenirStoreProposal(ctx context.Context, inpu
 			return err
 		}
 
-		vendorUpdates := map[string]any{
-			"vendor_type":    input.Vendor.VendorType,
-			"display_name":   input.Vendor.DisplayName,
-			"description":    input.Vendor.Description,
-			"province_id":    input.Vendor.ProvinceID,
-			"city_id":        input.Vendor.CityID,
-			"district_id":    input.Vendor.DistrictID,
-			"subdistrict_id": input.Vendor.SubdistrictID,
-			"postal_code":    input.Vendor.PostalCode,
-			"address_line":   input.Vendor.AddressLine,
-			"status":         input.Vendor.Status,
-			"approved_by":    nil,
-			"approved_at":    nil,
-			"status_reason":  nil,
-			"updated_at":     input.Vendor.UpdatedAt,
-		}
+		vendorUpdates := buildVendorProposalUpdates(input.Vendor)
 		if err := tx.Model(&vendorModel{}).
 			Where("id = ?", input.Vendor.ID.String()).
 			Updates(vendorUpdates).Error; err != nil {
@@ -372,6 +357,29 @@ func (r *vendorRepository) SubmitSouvenirStoreProposal(ctx context.Context, inpu
 
 		return nil
 	})
+}
+
+func buildVendorProposalUpdates(vendor *domain.Vendor) map[string]any {
+	return map[string]any{
+		"vendor_type":      vendor.VendorType,
+		"display_name":     vendor.DisplayName,
+		"description":      vendor.Description,
+		"province_id":      vendor.ProvinceID,
+		"province_name":    vendor.ProvinceName,
+		"city_id":          vendor.CityID,
+		"city_name":        vendor.CityName,
+		"district_id":      vendor.DistrictID,
+		"district_name":    vendor.DistrictName,
+		"subdistrict_id":   vendor.SubdistrictID,
+		"subdistrict_name": vendor.SubdistrictName,
+		"postal_code":      vendor.PostalCode,
+		"address_line":     vendor.AddressLine,
+		"status":           vendor.Status,
+		"approved_by":      nil,
+		"approved_at":      nil,
+		"status_reason":    nil,
+		"updated_at":       vendor.UpdatedAt,
+	}
 }
 
 type payoutBatchModel struct {

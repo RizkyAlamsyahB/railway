@@ -2,13 +2,13 @@ openapi: 3.0.3
 info:
   title: Notifications API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk endpoint notifikasi (admin/finance/cs).
+  description: Dokumentasi OpenAPI 3 untuk endpoint notifikasi (semua user terautentikasi).
 servers:
   - url: http://localhost:8080
     description: Local development server
 tags:
   - name: Notifications
-    description: In-app notifications for admin/finance/cs.
+    description: In-app notifications for all authenticated users.
 security:
   - BearerAuth: []
 paths:
@@ -33,8 +33,6 @@ paths:
                 $ref: "#/components/schemas/SuccessNotificationListEnvelope"
         "401":
           $ref: "#/components/responses/UnauthorizedResponse"
-        "403":
-          $ref: "#/components/responses/ForbiddenResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/notifications/unread-count:
@@ -55,8 +53,6 @@ paths:
                 $ref: "#/components/schemas/SuccessNotificationUnreadEnvelope"
         "401":
           $ref: "#/components/responses/UnauthorizedResponse"
-        "403":
-          $ref: "#/components/responses/ForbiddenResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/notifications/read-all:
@@ -77,8 +73,6 @@ paths:
                 $ref: "#/components/schemas/SuccessNotificationBulkReadEnvelope"
         "401":
           $ref: "#/components/responses/UnauthorizedResponse"
-        "403":
-          $ref: "#/components/responses/ForbiddenResponse"
         "500":
           $ref: "#/components/responses/InternalServerErrorResponse"
   /api/v1/notifications/{id}/read:
@@ -107,8 +101,6 @@ paths:
                 $ref: "#/components/schemas/SuccessNotificationReadEnvelope"
         "401":
           $ref: "#/components/responses/UnauthorizedResponse"
-        "403":
-          $ref: "#/components/responses/ForbiddenResponse"
         "404":
           $ref: "#/components/responses/NotFoundResponse"
         "500":
@@ -164,7 +156,7 @@ components:
             errors: null
             meta: null
     ForbiddenResponse:
-      description: User tidak memiliki izin role admin/finance/cs.
+      description: User tidak memiliki izin untuk resource ini.
       headers:
         X-Request-ID:
           $ref: "#/components/headers/RequestIDHeader"

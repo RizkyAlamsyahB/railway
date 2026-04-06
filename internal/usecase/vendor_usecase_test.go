@@ -92,10 +92,46 @@ func (s *stubVendorOnboardingRepo) FinalizeRegistration(ctx context.Context, inp
 	return s.finalizeRegistration(ctx, input)
 }
 
+type stubShippingUseCase struct {
+	getProvinces    func(context.Context) ([]domain.ROProvince, error)
+	getCities       func(context.Context, string) ([]domain.ROCity, error)
+	getDistricts    func(context.Context, string) ([]domain.RODistrict, error)
+	getSubdistricts func(context.Context, string) ([]domain.ROSubdistrict, error)
+}
+
+func (s *stubShippingUseCase) GetProvinces(ctx context.Context) ([]domain.ROProvince, error) {
+	if s.getProvinces == nil {
+		return nil, nil
+	}
+	return s.getProvinces(ctx)
+}
+
+func (s *stubShippingUseCase) GetCities(ctx context.Context, provinceID string) ([]domain.ROCity, error) {
+	if s.getCities == nil {
+		return nil, nil
+	}
+	return s.getCities(ctx, provinceID)
+}
+
+func (s *stubShippingUseCase) GetDistricts(ctx context.Context, cityID string) ([]domain.RODistrict, error) {
+	if s.getDistricts == nil {
+		return nil, nil
+	}
+	return s.getDistricts(ctx, cityID)
+}
+
+func (s *stubShippingUseCase) GetSubdistricts(ctx context.Context, districtID string) ([]domain.ROSubdistrict, error) {
+	if s.getSubdistricts == nil {
+		return nil, nil
+	}
+	return s.getSubdistricts(ctx, districtID)
+}
+
 func setupVendorUseCase(t *testing.T) (
 	*mocks.MockUserRepository,
 	*mocks.MockVendorRepository,
 	*mocks.MockStorageProvider,
+	*stubShippingUseCase,
 	*stubOTPUseCase,
 	*stubVendorOnboardingRepo,
 	domain.VendorUseCase,
@@ -105,15 +141,16 @@ func setupVendorUseCase(t *testing.T) (
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	vendorRepo := mocks.NewMockVendorRepository(ctrl)
 	storage := mocks.NewMockStorageProvider(ctrl)
+	shipping := &stubShippingUseCase{}
 	otpUC := &stubOTPUseCase{}
 	onboardingRepo := &stubVendorOnboardingRepo{}
-	uc := NewVendorUseCase(otpUC, userRepo, vendorRepo, onboardingRepo, storage, nil, "test-secret", 3600, "test-issuer")
-	return userRepo, vendorRepo, storage, otpUC, onboardingRepo, uc
+	uc := NewVendorUseCase(otpUC, userRepo, vendorRepo, onboardingRepo, shipping, storage, nil, "test-secret", 3600, "test-issuer")
+	return userRepo, vendorRepo, storage, shipping, otpUC, onboardingRepo, uc
 }
 
 func TestRequestRegistrationOTP(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		userRepo, _, _, otpUC, _, uc := setupVendorUseCase(t)
+		userRepo, _, _, _, otpUC, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 
 		userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(nil, nil)
@@ -140,7 +177,7 @@ func TestRequestRegistrationOTP(t *testing.T) {
 	})
 
 	t.Run("vendor already exists", func(t *testing.T) {
-		userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		userRepo, vendorRepo, _, _, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		existingUser := &domain.User{ID: uuid.New(), Email: "vendor@example.com"}
 
@@ -155,7 +192,7 @@ func TestRequestRegistrationOTP(t *testing.T) {
 }
 
 func TestVerifyRegistrationOTP(t *testing.T) {
-	userRepo, _, _, otpUC, onboardingRepo, uc := setupVendorUseCase(t)
+	userRepo, _, _, _, otpUC, onboardingRepo, uc := setupVendorUseCase(t)
 	ctx := context.Background()
 
 	userRepo.EXPECT().FindByEmail(ctx, "vendor@example.com").Return(nil, nil)
@@ -194,7 +231,7 @@ func TestVerifyRegistrationOTP(t *testing.T) {
 }
 
 func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
-	_, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
+	_, _, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
 	ctx := context.Background()
 	onboardingID := uuid.New()
 	onboardingRepo.findByID = func(_ context.Context, id uuid.UUID) (*domain.VendorOnboarding, error) {
@@ -215,7 +252,7 @@ func TestSetRegistrationPassword_InvalidStep(t *testing.T) {
 }
 
 func TestSetRegistrationPassword_Success(t *testing.T) {
-	userRepo, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
+	userRepo, _, _, _, _, onboardingRepo, uc := setupVendorUseCase(t)
 	ctx := context.Background()
 	onboardingID := uuid.New()
 
@@ -275,7 +312,7 @@ func TestSetRegistrationPassword_Success(t *testing.T) {
 
 func TestSubmitSouvenirStoreProposal(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		userRepo, vendorRepo, _, shipping, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 		userID := uuid.New()
@@ -288,6 +325,28 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 			ID:       userID,
 			Email:    "owner@example.com",
 			FullName: "Old Name",
+		}
+
+		shipping.getProvinces = func(context.Context) ([]domain.ROProvince, error) {
+			return []domain.ROProvince{{ID: "31", Name: "DKI Jakarta"}}, nil
+		}
+		shipping.getCities = func(_ context.Context, provinceID string) ([]domain.ROCity, error) {
+			if provinceID != "31" {
+				t.Fatalf("unexpected provinceID: %s", provinceID)
+			}
+			return []domain.ROCity{{ID: "3171", ProvinceID: "31", Name: "Jakarta Pusat"}}, nil
+		}
+		shipping.getDistricts = func(_ context.Context, cityID string) ([]domain.RODistrict, error) {
+			if cityID != "3171" {
+				t.Fatalf("unexpected cityID: %s", cityID)
+			}
+			return []domain.RODistrict{{ID: "317101", CityID: "3171", Name: "Menteng"}}, nil
+		}
+		shipping.getSubdistricts = func(_ context.Context, districtID string) ([]domain.ROSubdistrict, error) {
+			if districtID != "317101" {
+				t.Fatalf("unexpected districtID: %s", districtID)
+			}
+			return []domain.ROSubdistrict{{ID: "3171011001", DistrictID: "317101", Name: "Pegangsaan"}}, nil
 		}
 
 		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
@@ -307,6 +366,18 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 				}
 				if input.Vendor.VendorType == nil || *input.Vendor.VendorType != domain.VendorTypeSouvenirStore {
 					t.Fatalf("unexpected vendor type: %+v", input.Vendor.VendorType)
+				}
+				if input.Vendor.ProvinceName == nil || *input.Vendor.ProvinceName != "DKI Jakarta" {
+					t.Fatalf("unexpected province name: %+v", input.Vendor.ProvinceName)
+				}
+				if input.Vendor.CityName == nil || *input.Vendor.CityName != "Jakarta Pusat" {
+					t.Fatalf("unexpected city name: %+v", input.Vendor.CityName)
+				}
+				if input.Vendor.DistrictName == nil || *input.Vendor.DistrictName != "Menteng" {
+					t.Fatalf("unexpected district name: %+v", input.Vendor.DistrictName)
+				}
+				if input.Vendor.SubdistrictName == nil || *input.Vendor.SubdistrictName != "Pegangsaan" {
+					t.Fatalf("unexpected subdistrict name: %+v", input.Vendor.SubdistrictName)
 				}
 				if input.ResponsiblePerson == nil || input.ResponsiblePerson.NIK != "3173010101010001" {
 					t.Fatalf("unexpected responsible person: %+v", input.ResponsiblePerson)
@@ -362,7 +433,7 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 	})
 
 	t.Run("responsible person email can differ from owner email", func(t *testing.T) {
-		userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		userRepo, vendorRepo, _, shipping, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 		userID := uuid.New()
@@ -375,6 +446,19 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 			ID:       userID,
 			Email:    "owner@example.com",
 			FullName: "Owner Lama",
+		}
+
+		shipping.getProvinces = func(context.Context) ([]domain.ROProvince, error) {
+			return []domain.ROProvince{{ID: "31", Name: "DKI Jakarta"}}, nil
+		}
+		shipping.getCities = func(context.Context, string) ([]domain.ROCity, error) {
+			return []domain.ROCity{{ID: "3171", ProvinceID: "31", Name: "Jakarta Pusat"}}, nil
+		}
+		shipping.getDistricts = func(context.Context, string) ([]domain.RODistrict, error) {
+			return []domain.RODistrict{{ID: "317101", CityID: "3171", Name: "Menteng"}}, nil
+		}
+		shipping.getSubdistricts = func(context.Context, string) ([]domain.ROSubdistrict, error) {
+			return []domain.ROSubdistrict{{ID: "3171011001", DistrictID: "317101", Name: "Pegangsaan"}}, nil
 		}
 
 		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
@@ -423,8 +507,118 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid location hierarchy", func(t *testing.T) {
+		tests := []struct {
+			name            string
+			configureLookup func(*stubShippingUseCase)
+		}{
+			{
+				name: "province not found",
+				configureLookup: func(shipping *stubShippingUseCase) {
+					shipping.getProvinces = func(context.Context) ([]domain.ROProvince, error) {
+						return []domain.ROProvince{{ID: "32", Name: "Jawa Barat"}}, nil
+					}
+				},
+			},
+			{
+				name: "city not found for province",
+				configureLookup: func(shipping *stubShippingUseCase) {
+					shipping.getProvinces = func(context.Context) ([]domain.ROProvince, error) {
+						return []domain.ROProvince{{ID: "31", Name: "DKI Jakarta"}}, nil
+					}
+					shipping.getCities = func(context.Context, string) ([]domain.ROCity, error) {
+						return []domain.ROCity{{ID: "9999", ProvinceID: "31", Name: "Kota Lain"}}, nil
+					}
+				},
+			},
+			{
+				name: "district not found for city",
+				configureLookup: func(shipping *stubShippingUseCase) {
+					shipping.getProvinces = func(context.Context) ([]domain.ROProvince, error) {
+						return []domain.ROProvince{{ID: "31", Name: "DKI Jakarta"}}, nil
+					}
+					shipping.getCities = func(context.Context, string) ([]domain.ROCity, error) {
+						return []domain.ROCity{{ID: "3171", ProvinceID: "31", Name: "Jakarta Pusat"}}, nil
+					}
+					shipping.getDistricts = func(context.Context, string) ([]domain.RODistrict, error) {
+						return []domain.RODistrict{{ID: "8888", CityID: "3171", Name: "District Lain"}}, nil
+					}
+				},
+			},
+			{
+				name: "subdistrict not found for district",
+				configureLookup: func(shipping *stubShippingUseCase) {
+					shipping.getProvinces = func(context.Context) ([]domain.ROProvince, error) {
+						return []domain.ROProvince{{ID: "31", Name: "DKI Jakarta"}}, nil
+					}
+					shipping.getCities = func(context.Context, string) ([]domain.ROCity, error) {
+						return []domain.ROCity{{ID: "3171", ProvinceID: "31", Name: "Jakarta Pusat"}}, nil
+					}
+					shipping.getDistricts = func(context.Context, string) ([]domain.RODistrict, error) {
+						return []domain.RODistrict{{ID: "317101", CityID: "3171", Name: "Menteng"}}, nil
+					}
+					shipping.getSubdistricts = func(context.Context, string) ([]domain.ROSubdistrict, error) {
+						return []domain.ROSubdistrict{{ID: "7777", DistrictID: "317101", Name: "Subdistrict Lain"}}, nil
+					}
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				userRepo, vendorRepo, _, shipping, _, _, uc := setupVendorUseCase(t)
+				ctx := context.Background()
+				vendorID := uuid.New()
+				userID := uuid.New()
+
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:          vendorID,
+					OwnerUserID: userID,
+					Status:      domain.VendorStatusDraft,
+				}, nil)
+				userRepo.EXPECT().FindByID(ctx, userID).Return(&domain.User{
+					ID:       userID,
+					Email:    "owner@example.com",
+					FullName: "Owner",
+				}, nil)
+				userRepo.EXPECT().FindByPhone(ctx, "08123456789").Return(&domain.User{
+					ID: userID,
+				}, nil)
+
+				tc.configureLookup(shipping)
+
+				_, err := uc.SubmitSouvenirStoreProposal(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalRequest{
+					StoreName:        "Toko Haji",
+					StoreDescription: "Pusat oleh-oleh",
+					Address: domain.VendorSouvenirStoreProposalAddress{
+						ProvinceID:    "31",
+						CityID:        "3171",
+						DistrictID:    "317101",
+						SubdistrictID: "3171011001",
+						PostalCode:    "10110",
+						AddressLine:   "Jl. Wahid Hasyim No. 10",
+					},
+					ResponsiblePerson: domain.VendorSouvenirStoreProposalResponsiblePerson{
+						Name:        "Ahmad",
+						Phone:       "08123456789",
+						Email:       "responsible@example.com",
+						NIK:         "3173010101010001",
+						KTPObjectID: "vendors/docs/ktp",
+					},
+					OtherDocuments: domain.VendorSouvenirStoreProposalOtherDocuments{
+						NIBObjectID:              "vendors/docs/nib",
+						HalalCertificateObjectID: "vendors/docs/halal",
+					},
+				})
+				if !errors.Is(err, ErrInvalidLocationSelection) {
+					t.Fatalf("expected ErrInvalidLocationSelection, got %v", err)
+				}
+			})
+		}
+	})
+
 	t.Run("vendor not owned", func(t *testing.T) {
-		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		_, vendorRepo, _, _, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 		userID := uuid.New()
@@ -444,7 +638,7 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 
 func TestPresignSouvenirStoreProposalDocuments(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		_, vendorRepo, storage, _, _, uc := setupVendorUseCase(t)
+		_, vendorRepo, storage, _, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 		userID := uuid.New()
@@ -481,7 +675,7 @@ func TestPresignSouvenirStoreProposalDocuments(t *testing.T) {
 	})
 
 	t.Run("invalid content type", func(t *testing.T) {
-		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		_, vendorRepo, _, _, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 		userID := uuid.New()
@@ -503,7 +697,7 @@ func TestPresignSouvenirStoreProposalDocuments(t *testing.T) {
 	})
 
 	t.Run("vendor not owned", func(t *testing.T) {
-		_, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+		_, vendorRepo, _, _, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 
@@ -858,7 +1052,7 @@ func TestLogin_TableDriven(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+			userRepo, vendorRepo, _, _, _, _, uc := setupVendorUseCase(t)
 			ctx := context.Background()
 
 			tc.setupMocks(ctx, userRepo, vendorRepo)
@@ -1063,7 +1257,7 @@ func TestGetMe_TableDriven(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
+			userRepo, vendorRepo, _, _, _, _, uc := setupVendorUseCase(t)
 			if tc.setupMocks != nil {
 				tc.setupMocks(ctx, userRepo, vendorRepo, tc.vendorID)
 			}
@@ -1110,7 +1304,7 @@ func setupVendorWithdrawalUseCase(t *testing.T) (
 	vendorRepo := mocks.NewMockVendorRepository(ctrl)
 	storage := mocks.NewMockStorageProvider(ctrl)
 	xenditPayout := mocks.NewMockXenditPayoutProvider(ctrl)
-	uc := NewVendorUseCase(&stubOTPUseCase{}, userRepo, vendorRepo, &stubVendorOnboardingRepo{}, storage, xenditPayout, "test-secret", 3600, "test-issuer")
+	uc := NewVendorUseCase(&stubOTPUseCase{}, userRepo, vendorRepo, &stubVendorOnboardingRepo{}, &stubShippingUseCase{}, storage, xenditPayout, "test-secret", 3600, "test-issuer")
 	return userRepo, vendorRepo, storage, xenditPayout, uc
 }
 
@@ -1604,6 +1798,7 @@ func TestRequestWithdrawal_NetAmountBelowMin(t *testing.T) {
 		userRepo,
 		vendorRepo,
 		&stubVendorOnboardingRepo{},
+		&stubShippingUseCase{},
 		storage,
 		xenditPayout,
 		"test-secret",

@@ -113,6 +113,55 @@ func TestVendorModelMapping_PreservesStructuredAddress(t *testing.T) {
 	}
 }
 
+func TestBuildVendorProposalUpdates_IncludesStructuredAddressNames(t *testing.T) {
+	now := time.Now()
+	provinceID := "31"
+	provinceName := "DKI Jakarta"
+	cityID := "3171"
+	cityName := "Jakarta Pusat"
+	districtID := "317101"
+	districtName := "Menteng"
+	subdistrictID := "3171011001"
+	subdistrictName := "Pegangsaan"
+	postalCode := "10320"
+	addressLine := "Jl. Pegangsaan Barat No. 12"
+
+	updates := buildVendorProposalUpdates(&domain.Vendor{
+		VendorType:      ptrString(domain.VendorTypeSouvenirStore),
+		DisplayName:     ptrString("Toko Haji"),
+		Description:     ptrString("Pusat oleh-oleh"),
+		ProvinceID:      &provinceID,
+		ProvinceName:    &provinceName,
+		CityID:          &cityID,
+		CityName:        &cityName,
+		DistrictID:      &districtID,
+		DistrictName:    &districtName,
+		SubdistrictID:   &subdistrictID,
+		SubdistrictName: &subdistrictName,
+		PostalCode:      &postalCode,
+		AddressLine:     &addressLine,
+		Status:          domain.VendorStatusSubmitted,
+		UpdatedAt:       now,
+	})
+
+	if got, ok := updates["province_name"].(*string); !ok || got == nil || *got != provinceName {
+		t.Fatalf("expected province_name %q, got %#v", provinceName, updates["province_name"])
+	}
+	if got, ok := updates["city_name"].(*string); !ok || got == nil || *got != cityName {
+		t.Fatalf("expected city_name %q, got %#v", cityName, updates["city_name"])
+	}
+	if got, ok := updates["district_name"].(*string); !ok || got == nil || *got != districtName {
+		t.Fatalf("expected district_name %q, got %#v", districtName, updates["district_name"])
+	}
+	if got, ok := updates["subdistrict_name"].(*string); !ok || got == nil || *got != subdistrictName {
+		t.Fatalf("expected subdistrict_name %q, got %#v", subdistrictName, updates["subdistrict_name"])
+	}
+}
+
+func ptrString(v string) *string {
+	return &v
+}
+
 func TestVendorResponsiblePersonModel_EncryptsAndDecryptsNIK(t *testing.T) {
 	cipher, err := sensitivedata.NewFieldCipher([]byte("0123456789abcdef0123456789abcdef"))
 	if err != nil {

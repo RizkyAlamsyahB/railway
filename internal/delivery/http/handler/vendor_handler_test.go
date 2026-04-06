@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
 )
 
 type stubVendorUseCase struct {
@@ -310,6 +311,36 @@ func TestVendorHandlerSubmitSouvenirStoreProposal(t *testing.T) {
 	if env.Message != "vendor proposal submitted successfully" {
 		t.Fatalf("unexpected message: %s", env.Message)
 	}
+
+	t.Run("invalid location selection returns bad request", func(t *testing.T) {
+		h := NewVendorHandler(stubVendorUseCase{
+			submitProposal: func(context.Context, uuid.UUID, uuid.UUID, domain.VendorSouvenirStoreProposalRequest) (*domain.VendorSouvenirStoreProposalResponse, error) {
+				return nil, usecase.ErrInvalidLocationSelection
+			},
+		})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/vendors/register/propose/souvenir_store", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		c.Request = req
+		c.Set(middleware.ContextKeyVendorID, vendorID)
+		c.Set(middleware.ContextKeyUserID, userID)
+
+		h.SubmitSouvenirStoreProposal(c)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", w.Code)
+		}
+
+		var env handlerEnvelope
+		if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if env.Message != usecase.ErrInvalidLocationSelection.Error() {
+			t.Fatalf("unexpected message: %s", env.Message)
+		}
+	})
 }
 
 func TestVendorHandlerPresignSouvenirStoreProposalDocuments(t *testing.T) {

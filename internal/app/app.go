@@ -127,13 +127,23 @@ func Initialize() (*App, error) {
 	}
 	otpHandler := handler.NewOTPHandler(otpUseCase)
 
+	// Shipping location lookup (RajaOngkir)
+	rajaOngkirProvider, err := newRajaOngkirProvider(cfg.RajaOngkir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize rajaongkir provider: %w", err)
+	}
+	log.Println("rajaongkir provider initialized")
+
 	vendorRepo := repository.NewVendorRepository(db, fieldCipher)
 	vendorOnboardingRepo := repository.NewVendorOnboardingRepository(db, fieldCipher)
+	shippingUseCase := usecase.NewShippingUseCase(rajaOngkirProvider)
+	shippingHandler := handler.NewShippingHandler(shippingUseCase)
 	vendorUseCase := usecase.NewVendorUseCase(
 		otpUseCase,
 		userRepo,
 		vendorRepo,
 		vendorOnboardingRepo,
+		shippingUseCase,
 		storageProvider,
 		xenditPayoutProvider,
 		cfg.JWT.Secret,
@@ -223,16 +233,6 @@ func Initialize() (*App, error) {
 	vendorVoucherRepo := repository.NewVendorVoucherRepository(db)
 	vendorVoucherUseCase := usecase.NewVendorVoucherUseCase(vendorVoucherRepo, productRepo)
 	vendorVoucherHandler := handler.NewVendorVoucherHandler(vendorVoucherUseCase)
-
-	// Shipping location lookup (RajaOngkir)
-	rajaOngkirProvider, err := newRajaOngkirProvider(cfg.RajaOngkir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize rajaongkir provider: %w", err)
-	}
-	log.Println("rajaongkir provider initialized")
-
-	shippingUseCase := usecase.NewShippingUseCase(rajaOngkirProvider)
-	shippingHandler := handler.NewShippingHandler(shippingUseCase)
 
 	// Courier management (vendor selects supported couriers)
 	courierRepo := repository.NewCourierRepository(db)

@@ -31,6 +31,7 @@ type vendorUseCase struct {
 	userRepo                   domain.UserRepository
 	vendorRepo                 domain.VendorRepository
 	onboardingRepo             domain.VendorOnboardingRepository
+	shipping                   domain.ShippingUseCase
 	storage                    domain.StorageProvider
 	xenditPayout               domain.XenditPayoutProvider
 	jwtSecret                  string
@@ -46,6 +47,7 @@ func NewVendorUseCase(
 	userRepo domain.UserRepository,
 	vendorRepo domain.VendorRepository,
 	onboardingRepo domain.VendorOnboardingRepository,
+	shipping domain.ShippingUseCase,
 	storage domain.StorageProvider,
 	xenditPayout domain.XenditPayoutProvider,
 	jwtSecret string,
@@ -72,6 +74,7 @@ func NewVendorUseCase(
 		userRepo:                   userRepo,
 		vendorRepo:                 vendorRepo,
 		onboardingRepo:             onboardingRepo,
+		shipping:                   shipping,
 		storage:                    storage,
 		xenditPayout:               xenditPayout,
 		jwtSecret:                  jwtSecret,
