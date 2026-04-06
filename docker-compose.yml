@@ -28,7 +28,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./migrations:/migrations:ro
+      - /root/haji-umroh-store-be/migrations:/migrations:ro
     command:
       [
         "-path", "/migrations",
