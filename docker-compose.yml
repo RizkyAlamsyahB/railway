@@ -28,7 +28,7 @@ services:
     env_file:
       - .env
     volumes:
-      - /root/haji-umroh-store-be/migrations:/migrations:ro
+      - migrations:/migrations:ro   # 🔥 pakai volume internal, bukan VPS
     command:
       [
         "-path", "/migrations",
@@ -36,6 +36,22 @@ services:
         "up"
       ]
     restart: "no"
+
+  api:
+    image: ghcr.io/rizkyalamsyahb/railway:latest
+    container_name: haji-umroh-api
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
   minio:
     image: minio/minio:latest
@@ -74,24 +90,6 @@ services:
       "
     restart: "no"
 
-  api:
-    image: ghcr.io/rizkyalamsyahb/railway:latest
-    container_name: haji-umroh-api
-    env_file:
-      - .env
-    ports:
-      - "8080:8080"
-    environment:
-      DB_HOST: postgres
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-      minio-init:
-        condition: service_completed_successfully
-    restart: unless-stopped
-
   caddy:
     image: caddy:2
     container_name: haji-umroh-caddy
@@ -108,10 +106,7 @@ services:
 
 volumes:
   postgres-data:
-    name: haji-umroh-store-be_postgres-data
-  caddy_data:
-    name: haji-umroh-store-be_caddy_data
-  caddy_config:
-    name: haji-umroh-store-be_caddy_config
   minio-data:
-    name: haji-umroh-store-be_minio-data
+  caddy_data:
+  caddy_config:
+  migrations:   # 🔥 volume internal docker
