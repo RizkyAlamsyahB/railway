@@ -20,23 +20,18 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: migrate/migrate:v4.18.3
-    container_name: haji-umroh-migrate
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file:
-      - .env
-    volumes:
-      - migrations:/migrations:ro   # 🔥 pakai volume internal, bukan VPS
-    command:
-      [
-        "-path", "/migrations",
-        "-database", "postgres://${DB_USER}:${DB_PASSWORD}@postgres:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}",
-        "up"
-      ]
-    restart: "no"
-
+  image: ghcr.io/rizkyalamsyahb/railway:latest
+  container_name: haji-umroh-migrate
+  depends_on:
+    postgres:
+      condition: service_healthy
+  env_file:
+    - .env
+  entrypoint: ["/bin/sh", "-c"]
+  command: >
+    migrate -path /migrations -database "postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable" up
+  restart: "no"
+  
   api:
     image: ghcr.io/rizkyalamsyahb/railway:latest
     container_name: haji-umroh-api
