@@ -102,11 +102,6 @@ func (uc *vendorUseCase) SubmitSouvenirStoreProposal(
 		return nil, ErrUserNotFound
 	}
 
-	responsibleEmail := normalizeVendorEmail(req.ResponsiblePerson.Email)
-	if !strings.EqualFold(owner.Email, responsibleEmail) {
-		return nil, ErrVendorResponsibleEmail
-	}
-
 	responsiblePhone := strings.TrimSpace(req.ResponsiblePerson.Phone)
 	if responsiblePhone != "" {
 		existingUser, err := uc.userRepo.FindByPhone(ctx, responsiblePhone)

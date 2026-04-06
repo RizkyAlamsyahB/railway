@@ -736,17 +736,17 @@
         }
 
         const data = body && body.data ? body.data : {};
-        const token = data.token || "";
+        const token = data.access_token || data.token || "";
         document.getElementById("token").value = token;
 
         state.vendorInfo = {
           vendor_id: data.vendor_id || "",
           vendor_status: data.vendor_status || "",
-          display_name: data.display_name || ""
+          store_name: data.store_name || data.display_name || ""
         };
 
         document.getElementById("vendorInfo").textContent =
-          "Vendor: " + (state.vendorInfo.display_name || "-") +
+          "Vendor: " + (state.vendorInfo.store_name || "-") +
           " | vendor_id: " + (state.vendorInfo.vendor_id || "-") +
           " | status: " + (state.vendorInfo.vendor_status || "-");
 

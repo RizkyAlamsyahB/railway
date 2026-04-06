@@ -16,7 +16,7 @@ import (
 
 type stubVendorUseCase struct {
 	setRegistrationPass func(ctx context.Context, onboardingID uuid.UUID, req domain.VendorRegistrationPasswordRequest) (*domain.VendorLoginResponse, error)
-	getMe               func(ctx context.Context, vendorID uuid.UUID) (*domain.VendorProfileResponse, error)
+	getMe               func(ctx context.Context, vendorID uuid.UUID) (*domain.VendorMeResponse, error)
 	submitProposal      func(ctx context.Context, vendorID uuid.UUID, userID uuid.UUID, req domain.VendorSouvenirStoreProposalRequest) (*domain.VendorSouvenirStoreProposalResponse, error)
 	presignProposalDocs func(ctx context.Context, vendorID uuid.UUID, userID uuid.UUID, req domain.VendorSouvenirStoreProposalPresignRequest) (*domain.VendorSouvenirStoreProposalPresignResponse, error)
 }
@@ -40,7 +40,7 @@ func (s stubVendorUseCase) Login(context.Context, domain.VendorLoginRequest) (*d
 	return nil, nil
 }
 
-func (s stubVendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain.VendorProfileResponse, error) {
+func (s stubVendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain.VendorMeResponse, error) {
 	if s.getMe == nil {
 		return nil, nil
 	}
@@ -172,21 +172,21 @@ func TestVendorHandlerGetMe(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		vendorID := uuid.New()
+		imageURL := "https://cdn.example.com/vendors/profile.jpg"
+		storeName := "Toko Oleh-Oleh Haji Mabrur"
+		vendorType := domain.VendorTypeSouvenirStore
 		h := NewVendorHandler(stubVendorUseCase{
-			getMe: func(ctx context.Context, gotVendorID uuid.UUID) (*domain.VendorProfileResponse, error) {
+			getMe: func(ctx context.Context, gotVendorID uuid.UUID) (*domain.VendorMeResponse, error) {
 				if gotVendorID != vendorID {
 					t.Fatalf("expected vendor ID %s, got %s", vendorID, gotVendorID)
 				}
-				vendorType := domain.VendorTypeSouvenirStore
-				displayName := "Toko Oleh-Oleh Haji Mabrur"
-				return &domain.VendorProfileResponse{
+				return &domain.VendorMeResponse{
 					VendorID:     vendorID,
-					ImageURL:     "https://cdn.example.com/vendors/profile.jpg",
+					ImageURL:     &imageURL,
 					Email:        "toko.mabrur@example.com",
-					Name:         "Abu Bakar Shidiq Basalamah",
 					VendorType:   &vendorType,
 					VendorStatus: domain.VendorStatusActive,
-					DisplayName:  &displayName,
+					StoreName:    &storeName,
 				}, nil
 			},
 		})
@@ -201,6 +201,40 @@ func TestVendorHandlerGetMe(t *testing.T) {
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+
+		var env handlerEnvelope
+		if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+		if env.Message != "vendor profile retrieved successfully" {
+			t.Fatalf("unexpected message: %s", env.Message)
+		}
+
+		var data vendorLoginResponsePayload
+		if err := json.Unmarshal(env.Data, &data); err != nil {
+			t.Fatalf("failed to decode response data: %v", err)
+		}
+		if data.AccessToken != "" {
+			t.Fatalf("expected empty access token, got %s", data.AccessToken)
+		}
+		if data.VendorID != vendorID.String() {
+			t.Fatalf("unexpected vendor ID: %s", data.VendorID)
+		}
+		if data.Email != "toko.mabrur@example.com" {
+			t.Fatalf("unexpected email: %s", data.Email)
+		}
+		if data.ImageURL == nil || *data.ImageURL != imageURL {
+			t.Fatalf("unexpected image URL: %v", data.ImageURL)
+		}
+		if data.StoreName == nil || *data.StoreName != storeName {
+			t.Fatalf("unexpected store name: %v", data.StoreName)
+		}
+		if data.VendorType == nil || *data.VendorType != vendorType {
+			t.Fatalf("unexpected vendor type: %v", data.VendorType)
+		}
+		if data.VendorStatus != domain.VendorStatusActive {
+			t.Fatalf("unexpected vendor status: %s", data.VendorStatus)
 		}
 	})
 }
@@ -221,7 +255,7 @@ func TestVendorHandlerSubmitSouvenirStoreProposal(t *testing.T) {
 			if req.Address.SubdistrictID != "3171011001" {
 				t.Fatalf("unexpected subdistrict ID: %s", req.Address.SubdistrictID)
 			}
-			if req.ResponsiblePerson.Email != "owner@example.com" {
+			if req.ResponsiblePerson.Email != "responsible@example.com" {
 				t.Fatalf("unexpected responsible person email: %s", req.ResponsiblePerson.Email)
 			}
 			return &domain.VendorSouvenirStoreProposalResponse{
@@ -245,7 +279,7 @@ func TestVendorHandlerSubmitSouvenirStoreProposal(t *testing.T) {
 		"responsible_person":{
 			"name":"Ahmad",
 			"phone":"08123456789",
-			"email":"owner@example.com",
+			"email":"responsible@example.com",
 			"nik":"3173010101010001",
 			"ktp_object_id":"vendors/documents/ktp"
 		},

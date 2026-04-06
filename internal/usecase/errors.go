@@ -73,7 +73,6 @@ var (
 	ErrNotVendor                 = errors.New("user does not have vendor access")
 	ErrNoVendorProfile           = errors.New("no vendor profile found for this user")
 	ErrVendorNotOwned            = errors.New("vendor does not belong to this user")
-	ErrVendorResponsibleEmail    = errors.New("responsible person email must match owner account email")
 	ErrInvalidStatusTransition   = errors.New("invalid status transition")
 )
 

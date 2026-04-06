@@ -71,7 +71,6 @@ var errorRules = []errorRule{
 	{usecase.ErrNotVendor, http.StatusForbidden, "vendor access required"},
 	{usecase.ErrNoVendorProfile, http.StatusForbidden, "no vendor profile found"},
 	{usecase.ErrVendorNotOwned, http.StatusForbidden, "vendor does not belong to this user"},
-	{usecase.ErrVendorResponsibleEmail, http.StatusBadRequest, "responsible person email must match owner account email"},
 	{usecase.ErrInvalidStatusTransition, http.StatusBadRequest, ""},
 
 	// Xendit

@@ -209,8 +209,8 @@
       <h2>Target Product</h2>
       <p class="hint">
         Masukkan ID produk yang ingin diedit. Gunakan tombol <em>Load Product Detail</em> untuk
-        pre-fill form dari API (hanya bekerja untuk produk <strong>published</strong>). Untuk produk
-        <strong>draft</strong>, isi form secara manual.
+        pre-fill form dari endpoint vendor terautentikasi, sehingga bisa dipakai untuk produk
+        <strong>draft</strong> maupun <strong>published</strong>.
       </p>
       <div class="grid">
         <div class="field full">
@@ -219,7 +219,7 @@
         </div>
       </div>
       <div class="row-actions">
-        <button id="btnLoadProduct" class="secondary">Load Product Detail (published only)</button>
+        <button id="btnLoadProduct" class="secondary">Load Product Detail</button>
       </div>
       <p class="hint" id="loadedProductInfo">Status: -</p>
     </div>
@@ -478,7 +478,7 @@
         "Login: " + endpoint("/api/v1/vendors/login") +
         " | Edit: PUT " + endpoint("/api/v1/vendors/products/{id}") +
         " | Confirm: " + endpoint("/api/v1/vendors/products/{id}/images/confirm") +
-        " | Catalog: " + endpoint("/api/v1/products/{id}");
+        " | Detail: GET " + endpoint("/api/v1/vendors/products/{id}");
     }
 
     /* ─────────────── categories ─────────────── */
@@ -535,10 +535,14 @@
         if (!res.ok) { alert("Login gagal. Cek Log."); return; }
 
         const data = body && body.data ? body.data : {};
-        document.getElementById("token").value = data.token || "";
-        state.vendorInfo = { vendor_id: data.vendor_id || "", display_name: data.display_name || "", vendor_status: data.vendor_status || "" };
+        document.getElementById("token").value = data.access_token || data.token || "";
+        state.vendorInfo = {
+          vendor_id: data.vendor_id || "",
+          store_name: data.store_name || data.display_name || "",
+          vendor_status: data.vendor_status || ""
+        };
         document.getElementById("vendorInfo").textContent =
-          "Vendor: " + (state.vendorInfo.display_name || "-") +
+          "Vendor: " + (state.vendorInfo.store_name || "-") +
           " | vendor_id: " + (state.vendorInfo.vendor_id || "-") +
           " | status: " + (state.vendorInfo.vendor_status || "-");
         alert("Login sukses.");
@@ -551,20 +555,25 @@
     /* ─────────────── load product detail ─────────────── */
 
     async function loadProductDetail() {
+      const token = document.getElementById("token").value.trim();
+      if (!token) { alert("Token kosong. Login dulu."); return; }
+
       const id = document.getElementById("productID").value.trim();
       if (!id) { alert("Masukkan product_id dulu."); return; }
 
-      const url = endpoint("/api/v1/products/" + id);
+      const url = endpoint("/api/v1/vendors/products/" + id);
       log({ request: "load_product_detail", url: url });
 
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          headers: { "Authorization": "Bearer " + token }
+        });
         const body = await parseBody(res);
         log({ response: "load_product_detail", status: res.status, request_id: res.headers.get("X-Request-ID"), body: body });
 
         if (!res.ok) {
-          document.getElementById("loadedProductInfo").textContent = "Gagal load (" + res.status + "). Isi form secara manual.";
-          alert("Load product detail gagal (mungkin produk draft). Isi form manual. Cek Log.");
+          document.getElementById("loadedProductInfo").textContent = "Gagal load (" + res.status + "). Cek token / ownership / product ID.";
+          alert("Load product detail gagal. Cek Log.");
           return;
         }
 

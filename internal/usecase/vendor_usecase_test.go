@@ -344,7 +344,7 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 			ResponsiblePerson: domain.VendorSouvenirStoreProposalResponsiblePerson{
 				Name:        "Ahmad",
 				Phone:       "08123456789",
-				Email:       "owner@example.com",
+				Email:       "responsible@example.com",
 				NIK:         "3173010101010001",
 				KTPObjectID: "vendors/docs/ktp",
 			},
@@ -361,29 +361,65 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 		}
 	})
 
-	t.Run("responsible person email mismatch", func(t *testing.T) {
+	t.Run("responsible person email can differ from owner email", func(t *testing.T) {
 		userRepo, vendorRepo, _, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 		userID := uuid.New()
-
-		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+		vendor := &domain.Vendor{
 			ID:          vendorID,
 			OwnerUserID: userID,
 			Status:      domain.VendorStatusDraft,
-		}, nil)
-		userRepo.EXPECT().FindByID(ctx, userID).Return(&domain.User{
-			ID:    userID,
-			Email: "owner@example.com",
-		}, nil)
+		}
+		owner := &domain.User{
+			ID:       userID,
+			Email:    "owner@example.com",
+			FullName: "Owner Lama",
+		}
 
-		_, err := uc.SubmitSouvenirStoreProposal(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalRequest{
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+		userRepo.EXPECT().FindByID(ctx, userID).Return(owner, nil)
+		userRepo.EXPECT().FindByPhone(ctx, "08123456789").Return(owner, nil)
+		vendorRepo.EXPECT().
+			SubmitSouvenirStoreProposal(ctx, gomock.Any()).
+			DoAndReturn(func(_ context.Context, input domain.SubmitSouvenirStoreProposalInput) error {
+				if input.OwnerUser == nil || input.OwnerUser.FullName != "Ahmad" {
+					t.Fatalf("unexpected owner user: %+v", input.OwnerUser)
+				}
+				if input.ResponsiblePerson == nil || input.ResponsiblePerson.UserID != userID {
+					t.Fatalf("unexpected responsible person: %+v", input.ResponsiblePerson)
+				}
+				return nil
+			})
+
+		resp, err := uc.SubmitSouvenirStoreProposal(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalRequest{
+			StoreName:        "Toko Haji",
+			StoreDescription: "Pusat oleh-oleh",
+			Address: domain.VendorSouvenirStoreProposalAddress{
+				ProvinceID:    "31",
+				CityID:        "3171",
+				DistrictID:    "317101",
+				SubdistrictID: "3171011001",
+				PostalCode:    "10110",
+				AddressLine:   "Jl. Wahid Hasyim No. 10",
+			},
 			ResponsiblePerson: domain.VendorSouvenirStoreProposalResponsiblePerson{
-				Email: "different@example.com",
+				Name:        "Ahmad",
+				Phone:       "08123456789",
+				Email:       "different@example.com",
+				NIK:         "3173010101010001",
+				KTPObjectID: "vendors/docs/ktp",
+			},
+			OtherDocuments: domain.VendorSouvenirStoreProposalOtherDocuments{
+				NIBObjectID:              "vendors/docs/nib",
+				HalalCertificateObjectID: "vendors/docs/halal",
 			},
 		})
-		if !errors.Is(err, ErrVendorResponsibleEmail) {
-			t.Fatalf("expected ErrVendorResponsibleEmail, got %v", err)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.Status != domain.VendorStatusSubmitted {
+			t.Fatalf("unexpected response: %+v", resp)
 		}
 	})
 
@@ -860,7 +896,7 @@ func TestGetMe_TableDriven(t *testing.T) {
 		setupMocks func(context.Context, *mocks.MockUserRepository, *mocks.MockVendorRepository, uuid.UUID)
 		wantErr    error
 		wantAnyErr bool
-		assertResp func(*testing.T, *domain.VendorProfileResponse, uuid.UUID)
+		assertResp func(*testing.T, *domain.VendorMeResponse, uuid.UUID)
 	}{
 		{
 			name:     "success",
@@ -870,18 +906,12 @@ func TestGetMe_TableDriven(t *testing.T) {
 				imageURL := "https://cdn.example.com/vendors/profile.jpg"
 				vendorType := domain.VendorTypeSouvenirStore
 				displayName := "Toko Mabrur"
-				provinceID := "31"
-				provinceName := "DKI Jakarta"
-				addressLine := "Jl. Pegangsaan Barat No. 12"
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
-					ID:           vendorID,
-					OwnerUserID:  ownerID,
-					VendorType:   &vendorType,
-					Status:       domain.VendorStatusActive,
-					DisplayName:  &displayName,
-					ProvinceID:   &provinceID,
-					ProvinceName: &provinceName,
-					AddressLine:  &addressLine,
+					ID:          vendorID,
+					OwnerUserID: ownerID,
+					VendorType:  &vendorType,
+					Status:      domain.VendorStatusActive,
+					DisplayName: &displayName,
 				}, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(&domain.User{
 					ID:        ownerID,
@@ -892,7 +922,7 @@ func TestGetMe_TableDriven(t *testing.T) {
 					UpdatedAt: time.Now(),
 				}, nil)
 			},
-			assertResp: func(t *testing.T, resp *domain.VendorProfileResponse, vendorID uuid.UUID) {
+			assertResp: func(t *testing.T, resp *domain.VendorMeResponse, vendorID uuid.UUID) {
 				t.Helper()
 				if resp == nil {
 					t.Fatal("expected non-nil response")
@@ -900,14 +930,11 @@ func TestGetMe_TableDriven(t *testing.T) {
 				if resp.VendorID != vendorID {
 					t.Errorf("expected vendor ID %s, got %s", vendorID, resp.VendorID)
 				}
-				if resp.ImageURL != "https://cdn.example.com/vendors/profile.jpg" {
-					t.Errorf("expected image URL to match, got %q", resp.ImageURL)
+				if resp.ImageURL == nil || *resp.ImageURL != "https://cdn.example.com/vendors/profile.jpg" {
+					t.Errorf("expected image URL to match, got %v", resp.ImageURL)
 				}
 				if resp.Email != "toko.mabrur@example.com" {
 					t.Errorf("expected email toko.mabrur@example.com, got %s", resp.Email)
-				}
-				if resp.Name != "Abu Bakar Shidiq Basalamah" {
-					t.Errorf("expected owner full name, got %s", resp.Name)
 				}
 				if resp.VendorType == nil || *resp.VendorType != domain.VendorTypeSouvenirStore {
 					t.Errorf("expected vendor type %s, got %v", domain.VendorTypeSouvenirStore, resp.VendorType)
@@ -915,14 +942,8 @@ func TestGetMe_TableDriven(t *testing.T) {
 				if resp.VendorStatus != domain.VendorStatusActive {
 					t.Errorf("expected vendor status %s, got %s", domain.VendorStatusActive, resp.VendorStatus)
 				}
-				if resp.DisplayName == nil || *resp.DisplayName != "Toko Mabrur" {
-					t.Errorf("expected display name Toko Mabrur, got %v", resp.DisplayName)
-				}
-				if resp.ProvinceName == nil || *resp.ProvinceName != "DKI Jakarta" {
-					t.Errorf("expected province name DKI Jakarta, got %v", resp.ProvinceName)
-				}
-				if resp.AddressLine == nil || *resp.AddressLine != "Jl. Pegangsaan Barat No. 12" {
-					t.Errorf("expected address line, got %v", resp.AddressLine)
+				if resp.StoreName == nil || *resp.StoreName != "Toko Mabrur" {
+					t.Errorf("expected store name Toko Mabrur, got %v", resp.StoreName)
 				}
 			},
 		},
@@ -946,19 +967,19 @@ func TestGetMe_TableDriven(t *testing.T) {
 					FullName: "Owner Vendor",
 				}, nil)
 			},
-			assertResp: func(t *testing.T, resp *domain.VendorProfileResponse, _ uuid.UUID) {
+			assertResp: func(t *testing.T, resp *domain.VendorMeResponse, _ uuid.UUID) {
 				t.Helper()
 				if resp == nil {
 					t.Fatal("expected non-nil response")
 				}
-				if resp.ImageURL != "" {
-					t.Errorf("expected empty image URL, got %q", resp.ImageURL)
-				}
-				if resp.Name != "Owner Vendor" {
-					t.Errorf("expected owner name, got %s", resp.Name)
+				if resp.ImageURL != nil {
+					t.Errorf("expected nil image URL, got %v", resp.ImageURL)
 				}
 				if resp.VendorType == nil || *resp.VendorType != domain.VendorTypePPIU {
 					t.Errorf("expected vendor type %s, got %v", domain.VendorTypePPIU, resp.VendorType)
+				}
+				if resp.StoreName == nil || *resp.StoreName != "Toko Tanpa Foto" {
+					t.Errorf("expected store name Toko Tanpa Foto, got %v", resp.StoreName)
 				}
 			},
 		},
@@ -980,7 +1001,7 @@ func TestGetMe_TableDriven(t *testing.T) {
 					FullName: "Owner Vendor",
 				}, nil)
 			},
-			assertResp: func(t *testing.T, resp *domain.VendorProfileResponse, _ uuid.UUID) {
+			assertResp: func(t *testing.T, resp *domain.VendorMeResponse, _ uuid.UUID) {
 				t.Helper()
 				if resp == nil {
 					t.Fatal("expected non-nil response")
@@ -988,8 +1009,8 @@ func TestGetMe_TableDriven(t *testing.T) {
 				if resp.VendorType != nil {
 					t.Errorf("expected nil vendor type, got %v", resp.VendorType)
 				}
-				if resp.DisplayName != nil {
-					t.Errorf("expected nil display name, got %v", resp.DisplayName)
+				if resp.StoreName != nil {
+					t.Errorf("expected nil store name, got %v", resp.StoreName)
 				}
 			},
 		},

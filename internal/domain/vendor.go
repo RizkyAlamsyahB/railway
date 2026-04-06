@@ -111,25 +111,15 @@ type VendorLoginResponse struct {
 	VendorStatus string    `json:"vendor_status"`
 }
 
-// VendorProfileResponse is the output DTO for the authenticated vendor profile endpoint.
-type VendorProfileResponse struct {
-	VendorID        uuid.UUID `json:"vendor_id"`
-	ImageURL        string    `json:"image_url"`
-	Email           string    `json:"email"`
-	Name            string    `json:"name"`
-	VendorType      *string   `json:"vendor_type"`
-	VendorStatus    string    `json:"vendor_status"`
-	DisplayName     *string   `json:"display_name"`
-	ProvinceID      *string   `json:"province_id,omitempty"`
-	ProvinceName    *string   `json:"province_name,omitempty"`
-	CityID          *string   `json:"city_id,omitempty"`
-	CityName        *string   `json:"city_name,omitempty"`
-	DistrictID      *string   `json:"district_id,omitempty"`
-	DistrictName    *string   `json:"district_name,omitempty"`
-	SubdistrictID   *string   `json:"subdistrict_id,omitempty"`
-	SubdistrictName *string   `json:"subdistrict_name,omitempty"`
-	PostalCode      *string   `json:"postal_code,omitempty"`
-	AddressLine     *string   `json:"address_line,omitempty"`
+// VendorMeResponse is the output DTO for the authenticated vendor profile endpoint.
+// It mirrors the vendor login response shape without an access token.
+type VendorMeResponse struct {
+	VendorID     uuid.UUID `json:"vendor_id"`
+	ImageURL     *string   `json:"image_url"`
+	Email        string    `json:"email"`
+	VendorType   *string   `json:"vendor_type"`
+	VendorStatus string    `json:"vendor_status"`
+	StoreName    *string   `json:"store_name"`
 }
 
 type VendorSouvenirStoreProposalAddress struct {
@@ -512,7 +502,7 @@ type VendorUseCase interface {
 	Login(ctx context.Context, req VendorLoginRequest) (*VendorLoginResponse, error)
 
 	// GetMe returns the authenticated vendor profile by vendor ID from auth claims.
-	GetMe(ctx context.Context, vendorID uuid.UUID) (*VendorProfileResponse, error)
+	GetMe(ctx context.Context, vendorID uuid.UUID) (*VendorMeResponse, error)
 
 	// SubmitSouvenirStoreProposal submits the required vendor profile and documents for review.
 	SubmitSouvenirStoreProposal(ctx context.Context, vendorID uuid.UUID, userID uuid.UUID, req VendorSouvenirStoreProposalRequest) (*VendorSouvenirStoreProposalResponse, error)
@@ -565,12 +555,12 @@ type StoreProductItem struct {
 
 // StoreDetailResponse is the aggregated response for the public store detail endpoint.
 type StoreDetailResponse struct {
-	Store               StoreInfoResponse    `json:"store"`
+	Store               StoreInfoResponse      `json:"store"`
 	Banners             []VendorBannerResponse `json:"banners"`
-	RecommendedProducts []StoreProductItem   `json:"recommended_products"`
-	NewProducts         []StoreProductItem   `json:"new_products"`
-	Products            []StoreProductItem   `json:"products"`
-	ProductsPagination  *PaginationMeta      `json:"products_pagination"`
+	RecommendedProducts []StoreProductItem     `json:"recommended_products"`
+	NewProducts         []StoreProductItem     `json:"new_products"`
+	Products            []StoreProductItem     `json:"products"`
+	ProductsPagination  *PaginationMeta        `json:"products_pagination"`
 }
 
 // VendorReviewItem represents a single review in the public store endpoint.

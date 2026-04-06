@@ -367,7 +367,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessVendorProfileEnvelope"
+                $ref: "#/components/schemas/SuccessVendorMeEnvelope"
               example:
                 success: true
                 message: vendor profile retrieved successfully
@@ -375,20 +375,9 @@ paths:
                   vendor_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                   image_url: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
                   email: toko.mabrur@example.com
-                  name: Abu Bakar Shidiq Basalamah
+                  store_name: Toko Oleh-Oleh Haji Mabrur
                   vendor_type: null
                   vendor_status: active
-                  display_name: Toko Oleh-Oleh Haji Mabrur
-                  province_id: "31"
-                  province_name: DKI Jakarta
-                  city_id: "3171"
-                  city_name: Jakarta Pusat
-                  district_id: "317101"
-                  district_name: Menteng
-                  subdistrict_id: "3171011001"
-                  subdistrict_name: Pegangsaan
-                  postal_code: "10320"
-                  address_line: Jl. Pegangsaan Barat No. 12
                 errors: null
                 meta: null
         "400":
@@ -834,11 +823,11 @@ paths:
         **Aturan:**
         - Memerlukan autentikasi JWT dengan role `umkm`.
         - Vendor harus berstatus `active`.
+        - Vendor harus sudah memiliki default warehouse address dengan `district_id` terisi.
         - Harga dan stok di level top-level akan disimpan sebagai **default variant**.
         - Varian tambahan bisa ditambahkan melalui array `variants`.
         - SKU di-generate otomatis oleh sistem.
         - Slug di-generate otomatis dari nama produk.
-        - Minimal 1 shipping service wajib dipilih.
         - Jika `is_active: true`, produk langsung berstatus `published`. Jika `false`, berstatus `draft`.
         - Maksimal 10 gambar per produk.
         - Tepat 1 gambar harus ditandai sebagai `is_primary: true` (jika gambar disertakan).
@@ -861,9 +850,6 @@ paths:
               stock: 50
               weight_gram: 500
               is_active: false
-              shipping_service_ids:
-                - d1e2f3a4-b5c6-7890-def0-234567890abc
-                - e2f3a4b5-c6d7-8901-ef01-345678901bcd
               variants:
                 - variant_name: Merah
                   price: 150000
@@ -956,7 +942,7 @@ paths:
                 errors: null
                 meta: null
         "400":
-          description: Request tidak valid (validasi gagal, kategori tidak ditemukan, shipping service tidak valid, atau aturan gambar dilanggar).
+          description: Request tidak valid (validasi gagal, kategori tidak ditemukan, atau aturan gambar dilanggar).
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
@@ -978,14 +964,6 @@ paths:
                   value:
                     success: false
                     message: category not found
-                    data: null
-                    errors: null
-                    meta: null
-                shippingNotFound:
-                  summary: Satu atau lebih shipping service tidak ditemukan
-                  value:
-                    success: false
-                    message: one or more shipping services not found
                     data: null
                     errors: null
                     meta: null
@@ -1062,6 +1040,21 @@ paths:
                     data: null
                     errors: null
                     meta: null
+        "422":
+          description: Vendor belum melengkapi prasyarat operasional untuk create product.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: vendor must set a default address before adding products
+                data: null
+                errors: null
+                meta: null
         "500":
           description: Internal server error.
           headers:
@@ -5307,14 +5300,11 @@ components:
             - active
             - rejected
           example: active
-    VendorProfileResponse:
+    VendorMeResponse:
       type: object
       required:
         - vendor_id
-        - image_url
         - email
-        - name
-        - vendor_type
         - vendor_status
       properties:
         vendor_id:
@@ -5324,17 +5314,19 @@ components:
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
         image_url:
           type: string
-          description: URL foto profil vendor yang diambil dari `users.image_url` milik owner vendor. Bernilai string kosong jika belum ada foto profil.
+          nullable: true
+          description: URL foto profil vendor yang diambil dari `users.image_url` milik owner vendor. Bernilai `null` jika belum ada foto profil.
           example: https://cdn.umrahmart.com/vendors/a1b2c3d4-e5f6-7890-abcd-ef1234567890/profile.jpg
         email:
           type: string
           format: email
           description: Email akun owner vendor.
           example: toko.mabrur@example.com
-        name:
+        store_name:
           type: string
-          description: Nama lengkap owner user vendor.
-          example: Abu Bakar Shidiq Basalamah
+          nullable: true
+          description: Nama toko yang ditampilkan.
+          example: Toko Oleh-Oleh Haji Mabrur
         vendor_type:
           type: string
           nullable: true
@@ -5354,51 +5346,6 @@ components:
             - rejected
             - blocked
           example: active
-        display_name:
-          type: string
-          nullable: true
-          description: Nama toko yang ditampilkan.
-          example: Toko Oleh-Oleh Haji Mabrur
-        province_id:
-          type: string
-          nullable: true
-          example: "31"
-        province_name:
-          type: string
-          nullable: true
-          example: DKI Jakarta
-        city_id:
-          type: string
-          nullable: true
-          example: "3171"
-        city_name:
-          type: string
-          nullable: true
-          example: Jakarta Pusat
-        district_id:
-          type: string
-          nullable: true
-          example: "317101"
-        district_name:
-          type: string
-          nullable: true
-          example: Menteng
-        subdistrict_id:
-          type: string
-          nullable: true
-          example: "3171011001"
-        subdistrict_name:
-          type: string
-          nullable: true
-          example: Pegangsaan
-        postal_code:
-          type: string
-          nullable: true
-          example: "10320"
-        address_line:
-          type: string
-          nullable: true
-          example: Jl. Pegangsaan Barat No. 12
     VendorSouvenirStoreProposalPresignRequest:
       type: object
       required:
@@ -5618,7 +5565,7 @@ components:
         meta:
           nullable: true
           example: null
-    SuccessVendorProfileEnvelope:
+    SuccessVendorMeEnvelope:
       type: object
       required: [success, message, data, errors, meta]
       properties:
@@ -5629,7 +5576,7 @@ components:
           type: string
           example: vendor profile retrieved successfully
         data:
-          $ref: "#/components/schemas/VendorProfileResponse"
+          $ref: "#/components/schemas/VendorMeResponse"
         errors:
           nullable: true
           example: null
@@ -5817,7 +5764,6 @@ components:
         - category_id
         - description
         - price
-        - shipping_service_ids
       properties:
         name:
           type: string
@@ -5859,16 +5805,6 @@ components:
             - `false` → status produk menjadi `draft` (belum tampil).
           default: false
           example: false
-        shipping_service_ids:
-          type: array
-          minItems: 1
-          description: Daftar ID shipping service yang tersedia untuk produk ini. Minimal 1 wajib dipilih.
-          items:
-            type: string
-            format: uuid
-          example:
-            - d1e2f3a4-b5c6-7890-def0-234567890abc
-            - e2f3a4b5-c6d7-8901-ef01-345678901bcd
         variants:
           type: array
           maxItems: 20

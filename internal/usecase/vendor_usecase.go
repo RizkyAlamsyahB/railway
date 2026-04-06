@@ -133,7 +133,7 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 	}, nil
 }
 
-func (uc *vendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain.VendorProfileResponse, error) {
+func (uc *vendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain.VendorMeResponse, error) {
 	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find vendor: %w", err)
@@ -150,29 +150,13 @@ func (uc *vendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain
 		return nil, ErrUserNotFound
 	}
 
-	imageURL := ""
-	if user.ImageURL != nil {
-		imageURL = *user.ImageURL
-	}
-
-	return &domain.VendorProfileResponse{
-		VendorID:        vendor.ID,
-		ImageURL:        imageURL,
-		Email:           user.Email,
-		Name:            user.FullName,
-		VendorType:      vendor.VendorType,
-		VendorStatus:    vendor.Status,
-		DisplayName:     vendor.DisplayName,
-		ProvinceID:      vendor.ProvinceID,
-		ProvinceName:    vendor.ProvinceName,
-		CityID:          vendor.CityID,
-		CityName:        vendor.CityName,
-		DistrictID:      vendor.DistrictID,
-		DistrictName:    vendor.DistrictName,
-		SubdistrictID:   vendor.SubdistrictID,
-		SubdistrictName: vendor.SubdistrictName,
-		PostalCode:      vendor.PostalCode,
-		AddressLine:     vendor.AddressLine,
+	return &domain.VendorMeResponse{
+		VendorID:     vendor.ID,
+		ImageURL:     user.ImageURL,
+		Email:        user.Email,
+		VendorType:   vendor.VendorType,
+		VendorStatus: vendor.Status,
+		StoreName:    vendor.DisplayName,
 	}, nil
 }
 
