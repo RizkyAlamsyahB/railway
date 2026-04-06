@@ -193,29 +193,24 @@ type VendorListParams struct {
 	Search     string
 }
 
+// AdminVendorListAddress is the nested address object in the admin vendor list response.
+type AdminVendorListAddress struct {
+	Province    *string `json:"province,omitempty"`
+	City        *string `json:"city,omitempty"`
+	District    *string `json:"district,omitempty"`
+	Subdistrict *string `json:"subdistrict,omitempty"`
+	PostalCode  *string `json:"postal_code,omitempty"`
+}
+
 // AdminVendorListItem is the output DTO for a vendor in the admin list.
 type AdminVendorListItem struct {
-	ID              uuid.UUID `json:"id"`
-	DisplayName     *string   `json:"display_name"`
-	LegalName       *string   `json:"legal_name,omitempty"`
-	VendorType      *string   `json:"vendor_type"`
-	Status          string    `json:"status"`
-	StatusReason    *string   `json:"status_reason,omitempty"`
-	XenditAccountID *string   `json:"xendit_account_id,omitempty"`
-	OwnerName       string    `json:"owner_name"`
-	OwnerEmail      string    `json:"owner_email"`
-	ProvinceID      *string   `json:"province_id,omitempty"`
-	ProvinceName    *string   `json:"province_name,omitempty"`
-	CityID          *string   `json:"city_id,omitempty"`
-	CityName        *string   `json:"city_name,omitempty"`
-	DistrictID      *string   `json:"district_id,omitempty"`
-	DistrictName    *string   `json:"district_name,omitempty"`
-	SubdistrictID   *string   `json:"subdistrict_id,omitempty"`
-	SubdistrictName *string   `json:"subdistrict_name,omitempty"`
-	PostalCode      *string   `json:"postal_code,omitempty"`
-	AddressLine     *string   `json:"address_line,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID        uuid.UUID               `json:"id"`
+	Status    string                  `json:"status"`
+	StoreType *string                 `json:"store_type"`
+	StoreName *string                 `json:"store_name"`
+	Email     string                  `json:"email"`
+	Address   *AdminVendorListAddress `json:"address"`
+	CreatedAt time.Time               `json:"created_at"`
 }
 
 // AdminVendorOwnerResponse is the owner info in the admin vendor detail.

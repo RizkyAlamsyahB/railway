@@ -71,6 +71,23 @@ services:
     networks:
       - app_net
       
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: haji-umroh-seed
+    entrypoint: ["/app/seed"]
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   api:
     build:
       context: .
@@ -86,6 +103,8 @@ services:
       postgres:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully

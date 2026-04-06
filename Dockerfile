@@ -12,6 +12,7 @@ RUN go mod download
 # Build the binary
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/api cmd/api/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/seed cmd/seed/main.go
 
 # ── Final stage ───────────────────────────────────────────────
 FROM alpine:3.21
@@ -21,6 +22,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 
 COPY --from=builder /app/api .
+COPY --from=builder /app/seed .
 
 EXPOSE 8080
 

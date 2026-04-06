@@ -148,12 +148,9 @@ func TestAdminVendorList(t *testing.T) {
 				ownerID1 := uuid.New()
 				ownerID2 := uuid.New()
 
-				v2 := dummyVendorWithOwner(vendorID2, ownerID2, "active")
-				v2.XenditAccountID = ptrString("xen_account_123")
-
 				vendors := []domain.Vendor{
 					*dummyVendorWithOwner(vendorID1, ownerID1, "submitted"),
-					*v2,
+					*dummyVendorWithOwner(vendorID2, ownerID2, "active"),
 				}
 
 				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return(vendors, int64(2), nil)
@@ -171,17 +168,17 @@ func TestAdminVendorList(t *testing.T) {
 				if meta.TotalPages != 1 {
 					t.Errorf("expected total_pages=1, got %d", meta.TotalPages)
 				}
-				if items[0].OwnerName != "Owner Name" {
-					t.Errorf("expected owner name 'Owner Name', got %s", items[0].OwnerName)
+				if items[0].StoreName == nil || *items[0].StoreName != "Toko Oleh-Oleh Haji" {
+					t.Errorf("expected store_name 'Toko Oleh-Oleh Haji', got %v", items[0].StoreName)
 				}
-				if items[0].ProvinceName == nil || *items[0].ProvinceName != "DKI Jakarta" {
-					t.Errorf("expected province name DKI Jakarta, got %v", items[0].ProvinceName)
+				if items[0].StoreType == nil || *items[0].StoreType != domain.VendorTypeSouvenirStore {
+					t.Errorf("expected store_type '%s', got %v", domain.VendorTypeSouvenirStore, items[0].StoreType)
 				}
-				if items[0].XenditAccountID != nil {
-					t.Errorf("expected nil xendit_account_id for submitted vendor, got %v", *items[0].XenditAccountID)
+				if items[0].Email != "owner@example.com" {
+					t.Errorf("expected owner email 'owner@example.com', got %s", items[0].Email)
 				}
-				if items[1].XenditAccountID == nil || *items[1].XenditAccountID != "xen_account_123" {
-					t.Errorf("expected xendit_account_id 'xen_account_123' for active vendor, got %v", items[1].XenditAccountID)
+				if items[0].Address == nil || items[0].Address.Province == nil || *items[0].Address.Province != "DKI Jakarta" {
+					t.Errorf("expected address.province DKI Jakarta, got %+v", items[0].Address)
 				}
 			},
 		},
@@ -242,11 +239,42 @@ func TestAdminVendorList(t *testing.T) {
 			},
 			checkResp: func(t *testing.T, items []domain.AdminVendorListItem, meta *domain.PaginationMeta) {
 				t.Helper()
-				if items[0].OwnerName != "" {
-					t.Errorf("expected empty owner name, got %s", items[0].OwnerName)
+				if items[0].Email != "" {
+					t.Errorf("expected empty email, got %s", items[0].Email)
 				}
-				if items[0].OwnerEmail != "" {
-					t.Errorf("expected empty owner email, got %s", items[0].OwnerEmail)
+			},
+		},
+		{
+			name:   "nullable fields for draft-like vendor",
+			params: domain.VendorListParams{Page: 1, Limit: 10},
+			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, ctx context.Context) {
+				vendorID := uuid.New()
+				ownerID := uuid.New()
+				vendor := dummyVendorWithOwner(vendorID, ownerID, "draft")
+				vendor.VendorType = nil
+				vendor.DisplayName = nil
+				vendor.ProvinceName = nil
+				vendor.CityName = nil
+				vendor.DistrictName = nil
+				vendor.SubdistrictName = nil
+				vendor.PostalCode = nil
+
+				vendorRepo.EXPECT().List(ctx, domain.VendorListParams{Page: 1, Limit: 10}).Return([]domain.Vendor{*vendor}, int64(1), nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
+			},
+			checkResp: func(t *testing.T, items []domain.AdminVendorListItem, meta *domain.PaginationMeta) {
+				t.Helper()
+				if len(items) != 1 {
+					t.Fatalf("expected 1 item, got %d", len(items))
+				}
+				if items[0].StoreType != nil {
+					t.Errorf("expected store_type nil, got %v", *items[0].StoreType)
+				}
+				if items[0].StoreName != nil {
+					t.Errorf("expected store_name nil, got %v", *items[0].StoreName)
+				}
+				if items[0].Address != nil {
+					t.Errorf("expected address nil, got %+v", items[0].Address)
 				}
 			},
 		},

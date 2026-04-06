@@ -48,25 +48,18 @@ func (uc *adminVendorUseCase) List(ctx context.Context, params domain.VendorList
 	items := make([]domain.AdminVendorListItem, len(vendors))
 	for i, v := range vendors {
 		item := domain.AdminVendorListItem{
-			ID:              v.ID,
-			DisplayName:     v.DisplayName,
-			LegalName:       v.LegalName,
-			VendorType:      v.VendorType,
-			Status:          v.Status,
-			StatusReason:    v.StatusReason,
-			XenditAccountID: v.XenditAccountID,
-			ProvinceID:      v.ProvinceID,
-			ProvinceName:    v.ProvinceName,
-			CityID:          v.CityID,
-			CityName:        v.CityName,
-			DistrictID:      v.DistrictID,
-			DistrictName:    v.DistrictName,
-			SubdistrictID:   v.SubdistrictID,
-			SubdistrictName: v.SubdistrictName,
-			PostalCode:      v.PostalCode,
-			AddressLine:     v.AddressLine,
-			CreatedAt:       v.CreatedAt,
-			UpdatedAt:       v.UpdatedAt,
+			ID:        v.ID,
+			Status:    v.Status,
+			StoreType: v.VendorType,
+			StoreName: v.DisplayName,
+			Address: buildAdminVendorListAddress(
+				v.ProvinceName,
+				v.CityName,
+				v.DistrictName,
+				v.SubdistrictName,
+				v.PostalCode,
+			),
+			CreatedAt: v.CreatedAt,
 		}
 
 		owner, err := uc.userRepo.FindByID(ctx, v.OwnerUserID)
@@ -74,8 +67,7 @@ func (uc *adminVendorUseCase) List(ctx context.Context, params domain.VendorList
 			return nil, nil, fmt.Errorf("failed to find owner for vendor %s: %w", v.ID, err)
 		}
 		if owner != nil {
-			item.OwnerName = owner.FullName
-			item.OwnerEmail = owner.Email
+			item.Email = owner.Email
 		}
 
 		items[i] = item
@@ -89,6 +81,26 @@ func (uc *adminVendorUseCase) List(ctx context.Context, params domain.VendorList
 	}
 
 	return items, meta, nil
+}
+
+func buildAdminVendorListAddress(
+	province *string,
+	city *string,
+	district *string,
+	subdistrict *string,
+	postalCode *string,
+) *domain.AdminVendorListAddress {
+	if province == nil && city == nil && district == nil && subdistrict == nil && postalCode == nil {
+		return nil
+	}
+
+	return &domain.AdminVendorListAddress{
+		Province:    province,
+		City:        city,
+		District:    district,
+		Subdistrict: subdistrict,
+		PostalCode:  postalCode,
+	}
 }
 
 func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domain.AdminVendorDetailResponse, error) {

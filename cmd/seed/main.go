@@ -220,6 +220,11 @@ func seedUserRecord(db *gorm.DB, u seedUser) error {
 	}
 
 	if err := db.Create(&newUser).Error; err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			log.Printf("  skip   [%s] %s — duplicate key constraint (%s)", u.RoleCode, u.Email, pgErr.ConstraintName)
+			return nil
+		}
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 

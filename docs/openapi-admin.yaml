@@ -1022,9 +1022,17 @@ paths:
       tags:
         - Admin Vendors
       summary: Get Vendor List
-      description: >
-        Menampilkan daftar vendor yang terdaftar beserta informasi pemilik. Gunakan parameter `status=submitted`
-        untuk melihat vendor yang menunggu persetujuan admin.
+      description: |
+        Menampilkan daftar vendor yang terdaftar.
+
+        Gunakan parameter `status=submitted` untuk melihat vendor yang menunggu persetujuan admin.
+
+        Catatan nullable pada `data[]`:
+        - `store_type` dapat bernilai `null` (umumnya saat vendor masih `draft`).
+        - `store_name` dapat bernilai `null` (umumnya saat vendor masih `draft`).
+        - `address` dapat bernilai `null` jika data alamat belum diisi.
+
+        Jika `address` tidak `null`, field di dalamnya (`province`, `city`, `district`, `subdistrict`, `postal_code`) tetap bisa bernilai `null` sesuai kelengkapan data.
       operationId: listAdminVendors
       security:
         - BearerAuth: []
@@ -1091,47 +1099,24 @@ paths:
                 message: vendors retrieved successfully
                 data:
                   - id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                    display_name: Toko Oleh-Oleh Haji Mabrur
-                    legal_name: PT Mabrur Sejahtera
-                    vendor_type: null
                     status: submitted
-                    status_reason: null
-                    xendit_account_id: null
-                    owner_name: Budi Santoso
-                    owner_email: budi@example.com
-                    province_id: "31"
-                    province_name: DKI Jakarta
-                    city_id: "3171"
-                    city_name: Jakarta Pusat
-                    district_id: "317101"
-                    district_name: Menteng
-                    subdistrict_id: "3171011001"
-                    subdistrict_name: Pegangsaan
-                    postal_code: "10320"
-                    address_line: Jl. Pegangsaan Barat No. 12
+                    store_type: null
+                    store_name: Toko Oleh-Oleh Haji Mabrur
+                    email: budi@example.com
+                    address:
+                      province: DKI Jakarta
+                      city: Jakarta Pusat
+                      district: Menteng
+                      subdistrict: Pegangsaan
+                      postal_code: "10320"
                     created_at: "2026-02-10T08:00:00Z"
-                    updated_at: "2026-02-10T09:30:00Z"
                   - id: b2c3d4e5-f6a7-8901-bcde-f12345678901
-                    display_name: Umrah Store Jakarta
-                    legal_name: null
-                    vendor_type: ppiu
-                    status: rejected
-                    status_reason: Dokumen KTP tidak jelas
-                    xendit_account_id: null
-                    owner_name: Siti Aminah
-                    owner_email: siti@example.com
-                    province_id: null
-                    province_name: null
-                    city_id: null
-                    city_name: null
-                    district_id: null
-                    district_name: null
-                    subdistrict_id: null
-                    subdistrict_name: null
-                    postal_code: null
-                    address_line: null
+                    status: submitted
+                    store_type: ppiu
+                    store_name: Umrah Store Jakarta
+                    email: siti@example.com
+                    address: null
                     created_at: "2026-02-09T14:00:00Z"
-                    updated_at: "2026-02-09T15:00:00Z"
                 errors: null
                 meta:
                   page: 1
@@ -3935,36 +3920,20 @@ components:
           example: null
     AdminVendorListItem:
       type: object
+      description: Item data vendor untuk endpoint list admin. Beberapa field bersifat nullable menyesuaikan progres onboarding vendor.
       required:
         - id
-        - display_name
-        - vendor_type
         - status
-        - owner_name
-        - owner_email
+        - store_type
+        - store_name
+        - email
+        - address
         - created_at
-        - updated_at
       properties:
         id:
           type: string
           format: uuid
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        display_name:
-          type: string
-          nullable: true
-          example: Toko Oleh-Oleh Haji Mabrur
-        legal_name:
-          type: string
-          nullable: true
-          example: PT Mabrur Sejahtera
-        vendor_type:
-          type: string
-          nullable: true
-          enum:
-            - souvenir_store
-            - ppiu
-            - hajj_dormitory
-          example: souvenir_store
         status:
           type: string
           enum:
@@ -3974,73 +3943,63 @@ components:
             - rejected
             - blocked
           example: submitted
-        status_reason:
+        store_type:
           type: string
           nullable: true
-          description: Alasan reject/block yang diberikan admin. Null jika tidak ada.
-          example: null
-        xendit_account_id:
+          description: Tipe toko vendor. Null jika vendor belum melengkapi tipe toko (umumnya status draft).
+          enum:
+            - souvenir_store
+            - ppiu
+            - hajj_dormitory
+          example: souvenir_store
+        store_name:
           type: string
           nullable: true
-          description: ID akun Xendit XenPlatform vendor. Null jika vendor belum diapprove.
-          example: 6684bb0b873d7b1b2db95b22
-        owner_name:
-          type: string
-          description: Nama lengkap pemilik vendor (dari tabel users).
-          example: Budi Santoso
-        owner_email:
+          description: Nama toko (display name). Null jika vendor belum melengkapi nama toko.
+          example: Toko Oleh-Oleh Haji Mabrur
+        email:
           type: string
           format: email
-          description: Email pemilik vendor (dari tabel users).
+          description: Email pemilik vendor.
           example: budi@example.com
-        province_id:
-          type: string
+        address:
           nullable: true
-          example: "31"
-        province_name:
-          type: string
-          nullable: true
-          example: DKI Jakarta
-        city_id:
-          type: string
-          nullable: true
-          example: "3171"
-        city_name:
-          type: string
-          nullable: true
-          example: Jakarta Pusat
-        district_id:
-          type: string
-          nullable: true
-          example: "317101"
-        district_name:
-          type: string
-          nullable: true
-          example: Menteng
-        subdistrict_id:
-          type: string
-          nullable: true
-          example: "3171011001"
-        subdistrict_name:
-          type: string
-          nullable: true
-          example: Pegangsaan
-        postal_code:
-          type: string
-          nullable: true
-          example: "10320"
-        address_line:
-          type: string
-          nullable: true
-          example: Jl. Pegangsaan Barat No. 12
+          description: Alamat vendor dalam bentuk objek. Null jika alamat belum diisi.
+          allOf:
+            - $ref: "#/components/schemas/AdminVendorListAddress"
         created_at:
           type: string
           format: date-time
           example: "2026-02-10T08:00:00Z"
-        updated_at:
+    AdminVendorListAddress:
+      type: object
+      description: Objek alamat vendor pada list admin. Setiap field dapat bernilai null jika data lokasi belum lengkap.
+      properties:
+        province:
           type: string
-          format: date-time
-          example: "2026-02-10T09:30:00Z"
+          nullable: true
+          description: Nama provinsi.
+          example: DKI Jakarta
+        city:
+          type: string
+          nullable: true
+          description: Nama kota/kabupaten.
+          example: Jakarta Pusat
+        district:
+          type: string
+          nullable: true
+          description: Nama kecamatan.
+          example: Menteng
+        subdistrict:
+          type: string
+          nullable: true
+          description: Nama kelurahan/desa.
+          example: Pegangsaan
+        postal_code:
+          type: string
+          nullable: true
+          description: Kode pos.
+          example: "10320"
     AdminVendorOwnerResponse:
       type: object
       required:
