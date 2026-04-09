@@ -15,6 +15,7 @@ type storeUseCase struct {
 	productRepo      domain.ProductRepository
 	vendorBannerRepo domain.VendorBannerRepository
 	reviewRepo       domain.ReviewRepository
+	addressRepo      domain.AddressRepository
 	storage          domain.StorageProvider
 }
 
@@ -24,6 +25,7 @@ func NewStoreUseCase(
 	productRepo domain.ProductRepository,
 	vendorBannerRepo domain.VendorBannerRepository,
 	reviewRepo domain.ReviewRepository,
+	addressRepo domain.AddressRepository,
 	storage domain.StorageProvider,
 ) domain.StoreUseCase {
 	return &storeUseCase{
@@ -31,6 +33,7 @@ func NewStoreUseCase(
 		productRepo:      productRepo,
 		vendorBannerRepo: vendorBannerRepo,
 		reviewRepo:       reviewRepo,
+		addressRepo:      addressRepo,
 		storage:          storage,
 	}
 }
@@ -130,6 +133,11 @@ func (uc *storeUseCase) GetStoreDetail(ctx context.Context, vendorID uuid.UUID, 
 		displayName = strings.TrimSpace(derefStoreString(vendor.LegalName))
 	}
 	location := buildVendorLocation(vendor)
+	if location == "" {
+		if addr, err := uc.addressRepo.FindDefaultByUserID(ctx, vendor.OwnerUserID); err == nil && addr != nil {
+			location = buildAddressLocation(addr)
+		}
+	}
 
 	return &domain.StoreDetailResponse{
 		Store: domain.StoreInfoResponse{
@@ -195,15 +203,15 @@ func (uc *storeUseCase) GetStoreReviews(ctx context.Context, vendorID uuid.UUID,
 	// 6. Build Summary. For this, we should really have an aggregated model,
 	// but we can compute rating breakdown by getting it from reviewRepository if needed,
 	// or we can just fetch GetVendorAggregatedRating for the average_rating and total_reviews,
-	// and we don't have a direct repo method for rating breakdown. Wait, `reviewRepository` has `GetStatsByProductID` 
-	// but not by vendor. I'll need to query it from repo, or add a method. 
+	// and we don't have a direct repo method for rating breakdown. Wait, `reviewRepository` has `GetStatsByProductID`
+	// but not by vendor. I'll need to query it from repo, or add a method.
 	// For now, let's just make it a dummy breakdown or the real one by fetching `vendorRepo.GetVendorAggregatedRating`.
 	avgRating, totalReviews, err := uc.vendorRepo.GetVendorAggregatedRating(ctx, vendorID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vendor rating: %w", err)
 	}
 
-	// Note: We don't have GetVendorRatingBreakdown yet. Let's return a dummy or empty breakdown for now, 
+	// Note: We don't have GetVendorRatingBreakdown yet. Let's return a dummy or empty breakdown for now,
 	// unless we implement it.
 	breakdown := make(map[string]int64)
 
@@ -247,9 +255,32 @@ func derefStoreString(value *string) string {
 	return *value
 }
 
-func buildVendorLocation(vendor *domain.Vendor) *string {
+func buildAddressLocation(addr *domain.Address) string {
+	if addr == nil {
+		return ""
+	}
+	parts := make([]string, 0, 6)
+	if v := strings.TrimSpace(addr.AddressLine); v != "" {
+		parts = append(parts, v)
+	}
+	for _, p := range []*string{addr.SubdistrictName, addr.DistrictName, addr.CityName, addr.ProvinceName} {
+		if p != nil {
+			if v := strings.TrimSpace(*p); v != "" {
+				parts = append(parts, v)
+			}
+		}
+	}
+	if p := addr.PostalCode; p != nil {
+		if v := strings.TrimSpace(*p); v != "" {
+			parts = append(parts, v)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func buildVendorLocation(vendor *domain.Vendor) string {
 	if vendor == nil {
-		return nil
+		return ""
 	}
 
 	parts := make([]string, 0, 5)
@@ -270,10 +301,6 @@ func buildVendorLocation(vendor *domain.Vendor) *string {
 	if postalCode != "" {
 		parts = append(parts, postalCode)
 	}
-	if len(parts) == 0 {
-		return nil
-	}
 
-	location := strings.Join(parts, ", ")
-	return &location
+	return strings.Join(parts, ", ")
 }

@@ -170,3 +170,19 @@ func (h *VendorVoucherHandler) DeleteVoucher(c *gin.Context) {
 
 	response.OK(c, "voucher deleted successfully", nil)
 }
+
+// GetSummary handles GET /api/v1/vendors/vouchers/summary
+func (h *VendorVoucherHandler) GetSummary(c *gin.Context) {
+	vendorID, ok := h.vendorIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	summary, err := h.uc.GetSummary(c.Request.Context(), vendorID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "voucher summary retrieved successfully", summary)
+}

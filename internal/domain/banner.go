@@ -30,9 +30,11 @@ type ConfirmBannerRequest struct {
 	ObjectKey string `json:"object_key" binding:"required"`
 }
 
-// UpdateBannerRequest allows updating the banner title.
+// UpdateBannerRequest allows updating the banner title and optionally requesting a new image presign.
+// If ContentType is provided, the response will include upload_url and object_key for re-uploading.
 type UpdateBannerRequest struct {
-	Title *string `json:"title" binding:"omitempty,max=255"`
+	Title       *string `json:"title" binding:"omitempty,max=255"`
+	ContentType *string `json:"content_type" binding:"omitempty"`
 }
 
 // --- Response DTOs ---
@@ -54,6 +56,20 @@ type BannerPresignResponse struct {
 	ExpiresIn int       `json:"expires_in"`
 }
 
+// UpdateBannerResponse is returned by UpdateBanner.
+// When content_type is provided in the request, upload_url/object_key/expires_in are also returned
+// so the FE can upload a new image and then call the confirm endpoint.
+type UpdateBannerResponse struct {
+	ID        uuid.UUID `json:"id"`
+	Title     string    `json:"title"`
+	ImageURL  string    `json:"image_url"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	UploadURL *string   `json:"upload_url,omitempty"`
+	ObjectKey *string   `json:"object_key,omitempty"`
+	ExpiresIn *int      `json:"expires_in,omitempty"`
+}
+
 // --- Interfaces ---
 
 // BannerRepository defines persistence operations for banners.
@@ -71,6 +87,6 @@ type BannerUseCase interface {
 	ConfirmBanner(ctx context.Context, bannerID uuid.UUID, req ConfirmBannerRequest) (*BannerResponse, error)
 	ListBanners(ctx context.Context) ([]BannerResponse, error)
 	GetBanner(ctx context.Context, id uuid.UUID) (*BannerResponse, error)
-	UpdateBanner(ctx context.Context, id uuid.UUID, req UpdateBannerRequest) (*BannerResponse, error)
+	UpdateBanner(ctx context.Context, id uuid.UUID, req UpdateBannerRequest) (*UpdateBannerResponse, error)
 	DeleteBanner(ctx context.Context, id uuid.UUID) error
 }

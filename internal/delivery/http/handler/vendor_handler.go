@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"net/http"
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/middleware"
@@ -147,6 +150,29 @@ func (h *VendorHandler) GetMe(c *gin.Context) {
 	response.OK(c, "vendor profile retrieved successfully", result)
 }
 
+// UpdateProfile handles PUT /api/v1/vendors/me/profile
+func (h *VendorHandler) UpdateProfile(c *gin.Context) {
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	var req domain.VendorUpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	result, err := h.useCase.UpdateProfile(c.Request.Context(), vendorID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "vendor profile updated successfully", result)
+}
+
 // SubmitSouvenirStoreProposal handles POST /api/v1/vendors/register/propose/souvenir_store
 func (h *VendorHandler) SubmitSouvenirStoreProposal(c *gin.Context) {
 	var req domain.VendorSouvenirStoreProposalRequest
@@ -233,6 +259,90 @@ func (h *VendorHandler) ListPayoutChannels(c *gin.Context) {
 	response.OK(c, "payout channels retrieved successfully", result)
 }
 
+// CreateBankAccount handles POST /api/v1/vendors/bank-accounts
+func (h *VendorHandler) CreateBankAccount(c *gin.Context) {
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	var req domain.CreateVendorBankAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	result, err := h.useCase.CreateBankAccount(c.Request.Context(), vendorID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.Created(c, "bank account created", result)
+}
+
+// ListBankAccounts handles GET /api/v1/vendors/bank-accounts
+func (h *VendorHandler) ListBankAccounts(c *gin.Context) {
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	items, err := h.useCase.ListBankAccounts(c.Request.Context(), vendorID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "bank accounts loaded", items)
+}
+
+// DeleteBankAccount handles DELETE /api/v1/vendors/bank-accounts/:id
+func (h *VendorHandler) DeleteBankAccount(c *gin.Context) {
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid bank account id", nil)
+		return
+	}
+
+	if err := h.useCase.DeleteBankAccount(c.Request.Context(), vendorID, id); err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "bank account deleted", nil)
+}
+
+// SetDefaultBankAccount handles PATCH /api/v1/vendors/bank-accounts/:id/default
+func (h *VendorHandler) SetDefaultBankAccount(c *gin.Context) {
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid bank account id", nil)
+		return
+	}
+
+	if err := h.useCase.SetDefaultBankAccount(c.Request.Context(), vendorID, id); err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "default bank account updated", nil)
+}
+
 // RequestWithdrawal handles POST /api/v1/vendors/withdrawals
 func (h *VendorHandler) RequestWithdrawal(c *gin.Context) {
 	var req domain.VendorWithdrawRequest
@@ -251,4 +361,29 @@ func (h *VendorHandler) RequestWithdrawal(c *gin.Context) {
 	}
 
 	response.OK(c, "withdrawal request submitted successfully", result)
+}
+
+// ListWithdrawals handles GET /api/v1/vendors/withdrawals
+func (h *VendorHandler) ListWithdrawals(c *gin.Context) {
+	vendorID, ok := extractVendorID(c)
+	if !ok {
+		response.BadRequest(c, "invalid vendor ID in token", nil)
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	params := domain.VendorWithdrawalListParams{
+		Page:   page,
+		Limit:  limit,
+		Status: c.Query("status"),
+	}
+
+	items, meta, err := h.useCase.ListWithdrawals(c.Request.Context(), vendorID, params)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.SuccessWithMeta(c, http.StatusOK, "vendor withdrawals retrieved successfully", items, meta)
 }

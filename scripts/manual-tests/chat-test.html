@@ -549,8 +549,8 @@
 // ════════════════════════════════════════════════════════════
 //  Configuration & State
 // ════════════════════════════════════════════════════════════
-const BASE   = 'https://rizkyalamsyah.my.id/api/v1';
-const WS_URL = 'wss://rizkyalamsyah.my.id/api/v1/ws';
+const BASE   = 'https://haji-umroh-store-api.jauhar.id/api/v1';
+const WS_URL = 'wss://haji-umroh-store-api.jauhar.id/api/v1/ws';
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'video/mp4'];
 
@@ -690,7 +690,7 @@ async function doLogin() {
 
   if (!res.success) { toast(res.message || 'Login gagal', 'error'); return; }
 
-  token    = res.data.token;
+  token    = res.data.token ?? res.data.access_token;
   myUserID = res.data.user_id ?? res.data.user?.id;
   myRole   = res.data.role ?? res.data.user?.role;
   myEmail  = email;
@@ -1193,7 +1193,7 @@ async function searchChatableUsers() {
   resultsEl.innerHTML = users.map(u => `
     <div class="user-result-item" data-uid="${u.id}" data-uname="${escAttr(u.full_name)}">
       <div style="font-weight:600;font-size:13px">${escHtml(u.full_name)}</div>
-      <div style="font-size:11px;color:var(--muted)">${escHtml(u.email)} · <code style="font-size:10px;background:#e5e7eb;padding:1px 5px;border-radius:3px">${shortID(u.id)}</code></div>
+      <div style="font-size:11px;color:var(--muted)">${escHtml(u.email)} · <code style="font-size:10px;background:#e5e7eb;padding:1px 5px;border-radius:3px;cursor:pointer" title="Click to copy" onclick="navigator.clipboard.writeText('${u.id}').then(()=>toast('ID copied!'))">${u.id}</code></div>
       <span class="conv-role-tag role-${u.role}" style="font-size:10px;padding:2px 8px">${ROLE_LABELS[u.role] || u.role}</span>
     </div>
   `).join('');

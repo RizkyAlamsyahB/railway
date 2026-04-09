@@ -395,3 +395,153 @@ func TestOrderActionUseCase_ListOrderStatuses(t *testing.T) {
 		}
 	}
 }
+
+func TestOrderActionUseCase_GetOrderDetail_PresignedImageURL(t *testing.T) {
+	m, uc := setupOrderActionUseCase(t)
+	ctx := context.Background()
+
+	orderID := uuid.New()
+	userID := uuid.New()
+	variantID := uuid.New()
+	productID := uuid.New()
+	rawImageURL := "products/item-1.jpg"
+	presignedImageURL := "https://signed.example.com/products/item-1.jpg?sig=abc"
+
+	m.orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
+		ID:            orderID,
+		UserID:        userID,
+		VendorID:      uuid.New(),
+		OrderNo:       "ORD-001",
+		OrderStatus:   domain.OrderStatusPaid,
+		PaymentStatus: domain.PaymentStatusPaid,
+	}, nil)
+	m.orderRepo.EXPECT().FindItemsByOrderID(ctx, orderID).Return([]domain.OrderItem{
+		{
+			ID:                  uuid.New(),
+			ProductVariantID:    variantID,
+			ProductNameSnapshot: "Kurma",
+			SKUSnapshot:         "500gr",
+			Qty:                 1,
+			UnitPrice:           10000,
+			LineTotal:           10000,
+		},
+	}, nil)
+	m.productRepo.EXPECT().FindVariantByID(ctx, variantID).Return(&domain.ProductVariant{ID: variantID, ProductID: productID}, nil)
+	m.productRepo.EXPECT().FindImagesByProductID(ctx, productID).Return([]domain.ProductImage{{IsPrimary: true, ImageURL: rawImageURL}}, nil)
+	m.storage.EXPECT().GeneratePresignedURL(ctx, rawImageURL, PresignedDownloadExpiry).Return(presignedImageURL, nil)
+	m.vendorRepo.EXPECT().FindByID(ctx, gomock.Any()).Return(nil, nil)
+	m.shipmentRepo.EXPECT().FindByOrderID(ctx, orderID).Return(nil, nil)
+	m.paymentRepo.EXPECT().FindInvoiceByOrderID(ctx, orderID).Return(nil, nil)
+
+	res, err := uc.GetOrderDetail(ctx, userID, orderID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(res.Items))
+	}
+	if res.Items[0].ImageURL == nil {
+		t.Fatalf("expected non-nil image_url")
+	}
+	if *res.Items[0].ImageURL != presignedImageURL {
+		t.Fatalf("expected presigned image_url %s, got %s", presignedImageURL, *res.Items[0].ImageURL)
+	}
+}
+
+func TestOrderActionUseCase_GetOrderDetail_PresignFailsFallbackNil(t *testing.T) {
+	m, uc := setupOrderActionUseCase(t)
+	ctx := context.Background()
+
+	orderID := uuid.New()
+	userID := uuid.New()
+	variantID := uuid.New()
+	productID := uuid.New()
+	rawImageURL := "products/item-2.jpg"
+
+	m.orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
+		ID:            orderID,
+		UserID:        userID,
+		VendorID:      uuid.New(),
+		OrderNo:       "ORD-002",
+		OrderStatus:   domain.OrderStatusPaid,
+		PaymentStatus: domain.PaymentStatusPaid,
+	}, nil)
+	m.orderRepo.EXPECT().FindItemsByOrderID(ctx, orderID).Return([]domain.OrderItem{
+		{
+			ID:                  uuid.New(),
+			ProductVariantID:    variantID,
+			ProductNameSnapshot: "Madu",
+			SKUSnapshot:         "250ml",
+			Qty:                 1,
+			UnitPrice:           50000,
+			LineTotal:           50000,
+		},
+	}, nil)
+	m.productRepo.EXPECT().FindVariantByID(ctx, variantID).Return(&domain.ProductVariant{ID: variantID, ProductID: productID}, nil)
+	m.productRepo.EXPECT().FindImagesByProductID(ctx, productID).Return([]domain.ProductImage{{IsPrimary: true, ImageURL: rawImageURL}}, nil)
+	m.storage.EXPECT().GeneratePresignedURL(ctx, rawImageURL, PresignedDownloadExpiry).Return("", errors.New("presign error"))
+	m.vendorRepo.EXPECT().FindByID(ctx, gomock.Any()).Return(nil, nil)
+	m.shipmentRepo.EXPECT().FindByOrderID(ctx, orderID).Return(nil, nil)
+	m.paymentRepo.EXPECT().FindInvoiceByOrderID(ctx, orderID).Return(nil, nil)
+
+	res, err := uc.GetOrderDetail(ctx, userID, orderID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(res.Items))
+	}
+	if res.Items[0].ImageURL != nil {
+		t.Fatalf("expected nil image_url when presign fails, got %v", *res.Items[0].ImageURL)
+	}
+}
+
+func TestOrderActionUseCase_GetOrderDetail_AbsoluteImageURLPassthrough(t *testing.T) {
+	m, uc := setupOrderActionUseCase(t)
+	ctx := context.Background()
+
+	orderID := uuid.New()
+	userID := uuid.New()
+	variantID := uuid.New()
+	productID := uuid.New()
+	absImageURL := "https://cdn.example.com/products/item-3.jpg"
+
+	m.orderRepo.EXPECT().FindByID(ctx, orderID).Return(&domain.Order{
+		ID:            orderID,
+		UserID:        userID,
+		VendorID:      uuid.New(),
+		OrderNo:       "ORD-003",
+		OrderStatus:   domain.OrderStatusPaid,
+		PaymentStatus: domain.PaymentStatusPaid,
+	}, nil)
+	m.orderRepo.EXPECT().FindItemsByOrderID(ctx, orderID).Return([]domain.OrderItem{
+		{
+			ID:                  uuid.New(),
+			ProductVariantID:    variantID,
+			ProductNameSnapshot: "Saffron",
+			SKUSnapshot:         "1gr",
+			Qty:                 1,
+			UnitPrice:           150000,
+			LineTotal:           150000,
+		},
+	}, nil)
+	m.productRepo.EXPECT().FindVariantByID(ctx, variantID).Return(&domain.ProductVariant{ID: variantID, ProductID: productID}, nil)
+	m.productRepo.EXPECT().FindImagesByProductID(ctx, productID).Return([]domain.ProductImage{{IsPrimary: true, ImageURL: absImageURL}}, nil)
+	m.vendorRepo.EXPECT().FindByID(ctx, gomock.Any()).Return(nil, nil)
+	m.shipmentRepo.EXPECT().FindByOrderID(ctx, orderID).Return(nil, nil)
+	m.paymentRepo.EXPECT().FindInvoiceByOrderID(ctx, orderID).Return(nil, nil)
+
+	res, err := uc.GetOrderDetail(ctx, userID, orderID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(res.Items))
+	}
+	if res.Items[0].ImageURL == nil {
+		t.Fatalf("expected non-nil image_url")
+	}
+	if *res.Items[0].ImageURL != absImageURL {
+		t.Fatalf("expected absolute image_url passthrough %s, got %s", absImageURL, *res.Items[0].ImageURL)
+	}
+}

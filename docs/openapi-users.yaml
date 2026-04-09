@@ -4,11 +4,13 @@ info:
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk customer module, termasuk pendaftaran, autentikasi, profil, alamat, checkout, pesanan, FAQ, tiket bantuan, chat, dan review produk.
 servers:
-  - url: http://localhost:8080
+  - url: https://haji-umroh-store-api.jauhar.id
     description: Local development server
 tags:
   - name: User Registration
     description: Operasi pendaftaran customer baru dan verifikasi email.
+  - name: Password Recovery
+    description: Operasi OTP untuk alur lupa password (forgot password).
   - name: User Authentication
     description: Operasi autentikasi user (login).
   - name: User Profile
@@ -30,177 +32,11 @@ tags:
   - name: Reviews
     description: Operasi review produk oleh customer (presign gambar dan submit review).
 paths:
-  /api/v1/order-statuses:
-    get:
-      tags:
-        - Orders
-      summary: Daftar Status Order
-      description: |
-        Mengembalikan daftar status order yang valid untuk kebutuhan filter di client.
-        Endpoint ini bersifat public (tanpa autentikasi).
-      operationId: listOrderStatuses
-      security: []
-      responses:
-        "200":
-          description: Daftar status order berhasil dimuat.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessOrderStatusesEnvelope"
-              example:
-                success: true
-                message: "order statuses loaded"
-                data:
-                  - pending_payment
-                  - paid
-                  - processing
-                  - packed
-                  - shipped
-                  - received
-                  - completed
-                  - canceled
-                  - refunded
-                errors: null
-                meta: null
-        "500":
-          description: Internal server error.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-              example:
-                success: false
-                message: "internal server error"
-                data: null
-                errors: null
-                meta: null
-
-  /api/v1/otp/request:
-    post:
-      tags:
-        - User Registration
-      summary: 1. Request OTP
-      description: |
-        Membuat OTP baru untuk `purpose` tertentu dan mengirimkannya ke email tujuan.
-        Endpoint ini berdiri sendiri dan belum terhubung ke flow registrasi atau reset password existing.
-      operationId: requestOtp
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RequestOTPRequest"
-            example:
-              email: ahmad.fauzi@example.com
-              purpose: email_verification
-      responses:
-        "201":
-          description: OTP berhasil dibuat dan dikirim.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessRequestOTPEnvelope"
-        "400":
-          description: Request tidak valid.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "429":
-          description: Request OTP terlalu cepat.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          description: Internal server error.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-
-  /api/v1/otp/verify:
-    post:
-      tags:
-        - User Registration
-      summary: 2. Verify OTP
-      description: |
-        Memverifikasi OTP berdasarkan kombinasi `email`, `purpose`, dan `code`.
-        Jika sukses, endpoint mengembalikan proof token khusus OTP untuk dipakai di flow lanjutan.
-      operationId: verifyOtp
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/VerifyOTPRequest"
-            example:
-              email: ahmad.fauzi@example.com
-              purpose: forgot_password
-              code: "123456"
-      responses:
-        "200":
-          description: OTP valid dan proof token berhasil diterbitkan.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessVerifyOTPEnvelope"
-        "400":
-          description: OTP invalid, expired, atau request tidak valid.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "429":
-          description: Jumlah percobaan OTP melebihi batas.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-        "500":
-          description: Internal server error.
-          headers:
-            X-Request-ID:
-              $ref: "#/components/headers/RequestIDHeader"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-
   /api/v1/users/register:
     post:
       tags:
         - User Registration
-      summary: 3. Register User (Customer)
+      summary: 1. Register User (Customer)
       description: |
         Membuat akun user baru dengan role `customer` dan status `pending`.
         Setelah registrasi berhasil, sistem akan mengirimkan email berisi link verifikasi
@@ -346,7 +182,7 @@ paths:
     get:
       tags:
         - User Registration
-      summary: 4. Verify Email User (Customer)
+      summary: 2. Verify Email User (Customer)
       description: |
         Memverifikasi alamat email customer menggunakan token yang dikirim via email.
         Endpoint ini dipanggil ketika user mengklik link verifikasi di email.
@@ -389,6 +225,178 @@ paths:
               schema:
                 type: string
                 example: https://app.example.com/verify-email?status=success
+
+  /api/v1/order-statuses:
+    get:
+      tags:
+        - Orders
+      summary: Daftar Status Order
+      description: |
+        Mengembalikan daftar status order yang valid untuk kebutuhan filter di client.
+        Endpoint ini bersifat public (tanpa autentikasi).
+      operationId: listOrderStatuses
+      security: []
+      responses:
+        "200":
+          description: Daftar status order berhasil dimuat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessOrderStatusesEnvelope"
+              example:
+                success: true
+                message: "order statuses loaded"
+                data:
+                  - pending_payment
+                  - paid
+                  - processing
+                  - packed
+                  - shipped
+                  - received
+                  - completed
+                  - canceled
+                  - refunded
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "internal server error"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/otp/request:
+    post:
+      tags:
+        - Password Recovery
+      summary: Request OTP Forgot Password
+      description: |
+        Membuat dan mengirim OTP khusus untuk alur `forgot_password` ke email user.
+
+        Endpoint ini digunakan sebelum proses reset password.
+        Jika request valid, sistem mengirim kode OTP ke email dan mengembalikan
+        waktu kedaluwarsa OTP serta cooldown request berikutnya.
+      operationId: requestOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestOTPRequest"
+            example:
+              email: ahmad.fauzi@example.com
+              purpose: forgot_password
+      responses:
+        "201":
+          description: OTP forgot password berhasil dibuat dan dikirim.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessRequestOTPEnvelope"
+        "400":
+          description: Request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Request OTP terlalu cepat.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/otp/verify:
+    post:
+      tags:
+        - Password Recovery
+      summary: Verify OTP Forgot Password
+      description: |
+        Memverifikasi kode OTP untuk alur `forgot_password` berdasarkan kombinasi
+        `email`, `purpose`, dan `code`.
+
+        Jika verifikasi sukses, endpoint mengembalikan `proof_token` OTP yang
+        dipakai pada langkah reset password berikutnya.
+      operationId: verifyOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOTPRequest"
+            example:
+              email: ahmad.fauzi@example.com
+              purpose: forgot_password
+              code: "123456"
+      responses:
+        "200":
+          description: OTP forgot password valid dan proof token berhasil diterbitkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessVerifyOTPEnvelope"
+        "400":
+          description: OTP invalid, expired, atau request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Jumlah percobaan OTP melebihi batas.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 
   /api/v1/users/resend-verification:
     post:
@@ -663,6 +671,155 @@ paths:
                 errors: null
                 meta: null
 
+  /api/v1/users/oauth/google:
+    post:
+      tags:
+        - User Authentication
+      summary: Login user dengan Google ID token
+      description: |
+        Mengautentikasi user customer menggunakan Google ID token dari client (mobile/web).
+
+        **Alur endpoint ini:**
+        - Backend memverifikasi `id_token` ke Google tokeninfo endpoint.
+        - Jika email Google belum terdaftar, backend akan auto-register user baru dengan role `customer`.
+        - Jika user sudah ada namun masih `pending`, backend akan mengaktifkan akun secara otomatis.
+        - Jika role user bukan `customer`, request ditolak.
+
+        **Catatan penting:**
+        - Endpoint ini menerima `id_token` (bukan access token).
+        - Server harus dikonfigurasi dengan `GOOGLE_OAUTH_CLIENT_ID`.
+      operationId: loginUserWithGoogle
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleLoginRequest"
+            example:
+              id_token: eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...
+      responses:
+        "200":
+          description: Login berhasil. Mengembalikan JWT token dan data user.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessLoginEnvelope"
+              example:
+                success: true
+                message: "login successful"
+                data:
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  user:
+                    id: 7d2e9f31-09af-4d49-adf3-47bb2b9e2010
+                    email: ahmad.fauzi@example.com
+                    full_name: Ahmad Fauzi
+                    birth_date: null
+                    phone: null
+                    status: active
+                    email_verified_at: "2026-02-17T07:00:00Z"
+                    role: customer
+                    created_at: "2026-02-17T06:30:00Z"
+                    updated_at: "2026-02-17T07:00:00Z"
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "validation failed"
+                data: null
+                errors: "Key: 'GoogleLoginRequest.IDToken' Error:Field validation for 'IDToken' failed on the 'required' tag"
+                meta: null
+        "401":
+          description: Token Google tidak valid atau email Google belum terverifikasi.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalidGoogleToken:
+                  value:
+                    success: false
+                    message: "invalid google id token"
+                    data: null
+                    errors: null
+                    meta: null
+                unverifiedGoogleEmail:
+                  value:
+                    success: false
+                    message: "google account email is not verified"
+                    data: null
+                    errors: null
+                    meta: null
+        "403":
+          description: Account diblokir atau role bukan customer.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                blocked:
+                  value:
+                    success: false
+                    message: "account is blocked"
+                    data: null
+                    errors: null
+                    meta: null
+                notCustomer:
+                  value:
+                    success: false
+                    message: "google account is not allowed for this endpoint"
+                    data: null
+                    errors: null
+                    meta: null
+        "503":
+          description: OAuth Google belum dikonfigurasi di server.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "google oauth login is not configured"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "An unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
   /api/v1/users/me:
     get:
       tags:
@@ -773,6 +930,426 @@ paths:
               example:
                 success: false
                 message: "An unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/reset-password:
+    post:
+      tags:
+        - Password Recovery
+      summary: 3. Reset Password (Forgot Password)
+      description: |
+        Mengatur ulang password user setelah OTP diverifikasi.
+        Endpoint ini menerima `proof_token` yang didapat dari verifikasi OTP
+        dan password baru yang memenuhi syarat kekuatan.
+
+        **Alur lengkap forgot password:**
+        1. `POST /api/v1/otp/request` — kirim OTP ke email.
+        2. `POST /api/v1/otp/verify` — verifikasi kode OTP → dapat `proof_token`.
+        3. `POST /api/v1/users/reset-password` — reset password dengan `proof_token`.
+
+        **Syarat password baru:**
+        - Minimal 8 karakter.
+        - Mengandung minimal 1 huruf besar.
+        - Mengandung minimal 1 huruf kecil.
+        - Mengandung minimal 1 angka.
+        - Mengandung minimal 1 karakter spesial.
+
+        **Efek samping:**
+        - Semua sesi aktif (JWT token lama) akan otomatis di-invalidasi setelah password berhasil direset.
+        - User perlu login ulang setelah reset password.
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+            example:
+              proof_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+              new_password: NewSecurePass456@
+      responses:
+        "200":
+          description: Password berhasil direset. User perlu login ulang.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNullDataEnvelope"
+              example:
+                success: true
+                message: "password reset successfully"
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid (validasi gagal, proof token invalid, atau password terlalu lemah).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalidProofToken:
+                  summary: Proof token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired proof token"
+                    data: null
+                    errors: null
+                    meta: null
+                weakPassword:
+                  summary: Password terlalu lemah
+                  value:
+                    success: false
+                    message: "password does not meet strength requirements: password must contain at least one uppercase letter"
+                    data: null
+                    errors: null
+                    meta: null
+                missingFields:
+                  summary: Field wajib tidak diisi
+                  value:
+                    success: false
+                    message: "Invalid request body"
+                    data: null
+                    errors: "Key: 'ResetPasswordRequest.ProofToken' Error:Field validation for 'ProofToken' failed on the 'required' tag"
+                    meta: null
+        "404":
+          description: User tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "user not found"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "An unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/change-password:
+    put:
+      tags:
+        - User Profile
+      summary: Change Password
+      description: |
+        Mengubah password user yang sedang login.
+        User harus memasukkan password lama yang benar dan password baru yang memenuhi syarat kekuatan.
+
+        **Endpoint ini tersedia untuk semua role:** `customer`, `umkm`, `admin`, `cs`, `finance`.
+
+        **Syarat:**
+        - Wajib login (menyertakan JWT token).
+        - Password lama harus benar.
+        - Password baru harus berbeda dari password lama.
+        - Password baru minimal 8 karakter, mengandung huruf besar, huruf kecil, angka, dan karakter spesial.
+
+        **Efek samping:**
+        - Semua sesi aktif (JWT token lama) akan otomatis di-invalidasi setelah password berhasil diubah.
+        - User perlu login ulang setelah ganti password.
+      operationId: changePassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+            example:
+              old_password: OldSecurePass123!
+              new_password: NewSecurePass456@
+      responses:
+        "200":
+          description: Password berhasil diubah. User perlu login ulang.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNullDataEnvelope"
+              example:
+                success: true
+                message: "password changed successfully"
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid (password lama salah, password baru sama, atau password terlalu lemah).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                oldPasswordIncorrect:
+                  summary: Password lama salah
+                  value:
+                    success: false
+                    message: "old password is incorrect"
+                    data: null
+                    errors: null
+                    meta: null
+                samePassword:
+                  summary: Password baru sama dengan password lama
+                  value:
+                    success: false
+                    message: "new password must be different from old password"
+                    data: null
+                    errors: null
+                    meta: null
+                weakPassword:
+                  summary: Password terlalu lemah
+                  value:
+                    success: false
+                    message: "password does not meet strength requirements: password must contain at least one special character"
+                    data: null
+                    errors: null
+                    meta: null
+                missingFields:
+                  summary: Field wajib tidak diisi
+                  value:
+                    success: false
+                    message: "Invalid request body"
+                    data: null
+                    errors: "Key: 'ChangePasswordRequest.OldPassword' Error:Field validation for 'OldPassword' failed on the 'required' tag"
+                    meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+                sessionExpired:
+                  summary: Sesi expired karena password diubah
+                  value:
+                    success: false
+                    message: "session expired due to password change, please login again"
+                    data: null
+                    errors: null
+                    meta: null
+        "403":
+          description: User tidak memiliki role yang diizinkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "insufficient permissions"
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: User tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "user not found"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "An unexpected error occurred"
+                data: null
+                errors: null
+                meta: null
+
+  /api/v1/users/delete-account:
+    post:
+      tags:
+        - User Profile
+      summary: Delete Account (Deactivate)
+      description: |
+        Menonaktifkan akun customer yang sedang login (soft delete).
+        Akun akan diubah statusnya menjadi `deactivated` dan tidak dapat login lagi.
+        Data akun **tidak dihapus** dari database, hanya dinonaktifkan.
+
+        **Endpoint ini hanya tersedia untuk role:** `customer`.
+
+        **Syarat:**
+        - Wajib login (menyertakan JWT token).
+        - Wajib memilih alasan penghapusan.
+        - Wajib mengonfirmasi dengan memasukkan password yang benar.
+
+        **Efek:**
+        - Status akun berubah menjadi `deactivated`.
+        - Alasan dan waktu permintaan penghapusan disimpan.
+        - User tidak dapat login lagi setelah akun dinonaktifkan.
+        - Tindakan ini tidak dapat dibatalkan oleh user sendiri.
+      operationId: deleteAccount
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountRequest"
+            example:
+              reason: "Tidak menggunakan lagi"
+              password: "SecurePass123!"
+      responses:
+        "200":
+          description: Akun berhasil dinonaktifkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessNullDataEnvelope"
+              example:
+                success: true
+                message: "account has been deactivated"
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid (password salah atau field wajib tidak diisi).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                passwordIncorrect:
+                  summary: Password salah
+                  value:
+                    success: false
+                    message: "password is incorrect"
+                    data: null
+                    errors: null
+                    meta: null
+                missingFields:
+                  summary: Field wajib tidak diisi
+                  value:
+                    success: false
+                    message: "Invalid request body"
+                    data: null
+                    errors: "Key: 'DeleteAccountRequest.Reason' Error:Field validation for 'Reason' failed on the 'required' tag"
+                    meta: null
+        "401":
+          description: Token tidak diberikan, tidak valid, atau sudah expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                missingHeader:
+                  summary: Header Authorization tidak ada
+                  value:
+                    success: false
+                    message: "missing authorization header"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidToken:
+                  summary: Token tidak valid atau expired
+                  value:
+                    success: false
+                    message: "invalid or expired token"
+                    data: null
+                    errors: null
+                    meta: null
+        "409":
+          description: Akun sudah dinonaktifkan sebelumnya.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "account is already deactivated"
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: "internal server error"
                 data: null
                 errors: null
                 meta: null
@@ -4721,9 +5298,9 @@ components:
           example: ahmad.fauzi@example.com
         purpose:
           type: string
-          enum: [email_verification, forgot_password]
-          description: Tujuan OTP yang akan dibuat.
-          example: email_verification
+          enum: [forgot_password]
+          description: Tujuan OTP. Saat ini hanya mendukung `forgot_password`.
+          example: forgot_password
 
     VerifyOTPRequest:
       type: object
@@ -4740,8 +5317,8 @@ components:
           example: ahmad.fauzi@example.com
         purpose:
           type: string
-          enum: [email_verification, forgot_password]
-          description: Tujuan OTP yang sedang diverifikasi.
+          enum: [forgot_password]
+          description: Tujuan OTP yang sedang diverifikasi. Saat ini hanya `forgot_password`.
           example: forgot_password
         code:
           type: string
@@ -4776,6 +5353,86 @@ components:
           format: password
           description: Password akun.
           example: SecurePass123!
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - old_password
+        - new_password
+      properties:
+        old_password:
+          type: string
+          format: password
+          description: Password lama yang saat ini digunakan.
+          example: OldSecurePass123!
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          description: |
+            Password baru. Harus memenuhi syarat kekuatan:
+            - Minimal 8 karakter.
+            - Mengandung minimal 1 huruf besar.
+            - Mengandung minimal 1 huruf kecil.
+            - Mengandung minimal 1 angka.
+            - Mengandung minimal 1 karakter spesial.
+          example: NewSecurePass456@
+
+    DeleteAccountRequest:
+      type: object
+      required:
+        - reason
+        - password
+      properties:
+        reason:
+          type: string
+          maxLength: 50
+          description: |
+            Alasan penghapusan akun. Pilihan yang tersedia:
+            - Tidak menggunakan lagi
+            - Privasi dan keamanan
+            - Pengalaman buruk
+            - Beralih ke platform lain
+            - Lainnya
+          example: Tidak menggunakan lagi
+        password:
+          type: string
+          format: password
+          description: Password akun untuk konfirmasi penghapusan.
+          example: SecurePass123!
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - proof_token
+        - new_password
+      properties:
+        proof_token:
+          type: string
+          description: Proof token JWT yang didapat dari endpoint `POST /api/v1/otp/verify` setelah verifikasi OTP berhasil.
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          description: |
+            Password baru. Harus memenuhi syarat kekuatan:
+            - Minimal 8 karakter.
+            - Mengandung minimal 1 huruf besar.
+            - Mengandung minimal 1 huruf kecil.
+            - Mengandung minimal 1 angka.
+            - Mengandung minimal 1 karakter spesial.
+          example: NewSecurePass456@
+
+    GoogleLoginRequest:
+      type: object
+      required:
+        - id_token
+      properties:
+        id_token:
+          type: string
+          description: Google ID token yang didapat dari Google Sign-In di client.
+          example: eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...
 
     PresignReviewImageRequest:
       type: object
@@ -5092,7 +5749,7 @@ components:
           example: ahmad.fauzi@example.com
         purpose:
           type: string
-          enum: [email_verification, forgot_password]
+          enum: [forgot_password]
           example: forgot_password
 
     # ──────────── Envelope Schemas ────────────
@@ -5109,9 +5766,11 @@ components:
         data:
           $ref: "#/components/schemas/RegisterCustomerResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5127,9 +5786,11 @@ components:
         data:
           $ref: "#/components/schemas/RequestOTPResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5145,9 +5806,11 @@ components:
         data:
           $ref: "#/components/schemas/VerifyOTPResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5161,12 +5824,15 @@ components:
           type: string
           example: "If your email is registered and pending verification, a new verification email has been sent."
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5180,12 +5846,15 @@ components:
           type: string
           description: Pesan error.
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           description: Detail error tambahan (biasanya string validasi error).
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5582,9 +6251,11 @@ components:
         data:
           $ref: "#/components/schemas/LoginResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5600,9 +6271,11 @@ components:
         data:
           $ref: "#/components/schemas/UserResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5618,9 +6291,11 @@ components:
         data:
           $ref: "#/components/schemas/CheckoutResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5636,9 +6311,11 @@ components:
         data:
           $ref: "#/components/schemas/CompleteOrderResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5656,6 +6333,7 @@ components:
           items:
             $ref: "#/components/schemas/CustomerOrderListItem"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
@@ -5673,9 +6351,11 @@ components:
         data:
           $ref: "#/components/schemas/OrderStatusesResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5691,9 +6371,11 @@ components:
         data:
           $ref: "#/components/schemas/PresignReviewImageResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5709,9 +6391,11 @@ components:
         data:
           $ref: "#/components/schemas/CreateProductReviewResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -5996,6 +6680,7 @@ components:
         refund_info:
           allOf:
             - $ref: "#/components/schemas/CancelOrderRefundInfo"
+          type: object
           nullable: true
           description: Informasi auto-refund. Hanya ada jika order sudah dibayar (`payment_status = paid`).
 
@@ -6412,7 +7097,18 @@ components:
         status:
           type: string
           description: Status order saat ini.
-          enum: [pending_payment, paid, processing, packed, shipped, received, completed, canceled, refunded]
+          enum:
+            [
+              pending_payment,
+              paid,
+              processing,
+              packed,
+              shipped,
+              received,
+              completed,
+              canceled,
+              refunded,
+            ]
           example: paid
         payment_status:
           type: string
@@ -6488,7 +7184,15 @@ components:
           format: uuid
         status:
           type: string
-          enum: [requested, approved, rejected, processing, processed, awaiting_destination]
+          enum:
+            [
+              requested,
+              approved,
+              rejected,
+              processing,
+              processed,
+              awaiting_destination,
+            ]
           example: awaiting_destination
         refund_method:
           type: string
@@ -6514,6 +7218,7 @@ components:
         shipping:
           allOf:
             - $ref: "#/components/schemas/CustomerOrderDetailShipping"
+          type: object
           nullable: true
         address:
           $ref: "#/components/schemas/CustomerOrderDetailAddress"
@@ -6534,6 +7239,7 @@ components:
         refund:
           allOf:
             - $ref: "#/components/schemas/CustomerOrderDetailRefund"
+          type: object
           nullable: true
           description: Informasi refund terkait order. `null` jika tidak ada refund.
 
@@ -6956,12 +7662,15 @@ components:
           type: string
           example: success
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -6977,9 +7686,11 @@ components:
         data:
           $ref: "#/components/schemas/AddressResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -6997,9 +7708,11 @@ components:
           items:
             $ref: "#/components/schemas/AddressResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7017,6 +7730,7 @@ components:
           items:
             $ref: "#/components/schemas/WishlistItem"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
@@ -7034,9 +7748,11 @@ components:
         data:
           $ref: "#/components/schemas/WishlistAddData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7052,9 +7768,11 @@ components:
         data:
           $ref: "#/components/schemas/WishlistStatusData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7070,9 +7788,11 @@ components:
         data:
           $ref: "#/components/schemas/CheckoutPreviewResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7088,9 +7808,11 @@ components:
         data:
           $ref: "#/components/schemas/CancelOrderResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7106,9 +7828,11 @@ components:
         data:
           $ref: "#/components/schemas/CustomerOrderDetailResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7124,9 +7848,11 @@ components:
         data:
           $ref: "#/components/schemas/OrderInvoiceResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7142,9 +7868,11 @@ components:
         data:
           $ref: "#/components/schemas/OrderShippingInfoResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7162,9 +7890,11 @@ components:
           items:
             $ref: "#/components/schemas/FAQCategoryGroup"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7180,9 +7910,11 @@ components:
         data:
           $ref: "#/components/schemas/FAQCategoriesResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7200,9 +7932,11 @@ components:
           items:
             $ref: "#/components/schemas/TicketSubjectResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7218,9 +7952,11 @@ components:
         data:
           $ref: "#/components/schemas/PresignTicketAttachmentResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7236,9 +7972,11 @@ components:
         data:
           $ref: "#/components/schemas/TicketResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7256,6 +7994,7 @@ components:
           items:
             $ref: "#/components/schemas/ChatableUserResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
@@ -7273,9 +8012,11 @@ components:
         data:
           $ref: "#/components/schemas/PresignChatAttachmentResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7291,9 +8032,11 @@ components:
         data:
           $ref: "#/components/schemas/ConversationResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7311,6 +8054,7 @@ components:
           items:
             $ref: "#/components/schemas/ConversationResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
@@ -7328,9 +8072,11 @@ components:
         data:
           $ref: "#/components/schemas/ChatMessageResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7348,6 +8094,7 @@ components:
           items:
             $ref: "#/components/schemas/ChatMessageResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
@@ -7367,9 +8114,11 @@ components:
         data:
           $ref: "#/components/schemas/CreateUserBankAccountResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7387,9 +8136,11 @@ components:
           items:
             $ref: "#/components/schemas/UserBankAccountListItem"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7407,9 +8158,11 @@ components:
         data:
           $ref: "#/components/schemas/CreateOrderRefundResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7425,9 +8178,11 @@ components:
         data:
           $ref: "#/components/schemas/SubmitRefundDestinationResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -7443,8 +8198,10 @@ components:
         data:
           $ref: "#/components/schemas/PresignRefundEvidenceResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null

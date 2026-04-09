@@ -9,18 +9,21 @@ import (
 
 // User represents the users table.
 type User struct {
-	ID              uuid.UUID  `json:"id"`
-	Email           string     `json:"email"`
-	FullName        string     `json:"full_name"`
-	ImageURL        *string    `json:"image_url,omitempty"`
-	BirthDate       *time.Time `json:"birth_date,omitempty"`
-	Phone           *string    `json:"phone,omitempty"`
-	PasswordHash    string     `json:"-"`
-	Status          string     `json:"status"`
-	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
-	Role            *Role      `json:"role,omitempty"`
+	ID                  uuid.UUID  `json:"id"`
+	Email               string     `json:"email"`
+	FullName            string     `json:"full_name"`
+	ImageURL            *string    `json:"image_url,omitempty"`
+	BirthDate           *time.Time `json:"birth_date,omitempty"`
+	Phone               *string    `json:"phone,omitempty"`
+	PasswordHash        string     `json:"-"`
+	Status              string     `json:"status"`
+	EmailVerifiedAt     *time.Time `json:"email_verified_at,omitempty"`
+	PasswordChangedAt   *time.Time `json:"-"`
+	DeletionReason      *string    `json:"-"`
+	DeletionRequestedAt *time.Time `json:"-"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	Role                *Role      `json:"role,omitempty"`
 }
 
 // Role represents the roles table.
@@ -110,7 +113,9 @@ type UserRepository interface {
 	List(ctx context.Context, params UserListParams) ([]User, int64, error)
 	Update(ctx context.Context, user *User) error
 	UpdateWithRole(ctx context.Context, user *User, roleCode string) error
+	UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) error
 	ActivateUser(ctx context.Context, id uuid.UUID) error
+	Deactivate(ctx context.Context, id uuid.UUID, reason string) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
 
@@ -148,6 +153,24 @@ type ResendVerificationRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }
 
+// DeleteAccountRequest is the input DTO for customer account deletion.
+type DeleteAccountRequest struct {
+	Reason   string `json:"reason" binding:"required,max=50"`
+	Password string `json:"password" binding:"required"`
+}
+
+// ChangePasswordRequest is the input DTO for authenticated password change.
+type ChangePasswordRequest struct {
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
+// ResetPasswordRequest is the input DTO for resetting password via OTP proof token.
+type ResetPasswordRequest struct {
+	ProofToken  string `json:"proof_token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
 // LoginRequest is the input DTO for user authentication.
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
@@ -158,6 +181,11 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token string       `json:"token"`
 	User  UserResponse `json:"user"`
+}
+
+// GoogleLoginRequest is the input DTO for Google OAuth login.
+type GoogleLoginRequest struct {
+	IDToken string `json:"id_token" binding:"required"`
 }
 
 // EmailVerificationTokenRepository defines the interface for email verification token data access.
@@ -175,5 +203,9 @@ type UserUseCase interface {
 	VerifyEmail(ctx context.Context, rawToken string) error
 	ResendVerification(ctx context.Context, req ResendVerificationRequest) error
 	Login(ctx context.Context, req LoginRequest) (*LoginResponse, error)
+	LoginWithGoogle(ctx context.Context, req GoogleLoginRequest) (*LoginResponse, error)
 	GetMe(ctx context.Context, userID uuid.UUID) (*UserResponse, error)
+	ChangePassword(ctx context.Context, userID uuid.UUID, req ChangePasswordRequest) error
+	ResetPassword(ctx context.Context, req ResetPasswordRequest) error
+	DeleteAccount(ctx context.Context, userID uuid.UUID, req DeleteAccountRequest) error
 }

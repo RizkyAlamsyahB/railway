@@ -86,6 +86,21 @@ func (mr *MockPaymentRepositoryMockRecorder) EventExistsByExternalID(ctx, extern
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EventExistsByExternalID", reflect.TypeOf((*MockPaymentRepository)(nil).EventExistsByExternalID), ctx, externalEventID)
 }
 
+// ExportForAdmin mocks base method.
+func (m *MockPaymentRepository) ExportForAdmin(ctx context.Context, params domain.AdminPaymentListParams) ([]domain.AdminPaymentListItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExportForAdmin", ctx, params)
+	ret0, _ := ret[0].([]domain.AdminPaymentListItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExportForAdmin indicates an expected call of ExportForAdmin.
+func (mr *MockPaymentRepositoryMockRecorder) ExportForAdmin(ctx, params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExportForAdmin", reflect.TypeOf((*MockPaymentRepository)(nil).ExportForAdmin), ctx, params)
+}
+
 // FindInvoiceByExternalID mocks base method.
 func (m *MockPaymentRepository) FindInvoiceByExternalID(ctx context.Context, externalID string) (*domain.PaymentInvoice, error) {
 	m.ctrl.T.Helper()
@@ -130,6 +145,21 @@ func (m *MockPaymentRepository) ListForAdmin(ctx context.Context, params domain.
 func (mr *MockPaymentRepositoryMockRecorder) ListForAdmin(ctx, params any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListForAdmin", reflect.TypeOf((*MockPaymentRepository)(nil).ListForAdmin), ctx, params)
+}
+
+// SummaryForAdmin mocks base method.
+func (m *MockPaymentRepository) SummaryForAdmin(ctx context.Context, params domain.AdminPaymentListParams) (*domain.AdminPaymentSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SummaryForAdmin", ctx, params)
+	ret0, _ := ret[0].(*domain.AdminPaymentSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SummaryForAdmin indicates an expected call of SummaryForAdmin.
+func (mr *MockPaymentRepositoryMockRecorder) SummaryForAdmin(ctx, params any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SummaryForAdmin", reflect.TypeOf((*MockPaymentRepository)(nil).SummaryForAdmin), ctx, params)
 }
 
 // UpdateInvoiceStatus mocks base method.

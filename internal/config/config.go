@@ -78,6 +78,13 @@ type OTPConfig struct {
 	Issuer                string `mapstructure:"OTP_ISSUER"`
 }
 
+// GoogleOAuthConfig holds Google OAuth ID token verification settings.
+type GoogleOAuthConfig struct {
+	ClientID     string `mapstructure:"GOOGLE_OAUTH_CLIENT_ID"`
+	TokenInfoURL string `mapstructure:"GOOGLE_OAUTH_TOKENINFO_URL"`
+	TimeoutSec   int    `mapstructure:"GOOGLE_OAUTH_TIMEOUT_SEC"`
+}
+
 // AdminConfig holds seed admin user configuration.
 type AdminConfig struct {
 	Email    string `mapstructure:"ADMIN_EMAIL"`
@@ -148,18 +155,19 @@ type SensitiveDataConfig struct {
 
 // Config is the root configuration struct containing all configuration sections.
 type Config struct {
-	App        AppConfig           `mapstructure:",squash"`
-	Database   DatabaseConfig      `mapstructure:",squash"`
-	JWT        JWTConfig           `mapstructure:",squash"`
-	OTP        OTPConfig           `mapstructure:",squash"`
-	Admin      AdminConfig         `mapstructure:",squash"`
-	Storage    StorageConfig       `mapstructure:",squash"`
-	SMTP       SMTPConfig          `mapstructure:",squash"`
-	IMAP       IMAPConfig          `mapstructure:",squash"`
-	Xendit     XenditConfig        `mapstructure:",squash"`
-	Withdrawal WithdrawalConfig    `mapstructure:",squash"`
-	Sensitive  SensitiveDataConfig `mapstructure:",squash"`
-	RajaOngkir RajaOngkirConfig    `mapstructure:",squash"`
+	App         AppConfig           `mapstructure:",squash"`
+	Database    DatabaseConfig      `mapstructure:",squash"`
+	JWT         JWTConfig           `mapstructure:",squash"`
+	OTP         OTPConfig           `mapstructure:",squash"`
+	Admin       AdminConfig         `mapstructure:",squash"`
+	Storage     StorageConfig       `mapstructure:",squash"`
+	SMTP        SMTPConfig          `mapstructure:",squash"`
+	IMAP        IMAPConfig          `mapstructure:",squash"`
+	Xendit      XenditConfig        `mapstructure:",squash"`
+	Withdrawal  WithdrawalConfig    `mapstructure:",squash"`
+	Sensitive   SensitiveDataConfig `mapstructure:",squash"`
+	RajaOngkir  RajaOngkirConfig    `mapstructure:",squash"`
+	GoogleOAuth GoogleOAuthConfig   `mapstructure:",squash"`
 }
 
 // Load reads configuration from the .env file and environment variables.
@@ -195,6 +203,9 @@ func Load() (*Config, error) {
 	viper.SetDefault("OTP_PROOF_EXPIRY_MINUTES", 10)
 	viper.SetDefault("OTP_SECRET", "")
 	viper.SetDefault("OTP_ISSUER", "haji-umroh-store-be-otp")
+	viper.SetDefault("GOOGLE_OAUTH_CLIENT_ID", "")
+	viper.SetDefault("GOOGLE_OAUTH_TOKENINFO_URL", "https://oauth2.googleapis.com/tokeninfo")
+	viper.SetDefault("GOOGLE_OAUTH_TIMEOUT_SEC", 10)
 	viper.SetDefault("ADMIN_EMAIL", "")
 	viper.SetDefault("ADMIN_PASSWORD", "")
 	viper.SetDefault("ADMIN_NAME", "")

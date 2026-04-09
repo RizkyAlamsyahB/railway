@@ -2,9 +2,10 @@ package domain
 
 // User statuses.
 const (
-	UserStatusPending = "pending"
-	UserStatusActive  = "active"
-	UserStatusBlocked = "blocked"
+	UserStatusPending     = "pending"
+	UserStatusActive      = "active"
+	UserStatusBlocked     = "blocked"
+	UserStatusDeactivated = "deactivated"
 )
 
 // Vendor statuses.
@@ -20,6 +21,13 @@ const (
 const (
 	ProductStatusDraft     = "draft"
 	ProductStatusPublished = "published"
+)
+
+// Product types.
+const (
+	ProductTypeSingle  = "single"
+	ProductTypeVariant = "variant"
+	ProductTypePackage = "package"
 )
 
 // Cart statuses.
@@ -72,11 +80,6 @@ const (
 // Halal AI review statuses.
 const (
 	HalalAIStatusPending = "pending"
-)
-
-// Verification statuses (documents, bank accounts).
-const (
-	VerificationStatusPending = "pending"
 )
 
 // Role codes.

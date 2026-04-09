@@ -312,7 +312,7 @@ func TestSetRegistrationPassword_Success(t *testing.T) {
 
 func TestSubmitSouvenirStoreProposal(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		userRepo, vendorRepo, _, shipping, _, _, uc := setupVendorUseCase(t)
+		userRepo, vendorRepo, storage, shipping, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 		userID := uuid.New()
@@ -352,6 +352,18 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
 		userRepo.EXPECT().FindByID(ctx, userID).Return(owner, nil)
 		userRepo.EXPECT().FindByPhone(ctx, "08123456789").Return(owner, nil)
+		storage.EXPECT().HeadObject(ctx, "vendors/"+vendorID.String()+"/documents/owner_document_id/ktp-1").Return(&domain.ObjectInfo{
+			ContentType:   "image/jpeg",
+			ContentLength: 1024,
+		}, nil)
+		storage.EXPECT().HeadObject(ctx, "vendors/"+vendorID.String()+"/documents/business_nib/nib-1").Return(&domain.ObjectInfo{
+			ContentType:   "application/pdf",
+			ContentLength: 2048,
+		}, nil)
+		storage.EXPECT().HeadObject(ctx, "vendors/"+vendorID.String()+"/documents/halal_certificate/halal-1").Return(&domain.ObjectInfo{
+			ContentType:   "application/pdf",
+			ContentLength: 4096,
+		}, nil)
 		vendorRepo.EXPECT().
 			SubmitSouvenirStoreProposal(ctx, gomock.Any()).
 			DoAndReturn(func(_ context.Context, input domain.SubmitSouvenirStoreProposalInput) error {
@@ -386,17 +398,36 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 					t.Fatalf("expected 3 documents, got %d", len(input.Documents))
 				}
 				docTypes := map[string]string{}
+				docMime := map[string]string{}
+				docSize := map[string]int{}
 				for _, doc := range input.Documents {
 					docTypes[doc.DocType] = doc.FileURL
+					if doc.MimeType == nil {
+						t.Fatalf("expected mime type for %s", doc.DocType)
+					}
+					if doc.FileSizeBytes == nil {
+						t.Fatalf("expected file size for %s", doc.DocType)
+					}
+					docMime[doc.DocType] = *doc.MimeType
+					docSize[doc.DocType] = *doc.FileSizeBytes
 				}
-				if docTypes[domain.VendorDocumentTypeOwnerDocumentID] != "vendors/docs/ktp" {
+				if docTypes[domain.VendorDocumentTypeOwnerDocumentID] != "vendors/"+vendorID.String()+"/documents/owner_document_id/ktp-1" {
 					t.Fatalf("unexpected KTP doc: %+v", docTypes)
 				}
-				if docTypes[domain.VendorDocumentTypeBusinessNIB] != "vendors/docs/nib" {
+				if docTypes[domain.VendorDocumentTypeBusinessNIB] != "vendors/"+vendorID.String()+"/documents/business_nib/nib-1" {
 					t.Fatalf("unexpected NIB doc: %+v", docTypes)
 				}
-				if docTypes[domain.VendorDocumentTypeHalalCertificate] != "vendors/docs/halal" {
+				if docTypes[domain.VendorDocumentTypeHalalCertificate] != "vendors/"+vendorID.String()+"/documents/halal_certificate/halal-1" {
 					t.Fatalf("unexpected halal doc: %+v", docTypes)
+				}
+				if docMime[domain.VendorDocumentTypeOwnerDocumentID] != "image/jpeg" || docSize[domain.VendorDocumentTypeOwnerDocumentID] != 1024 {
+					t.Fatalf("unexpected KTP metadata: mime=%s size=%d", docMime[domain.VendorDocumentTypeOwnerDocumentID], docSize[domain.VendorDocumentTypeOwnerDocumentID])
+				}
+				if docMime[domain.VendorDocumentTypeBusinessNIB] != "application/pdf" || docSize[domain.VendorDocumentTypeBusinessNIB] != 2048 {
+					t.Fatalf("unexpected NIB metadata: mime=%s size=%d", docMime[domain.VendorDocumentTypeBusinessNIB], docSize[domain.VendorDocumentTypeBusinessNIB])
+				}
+				if docMime[domain.VendorDocumentTypeHalalCertificate] != "application/pdf" || docSize[domain.VendorDocumentTypeHalalCertificate] != 4096 {
+					t.Fatalf("unexpected halal metadata: mime=%s size=%d", docMime[domain.VendorDocumentTypeHalalCertificate], docSize[domain.VendorDocumentTypeHalalCertificate])
 				}
 				return nil
 			})
@@ -417,11 +448,11 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 				Phone:       "08123456789",
 				Email:       "responsible@example.com",
 				NIK:         "3173010101010001",
-				KTPObjectID: "vendors/docs/ktp",
+				KTPObjectID: "vendors/" + vendorID.String() + "/documents/owner_document_id/ktp-1",
 			},
 			OtherDocuments: domain.VendorSouvenirStoreProposalOtherDocuments{
-				NIBObjectID:              "vendors/docs/nib",
-				HalalCertificateObjectID: "vendors/docs/halal",
+				NIBObjectID:              "vendors/" + vendorID.String() + "/documents/business_nib/nib-1",
+				HalalCertificateObjectID: "vendors/" + vendorID.String() + "/documents/halal_certificate/halal-1",
 			},
 		})
 		if err != nil {
@@ -433,7 +464,7 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 	})
 
 	t.Run("responsible person email can differ from owner email", func(t *testing.T) {
-		userRepo, vendorRepo, _, shipping, _, _, uc := setupVendorUseCase(t)
+		userRepo, vendorRepo, storage, shipping, _, _, uc := setupVendorUseCase(t)
 		ctx := context.Background()
 		vendorID := uuid.New()
 		userID := uuid.New()
@@ -464,6 +495,9 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
 		userRepo.EXPECT().FindByID(ctx, userID).Return(owner, nil)
 		userRepo.EXPECT().FindByPhone(ctx, "08123456789").Return(owner, nil)
+		storage.EXPECT().HeadObject(ctx, "vendors/"+vendorID.String()+"/documents/owner_document_id/ktp-2").Return(&domain.ObjectInfo{ContentType: "image/jpeg", ContentLength: 1024}, nil)
+		storage.EXPECT().HeadObject(ctx, "vendors/"+vendorID.String()+"/documents/business_nib/nib-2").Return(&domain.ObjectInfo{ContentType: "application/pdf", ContentLength: 2048}, nil)
+		storage.EXPECT().HeadObject(ctx, "vendors/"+vendorID.String()+"/documents/halal_certificate/halal-2").Return(&domain.ObjectInfo{ContentType: "application/pdf", ContentLength: 3072}, nil)
 		vendorRepo.EXPECT().
 			SubmitSouvenirStoreProposal(ctx, gomock.Any()).
 			DoAndReturn(func(_ context.Context, input domain.SubmitSouvenirStoreProposalInput) error {
@@ -492,11 +526,11 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 				Phone:       "08123456789",
 				Email:       "different@example.com",
 				NIK:         "3173010101010001",
-				KTPObjectID: "vendors/docs/ktp",
+				KTPObjectID: "vendors/" + vendorID.String() + "/documents/owner_document_id/ktp-2",
 			},
 			OtherDocuments: domain.VendorSouvenirStoreProposalOtherDocuments{
-				NIBObjectID:              "vendors/docs/nib",
-				HalalCertificateObjectID: "vendors/docs/halal",
+				NIBObjectID:              "vendors/" + vendorID.String() + "/documents/business_nib/nib-2",
+				HalalCertificateObjectID: "vendors/" + vendorID.String() + "/documents/halal_certificate/halal-2",
 			},
 		})
 		if err != nil {
@@ -504,6 +538,63 @@ func TestSubmitSouvenirStoreProposal(t *testing.T) {
 		}
 		if resp == nil || resp.Status != domain.VendorStatusSubmitted {
 			t.Fatalf("unexpected response: %+v", resp)
+		}
+	})
+
+	t.Run("invalid document object key", func(t *testing.T) {
+		userRepo, vendorRepo, _, shipping, _, _, uc := setupVendorUseCase(t)
+		ctx := context.Background()
+		vendorID := uuid.New()
+		userID := uuid.New()
+		vendor := &domain.Vendor{
+			ID:          vendorID,
+			OwnerUserID: userID,
+			Status:      domain.VendorStatusDraft,
+		}
+		owner := &domain.User{ID: userID, Email: "owner@example.com", FullName: "Owner"}
+
+		shipping.getProvinces = func(context.Context) ([]domain.ROProvince, error) {
+			return []domain.ROProvince{{ID: "31", Name: "DKI Jakarta"}}, nil
+		}
+		shipping.getCities = func(context.Context, string) ([]domain.ROCity, error) {
+			return []domain.ROCity{{ID: "3171", ProvinceID: "31", Name: "Jakarta Pusat"}}, nil
+		}
+		shipping.getDistricts = func(context.Context, string) ([]domain.RODistrict, error) {
+			return []domain.RODistrict{{ID: "317101", CityID: "3171", Name: "Menteng"}}, nil
+		}
+		shipping.getSubdistricts = func(context.Context, string) ([]domain.ROSubdistrict, error) {
+			return []domain.ROSubdistrict{{ID: "3171011001", DistrictID: "317101", Name: "Pegangsaan"}}, nil
+		}
+
+		vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
+		userRepo.EXPECT().FindByID(ctx, userID).Return(owner, nil)
+		userRepo.EXPECT().FindByPhone(ctx, "08123456789").Return(owner, nil)
+
+		_, err := uc.SubmitSouvenirStoreProposal(ctx, vendorID, userID, domain.VendorSouvenirStoreProposalRequest{
+			StoreName:        "Toko Haji",
+			StoreDescription: "Pusat oleh-oleh",
+			Address: domain.VendorSouvenirStoreProposalAddress{
+				ProvinceID:    "31",
+				CityID:        "3171",
+				DistrictID:    "317101",
+				SubdistrictID: "3171011001",
+				PostalCode:    "10110",
+				AddressLine:   "Jl. Wahid Hasyim No. 10",
+			},
+			ResponsiblePerson: domain.VendorSouvenirStoreProposalResponsiblePerson{
+				Name:        "Ahmad",
+				Phone:       "08123456789",
+				Email:       "responsible@example.com",
+				NIK:         "3173010101010001",
+				KTPObjectID: "vendors/docs/ktp",
+			},
+			OtherDocuments: domain.VendorSouvenirStoreProposalOtherDocuments{
+				NIBObjectID:              "vendors/docs/nib",
+				HalalCertificateObjectID: "vendors/docs/halal",
+			},
+		})
+		if !errors.Is(err, ErrInvalidDocumentObjectKey) {
+			t.Fatalf("expected ErrInvalidDocumentObjectKey, got %v", err)
 		}
 	})
 
@@ -1139,6 +1230,9 @@ func TestGetMe_TableDriven(t *testing.T) {
 				if resp.StoreName == nil || *resp.StoreName != "Toko Mabrur" {
 					t.Errorf("expected store name Toko Mabrur, got %v", resp.StoreName)
 				}
+				if resp.StatusReason != nil {
+					t.Errorf("expected nil status reason, got %v", resp.StatusReason)
+				}
 			},
 		},
 		{
@@ -1175,6 +1269,9 @@ func TestGetMe_TableDriven(t *testing.T) {
 				if resp.StoreName == nil || *resp.StoreName != "Toko Tanpa Foto" {
 					t.Errorf("expected store name Toko Tanpa Foto, got %v", resp.StoreName)
 				}
+				if resp.StatusReason != nil {
+					t.Errorf("expected nil status reason, got %v", resp.StatusReason)
+				}
 			},
 		},
 		{
@@ -1205,6 +1302,69 @@ func TestGetMe_TableDriven(t *testing.T) {
 				}
 				if resp.StoreName != nil {
 					t.Errorf("expected nil store name, got %v", resp.StoreName)
+				}
+				if resp.StatusReason != nil {
+					t.Errorf("expected nil status reason, got %v", resp.StatusReason)
+				}
+			},
+		},
+		{
+			name:     "success rejected includes status reason",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				reason := "Dokumen NIB tidak valid"
+				displayName := "Toko Ditolak"
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:           vendorID,
+					OwnerUserID:  ownerID,
+					Status:       domain.VendorStatusRejected,
+					StatusReason: &reason,
+					DisplayName:  &displayName,
+				}, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(&domain.User{
+					ID:       ownerID,
+					Email:    "vendor.rejected@example.com",
+					FullName: "Owner Rejected",
+				}, nil)
+			},
+			assertResp: func(t *testing.T, resp *domain.VendorMeResponse, _ uuid.UUID) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected non-nil response")
+				}
+				if resp.StatusReason == nil || *resp.StatusReason != "Dokumen NIB tidak valid" {
+					t.Errorf("expected status reason to match, got %v", resp.StatusReason)
+				}
+			},
+		},
+		{
+			name:     "success blocked includes status reason",
+			vendorID: uuid.New(),
+			setupMocks: func(ctx context.Context, userRepo *mocks.MockUserRepository, vendorRepo *mocks.MockVendorRepository, vendorID uuid.UUID) {
+				ownerID := uuid.New()
+				reason := "Akun diblokir karena pelanggaran kebijakan"
+				displayName := "Toko Diblokir"
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(&domain.Vendor{
+					ID:           vendorID,
+					OwnerUserID:  ownerID,
+					Status:       domain.VendorStatusBlocked,
+					StatusReason: &reason,
+					DisplayName:  &displayName,
+				}, nil)
+				userRepo.EXPECT().FindByID(ctx, ownerID).Return(&domain.User{
+					ID:       ownerID,
+					Email:    "vendor.blocked@example.com",
+					FullName: "Owner Blocked",
+				}, nil)
+			},
+			assertResp: func(t *testing.T, resp *domain.VendorMeResponse, _ uuid.UUID) {
+				t.Helper()
+				if resp == nil {
+					t.Fatal("expected non-nil response")
+				}
+				if resp.StatusReason == nil || *resp.StatusReason != "Akun diblokir karena pelanggaran kebijakan" {
+					t.Errorf("expected status reason to match, got %v", resp.StatusReason)
 				}
 			},
 		},
@@ -1493,6 +1653,122 @@ func TestListPayoutChannels_TableDriven(t *testing.T) {
 	}
 }
 
+func TestListWithdrawals_TableDriven(t *testing.T) {
+	vendorID := uuid.New()
+	requestedAt := time.Date(2026, 4, 7, 10, 0, 0, 0, time.UTC)
+
+	type testCase struct {
+		name       string
+		params     domain.VendorWithdrawalListParams
+		setupMocks func(ctx context.Context, vendorRepo *mocks.MockVendorRepository)
+		wantErr    error
+		wantAnyErr bool
+		assertResp func(t *testing.T, items []domain.VendorWithdrawalListItem, meta *domain.PaginationMeta)
+	}
+
+	tests := []testCase{
+		{
+			name: "success",
+			params: domain.VendorWithdrawalListParams{
+				Page:  1,
+				Limit: 10,
+			},
+			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository) {
+				vendorRepo.EXPECT().ListWithdrawals(ctx, vendorID, domain.VendorWithdrawalListParams{
+					Page:   1,
+					Limit:  10,
+					Status: "",
+				}).Return([]domain.VendorWithdrawal{
+					{
+						ID:        uuid.New(),
+						VendorID:  vendorID,
+						Amount:    125000,
+						Status:    domain.WithdrawalStatusProcessing,
+						CreatedAt: requestedAt,
+					},
+				}, int64(1), nil)
+			},
+			assertResp: func(t *testing.T, items []domain.VendorWithdrawalListItem, meta *domain.PaginationMeta) {
+				t.Helper()
+				if len(items) != 1 {
+					t.Fatalf("expected 1 item, got %d", len(items))
+				}
+				if items[0].Amount != 125000 {
+					t.Fatalf("expected amount 125000, got %f", items[0].Amount)
+				}
+				if items[0].Status != domain.WithdrawalStatusProcessing {
+					t.Fatalf("expected status processing, got %s", items[0].Status)
+				}
+				if !items[0].PayoutDate.Equal(requestedAt) {
+					t.Fatalf("expected payout date %v, got %v", requestedAt, items[0].PayoutDate)
+				}
+				if meta == nil || meta.TotalItems != 1 {
+					t.Fatalf("expected meta total_items 1, got %+v", meta)
+				}
+			},
+		},
+		{
+			name: "invalid status",
+			params: domain.VendorWithdrawalListParams{
+				Page:   1,
+				Limit:  10,
+				Status: "invalid",
+			},
+			wantErr: ErrInvalidPayoutStatus,
+		},
+		{
+			name: "repo error",
+			params: domain.VendorWithdrawalListParams{
+				Page:  1,
+				Limit: 10,
+			},
+			setupMocks: func(ctx context.Context, vendorRepo *mocks.MockVendorRepository) {
+				vendorRepo.EXPECT().ListWithdrawals(ctx, vendorID, domain.VendorWithdrawalListParams{
+					Page:   1,
+					Limit:  10,
+					Status: "",
+				}).Return(nil, int64(0), errors.New("db error"))
+			},
+			wantAnyErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, vendorRepo, _, _, uc := setupVendorWithdrawalUseCase(t)
+			ctx := context.Background()
+
+			if tc.setupMocks != nil {
+				tc.setupMocks(ctx, vendorRepo)
+			}
+
+			items, meta, err := uc.ListWithdrawals(ctx, vendorID, tc.params)
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+
+			if tc.wantAnyErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+
+			if tc.assertResp != nil {
+				tc.assertResp(t, items, meta)
+			}
+		})
+	}
+}
+
 func TestRequestWithdrawal_TableDriven(t *testing.T) {
 	xenditAccountID := "xnd_test_123"
 	vendorID := uuid.New()
@@ -1520,6 +1796,13 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 		BankName:          "BCA",
 		AccountNumber:     "1234567890",
 		AccountHolderName: "Ahmad",
+	}
+	foreignBankAccount := &domain.VendorBankAccount{
+		ID:                uuid.New(),
+		VendorID:          uuid.New(),
+		BankName:          "BNI",
+		AccountNumber:     "9876543210",
+		AccountHolderName: "Budi",
 	}
 
 	ownerUser := &domain.User{
@@ -1561,7 +1844,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 	tests := []testCase{
 		{
 			name: "success",
-			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA"},
+			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA", BankAccountID: goodBankAccount.ID},
 			setupMocks: func(
 				ctx context.Context,
 				userRepo *mocks.MockUserRepository,
@@ -1576,7 +1859,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 					}).
 					Return(availableChannels, nil)
 				vendorRepo.EXPECT().GetBalance(ctx, vendorID).Return(goodBalance, nil)
-				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(goodBankAccount, nil)
+				vendorRepo.EXPECT().FindBankAccountByID(ctx, goodBankAccount.ID).Return(goodBankAccount, nil)
 				userRepo.EXPECT().FindByID(ctx, userID).Return(ownerUser, nil)
 				vendorRepo.EXPECT().DebitBalance(ctx, vendorID, float64(100000)).Return(nil)
 				vendorRepo.EXPECT().CreateWithdrawal(ctx, gomock.Any()).Return(nil)
@@ -1619,7 +1902,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 		},
 		{
 			name: "invalid channel code",
-			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "INVALID"},
+			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "INVALID", BankAccountID: goodBankAccount.ID},
 			setupMocks: func(
 				ctx context.Context,
 				_ *mocks.MockUserRepository,
@@ -1638,7 +1921,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 		},
 		{
 			name: "below minimum withdrawal",
-			req:  domain.VendorWithdrawRequest{Amount: 5000, ChannelCode: "ID_BCA"},
+			req:  domain.VendorWithdrawRequest{Amount: 5000, ChannelCode: "ID_BCA", BankAccountID: goodBankAccount.ID},
 			setupMocks: func(
 				_ context.Context,
 				_ *mocks.MockUserRepository,
@@ -1651,7 +1934,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 		},
 		{
 			name: "vendor not active",
-			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA"},
+			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA", BankAccountID: goodBankAccount.ID},
 			setupMocks: func(
 				ctx context.Context,
 				_ *mocks.MockUserRepository,
@@ -1667,7 +1950,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 		},
 		{
 			name: "no xendit account",
-			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA"},
+			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA", BankAccountID: goodBankAccount.ID},
 			setupMocks: func(
 				ctx context.Context,
 				_ *mocks.MockUserRepository,
@@ -1684,7 +1967,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 		},
 		{
 			name: "insufficient balance",
-			req:  domain.VendorWithdrawRequest{Amount: 999999, ChannelCode: "ID_BCA"},
+			req:  domain.VendorWithdrawRequest{Amount: 999999, ChannelCode: "ID_BCA", BankAccountID: goodBankAccount.ID},
 			setupMocks: func(
 				ctx context.Context,
 				_ *mocks.MockUserRepository,
@@ -1706,8 +1989,29 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 			wantErr: ErrInsufficientBalance,
 		},
 		{
+			name: "bank account not owned",
+			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA", BankAccountID: foreignBankAccount.ID},
+			setupMocks: func(
+				ctx context.Context,
+				_ *mocks.MockUserRepository,
+				vendorRepo *mocks.MockVendorRepository,
+				xenditPayout *mocks.MockXenditPayoutProvider,
+			) {
+				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(activeVendor, nil)
+				xenditPayout.EXPECT().
+					ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
+						Currency:        "IDR",
+						ChannelCategory: "BANK",
+					}).
+					Return(availableChannels, nil)
+				vendorRepo.EXPECT().GetBalance(ctx, vendorID).Return(goodBalance, nil)
+				vendorRepo.EXPECT().FindBankAccountByID(ctx, foreignBankAccount.ID).Return(foreignBankAccount, nil)
+			},
+			wantErr: ErrVendorBankNotOwned,
+		},
+		{
 			name: "xendit payout failed",
-			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA"},
+			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA", BankAccountID: goodBankAccount.ID},
 			setupMocks: func(
 				ctx context.Context,
 				userRepo *mocks.MockUserRepository,
@@ -1722,7 +2026,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 					}).
 					Return(availableChannels, nil)
 				vendorRepo.EXPECT().GetBalance(ctx, vendorID).Return(goodBalance, nil)
-				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(goodBankAccount, nil)
+				vendorRepo.EXPECT().FindBankAccountByID(ctx, goodBankAccount.ID).Return(goodBankAccount, nil)
 				userRepo.EXPECT().FindByID(ctx, userID).Return(ownerUser, nil)
 				vendorRepo.EXPECT().DebitBalance(ctx, vendorID, float64(100000)).Return(nil)
 				vendorRepo.EXPECT().CreateWithdrawal(ctx, gomock.Any()).Return(nil)
@@ -1736,7 +2040,7 @@ func TestRequestWithdrawal_TableDriven(t *testing.T) {
 		},
 		{
 			name: "payout channels unavailable",
-			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA"},
+			req:  domain.VendorWithdrawRequest{Amount: 100000, ChannelCode: "ID_BCA", BankAccountID: goodBankAccount.ID},
 			setupMocks: func(
 				ctx context.Context,
 				_ *mocks.MockUserRepository,
@@ -1811,8 +2115,9 @@ func TestRequestWithdrawal_NetAmountBelowMin(t *testing.T) {
 	)
 
 	_, err := uc.RequestWithdrawal(context.Background(), uuid.New(), domain.VendorWithdrawRequest{
-		Amount:      10000,
-		ChannelCode: domain.PayoutChannelIDBCA,
+		Amount:        10000,
+		ChannelCode:   domain.PayoutChannelIDBCA,
+		BankAccountID: uuid.New(),
 	})
 	if !errors.Is(err, ErrWithdrawalNetAmountTooSmall) {
 		t.Fatalf("expected ErrWithdrawalNetAmountTooSmall, got %v", err)

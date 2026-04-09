@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Katalog Produk — Manual Test</title>
+  <style>
+    :root { --gold: #c5a46c; --gold-dark: #a8893a; --gold-light: #d4b980; --gold-bg: #faf6ef; --bg: #f7f7f8; --card: #fff; --text: #1a1a1a; --text-muted: #6b7280; --border: #e5e5e5; --radius: 10px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+    .sidebar { width: 200px; background: #1a1a1a; color: #fff; flex-shrink: 0; display: flex; flex-direction: column; position: fixed; top: 0; bottom: 0; z-index: 100; }
+    .sidebar-brand { padding: 18px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #333; font-weight: 700; font-size: .9rem; }
+    .sidebar-brand .icon { font-size: 1.4rem; }
+    .sidebar nav { flex: 1; padding: 10px 0; display: flex; flex-direction: column; }
+    .sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 10px 18px; color: #aaa; text-decoration: none; font-size: .82rem; transition: all .15s; }
+    .sidebar nav a:hover { color: #fff; background: rgba(255,255,255,.06); }
+    .sidebar nav a.active { color: var(--gold); background: rgba(197,164,108,.1); border-right: 3px solid var(--gold); }
+    .sidebar nav .spacer { flex: 1; }
+    .main { flex: 1; margin-left: 200px; display: flex; flex-direction: column; min-height: 100vh; }
+    .topbar { padding: 16px 24px; background: var(--card); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .topbar h1 { font-size: 1.1rem; font-weight: 700; }
+    .content { flex: 1; padding: 20px 24px; }
+    .footer { padding: 14px 24px; text-align: center; font-size: .75rem; color: var(--text-muted); border-top: 1px solid var(--border); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 6px; font-size: .82rem; font-weight: 500; cursor: pointer; font-family: inherit; transition: all .15s; }
+    .btn-gold { background: var(--gold); color: #fff; } .btn-gold:hover { background: var(--gold-dark); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); } .btn-outline:hover { border-color: var(--gold); }
+    .btn-sm { padding: 6px 12px; font-size: .78rem; }
+    .token-badge { font-size: .72rem; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+    .token-badge.active { background: #dcfce7; color: #166534; }
+    .token-badge.inactive { background: #fee2e2; color: #991b1b; }
+    .login-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 22px; margin-bottom: 18px; }
+    .login-panel h3 { font-size: .88rem; font-weight: 700; margin-bottom: 12px; }
+    .config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: .82rem; }
+    .config-row label { width: 80px; font-weight: 500; color: var(--text-muted); text-align: right; }
+    .config-row input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: .82rem; font-family: inherit; }
+
+    /* Product Grid */
+    .search-bar { display: flex; gap: 10px; margin-bottom: 18px; align-items: center; }
+    .search-bar input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: .85rem; font-family: inherit; }
+    .search-bar select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: .85rem; }
+    .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 18px; }
+    .product-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: all .15s; }
+    .product-card:hover { border-color: var(--gold-light); box-shadow: 0 4px 12px rgba(0,0,0,.08); transform: translateY(-2px); }
+    .product-card .img { width: 100%; aspect-ratio: 1; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: #ccc; overflow: hidden; }
+    .product-card .img img { width: 100%; height: 100%; object-fit: cover; }
+    .product-card .info { padding: 12px; }
+    .product-card .name { font-size: .84rem; font-weight: 600; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .product-card .price { font-size: .9rem; font-weight: 700; color: var(--gold-dark); }
+    .product-card .price .original { text-decoration: line-through; color: var(--text-muted); font-size: .75rem; font-weight: 400; margin-left: 4px; }
+    .product-card .meta { display: flex; align-items: center; gap: 8px; font-size: .73rem; color: var(--text-muted); margin-top: 6px; }
+
+    /* Pagination */
+    .pagination-bar { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 14px 0; }
+    .page-btn { padding: 6px 12px; border: 1px solid var(--border); background: var(--card); border-radius: 6px; font-size: .8rem; cursor: pointer; }
+    .page-btn.active { background: var(--gold); color: #fff; border-color: var(--gold); }
+    .page-btn:disabled { opacity: .4; cursor: default; }
+
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; display: none; align-items: flex-start; justify-content: center; padding: 30px 20px; overflow-y: auto; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #fff; border-radius: 12px; max-width: 700px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.3); max-height: 90vh; overflow-y: auto; }
+    .modal-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: #fff; z-index: 10; border-radius: 12px 12px 0 0; }
+    .modal-header h3 { font-size: 1rem; font-weight: 700; }
+    .modal-close { width: 30px; height: 30px; border: none; background: #f5f5f5; border-radius: 50%; cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; }
+    .modal-body { padding: 22px; }
+
+    /* Detail Product */
+    .detail-images { display: flex; gap: 8px; margin-bottom: 18px; overflow-x: auto; }
+    .detail-images img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; cursor: pointer; flex-shrink: 0; }
+    .detail-images img.active { border-color: var(--gold); }
+    .detail-main-img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; margin-bottom: 12px; background: #f0f0f0; }
+    .detail-price { font-size: 1.3rem; font-weight: 700; color: var(--gold-dark); margin-bottom: 4px; }
+    .detail-price .original { text-decoration: line-through; color: var(--text-muted); font-size: .85rem; font-weight: 400; margin-left: 6px; }
+    .detail-name { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+    .detail-rating { display: flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--text-muted); margin-bottom: 14px; }
+    .detail-rating .star { color: #f59e0b; }
+
+    /* Shipping Estimate */
+    .shipping-box { background: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+    .shipping-box .courier-logo { font-size: 1.3rem; }
+    .shipping-box .courier-info { flex: 1; }
+    .shipping-box .courier-name { font-weight: 600; font-size: .85rem; }
+    .shipping-box .courier-etd { font-size: .78rem; color: var(--text-muted); }
+    .shipping-box .courier-cost { font-weight: 700; font-size: .88rem; }
+    .shipping-box .courier-cost .free { color: #16a34a; }
+    .shipping-box .courier-cost .original-cost { text-decoration: line-through; color: var(--text-muted); font-size: .75rem; margin-left: 4px; }
+
+    /* Variants */
+    .variant-section { margin-bottom: 16px; }
+    .variant-section h4 { font-size: .82rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+    .variant-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .variant-chip { padding: 8px 16px; border: 1px solid var(--border); border-radius: 20px; font-size: .82rem; cursor: pointer; transition: all .15s; }
+    .variant-chip:hover { border-color: var(--gold-light); }
+    .variant-chip.active { border-color: var(--gold); background: var(--gold-bg); color: var(--gold-dark); font-weight: 600; }
+    .variant-chip.oos { opacity: .4; cursor: not-allowed; text-decoration: line-through; }
+
+    /* Vendor Info Box */
+    .vendor-box { background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .vendor-box .vendor-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+    .vendor-box .vendor-avatar { width: 48px; height: 48px; background: var(--gold-bg); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; overflow: hidden; flex-shrink: 0; }
+    .vendor-box .vendor-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .vendor-box .vendor-name { font-weight: 700; font-size: .9rem; }
+    .vendor-box .vendor-location { font-size: .78rem; color: var(--text-muted); }
+    .vendor-box .vendor-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .vendor-box .stat-item { text-align: center; padding: 8px; background: #fff; border-radius: 6px; border: 1px solid #f0f0f0; }
+    .vendor-box .stat-item .val { font-size: .95rem; font-weight: 700; color: var(--gold-dark); }
+    .vendor-box .stat-item .lbl { font-size: .7rem; color: var(--text-muted); }
+
+    /* Stock Info */
+    .stock-box { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .stock-item { text-align: center; padding: 12px; background: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; }
+    .stock-item .val { font-size: 1.1rem; font-weight: 700; color: var(--gold-dark); }
+    .stock-item .lbl { font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Description */
+    .desc-section { margin-bottom: 16px; }
+    .desc-section h4 { font-size: .85rem; font-weight: 700; margin-bottom: 8px; }
+    .desc-section .desc-content { font-size: .84rem; line-height: 1.6; color: #444; white-space: pre-wrap; }
+
+    /* Reviews */
+    .review-section h4 { font-size: .85rem; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+    .review-card { padding: 14px; border-bottom: 1px solid #f0f0f0; }
+    .review-card:last-child { border-bottom: none; }
+    .review-card .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .review-card .reviewer { font-weight: 600; font-size: .84rem; }
+    .review-card .review-date { font-size: .72rem; color: var(--text-muted); }
+    .review-card .review-stars { color: #f59e0b; font-size: .82rem; margin-bottom: 4px; }
+    .review-card .review-variant { font-size: .75rem; color: var(--text-muted); margin-bottom: 4px; }
+    .review-card .review-text { font-size: .82rem; line-height: 1.5; }
+    .review-card .review-images { display: flex; gap: 6px; margin-top: 8px; }
+    .review-card .review-images img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; }
+
+    /* Store Modal */
+    .store-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .store-tab { padding: 10px 20px; font-size: .85rem; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 500; }
+    .store-tab.active { color: var(--gold-dark); border-bottom-color: var(--gold); font-weight: 700; }
+    .store-product-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .store-product-card { border: 1px solid #f0f0f0; border-radius: 8px; overflow: hidden; cursor: pointer; }
+    .store-product-card .img { width: 100%; aspect-ratio: 1; background: #f0f0f0; overflow: hidden; }
+    .store-product-card .img img { width: 100%; height: 100%; object-fit: cover; }
+    .store-product-card .info { padding: 8px; }
+    .store-product-card .name { font-size: .75rem; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 2px; }
+    .store-product-card .price { font-size: .78rem; font-weight: 700; color: var(--gold-dark); }
+    .store-product-card .meta { font-size: .65rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Toast */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 20px; border-radius: 8px; font-size: .84rem; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,.15); transform: translateX(120%); transition: transform .3s; max-width: 360px; }
+    .toast.show { transform: translateX(0); }
+    .toast.success { background: #16a34a; color: #fff; }
+    .toast.error { background: #dc2626; color: #fff; }
+    .toast.info { background: #0891b2; color: #fff; }
+
+    /* JSON */
+    .json-output { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 8px; font-family: 'Fira Code','Cascadia Code',monospace; font-size: .76rem; max-height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin-top: 12px; display: none; }
+    .json-output.show { display: block; }
+    .json-output .k { color: #7dd3fc; } .json-output .s { color: #86efac; } .json-output .n { color: #fdba74; } .json-output .b { color: #c4b5fd; } .json-output .nl { color: #94a3b8; }
+    .toggle-json { font-size: .75rem; color: var(--text-muted); cursor: pointer; text-decoration: underline; display: inline-block; margin-top: 8px; }
+
+    .section-title { font-size: .88rem; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="icon">🕋</div><span>Haji &amp; Umrah Store</span></div>
+  <nav>
+    <a href="#"><span class="nav-icon">🏠</span> Beranda</a>
+    <a href="#" class="active"><span class="nav-icon">🔍</span> Katalog</a>
+    <a href="#"><span class="nav-icon">🛒</span> Keranjang</a>
+    <a href="customer-my-orders.html"><span class="nav-icon">📋</span> Pesanan Saya</a>
+    <a href="#"><span class="nav-icon">❤️</span> Wishlist</a>
+    <a href="#"><span class="nav-icon">💬</span> Chat</a>
+    <a href="#"><span class="nav-icon">🔔</span> Notifikasi</a>
+    <a href="#"><span class="nav-icon">👤</span> Profil</a>
+    <div class="spacer"></div>
+    <a href="#" style="border-top:1px solid #333;"><span class="nav-icon">🚪</span> Log Out</a>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <h1>Katalog Produk</h1>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="userName" style="font-size:.84rem;color:var(--text-muted);"></span>
+      <span id="tokenBadge" class="token-badge inactive">● Belum Login</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Login -->
+    <div class="login-panel">
+      <h3>⚙️ Konfigurasi &amp; Login</h3>
+      <div class="config-row">
+        <label>Base URL</label>
+        <input id="baseUrl" value="https://haji-umroh-store-api.jauhar.id/api/v1" />
+      </div>
+      <div class="config-row">
+        <label>Email</label>
+        <input id="loginEmail" value="" placeholder="customer@email.com" />
+        <label style="width:auto">Password</label>
+        <input id="loginPassword" type="password" value="" style="max-width:180px;" />
+        <button class="btn btn-gold" onclick="doLogin()">🔑 Login</button>
+        <button class="btn btn-outline btn-sm" onclick="loadProducts()" style="margin-left:4px;">🔄 Muat Katalog</button>
+      </div>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="search-bar">
+      <input id="searchInput" placeholder="🔍 Cari produk..." onkeydown="if(event.key==='Enter'){currentPage=1;loadProducts()}" />
+      <select id="sortSelect" onchange="currentPage=1;loadProducts()">
+        <option value="newest">Terbaru</option>
+        <option value="cheapest">Termurah</option>
+      </select>
+      <select id="limitSelect" onchange="currentPage=1;loadProducts()">
+        <option value="12">12</option>
+        <option value="24">24</option>
+        <option value="48">48</option>
+      </select>
+      <button class="btn btn-sm btn-outline" onclick="currentPage=1;loadProducts()">🔄 Refresh</button>
+      <span id="totalInfo" style="font-size:.78rem;color:var(--text-muted);"></span>
+    </div>
+
+    <!-- Product Grid -->
+    <div class="product-grid" id="productGrid">
+      <p style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted);">Klik "Muat Katalog" untuk memulai</p>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-bar" id="pagination"></div>
+
+    <span class="toggle-json" onclick="toggleJson('listJson')">📄 Raw JSON Response</span>
+    <pre class="json-output" id="listJson"></pre>
+  </div>
+
+  <div class="footer">© 2026 — Haji &amp; Umrah Store · Catalog Manual Test Console</div>
+</div>
+
+<!-- MODAL: PRODUCT DETAIL -->
+<div class="modal-overlay" id="modalDetail" onclick="if(event.target===this)closeModal('modalDetail')">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <h3 id="detailTitle">📦 Detail Produk</h3>
+      <button class="modal-close" onclick="closeModal('modalDetail')">✕</button>
+    </div>
+    <div class="modal-body" id="detailBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+  </div>
+</div>
+
+<!-- MODAL: STORE DETAIL -->
+<div class="modal-overlay" id="modalStore" onclick="if(event.target===this)closeModal('modalStore')">
+  <div class="modal" style="max-width:650px;">
+    <div class="modal-header">
+      <h3>🏪 Profil Toko</h3>
+      <button class="modal-close" onclick="closeModal('modalStore')">✕</button>
+    </div>
+    <div class="modal-body" id="storeBody"><p style="text-align:center;color:var(--text-muted);">Memuat...</p></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════ State ═══════
+let customerToken = '';
+let currentPage = 1;
+
+const $ = id => document.getElementById(id);
+const baseUrl = () => $('baseUrl').value.replace(/\/+$/, '');
+function fmt(n) { return 'Rp ' + Number(n||0).toLocaleString('id-ID'); }
+function fmtDate(s) { if(!s) return '-'; const d = new Date(s); return d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}); }
+function stars(n) { return '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n)); }
+
+function toast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type||'info');
+  t.textContent = msg;
+  $('toastContainer').appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3500);
+}
+function openModal(id) { $(id).classList.add('show'); }
+function closeModal(id) { $(id).classList.remove('show'); }
+function toggleJson(id) { $(id).classList.toggle('show'); }
+function hl(obj) {
+  return JSON.stringify(obj,null,2)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    m => { let c='n'; if(/^"/.test(m)) c=/:$/.test(m)?'k':'s'; else if(/true|false/.test(m)) c='b'; else if(/null/.test(m)) c='nl'; return '<span class="'+c+'">'+m+'</span>'; });
+}
+function updateUI() {
+  const b = $('tokenBadge');
+  if (customerToken) { b.className='token-badge active'; b.textContent='● Login Aktif'; }
+  else { b.className='token-badge inactive'; b.textContent='● Belum Login'; }
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'ngrok-skip-browser-warning': 'true' } };
+  if (customerToken) opts.headers['Authorization'] = 'Bearer ' + customerToken;
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const res = await fetch(baseUrl() + path, opts);
+  const text = await res.text();
+  let json; try { json = JSON.parse(text); } catch { json = null; }
+  return { status: res.status, json, text };
+}
+
+// ═══════ LOGIN ═══════
+async function doLogin() {
+  try {
+    const res = await api('POST', '/users/login', { email: $('loginEmail').value, password: $('loginPassword').value });
+    if (res.json?.success && res.json.data?.token) {
+      customerToken = res.json.data.token;
+      $('userName').textContent = res.json.data.user?.full_name || '';
+      updateUI();
+      toast('Login berhasil!', 'success');
+      loadProducts();
+    } else {
+      toast('Login gagal: ' + (res.json?.message || res.text), 'error');
+    }
+  } catch (e) { toast('Network error: ' + e.message, 'error'); }
+}
+
+// ═══════ LIST PRODUCTS ═══════
+async function loadProducts(page) {
+  if (page) currentPage = page;
+  const limit = $('limitSelect').value;
+  const sort = $('sortSelect').value;
+  const search = $('searchInput').value.trim();
+  let path = '/products?page=' + currentPage + '&limit=' + limit + '&sort=' + sort;
+  if (search) path += '&search=' + encodeURIComponent(search);
+
+  $('productGrid').innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted);">⏳ Memuat...</p>';
+
+  try {
+    const res = await api('GET', path);
+    $('listJson').innerHTML = res.json ? hl(res.json) : (res.text||'');
+
+    if (res.status === 200 && res.json?.success) {
+      renderProducts(res.json.data || [], res.json.meta || {});
+    } else {
+      $('productGrid').innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px;color:#dc2626;">❌ ' + (res.json?.message || 'Error') + '</p>';
+    }
+  } catch (e) {
+    $('productGrid').innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px;color:#dc2626;">❌ ' + e.message + '</p>';
+  }
+}
+
+function renderProducts(products, meta) {
+  if (!products.length) {
+    $('productGrid').innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted);">📭 Tidak ada produk ditemukan.</p>';
+    $('totalInfo').textContent = '0 produk';
+    $('pagination').innerHTML = '';
+    return;
+  }
+
+  let html = '';
+  products.forEach(p => {
+    const priceHtml = p.has_promo && p.promo_price
+      ? '<span>' + fmt(p.promo_price) + '</span><span class="original">' + fmt(p.original_price) + '</span>'
+      : '<span>' + fmt(p.price) + '</span>';
+    const imgHtml = p.image_url ? '<img src="' + p.image_url + '" />' : '📦';
+    html += '<div class="product-card" onclick="showDetail(\'' + p.id + '\')">' +
+      '<div class="img">' + imgHtml + '</div>' +
+      '<div class="info">' +
+        '<div class="name">' + (p.name||'-') + '</div>' +
+        '<div class="price">' + priceHtml + '</div>' +
+        '<div class="meta"><span class="star">⭐ ' + (p.rating_average||0).toFixed(1) + '</span><span>(' + (p.rating_count||0) + ')</span></div>' +
+      '</div>' +
+    '</div>';
+  });
+  $('productGrid').innerHTML = html;
+
+  const total = meta.total_items || products.length;
+  const totalPages = meta.total_pages || 1;
+  $('totalInfo').textContent = total + ' produk';
+
+  let pg = '<button class="page-btn" onclick="loadProducts(' + Math.max(1,currentPage-1) + ')" ' + (currentPage<=1?'disabled':'') + '>&laquo;</button>';
+  for (let p = 1; p <= totalPages; p++) {
+    if (totalPages > 7 && Math.abs(p - currentPage) > 2 && p !== 1 && p !== totalPages) {
+      if (p === 2 || p === totalPages - 1) pg += '<span style="padding:0 4px;color:var(--text-muted);">…</span>';
+      continue;
+    }
+    pg += '<button class="page-btn ' + (p===currentPage?'active':'') + '" onclick="loadProducts(' + p + ')">' + p + '</button>';
+  }
+  pg += '<button class="page-btn" onclick="loadProducts(' + Math.min(totalPages,currentPage+1) + ')" ' + (currentPage>=totalPages?'disabled':'') + '>&raquo;</button>';
+  $('pagination').innerHTML = pg;
+}
+
+// ═══════ PRODUCT DETAIL ═══════
+let currentDetailData = null;
+
+async function showDetail(id) {
+  openModal('modalDetail');
+  $('detailBody').innerHTML = '<p style="text-align:center;padding:30px;color:var(--text-muted);">⏳ Memuat detail produk...</p>';
+
+  try {
+    // Fetch detail, reviews, summary, and shipping estimate in parallel
+    const [detailRes, reviewRes, summaryRes, shippingRes] = await Promise.all([
+      api('GET', '/products/' + id),
+      api('GET', '/products/' + id + '/reviews?page=1&limit=5'),
+      api('GET', '/products/' + id + '/review-summary'),
+      customerToken ? api('GET', '/users/products/' + id + '/shipping-estimate') : Promise.resolve({ json: { data: null } }),
+    ]);
+
+    if (detailRes.status !== 200 || !detailRes.json?.success) {
+      $('detailBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (detailRes.json?.message || 'Error') + '</p>';
+      return;
+    }
+
+    const d = detailRes.json.data;
+    currentDetailData = d;
+    const reviews = reviewRes.json?.data || [];
+    const summary = summaryRes.json?.data || null;
+    const shipping = shippingRes.json?.data || null;
+
+    renderDetail(d, reviews, summary, shipping);
+  } catch (e) {
+    $('detailBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>';
+  }
+}
+
+function renderDetail(d, reviews, summary, shipping) {
+  let html = '';
+
+  // ── Images ──
+  if (d.images && d.images.length > 0) {
+    html += '<img class="detail-main-img" id="mainImg" src="' + d.images[0].url + '" alt="' + d.name + '" />';
+    if (d.images.length > 1) {
+      html += '<div class="detail-images">';
+      d.images.forEach((img, i) => {
+        html += '<img src="' + img.url + '" class="' + (i===0?'active':'') + '" onclick="document.getElementById(\'mainImg\').src=this.src;document.querySelectorAll(\'.detail-images img\').forEach(x=>x.classList.remove(\'active\'));this.classList.add(\'active\');" />';
+      });
+      html += '</div>';
+    }
+  }
+
+  // ── Price ──
+  const defaultVariant = d.variants?.find(v => v.is_default) || d.variants?.[0];
+  if (defaultVariant) {
+    if (defaultVariant.has_promo && defaultVariant.promo_price) {
+      html += '<div class="detail-price">' + fmt(defaultVariant.promo_price) + '<span class="original">' + fmt(defaultVariant.original_price) + '</span></div>';
+    } else {
+      html += '<div class="detail-price">' + fmt(defaultVariant.price) + '</div>';
+    }
+  }
+
+  // ── Name ──
+  html += '<div class="detail-name">' + d.name + '</div>';
+
+  // ── Rating & Sold ──
+  const totalSold = d.total_stock - d.stock_remaining;
+  html += '<div class="detail-rating">' +
+    '<span class="star">⭐ ' + (d.rating_average||0).toFixed(1) + '</span>' +
+    '<span>(' + (d.rating_count||0) + ')</span>' +
+    '<span>•</span><span>Terjual ' + totalSold + '+</span>' +
+  '</div>';
+
+  // ── Shipping Estimate ──
+  if (shipping) {
+    const costHtml = shipping.cost === 0
+      ? '<span class="free">Rp0</span>'
+      : fmt(shipping.cost);
+    html += '<div class="shipping-box">' +
+      '<div class="courier-logo">🚚</div>' +
+      '<div class="courier-info">' +
+        '<div class="courier-name">' + shipping.courier_name + ' (' + shipping.service + ')</div>' +
+        '<div class="courier-etd">Estimasi ' + shipping.etd + ' hari</div>' +
+      '</div>' +
+      '<div class="courier-cost">' + costHtml + '</div>' +
+    '</div>';
+  } else if (customerToken) {
+    html += '<div class="shipping-box"><div class="courier-logo">📍</div><div class="courier-info"><div class="courier-name" style="color:var(--text-muted);">Tambahkan alamat untuk melihat estimasi ongkir</div></div></div>';
+  } else {
+    html += '<div class="shipping-box"><div class="courier-logo">🔑</div><div class="courier-info"><div class="courier-name" style="color:var(--text-muted);">Login untuk melihat estimasi ongkir</div></div></div>';
+  }
+
+  // ── Variants ──
+  if (d.variants && d.variants.length > 0) {
+    html += '<div class="variant-section"><h4>Variants</h4><div class="variant-chips">';
+    d.variants.forEach(v => {
+      const cls = v.stock_on_hand <= 0 ? 'variant-chip oos' : (v.is_default ? 'variant-chip active' : 'variant-chip');
+      html += '<div class="' + cls + '" title="Stok: ' + v.stock_on_hand + ' | ' + fmt(v.price) + '">' + (v.variant_name||v.sku) + '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // ── Description ──
+  html += '<div class="desc-section"><h4>Deskripsi Produk</h4><div class="desc-content">' + (d.description||'-') + '</div></div>';
+
+  // ── Vendor Info ──
+  html += '<div class="vendor-box">' +
+    '<div class="vendor-header">' +
+      '<div class="vendor-avatar">🏪</div>' +
+      '<div style="flex:1;">' +
+        '<div class="vendor-name">' + (d.vendor?.display_name||'-') + '</div>' +
+        '<div class="vendor-location">' + (d.vendor?.location || '-') + '</div>' +
+      '</div>' +
+      '<button class="btn btn-sm btn-outline" onclick="showStore(\'' + d.vendor?.id + '\')">Lihat Toko</button>' +
+    '</div>' +
+    '<div class="vendor-stats">' +
+      '<div class="stat-item"><div class="val">' + (d.rating_count||0) + '</div><div class="lbl">Produk</div></div>' +
+      '<div class="stat-item"><div class="val">⭐ ' + (d.rating_average||0).toFixed(1) + '</div><div class="lbl">Rating</div></div>' +
+    '</div>' +
+  '</div>';
+
+  // ── Stock Info ──
+  html += '<div class="section-title">Informasi Stok</div>';
+  html += '<div class="stock-box">' +
+    '<div class="stock-item"><div class="val">' + (d.total_stock||0) + '</div><div class="lbl">Total Stok</div></div>' +
+    '<div class="stock-item"><div class="val">' + (d.stock_remaining||0) + '</div><div class="lbl">Sisa</div></div>' +
+  '</div>';
+
+  // ── Reviews ──
+  html += '<div class="review-section">';
+  html += '<h4><span>Ulasan</span>' + (summary ? '<span style="font-weight:400;font-size:.78rem;color:var(--text-muted);">⭐ ' + summary.average_rating?.toFixed(1) + ' (' + summary.total_reviews + ')</span>' : '') + '</h4>';
+
+  if (summary && summary.distribution) {
+    html += '<div style="margin-bottom:12px;font-size:.78rem;">';
+    summary.distribution.forEach(item => {
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">' +
+        '<span style="width:14px;text-align:right;">' + item.star + '</span>' +
+        '<span style="color:#f59e0b;">★</span>' +
+        '<div style="flex:1;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--gold);width:' + (item.percentage||0) + '%;border-radius:3px;"></div></div>' +
+        '<span style="width:30px;text-align:right;color:var(--text-muted);">' + item.count + '</span>' +
+      '</div>';
+    });
+    html += '</div>';
+  }
+
+  if (reviews && reviews.length > 0) {
+    reviews.forEach(r => {
+      html += '<div class="review-card">' +
+        '<div class="review-header"><span class="reviewer">' + (r.reviewer_name||'Anonim') + '</span><span class="review-date">' + fmtDate(r.created_at) + '</span></div>' +
+        '<div class="review-stars">' + stars(r.rating) + '</div>' +
+        '<div class="review-text">' + (r.review_text||'') + '</div>';
+      if (r.image_urls && r.image_urls.length > 0) {
+        html += '<div class="review-images">';
+        r.image_urls.forEach(url => { html += '<img src="' + url + '" onclick="window.open(this.src)" />'; });
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+  } else {
+    html += '<p style="text-align:center;color:var(--text-muted);font-size:.82rem;padding:14px 0;">Belum ada ulasan.</p>';
+  }
+  html += '</div>';
+
+  $('detailBody').innerHTML = html;
+  $('detailTitle').textContent = '📦 ' + d.name;
+}
+
+// ═══════ STORE DETAIL ═══════
+let currentStoreTab = 'store';
+
+async function showStore(vendorId) {
+  if (!vendorId) { toast('Vendor ID tidak ditemukan', 'error'); return; }
+  openModal('modalStore');
+  $('storeBody').innerHTML = '<p style="text-align:center;padding:30px;color:var(--text-muted);">⏳ Memuat profil toko...</p>';
+
+  try {
+    const [storeRes, reviewRes] = await Promise.all([
+      api('GET', '/vendors/' + vendorId),
+      api('GET', '/vendors/' + vendorId + '/reviews?page=1&limit=5'),
+    ]);
+
+    if (storeRes.status !== 200 || !storeRes.json?.success) {
+      $('storeBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + (storeRes.json?.message || 'Error') + '</p>';
+      return;
+    }
+
+    const data = storeRes.json.data;
+    const storeReviews = reviewRes.json?.data || {};
+    renderStore(data, storeReviews, vendorId);
+  } catch (e) {
+    $('storeBody').innerHTML = '<p style="color:#dc2626;text-align:center;">❌ ' + e.message + '</p>';
+  }
+}
+
+function renderStore(data, reviewData, vendorId) {
+  const s = data.store || {};
+  let html = '';
+
+  // ── Store Header ──
+  html += '<div class="vendor-box" style="margin-bottom:0;">' +
+    '<div class="vendor-header">' +
+      '<div class="vendor-avatar">' + (s.image_url ? '<img src="' + s.image_url + '" />' : '🏪') + '</div>' +
+      '<div style="flex:1;">' +
+        '<div class="vendor-name">' + (s.display_name||'-') + '</div>' +
+        '<div class="vendor-location">📍 ' + (s.location || '-') + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="vendor-stats" style="grid-template-columns:repeat(4,1fr);">' +
+      '<div class="stat-item"><div class="val">' + (s.total_products||0) + '</div><div class="lbl">Produk</div></div>' +
+      '<div class="stat-item"><div class="val">⭐ ' + (s.rating||0).toFixed(1) + '</div><div class="lbl">Rating</div></div>' +
+      '<div class="stat-item"><div class="val">' + (s.total_reviews||0) + '</div><div class="lbl">Ulasan</div></div>' +
+      '<div class="stat-item"><div class="val">' + (s.total_sold||0) + '</div><div class="lbl">Terjual</div></div>' +
+    '</div>' +
+  '</div>';
+
+  // ── Tabs ──
+  html += '<div class="store-tabs" style="margin-top:16px;">' +
+    '<div class="store-tab active" onclick="switchStoreTab(this,\'store\',\'' + vendorId + '\')">Toko</div>' +
+    '<div class="store-tab" onclick="switchStoreTab(this,\'products\',\'' + vendorId + '\')">Produk</div>' +
+    '<div class="store-tab" onclick="switchStoreTab(this,\'reviews\',\'' + vendorId + '\')">Ulasan</div>' +
+  '</div>';
+
+  html += '<div id="storeTabContent"></div>';
+
+  $('storeBody').innerHTML = html;
+
+  // Render initial tab
+  renderStoreTabContent('store', data, reviewData);
+}
+
+function switchStoreTab(el, tab, vendorId) {
+  document.querySelectorAll('.store-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  currentStoreTab = tab;
+
+  if (tab === 'reviews') {
+    // Re-fetch reviews
+    api('GET', '/vendors/' + vendorId + '/reviews?page=1&limit=10').then(res => {
+      renderStoreTabContent('reviews', null, res.json?.data || {});
+    });
+  } else if (tab === 'products') {
+    api('GET', '/vendors/' + vendorId + '?page=1&limit=20').then(res => {
+      renderStoreTabContent('products', res.json?.data || {}, null);
+    });
+  } else {
+    // Re-use cached — quick render
+    $('storeTabContent').innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">⏳ Memuat...</p>';
+    api('GET', '/vendors/' + vendorId).then(res => {
+      renderStoreTabContent('store', res.json?.data || {}, null);
+    });
+  }
+}
+
+function renderStoreTabContent(tab, data, reviewData) {
+  let html = '';
+
+  if (tab === 'store') {
+    // Recommended
+    const rec = data?.recommended_products || [];
+    if (rec.length > 0) {
+      html += '<div class="section-title">🔥 Rekomendasi (Bestseller)</div>';
+      html += '<div class="store-product-grid">';
+      rec.forEach(p => { html += renderStoreProductCard(p); });
+      html += '</div>';
+    }
+
+    // New Products
+    const newP = data?.new_products || [];
+    if (newP.length > 0) {
+      html += '<div class="section-title" style="margin-top:16px;">✨ Produk Terbaru</div>';
+      html += '<div class="store-product-grid">';
+      newP.forEach(p => { html += renderStoreProductCard(p); });
+      html += '</div>';
+    }
+
+    if (rec.length === 0 && newP.length === 0) {
+      html += '<p style="text-align:center;padding:30px;color:var(--text-muted);">Belum ada produk.</p>';
+    }
+  } else if (tab === 'products') {
+    const products = data?.products || [];
+    if (products.length > 0) {
+      html += '<div class="store-product-grid">';
+      products.forEach(p => { html += renderStoreProductCard(p); });
+      html += '</div>';
+    } else {
+      html += '<p style="text-align:center;padding:30px;color:var(--text-muted);">Belum ada produk.</p>';
+    }
+  } else if (tab === 'reviews') {
+    const reviews = reviewData?.reviews || [];
+    const summary = reviewData?.summary || {};
+
+    if (summary.average_rating !== undefined) {
+      html += '<div style="text-align:center;margin-bottom:14px;">' +
+        '<div style="font-size:1.8rem;font-weight:700;color:var(--gold-dark);">⭐ ' + (summary.average_rating||0).toFixed(1) + '</div>' +
+        '<div style="font-size:.82rem;color:var(--text-muted);">' + (summary.total_reviews||0) + ' ulasan</div>' +
+      '</div>';
+    }
+
+    if (reviews.length > 0) {
+      reviews.forEach(r => {
+        html += '<div class="review-card">' +
+          '<div class="review-header"><span class="reviewer">' + (r.user?.name || 'Anonim') + '</span><span class="review-date">' + fmtDate(r.created_at) + '</span></div>' +
+          '<div class="review-stars">' + stars(r.rating) + '</div>' +
+          (r.variant?.name ? '<div class="review-variant">Varian : ' + r.variant.name + '</div>' : '') +
+          '<div class="review-text">' + (r.comment||'') + '</div>';
+        if (r.images && r.images.length > 0) {
+          html += '<div class="review-images">';
+          r.images.forEach(url => { html += '<img src="' + url + '" onclick="window.open(this.src)" />'; });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    } else {
+      html += '<p style="text-align:center;padding:20px;color:var(--text-muted);">Belum ada ulasan.</p>';
+    }
+  }
+
+  $('storeTabContent').innerHTML = html;
+}
+
+function renderStoreProductCard(p) {
+  const imgHtml = p.image_url ? '<img src="' + p.image_url + '" />' : '📦';
+  const priceHtml = p.has_promo && p.promo_price
+    ? fmt(p.promo_price)
+    : fmt(p.price);
+  return '<div class="store-product-card" onclick="closeModal(\'modalStore\');showDetail(\'' + p.id + '\')">' +
+    '<div class="img">' + imgHtml + '</div>' +
+    '<div class="info">' +
+      '<div class="name">' + (p.name||'-') + '</div>' +
+      '<div class="price">' + priceHtml + '</div>' +
+      '<div class="meta">⭐ ' + (p.rating_average||0).toFixed(1) + ' · ' + (p.total_sold||0) + ' terjual</div>' +
+    '</div>' +
+  '</div>';
+}
+</script>
+</body>
+</html>

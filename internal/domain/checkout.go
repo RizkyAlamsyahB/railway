@@ -289,6 +289,12 @@ type PaymentRepository interface {
 	// ListForAdmin returns payment invoices joined with orders, users, and vendors
 	// matching the given params, plus total count for pagination.
 	ListForAdmin(ctx context.Context, params AdminPaymentListParams) ([]AdminPaymentListItem, int64, error)
+
+	// SummaryForAdmin returns aggregated payment amounts grouped by status.
+	SummaryForAdmin(ctx context.Context, params AdminPaymentListParams) (*AdminPaymentSummary, error)
+
+	// ExportForAdmin returns all payment invoices matching the params without pagination.
+	ExportForAdmin(ctx context.Context, params AdminPaymentListParams) ([]AdminPaymentListItem, error)
 }
 
 // LedgerRepository defines the interface for ledger journal data access.
@@ -310,6 +316,8 @@ type AdminPaymentListParams struct {
 	Search    string
 	SortBy    string
 	SortOrder string
+	StartDate *time.Time
+	EndDate   *time.Time
 }
 
 // AdminPaymentListItem is the output DTO for a payment invoice in the admin list.
@@ -325,10 +333,22 @@ type AdminPaymentListItem struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+// AdminPaymentSummary holds aggregated payment amounts by status.
+type AdminPaymentSummary struct {
+	TotalAmount   float64 `json:"total_amount"`
+	PaidAmount    float64 `json:"paid_amount"`
+	PendingAmount float64 `json:"pending_amount"`
+	FailedAmount  float64 `json:"failed_amount"`
+}
+
 // AdminPaymentUseCase defines the interface for admin payment listing operations.
 type AdminPaymentUseCase interface {
 	// List returns a paginated list of payment invoices with related order/customer/vendor info.
 	List(ctx context.Context, params AdminPaymentListParams) ([]AdminPaymentListItem, *PaginationMeta, error)
+	// Summary returns aggregated payment amounts grouped by status.
+	Summary(ctx context.Context, params AdminPaymentListParams) (*AdminPaymentSummary, error)
+	// Export returns all payment invoices matching the params (without pagination) for CSV export.
+	Export(ctx context.Context, params AdminPaymentListParams) ([]AdminPaymentListItem, error)
 }
 
 // --- Usecase Interface ---

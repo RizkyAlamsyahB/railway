@@ -39,3 +39,19 @@ func (uc *adminPaymentUseCase) List(ctx context.Context, params domain.AdminPaym
 
 	return items, meta, nil
 }
+
+func (uc *adminPaymentUseCase) Summary(ctx context.Context, params domain.AdminPaymentListParams) (*domain.AdminPaymentSummary, error) {
+	summary, err := uc.paymentRepo.SummaryForAdmin(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get payment summary: %w", err)
+	}
+	return summary, nil
+}
+
+func (uc *adminPaymentUseCase) Export(ctx context.Context, params domain.AdminPaymentListParams) ([]domain.AdminPaymentListItem, error) {
+	items, err := uc.paymentRepo.ExportForAdmin(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to export payment invoices: %w", err)
+	}
+	return items, nil
+}

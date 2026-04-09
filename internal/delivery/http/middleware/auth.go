@@ -54,6 +54,14 @@ func Auth(jwtSecret string) gin.HandlerFunc {
 			c.Set(ContextKeyVendorID, *claims.VendorID)
 		}
 
+		// Session invalidation: reject tokens issued before the last password change.
+		if claims.PasswordChangedAt != nil && claims.IssuedAt != nil {
+			if claims.IssuedAt.Time.Before(*claims.PasswordChangedAt) {
+				response.Abort(c, http.StatusUnauthorized, "session expired due to password change, please login again", nil)
+				return
+			}
+		}
+
 		c.Next()
 	}
 }

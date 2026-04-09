@@ -135,7 +135,7 @@ func (uc *vendorUseCase) SetRegistrationPassword(ctx context.Context, onboarding
 		return nil, fmt.Errorf("failed to finalize vendor registration: %w", err)
 	}
 
-	token, err := auth.GenerateToken(userID, onboarding.Email, domain.RoleUMKM, &vendorID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(userID, onboarding.Email, domain.RoleUMKM, &vendorID, nil, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate vendor auth token: %w", err)
 	}

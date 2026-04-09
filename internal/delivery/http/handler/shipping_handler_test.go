@@ -257,6 +257,7 @@ func mustGenerateTestToken(t *testing.T, role string) string {
 		"test@example.com",
 		role,
 		vendorID,
+		nil,
 		shippingHandlerTestJWTSecret,
 		1,
 		"shipping-handler-test",

@@ -306,3 +306,34 @@ func toDomainVendorVoucher(m vendorVoucherModel) domain.VendorVoucher {
 		UpdatedAt:      m.UpdatedAt,
 	}
 }
+
+func (r *vendorVoucherRepository) GetSummary(ctx context.Context, vendorID uuid.UUID) (*domain.VendorVoucherSummary, error) {
+	type summaryRow struct {
+		ActiveCount   int `gorm:"column:active_count"`
+		UpcomingCount int `gorm:"column:upcoming_count"`
+		ExpiredCount  int `gorm:"column:expired_count"`
+		TotalUsage    int `gorm:"column:total_usage"`
+	}
+
+	var row summaryRow
+	err := r.db.WithContext(ctx).
+		Table("vendor_vouchers").
+		Select(`
+			COUNT(*) FILTER (WHERE is_active = true AND NOW() >= starts_at AND NOW() <= ends_at AND quota_used < quota_total) AS active_count,
+			COUNT(*) FILTER (WHERE is_active = true AND starts_at > NOW()) AS upcoming_count,
+			COUNT(*) FILTER (WHERE ends_at < NOW() OR quota_used >= quota_total) AS expired_count,
+			COALESCE(SUM(quota_used), 0) AS total_usage
+		`).
+		Where("vendor_id = ?", vendorID.String()).
+		Scan(&row).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.VendorVoucherSummary{
+		ActiveCount:   row.ActiveCount,
+		UpcomingCount: row.UpcomingCount,
+		ExpiredCount:  row.ExpiredCount,
+		TotalUsage:    row.TotalUsage,
+	}, nil
+}

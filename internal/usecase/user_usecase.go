@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,8 @@ type userUseCase struct {
 	userRepo      domain.UserRepository
 	tokenRepo     domain.EmailVerificationTokenRepository
 	emailProvider domain.EmailProvider
+	otpUseCase    domain.OTPUseCase
+	googleOAuth   domain.GoogleOAuthVerifier
 	backendURL    string
 	jwtSecret     string
 	jwtExpiry     int
@@ -34,6 +37,8 @@ func NewUserUseCase(
 	userRepo domain.UserRepository,
 	tokenRepo domain.EmailVerificationTokenRepository,
 	emailProvider domain.EmailProvider,
+	otpUseCase domain.OTPUseCase,
+	googleOAuth domain.GoogleOAuthVerifier,
 	backendURL string,
 	jwtSecret string,
 	jwtExpiry int,
@@ -43,6 +48,8 @@ func NewUserUseCase(
 		userRepo:      userRepo,
 		tokenRepo:     tokenRepo,
 		emailProvider: emailProvider,
+		otpUseCase:    otpUseCase,
+		googleOAuth:   googleOAuth,
 		backendURL:    backendURL,
 		jwtSecret:     jwtSecret,
 		jwtExpiry:     jwtExpiry,
@@ -271,7 +278,12 @@ func (uc *userUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 		return nil, ErrUserAccountBlocked
 	}
 
-	// 4. Check account is active.
+	// 4. Check account is not deactivated.
+	if user.Status == domain.UserStatusDeactivated {
+		return nil, ErrAccountAlreadyDeactivated
+	}
+
+	// 5. Check account is active.
 	if user.Status != domain.UserStatusActive {
 		return nil, ErrUserAccountNotActive
 	}
@@ -288,7 +300,100 @@ func (uc *userUseCase) Login(ctx context.Context, req domain.LoginRequest) (*dom
 	}
 
 	// 7. Generate JWT token.
-	token, err := auth.GenerateToken(user.ID, user.Email, roleCode, nil, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(user.ID, user.Email, roleCode, nil, user.PasswordChangedAt, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return &domain.LoginResponse{
+		Token: token,
+		User:  *toUserResponse(user),
+	}, nil
+}
+
+func (uc *userUseCase) LoginWithGoogle(ctx context.Context, req domain.GoogleLoginRequest) (*domain.LoginResponse, error) {
+	if uc.googleOAuth == nil {
+		return nil, ErrGoogleOAuthDisabled
+	}
+
+	profile, err := uc.googleOAuth.VerifyIDToken(ctx, req.IDToken)
+	if err != nil {
+		return nil, ErrGoogleIDTokenInvalid
+	}
+	if profile == nil || strings.TrimSpace(profile.Email) == "" {
+		return nil, ErrGoogleIDTokenInvalid
+	}
+	if !profile.EmailVerified {
+		return nil, ErrGoogleEmailNotVerified
+	}
+
+	user, err := uc.userRepo.FindByEmail(ctx, profile.Email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if user == nil {
+		passwordHash, err := auth.HashPassword(uuid.NewString())
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate user password hash: %w", err)
+		}
+
+		now := time.Now()
+		var imageURL *string
+		if profile.PictureURL != "" {
+			imageURL = &profile.PictureURL
+		}
+
+		fullName := profile.Name
+		if fullName == "" {
+			fullName = profile.Email
+		}
+
+		newUser := &domain.User{
+			ID:              uuid.New(),
+			Email:           profile.Email,
+			FullName:        fullName,
+			ImageURL:        imageURL,
+			PasswordHash:    passwordHash,
+			Status:          domain.UserStatusActive,
+			EmailVerifiedAt: &now,
+			Role:            &domain.Role{Code: domain.RoleCustomer},
+		}
+
+		if err := uc.userRepo.Create(ctx, newUser, domain.RoleCustomer); err != nil {
+			return nil, fmt.Errorf("failed to create oauth user: %w", err)
+		}
+
+		user, err = uc.userRepo.FindByID(ctx, newUser.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to reload oauth user: %w", err)
+		}
+		if user == nil {
+			return nil, ErrUserNotFound
+		}
+	}
+
+	if user.Role == nil || user.Role.Code != domain.RoleCustomer {
+		return nil, ErrGoogleAccountNotCustomer
+	}
+	if user.Status == domain.UserStatusBlocked {
+		return nil, ErrUserAccountBlocked
+	}
+
+	if user.Status != domain.UserStatusActive || user.EmailVerifiedAt == nil {
+		if err := uc.userRepo.ActivateUser(ctx, user.ID); err != nil {
+			return nil, fmt.Errorf("failed to activate oauth user: %w", err)
+		}
+		user, err = uc.userRepo.FindByID(ctx, user.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to reload oauth user: %w", err)
+		}
+		if user == nil {
+			return nil, ErrUserNotFound
+		}
+	}
+
+	token, err := auth.GenerateToken(user.ID, user.Email, domain.RoleCustomer, nil, user.PasswordChangedAt, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -309,4 +414,104 @@ func (uc *userUseCase) GetMe(ctx context.Context, userID uuid.UUID) (*domain.Use
 	}
 
 	return toUserResponse(user), nil
+}
+
+func (uc *userUseCase) ChangePassword(ctx context.Context, userID uuid.UUID, req domain.ChangePasswordRequest) error {
+	// 1. Validate password strength.
+	if err := auth.ValidatePasswordStrength(req.NewPassword); err != nil {
+		return fmt.Errorf("%w: %s", ErrPasswordTooWeak, err.Error())
+	}
+
+	// 2. Find user.
+	user, err := uc.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	// 3. Verify old password.
+	if err := auth.CheckPassword(req.OldPassword, user.PasswordHash); err != nil {
+		return ErrOldPasswordIncorrect
+	}
+
+	// 4. Ensure new password differs from old.
+	if auth.CheckPassword(req.NewPassword, user.PasswordHash) == nil {
+		return ErrNewPasswordSameAsOld
+	}
+
+	// 5. Hash and update.
+	newHash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	if err := uc.userRepo.UpdatePasswordHash(ctx, userID, newHash); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	return nil
+}
+
+func (uc *userUseCase) ResetPassword(ctx context.Context, req domain.ResetPasswordRequest) error {
+	// 1. Verify proof token from OTP flow.
+	claims, err := uc.otpUseCase.VerifyProofToken(ctx, req.ProofToken, domain.OTPPurposeForgotPassword)
+	if err != nil {
+		return err
+	}
+
+	// 2. Validate password strength.
+	if err := auth.ValidatePasswordStrength(req.NewPassword); err != nil {
+		return fmt.Errorf("%w: %s", ErrPasswordTooWeak, err.Error())
+	}
+
+	// 3. Find user by email from proof claims.
+	user, err := uc.userRepo.FindByEmail(ctx, claims.Email)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	// 4. Hash and update.
+	newHash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	if err := uc.userRepo.UpdatePasswordHash(ctx, user.ID, newHash); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	return nil
+}
+
+func (uc *userUseCase) DeleteAccount(ctx context.Context, userID uuid.UUID, req domain.DeleteAccountRequest) error {
+	// 1. Find user.
+	user, err := uc.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	// 2. Check not already deactivated.
+	if user.Status == domain.UserStatusDeactivated {
+		return ErrAccountAlreadyDeactivated
+	}
+
+	// 3. Verify password.
+	if err := auth.CheckPassword(req.Password, user.PasswordHash); err != nil {
+		return ErrPasswordIncorrect
+	}
+
+	// 4. Deactivate account.
+	if err := uc.userRepo.Deactivate(ctx, userID, req.Reason); err != nil {
+		return fmt.Errorf("failed to deactivate account: %w", err)
+	}
+
+	return nil
 }

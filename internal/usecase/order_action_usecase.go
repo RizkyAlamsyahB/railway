@@ -779,7 +779,22 @@ func (uc *orderActionUseCase) resolveProductImages(ctx context.Context, items []
 	for _, it := range items {
 		if pid, ok := variantToProduct[it.ProductVariantID]; ok {
 			if url, ok := productImage[pid]; ok {
-				urlCopy := url
+				if isAbsoluteURL(url) {
+					urlCopy := url
+					result[it.ProductVariantID] = &urlCopy
+					continue
+				}
+
+				if uc.storage == nil {
+					continue
+				}
+
+				presignedURL, err := uc.storage.GeneratePresignedURL(ctx, url, PresignedDownloadExpiry)
+				if err != nil {
+					continue
+				}
+
+				urlCopy := presignedURL
 				result[it.ProductVariantID] = &urlCopy
 			}
 		}

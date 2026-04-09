@@ -46,17 +46,16 @@ type vendorModel struct {
 func (vendorModel) TableName() string { return "vendors" }
 
 type vendorBankAccountModel struct {
-	ID                 string     `gorm:"column:id;primaryKey"`
-	VendorID           string     `gorm:"column:vendor_id"`
-	BankName           string     `gorm:"column:bank_name"`
-	AccountNumber      string     `gorm:"column:account_number"`
-	AccountHolderName  string     `gorm:"column:account_holder_name"`
-	VerificationStatus string     `gorm:"column:verification_status"`
-	RejectionReason    *string    `gorm:"column:rejection_reason"`
-	VerifiedBy         *string    `gorm:"column:verified_by"`
-	VerifiedAt         *time.Time `gorm:"column:verified_at"`
-	CreatedAt          time.Time  `gorm:"column:created_at"`
-	UpdatedAt          time.Time  `gorm:"column:updated_at"`
+	ID                string    `gorm:"column:id;primaryKey"`
+	VendorID          string    `gorm:"column:vendor_id"`
+	ChannelCode       string    `gorm:"column:channel_code"`
+	BankName          string    `gorm:"column:bank_name"`
+	AccountNumber     string    `gorm:"column:account_number"`
+	AccountHolderName string    `gorm:"column:account_holder_name"`
+	AccountLast4      string    `gorm:"column:account_last4"`
+	IsDefault         bool      `gorm:"column:is_default"`
+	CreatedAt         time.Time `gorm:"column:created_at"`
+	UpdatedAt         time.Time `gorm:"column:updated_at"`
 }
 
 func (vendorBankAccountModel) TableName() string { return "vendor_bank_accounts" }
@@ -104,6 +103,10 @@ func (r *vendorRepository) Create(ctx context.Context, vendor *domain.Vendor, ba
 		vm := toVendorModel(vendor)
 		if err := tx.Create(&vm).Error; err != nil {
 			return err
+		}
+
+		if !bankAccount.IsDefault {
+			bankAccount.IsDefault = true
 		}
 
 		bam, err := r.toVendorBankAccountModel(bankAccount)
@@ -199,13 +202,52 @@ func (r *vendorRepository) List(ctx context.Context, params domain.VendorListPar
 
 func (r *vendorRepository) FindBankAccountByVendorID(ctx context.Context, vendorID uuid.UUID) (*domain.VendorBankAccount, error) {
 	var model vendorBankAccountModel
-	if err := r.db.WithContext(ctx).Where("vendor_id = ?", vendorID.String()).First(&model).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Where("vendor_id = ?", vendorID.String()).
+		Order("is_default DESC, created_at DESC").
+		First(&model).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
 	return r.toDomainVendorBankAccount(&model)
+}
+
+func (r *vendorRepository) FindBankAccountByID(ctx context.Context, id uuid.UUID) (*domain.VendorBankAccount, error) {
+	var model vendorBankAccountModel
+	if err := r.db.WithContext(ctx).Where("id = ?", id.String()).First(&model).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return r.toDomainVendorBankAccount(&model)
+}
+
+func (r *vendorRepository) ListBankAccountsByVendorID(ctx context.Context, vendorID uuid.UUID) ([]domain.VendorBankAccountListItem, error) {
+	var models []vendorBankAccountModel
+	if err := r.db.WithContext(ctx).
+		Where("vendor_id = ?", vendorID.String()).
+		Order("is_default DESC, created_at DESC").
+		Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]domain.VendorBankAccountListItem, 0, len(models))
+	for _, m := range models {
+		id, _ := uuid.Parse(m.ID)
+		items = append(items, domain.VendorBankAccountListItem{
+			ID:                id,
+			ChannelCode:       m.ChannelCode,
+			BankName:          m.BankName,
+			AccountHolderName: m.AccountHolderName,
+			AccountLast4:      m.AccountLast4,
+			IsDefault:         m.IsDefault,
+		})
+	}
+
+	return items, nil
 }
 
 func (r *vendorRepository) FindResponsiblePersonByVendorID(ctx context.Context, vendorID uuid.UUID) (*domain.VendorResponsiblePerson, error) {
@@ -224,19 +266,90 @@ func (r *vendorRepository) UpsertBankAccount(ctx context.Context, bankAccount *d
 	if err != nil {
 		return err
 	}
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "vendor_id"}},
-		DoUpdates: clause.Assignments(map[string]any{
-			"bank_name":           model.BankName,
-			"account_number":      model.AccountNumber,
-			"account_holder_name": model.AccountHolderName,
-			"verification_status": model.VerificationStatus,
-			"rejection_reason":    model.RejectionReason,
-			"verified_by":         model.VerifiedBy,
-			"verified_at":         model.VerifiedAt,
-			"updated_at":          model.UpdatedAt,
-		}),
-	}).Create(&model).Error
+
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing vendorBankAccountModel
+		err := tx.Where("vendor_id = ?", model.VendorID).
+			Order("is_default DESC, created_at DESC").
+			First(&existing).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if !model.IsDefault {
+				model.IsDefault = true
+			}
+			return tx.Create(&model).Error
+		}
+
+		model.ID = existing.ID
+		return tx.Model(&vendorBankAccountModel{}).
+			Where("id = ?", existing.ID).
+			Updates(map[string]any{
+				"channel_code":        model.ChannelCode,
+				"bank_name":           model.BankName,
+				"account_number":      model.AccountNumber,
+				"account_holder_name": model.AccountHolderName,
+				"account_last4":       model.AccountLast4,
+				"is_default":          model.IsDefault,
+				"updated_at":          model.UpdatedAt,
+			}).Error
+	})
+}
+
+func (r *vendorRepository) CreateBankAccount(ctx context.Context, bankAccount *domain.VendorBankAccount) error {
+	model, err := r.toVendorBankAccountModel(bankAccount)
+	if err != nil {
+		return err
+	}
+
+	if model.IsDefault {
+		return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := tx.Table("vendor_bank_accounts").
+				Where("vendor_id = ? AND is_default = true", model.VendorID).
+				Update("is_default", false).Error; err != nil {
+				return err
+			}
+			return tx.Create(&model).Error
+		})
+	}
+
+	return r.db.WithContext(ctx).Create(&model).Error
+}
+
+func (r *vendorRepository) DeleteBankAccount(ctx context.Context, vendorID, bankAccountID uuid.UUID) error {
+	result := r.db.WithContext(ctx).
+		Where("id = ? AND vendor_id = ?", bankAccountID.String(), vendorID.String()).
+		Delete(&vendorBankAccountModel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *vendorRepository) SetDefaultBankAccount(ctx context.Context, vendorID, bankAccountID uuid.UUID) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table("vendor_bank_accounts").
+			Where("vendor_id = ? AND is_default = true", vendorID.String()).
+			Update("is_default", false).Error; err != nil {
+			return err
+		}
+
+		result := tx.Table("vendor_bank_accounts").
+			Where("id = ? AND vendor_id = ?", bankAccountID.String(), vendorID.String()).
+			Update("is_default", true)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 
 func (r *vendorRepository) FindDocumentsByVendorID(ctx context.Context, vendorID uuid.UUID) ([]domain.VendorDocument, error) {
@@ -286,6 +399,17 @@ func (r *vendorRepository) ConfirmDocumentsAndUpdateStatus(ctx context.Context, 
 }
 
 func (r *vendorRepository) UpdateStatus(ctx context.Context, vendorID uuid.UUID, updates map[string]interface{}) error {
+	return r.db.WithContext(ctx).Model(&vendorModel{}).
+		Where("id = ?", vendorID.String()).
+		Updates(updates).Error
+}
+
+func (r *vendorRepository) UpdateProfile(ctx context.Context, vendorID uuid.UUID, displayName string, description *string) error {
+	updates := map[string]any{
+		"display_name": displayName,
+		"description":  description,
+		"updated_at":   time.Now(),
+	}
 	return r.db.WithContext(ctx).Model(&vendorModel{}).
 		Where("id = ?", vendorID.String()).
 		Updates(updates).Error
@@ -712,6 +836,38 @@ func (r *vendorRepository) ApplyWithdrawalWebhookUpdate(
 	})
 }
 
+func (r *vendorRepository) ListWithdrawals(ctx context.Context, vendorID uuid.UUID, params domain.VendorWithdrawalListParams) ([]domain.VendorWithdrawal, int64, error) {
+	query := r.db.WithContext(ctx).
+		Model(&vendorWithdrawalModel{}).
+		Where("vendor_id = ?", vendorID.String())
+
+	if params.Status != "" {
+		query = query.Where("status = ?", params.Status)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if params.Limit > 0 {
+		offset := (params.Page - 1) * params.Limit
+		query = query.Offset(offset).Limit(params.Limit)
+	}
+
+	var models []vendorWithdrawalModel
+	if err := query.Order("created_at DESC").Find(&models).Error; err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]domain.VendorWithdrawal, len(models))
+	for i := range models {
+		items[i] = *toDomainVendorWithdrawal(&models[i])
+	}
+
+	return items, total, nil
+}
+
 // --- Balance & Withdrawal mappers ---
 
 func toDomainVendorBalance(m *vendorBalanceModel) *domain.VendorBalance {
@@ -846,21 +1002,17 @@ func toDomainVendor(m *vendorModel) *domain.Vendor {
 
 func (r *vendorRepository) toVendorBankAccountModel(ba *domain.VendorBankAccount) (vendorBankAccountModel, error) {
 	m := vendorBankAccountModel{
-		ID:                 ba.ID.String(),
-		VendorID:           ba.VendorID.String(),
-		BankName:           ba.BankName,
-		AccountNumber:      ba.AccountNumber,
-		AccountHolderName:  ba.AccountHolderName,
-		VerificationStatus: ba.VerificationStatus,
-		RejectionReason:    ba.RejectionReason,
-		CreatedAt:          ba.CreatedAt,
-		UpdatedAt:          ba.UpdatedAt,
+		ID:                ba.ID.String(),
+		VendorID:          ba.VendorID.String(),
+		ChannelCode:       ba.ChannelCode,
+		BankName:          ba.BankName,
+		AccountNumber:     ba.AccountNumber,
+		AccountHolderName: ba.AccountHolderName,
+		AccountLast4:      ba.AccountLast4,
+		IsDefault:         ba.IsDefault,
+		CreatedAt:         ba.CreatedAt,
+		UpdatedAt:         ba.UpdatedAt,
 	}
-	if ba.VerifiedBy != nil {
-		s := ba.VerifiedBy.String()
-		m.VerifiedBy = &s
-	}
-	m.VerifiedAt = ba.VerifiedAt
 
 	if m.AccountNumber != "" {
 		encrypted, err := r.fieldCipher.EncryptString(m.AccountNumber)
@@ -899,20 +1051,16 @@ func (r *vendorRepository) toDomainVendorBankAccount(m *vendorBankAccountModel) 
 	vendorID, _ := uuid.Parse(m.VendorID)
 
 	ba := &domain.VendorBankAccount{
-		ID:                 id,
-		VendorID:           vendorID,
-		BankName:           m.BankName,
-		AccountNumber:      m.AccountNumber,
-		AccountHolderName:  m.AccountHolderName,
-		VerificationStatus: m.VerificationStatus,
-		RejectionReason:    m.RejectionReason,
-		VerifiedAt:         m.VerifiedAt,
-		CreatedAt:          m.CreatedAt,
-		UpdatedAt:          m.UpdatedAt,
-	}
-	if m.VerifiedBy != nil {
-		verifiedBy, _ := uuid.Parse(*m.VerifiedBy)
-		ba.VerifiedBy = &verifiedBy
+		ID:                id,
+		VendorID:          vendorID,
+		ChannelCode:       m.ChannelCode,
+		BankName:          m.BankName,
+		AccountNumber:     m.AccountNumber,
+		AccountHolderName: m.AccountHolderName,
+		AccountLast4:      m.AccountLast4,
+		IsDefault:         m.IsDefault,
+		CreatedAt:         m.CreatedAt,
+		UpdatedAt:         m.UpdatedAt,
 	}
 
 	if ba.AccountNumber != "" {

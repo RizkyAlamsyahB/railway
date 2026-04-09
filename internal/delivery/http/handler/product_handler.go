@@ -190,6 +190,26 @@ func (h *CatalogHandler) ListProducts(c *gin.Context) {
 		Search: c.Query("search"),
 	}
 
+	if catID := c.Query("category_id"); catID != "" {
+		parsed, err := uuid.Parse(catID)
+		if err != nil {
+			response.BadRequest(c, "invalid category_id", "category_id must be a valid UUID")
+			return
+		}
+		params.CategoryID = &parsed
+	}
+	if hp := c.Query("has_promo"); hp != "" {
+		val := hp == "true"
+		params.HasPromo = &val
+	}
+	if pt := c.Query("product_type"); pt != "" {
+		if pt != domain.ProductTypeSingle && pt != domain.ProductTypeVariant && pt != domain.ProductTypePackage {
+			response.BadRequest(c, "invalid product_type", "product_type must be one of: single, variant, package")
+			return
+		}
+		params.ProductType = pt
+	}
+
 	items, meta, err := h.useCase.ListProducts(c.Request.Context(), params)
 	if err != nil {
 		response.InternalServerError(c, "failed to list products", nil)
@@ -214,4 +234,29 @@ func (h *CatalogHandler) GetProductByID(c *gin.Context) {
 	}
 
 	response.OK(c, "product detail retrieved successfully", detail)
+}
+
+// GetShippingEstimate handles GET /api/v1/products/:id/shipping-estimate
+func (h *CatalogHandler) GetShippingEstimate(c *gin.Context) {
+	productID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid product ID", "id must be a valid UUID")
+		return
+	}
+
+	// Extract user ID from auth context (optional — may be nil if not logged in).
+	var userID *uuid.UUID
+	if raw, exists := c.Get(middleware.ContextKeyUserID); exists {
+		if uid, ok := raw.(uuid.UUID); ok {
+			userID = &uid
+		}
+	}
+
+	estimate, err := h.useCase.GetShippingEstimate(c.Request.Context(), productID, userID)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "shipping estimate retrieved", estimate)
 }

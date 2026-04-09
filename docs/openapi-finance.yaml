@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint finance dan chat operasional yang digunakan role finance.
 servers:
-  - url: http://localhost:8080
+  - url: https://haji-umroh-store-api.jauhar.id
     description: Local development server
 tags:
   - name: Finance Auth
@@ -2802,8 +2802,10 @@ components:
         data:
           $ref: "#/components/schemas/FinanceDashboardResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessUserLoginEnvelope:
       type: object
@@ -2823,9 +2825,11 @@ components:
         data:
           $ref: "#/components/schemas/UserLoginResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessEmptyEnvelope:
@@ -2844,12 +2848,15 @@ components:
           type: string
           example: messages marked as read
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessChatableUserListEnvelope:
@@ -2872,6 +2879,7 @@ components:
           items:
             $ref: "#/components/schemas/ChatableUserResponse"
         errors:
+          type: object
           nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"
@@ -2893,8 +2901,10 @@ components:
         data:
           $ref: "#/components/schemas/PresignChatAttachmentResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessConversationEnvelope:
       type: object
@@ -2914,8 +2924,10 @@ components:
         data:
           $ref: "#/components/schemas/ConversationResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessConversationListEnvelope:
       type: object
@@ -2937,6 +2949,7 @@ components:
           items:
             $ref: "#/components/schemas/ConversationResponse"
         errors:
+          type: object
           nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"
@@ -2958,8 +2971,10 @@ components:
         data:
           $ref: "#/components/schemas/ChatMessageResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessChatMessageListEnvelope:
       type: object
@@ -2981,6 +2996,7 @@ components:
           items:
             $ref: "#/components/schemas/ChatMessageResponse"
         errors:
+          type: object
           nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"
@@ -3002,6 +3018,7 @@ components:
         data:
           $ref: "#/components/schemas/FinanceTransactionListData"
         errors:
+          type: object
           nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"
@@ -3023,6 +3040,7 @@ components:
         data:
           $ref: "#/components/schemas/FinancePayoutListData"
         errors:
+          type: object
           nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"
@@ -3044,6 +3062,7 @@ components:
         data:
           $ref: "#/components/schemas/FinanceRefundListData"
         errors:
+          type: object
           nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"
@@ -3065,8 +3084,10 @@ components:
         data:
           $ref: "#/components/schemas/FinanceReportResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessStatusActionEnvelope:
       type: object
@@ -3086,8 +3107,10 @@ components:
         data:
           $ref: "#/components/schemas/StatusActionResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessCreateOrderRefundEnvelope:
       type: object
@@ -3107,8 +3130,10 @@ components:
         data:
           $ref: "#/components/schemas/CreateOrderRefundResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessPresignRefundEvidenceEnvelope:
       type: object
@@ -3128,8 +3153,10 @@ components:
         data:
           $ref: "#/components/schemas/PresignRefundEvidenceResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessSubmitRefundDestinationEnvelope:
       type: object
@@ -3149,8 +3176,10 @@ components:
         data:
           $ref: "#/components/schemas/SubmitRefundDestinationResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     ErrorEnvelope:
       type: object
@@ -3168,13 +3197,16 @@ components:
           type: string
           example: validation failed
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           oneOf:
             - type: string
             - type: object
               additionalProperties: true
         meta:
+          type: object
           nullable: true

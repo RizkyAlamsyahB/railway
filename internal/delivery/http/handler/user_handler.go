@@ -119,6 +119,23 @@ func (h *UserHandler) Login(c *gin.Context) {
 	response.OK(c, "login successful", result)
 }
 
+// LoginWithGoogle handles POST /api/v1/users/oauth/google.
+func (h *UserHandler) LoginWithGoogle(c *gin.Context) {
+	var req domain.GoogleLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "validation failed", err.Error())
+		return
+	}
+
+	result, err := h.useCase.LoginWithGoogle(c.Request.Context(), req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "login successful", result)
+}
+
 // GetMe handles GET /api/v1/users/me.
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID, ok := extractUserID(c)
@@ -134,4 +151,67 @@ func (h *UserHandler) GetMe(c *gin.Context) {
 	}
 
 	response.OK(c, "user profile retrieved successfully", result)
+}
+
+// ChangePassword handles PUT /api/v1/users/change-password.
+func (h *UserHandler) ChangePassword(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	var req domain.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body", err)
+		return
+	}
+
+	err := h.useCase.ChangePassword(c.Request.Context(), userID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "password changed successfully", nil)
+}
+
+// ResetPassword handles POST /api/v1/users/reset-password.
+func (h *UserHandler) ResetPassword(c *gin.Context) {
+	var req domain.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body", err)
+		return
+	}
+
+	err := h.useCase.ResetPassword(c.Request.Context(), req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "password reset successfully", nil)
+}
+
+// DeleteAccount handles POST /api/v1/users/delete-account.
+func (h *UserHandler) DeleteAccount(c *gin.Context) {
+	userID, ok := extractUserID(c)
+	if !ok {
+		response.BadRequest(c, "invalid user ID in token", nil)
+		return
+	}
+
+	var req domain.DeleteAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body", err)
+		return
+	}
+
+	err := h.useCase.DeleteAccount(c.Request.Context(), userID, req)
+	if err != nil {
+		HandleUsecaseError(c, err)
+		return
+	}
+
+	response.OK(c, "account has been deactivated", nil)
 }

@@ -4,13 +4,17 @@ info:
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint admin (autentikasi admin, manajemen user, dan review vendor).
 servers:
-  - url: http://localhost:8080
+  - url: https://haji-umroh-store-api.jauhar.id
     description: Local development server
 tags:
   - name: Admin Auth
     description: Operasi autentikasi untuk admin.
   - name: Admin Users
     description: Operasi manajemen user untuk role admin.
+  - name: Admin Dashboard
+    description: Ringkasan metrik dan transaksi terbaru untuk dashboard admin.
+  - name: Admin Reports
+    description: Laporan transaksi admin beserta ringkasan KPI dan export CSV.
   - name: Admin Vendors
     description: Operasi review dan manajemen vendor untuk role admin.
   - name: Admin Payments
@@ -243,6 +247,280 @@ paths:
                 data: null
                 errors: "failed to fetch user: database timeout"
                 meta: null
+  /api/v1/admin/dashboard:
+    get:
+      tags:
+        - Admin Dashboard
+      summary: Get Admin Dashboard
+      description: Mengambil ringkasan metrik dashboard admin dan daftar transaksi terbaru pada bulan yang dipilih.
+      operationId: getAdminDashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          required: false
+          description: Bulan dashboard (1-12). Default bulan saat ini.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 3
+        - name: year
+          in: query
+          required: false
+          description: Tahun dashboard. Default tahun saat ini.
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            example: 2026
+      responses:
+        "200":
+          description: Dashboard admin berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAdminDashboardEnvelope"
+              example:
+                success: true
+                message: admin dashboard retrieved successfully
+                data:
+                  month: 3
+                  year: 2026
+                  summary:
+                    ppiu_and_pihk_count: 128
+                    dormitory_count: 56
+                    store_count: 342
+                    pending_payment_count: 17
+                    needs_review_count: 24
+                    order_count: 1245
+                  transactions:
+                    - date_time: 2026-03-01T20:15:00Z
+                      invoice: INV-20260301-007
+                      customer_name: Hendra Wijaya
+                      product_name: Paket Umroh VIP
+                      price: 35000000
+                      status: paid
+                errors: null
+                meta: null
+        "400":
+          description: Parameter query tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: month must be between 1 and 12
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/reports:
+    get:
+      tags:
+        - Admin Reports
+      summary: Get Admin Report
+      description: Mengambil ringkasan laporan admin dan daftar agregasi transaksi per bulan dalam tahun yang dipilih.
+      operationId: getAdminReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: false
+          description: Tahun laporan. Default tahun saat ini.
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            example: 2026
+        - name: page
+          in: query
+          required: false
+          description: Nomor halaman data laporan. Default `1`.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Jumlah data per halaman. Default `10`, maksimum `100`.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: search
+          in: query
+          required: false
+          description: Pencarian berdasarkan label periode, misalnya `Jan 2026`.
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          required: false
+          description: Kolom pengurutan data laporan.
+          schema:
+            type: string
+            enum: [period, total_transaction, dp, settlement, refund]
+            default: period
+        - name: sort_order
+          in: query
+          required: false
+          description: Arah pengurutan data laporan.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Laporan admin berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessAdminReportEnvelope"
+              example:
+                success: true
+                message: admin report retrieved successfully
+                data:
+                  year: 2026
+                  summary:
+                    success_transaction_rate: 82
+                    total_transactions: 8
+                    customer_count: 400
+                    platform_commission: 430000000
+                  items:
+                    - period: Jan 2026
+                      total_transaction: 4000000
+                      dp: 3000000
+                      settlement: 4000000
+                      refund: 50000
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 12
+                  total_pages: 2
+        "400":
+          description: Parameter query tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: year must be between 2000 and 2100
+                data: null
+                errors: null
+                meta: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/v1/admin/reports/export:
+    get:
+      tags:
+        - Admin Reports
+      summary: Export Admin Report
+      description: "Mengunduh laporan admin dalam format CSV berdasarkan filter yang saat ini didukung backend: `year`, `from_date`, `to_date`, `search`, `sort_by`, dan `sort_order`."
+      operationId: exportAdminReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: false
+          description: Tahun laporan. Default tahun saat ini.
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            example: 2026
+        - name: from_date
+          in: query
+          required: false
+          description: Tanggal awal filter export dengan format `YYYY-MM-DD`.
+          schema:
+            type: string
+            format: date
+            example: 2026-01-01
+        - name: to_date
+          in: query
+          required: false
+          description: Tanggal akhir filter export dengan format `YYYY-MM-DD`.
+          schema:
+            type: string
+            format: date
+            example: 2026-12-31
+        - name: search
+          in: query
+          required: false
+          description: Pencarian berdasarkan label periode, misalnya `Jan 2026`.
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          required: false
+          description: Kolom pengurutan data export.
+          schema:
+            type: string
+            enum: [period, total_transaction, dp, settlement, refund]
+            default: period
+        - name: sort_order
+          in: query
+          required: false
+          description: Arah pengurutan data export.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: File CSV laporan admin berhasil dibuat.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="admin-report-2026.csv"
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Parameter query tidak valid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/v1/admin/users:
     post:
       tags:
@@ -1173,7 +1451,18 @@ paths:
       tags:
         - Admin Vendors
       summary: Get Vendor By ID
-      description: Mengambil detail vendor berdasarkan ID. ID harus dalam format UUID. Informasi detail termasuk data pemilik, akun bank, dan dokumen yang diunggah.
+      description: |
+        Mengambil detail vendor berdasarkan ID (UUID) untuk kebutuhan review admin.
+
+        Response dikembalikan dalam shape kontrak review terbaru:
+        - Informasi inti toko (`store_name`, `store_description`, `store_type`, `status`, `status_reason`, `email`)
+        - Objek alamat terstruktur (`address`)
+        - Objek penanggung jawab (`responsible_person`) termasuk NIK dan dokumen KTP
+        - Daftar dokumen persyaratan utama (`requirements_documents`)
+
+        Catatan:
+        - `responsible_person`, `ktp`, dan item `requirements_documents` bisa berisi field nullable untuk data lama yang belum lengkap.
+        - `mime_type` dan `file_size_bytes` diambil dari metadata object upload yang tersimpan.
       operationId: getAdminVendorById
       security:
         - BearerAuth: []
@@ -1200,76 +1489,42 @@ paths:
                 message: vendor retrieved successfully
                 data:
                   id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  vendor_type: null
-                  display_name: Toko Oleh-Oleh Haji Mabrur
-                  legal_name: PT Mabrur Sejahtera
-                  description: Toko oleh-oleh haji terlengkap di Jakarta
-                  province_id: "31"
-                  province_name: DKI Jakarta
-                  city_id: "3171"
-                  city_name: Jakarta Pusat
-                  district_id: "317101"
-                  district_name: Menteng
-                  subdistrict_id: "3171011001"
-                  subdistrict_name: Pegangsaan
-                  postal_code: "10320"
-                  address_line: Jl. Pegangsaan Barat No. 12
+                  store_name: Toko Oleh-Oleh Haji Mabrur
+                  store_description: Toko oleh-oleh haji terlengkap di Jakarta
+                  store_type: souvenir_store
                   status: submitted
                   status_reason: null
-                  approved_at: null
-                  xendit_account_id: null
-                  created_at: "2026-02-10T08:00:00Z"
-                  updated_at: "2026-02-10T09:30:00Z"
-                  owner:
-                    id: c3d4e5f6-a7b8-9012-cdef-123456789012
-                    email: budi@example.com
-                    full_name: Budi Santoso
+                  email: budi@example.com
+                  address:
+                    province: DKI Jakarta
+                    city: Jakarta Pusat
+                    district: Menteng
+                    subdistrict: Pegangsaan
+                    postal_code: "10320"
+                    address_line: Jl. Pegangsaan Barat No. 12
+                  responsible_person:
+                    name: Budi Santoso
                     phone: "+6281234567890"
-                    status: pending
-                  bank_account:
-                    id: d4e5f6a7-b8c9-0123-defa-234567890123
-                    bank_name: BCA
-                    account_number: "1234567890"
-                    account_holder_name: Budi Santoso
-                    verification_status: pending
-                    rejection_reason: null
-                    verified_at: null
-                    created_at: "2026-02-10T08:00:00Z"
-                    updated_at: "2026-02-10T08:00:00Z"
-                  documents:
-                    - id: e5f6a7b8-c9d0-1234-efab-345678901234
+                    email: budi@example.com
+                    nik: "3173010101010001"
+                    ktp:
+                      id: e5f6a7b8-c9d0-1234-efab-345678901234
                       doc_type: owner_document_id
                       file_url: vendors/a1b2c3d4/documents/owner_document_id/uuid1
-                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_document_id/uuid1?X-Amz-Signature=..."
                       mime_type: image/jpeg
                       file_size_bytes: 245760
-                      verification_status: pending
-                      rejection_reason: null
-                      verified_at: null
-                      created_at: "2026-02-10T08:00:00Z"
-                      updated_at: "2026-02-10T09:30:00Z"
+                  requirements_documents:
                     - id: f6a7b8c9-d0e1-2345-fabc-456789012345
                       doc_type: business_nib
                       file_url: vendors/a1b2c3d4/documents/business_nib/uuid2
-                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/business_nib/uuid2?X-Amz-Signature=..."
                       mime_type: application/pdf
                       file_size_bytes: 102400
-                      verification_status: pending
-                      rejection_reason: null
-                      verified_at: null
-                      created_at: "2026-02-10T08:00:00Z"
-                      updated_at: "2026-02-10T09:30:00Z"
                     - id: a7b8c9d0-e1f2-3456-abcd-567890123456
                       doc_type: halal_certificate
                       file_url: vendors/a1b2c3d4/documents/halal_certificate/uuid3
-                      download_url: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/halal_certificate/uuid3?X-Amz-Signature=..."
                       mime_type: application/pdf
                       file_size_bytes: 204800
-                      verification_status: pending
-                      rejection_reason: null
-                      verified_at: null
-                      created_at: "2026-02-10T08:00:00Z"
-                      updated_at: "2026-02-10T09:30:00Z"
+                  created_at: "2026-02-10T08:00:00Z"
                 errors: null
                 meta: null
         "400":
@@ -1966,6 +2221,24 @@ paths:
               - asc
               - desc
             default: desc
+        - name: start_date
+          in: query
+          description: |
+            Filter tanggal mulai (inklusif). Format: `YYYY-MM-DD`.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-04-01"
+        - name: end_date
+          in: query
+          description: |
+            Filter tanggal akhir (inklusif). Format: `YYYY-MM-DD`.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-04-07"
       responses:
         "200":
           description: Daftar pembayaran berhasil diambil.
@@ -2049,6 +2322,168 @@ paths:
                 data: null
                 errors: "failed to list payments: database timeout"
                 meta: null
+  /api/v1/admin/payments/summary:
+    get:
+      tags:
+        - Admin Payments
+      summary: Get Payment Summary
+      description: |
+        Mengembalikan ringkasan total nominal pembayaran berdasarkan status.
+        Mendukung filter tanggal (`start_date`, `end_date`) untuk melihat ringkasan periode tertentu.
+
+        URL: `GET /api/v1/admin/payments/summary`
+        Header: `Authorization: Bearer <admin_jwt>`
+
+        **Response fields:**
+        - `total_amount` — total semua transaksi (semua status)
+        - `paid_amount` — total transaksi berstatus `paid`
+        - `pending_amount` — total transaksi berstatus `pending`
+        - `failed_amount` — total transaksi berstatus `failed` + `expired`
+      operationId: getAdminPaymentSummary
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: start_date
+          in: query
+          description: |
+            Filter tanggal mulai (inklusif). Format: `YYYY-MM-DD`.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-04-01"
+        - name: end_date
+          in: query
+          description: |
+            Filter tanggal akhir (inklusif). Format: `YYYY-MM-DD`.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-04-07"
+      responses:
+        "200":
+          description: Ringkasan pembayaran berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessPaymentSummaryEnvelope"
+              example:
+                success: true
+                message: payment summary retrieved successfully
+                data:
+                  total_amount: 125000000
+                  paid_amount: 118000000
+                  pending_amount: 5000000
+                  failed_amount: 2000000
+                errors: null
+                meta: null
+        "401":
+          description: Token tidak ada atau invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Bukan admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/admin/payments/export:
+    get:
+      tags:
+        - Admin Payments
+      summary: Export Payment CSV
+      description: |
+        Mengekspor seluruh data pembayaran dalam format CSV (tanpa pagination).
+        Mendukung semua filter yang sama dengan endpoint list (`status`, `search`, `start_date`, `end_date`, `sort_by`, `sort_order`).
+
+        URL: `GET /api/v1/admin/payments/export`
+        Header: `Authorization: Bearer <admin_jwt>`
+
+        **Kolom CSV:** Tanggal, Invoice ID, Order No, Customer, Vendor, Metode, Nominal, Status
+      operationId: exportAdminPayments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, paid, expired, failed, refunded]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [created_at, amount, customer_name, status]
+            default: created_at
+        - name: sort_order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: File CSV berhasil diunduh.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: "attachment; filename=\"payments.csv\""
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Token tidak ada atau invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Bukan admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/admin/settings/banners:
     post:
       tags:
@@ -2206,6 +2641,19 @@ paths:
       tags:
         - Admin Settings - Banners
       summary: Update Banner
+      description: |
+        Update judul dan/atau gambar banner.
+
+        **Update judul saja** — kirim hanya `title`:
+        ```json
+        { "title": "Judul Baru" }
+        ```
+
+        **Update gambar** — kirim `content_type` (dan opsional `title`). Response akan menyertakan `upload_url` dan `object_key`.
+        FE upload gambar langsung ke `upload_url`, lalu konfirmasi dengan `POST .../confirm`.
+        ```json
+        { "title": "Judul Baru", "content_type": "image/jpeg" }
+        ```
       operationId: updateAdminBanner
       security:
         - BearerAuth: []
@@ -2222,8 +2670,16 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/BannerUpdateRequest"
-            example:
-              title: "Promo Haji 2026 — Updated"
+            examples:
+              title_only:
+                summary: Update judul saja
+                value:
+                  title: "Promo Haji 2026 — Updated"
+              with_image:
+                summary: Update judul + gambar (request presign)
+                value:
+                  title: "Promo Haji 2026 — Updated"
+                  content_type: "image/jpeg"
       responses:
         "200":
           description: Banner berhasil diperbarui.
@@ -2233,18 +2689,46 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SuccessBannerEnvelope"
-              example:
-                success: true
-                message: banner updated
-                data:
-                  id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-                  title: "Promo Haji 2026 — Updated"
-                  image_url: "https://cdn.umrahmart.com/banners/a1b2c3d4.jpg"
-                  created_at: "2026-03-04T10:00:00Z"
-                  updated_at: "2026-03-04T10:10:00Z"
-                errors: null
-                meta: null
+                $ref: "#/components/schemas/BannerUpdateEnvelope"
+              examples:
+                title_only:
+                  summary: Response update judul saja
+                  value:
+                    success: true
+                    message: banner updated
+                    data:
+                      id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                      title: "Promo Haji 2026 — Updated"
+                      image_url: "https://cdn.umrahmart.com/banners/a1b2c3d4.jpg"
+                      created_at: "2026-03-04T10:00:00Z"
+                      updated_at: "2026-04-07T08:30:00Z"
+                    errors: null
+                    meta: null
+                with_image:
+                  summary: Response update dengan presign URL
+                  value:
+                    success: true
+                    message: banner updated
+                    data:
+                      id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                      title: "Promo Haji 2026 — Updated"
+                      image_url: "banners/a1b2c3d4-e5f6/1744000000000"
+                      created_at: "2026-03-04T10:00:00Z"
+                      updated_at: "2026-04-07T08:30:00Z"
+                      upload_url: "https://minio.example.com/kemenhaj/banners/a1b2c3d4/...?X-Amz-Signature=..."
+                      object_key: "banners/a1b2c3d4-e5f6/1744000000000"
+                      expires_in: 1800
+                    errors: null
+                    meta: null
+        "400":
+          description: content_type tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -3587,6 +4071,158 @@ components:
           type: string
           description: Nama admin.
           example: System Administrator
+    AdminDashboardSummary:
+      type: object
+      required:
+        - ppiu_and_pihk_count
+        - dormitory_count
+        - store_count
+        - pending_payment_count
+        - needs_review_count
+        - order_count
+      properties:
+        ppiu_and_pihk_count:
+          type: integer
+          format: int64
+          example: 128
+        dormitory_count:
+          type: integer
+          format: int64
+          example: 56
+        store_count:
+          type: integer
+          format: int64
+          example: 342
+        pending_payment_count:
+          type: integer
+          format: int64
+          example: 17
+        needs_review_count:
+          type: integer
+          format: int64
+          example: 24
+        order_count:
+          type: integer
+          format: int64
+          example: 1245
+    AdminDashboardTransactionItem:
+      type: object
+      required:
+        - date_time
+        - invoice
+        - customer_name
+        - product_name
+        - price
+        - status
+      properties:
+        date_time:
+          type: string
+          format: date-time
+          example: 2026-03-01T20:15:00Z
+        invoice:
+          type: string
+          example: INV-20260301-007
+        customer_name:
+          type: string
+          example: Hendra Wijaya
+        product_name:
+          type: string
+          example: Paket Umroh VIP
+        price:
+          type: number
+          format: double
+          example: 35000000
+        status:
+          type: string
+          example: paid
+    AdminDashboardResponse:
+      type: object
+      required:
+        - month
+        - year
+        - summary
+        - transactions
+      properties:
+        month:
+          type: integer
+          example: 3
+        year:
+          type: integer
+          example: 2026
+        summary:
+          $ref: "#/components/schemas/AdminDashboardSummary"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminDashboardTransactionItem"
+    AdminReportSummary:
+      type: object
+      required:
+        - success_transaction_rate
+        - total_transactions
+        - customer_count
+        - platform_commission
+      properties:
+        success_transaction_rate:
+          type: number
+          format: double
+          example: 82
+        total_transactions:
+          type: integer
+          format: int64
+          example: 8
+        customer_count:
+          type: integer
+          format: int64
+          example: 400
+        platform_commission:
+          type: number
+          format: double
+          example: 430000000
+    AdminReportItem:
+      type: object
+      required:
+        - period
+        - total_transaction
+        - dp
+        - settlement
+        - refund
+      properties:
+        period:
+          type: string
+          example: Jan 2026
+        total_transaction:
+          type: number
+          format: double
+          example: 4000000
+        dp:
+          type: number
+          format: double
+          example: 3000000
+        settlement:
+          type: number
+          format: double
+          example: 4000000
+        refund:
+          type: number
+          format: double
+          example: 50000
+    AdminReportResponse:
+      type: object
+      required:
+        - year
+        - summary
+        - items
+      properties:
+        year:
+          type: integer
+          example: 2026
+        summary:
+          $ref: "#/components/schemas/AdminReportSummary"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminReportItem"
     CreateUserRequest:
       type: object
       required:
@@ -3781,9 +4417,11 @@ components:
         data:
           $ref: "#/components/schemas/UserResponse"
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
         meta:
+          type: object
           nullable: true
           description: Selalu null untuk endpoint non-list.
     SuccessUserListEnvelope:
@@ -3806,6 +4444,7 @@ components:
           items:
             $ref: "#/components/schemas/UserResponse"
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
         meta:
@@ -3826,14 +4465,17 @@ components:
           type: string
           example: user deleted successfully
         data:
+          type: object
           nullable: true
           description: Selalu null.
           example: null
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
           example: null
         meta:
+          type: object
           nullable: true
           description: Selalu null.
           example: null
@@ -3855,10 +4497,12 @@ components:
         data:
           $ref: "#/components/schemas/AdminLoginResponse"
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
           example: null
         meta:
+          type: object
           nullable: true
           description: Selalu null.
           example: null
@@ -3880,13 +4524,66 @@ components:
         data:
           $ref: "#/components/schemas/AdminMeResponse"
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
           example: null
         meta:
+          type: object
           nullable: true
           description: Selalu null.
           example: null
+    SuccessAdminDashboardEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: admin dashboard retrieved successfully
+        data:
+          $ref: "#/components/schemas/AdminDashboardResponse"
+        errors:
+          type: object
+          nullable: true
+          description: Selalu null pada response sukses.
+          example: null
+        meta:
+          type: object
+          nullable: true
+          description: Selalu null.
+          example: null
+    SuccessAdminReportEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: admin report retrieved successfully
+        data:
+          $ref: "#/components/schemas/AdminReportResponse"
+        errors:
+          type: object
+          nullable: true
+          description: Selalu null pada response sukses.
+          example: null
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
     ErrorEnvelope:
       type: object
       required:
@@ -3903,10 +4600,12 @@ components:
           type: string
           example: validation failed
         data:
+          type: object
           nullable: true
           description: Selalu null pada response error.
           example: null
         errors:
+          type: object
           nullable: true
           oneOf:
             - type: string
@@ -3915,6 +4614,7 @@ components:
           description: Detail error, bisa string atau object.
           example: "Key: 'CreateUserRequest.Email' Error:Field validation for 'Email' failed on the 'email' tag"
         meta:
+          type: object
           nullable: true
           description: Selalu null pada response error.
           example: null
@@ -3963,6 +4663,7 @@ components:
           description: Email pemilik vendor.
           example: budi@example.com
         address:
+          type: object
           nullable: true
           description: Alamat vendor dalam bentuk objek. Null jika alamat belum diisi.
           allOf:
@@ -4000,209 +4701,22 @@ components:
           nullable: true
           description: Kode pos.
           example: "10320"
-    AdminVendorOwnerResponse:
+    AdminVendorDetailAddress:
       type: object
-      required:
-        - id
-        - email
-        - full_name
-        - status
       properties:
-        id:
-          type: string
-          format: uuid
-          example: c3d4e5f6-a7b8-9012-cdef-123456789012
-        email:
-          type: string
-          format: email
-          example: budi@example.com
-        full_name:
-          type: string
-          example: Budi Santoso
-        phone:
-          type: string
-          nullable: true
-          example: "+6281234567890"
-        status:
-          type: string
-          enum:
-            - pending
-            - active
-            - blocked
-          example: pending
-    AdminVendorBankAccountResponse:
-      type: object
-      required:
-        - id
-        - bank_name
-        - account_number
-        - account_holder_name
-        - verification_status
-        - created_at
-        - updated_at
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: d4e5f6a7-b8c9-0123-defa-234567890123
-        bank_name:
-          type: string
-          example: BCA
-        account_number:
-          type: string
-          example: "1234567890"
-        account_holder_name:
-          type: string
-          example: Budi Santoso
-        verification_status:
-          type: string
-          enum:
-            - pending
-            - verified
-            - rejected
-          example: pending
-        rejection_reason:
-          type: string
-          nullable: true
-          example: null
-        verified_at:
-          type: string
-          format: date-time
-          nullable: true
-          example: null
-        created_at:
-          type: string
-          format: date-time
-          example: "2026-02-10T08:00:00Z"
-        updated_at:
-          type: string
-          format: date-time
-          example: "2026-02-10T08:00:00Z"
-    AdminVendorDocumentResponse:
-      type: object
-      required:
-        - id
-        - doc_type
-        - file_url
-        - download_url
-        - created_at
-        - updated_at
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: e5f6a7b8-c9d0-1234-efab-345678901234
-        doc_type:
-          type: string
-          description: Tipe dokumen vendor.
-          enum:
-            - owner_document_id
-            - business_nib
-            - business_npwp
-            - halal_certificate
-            - store_photo
-            - bank_account_proof
-            - business_logo
-            - business_banner
-          example: owner_document_id
-        file_url:
-          type: string
-          description: Object key di S3.
-          example: vendors/a1b2c3d4/documents/owner_document_id/uuid1
-        download_url:
-          type: string
-          description: Presigned download URL (berlaku 30 menit). Kosong jika dokumen belum diupload.
-          example: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_document_id/uuid1?X-Amz-Signature=..."
-        mime_type:
-          type: string
-          nullable: true
-          description: Content type file (image/jpeg, image/png, image/webp, application/pdf).
-          example: image/jpeg
-        file_size_bytes:
-          type: integer
-          format: int32
-          nullable: true
-          description: Ukuran file dalam bytes.
-          example: 245760
-        verified_at:
-          type: string
-          format: date-time
-          nullable: true
-          example: null
-        created_at:
-          type: string
-          format: date-time
-          example: "2026-02-10T08:00:00Z"
-        updated_at:
-          type: string
-          format: date-time
-          example: "2026-02-10T09:30:00Z"
-    AdminVendorDetailResponse:
-      type: object
-      required:
-        - id
-        - vendor_type
-        - display_name
-        - status
-        - created_at
-        - updated_at
-        - owner
-        - bank_account
-        - documents
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
-        vendor_type:
-          type: string
-          nullable: true
-          enum:
-            - souvenir_store
-            - ppiu
-            - hajj_dormitory
-          example: souvenir_store
-        display_name:
-          type: string
-          nullable: true
-          example: Toko Oleh-Oleh Haji Mabrur
-        legal_name:
-          type: string
-          nullable: true
-          example: PT Mabrur Sejahtera
-        description:
-          type: string
-          nullable: true
-          example: Toko oleh-oleh haji terlengkap di Jakarta
-        province_id:
-          type: string
-          nullable: true
-          example: "31"
-        province_name:
+        province:
           type: string
           nullable: true
           example: DKI Jakarta
-        city_id:
-          type: string
-          nullable: true
-          example: "3171"
-        city_name:
+        city:
           type: string
           nullable: true
           example: Jakarta Pusat
-        district_id:
-          type: string
-          nullable: true
-          example: "317101"
-        district_name:
+        district:
           type: string
           nullable: true
           example: Menteng
-        subdistrict_id:
-          type: string
-          nullable: true
-          example: "3171011001"
-        subdistrict_name:
+        subdistrict:
           type: string
           nullable: true
           example: Pegangsaan
@@ -4214,6 +4728,124 @@ components:
           type: string
           nullable: true
           example: Jl. Pegangsaan Barat No. 12
+    AdminVendorKTPResponse:
+      type: object
+      required:
+        - id
+        - doc_type
+        - file_url
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: e5f6a7b8-c9d0-1234-efab-345678901234
+        doc_type:
+          type: string
+          enum:
+            - owner_document_id
+          example: owner_document_id
+        file_url:
+          type: string
+          description: Presigned download URL untuk dokumen KTP.
+          example: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/owner_document_id/uuid1?X-Amz-Signature=..."
+        mime_type:
+          type: string
+          nullable: true
+          example: image/jpeg
+        file_size_bytes:
+          type: integer
+          format: int32
+          nullable: true
+          example: 245760
+    AdminVendorResponsiblePersonResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: Budi Santoso
+        phone:
+          type: string
+          nullable: true
+          example: "+6281234567890"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: budi@example.com
+        nik:
+          type: string
+          nullable: true
+          example: "3173010101010001"
+        ktp:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/AdminVendorKTPResponse"
+    AdminVendorRequirementDocumentResponse:
+      type: object
+      required:
+        - id
+        - doc_type
+        - file_url
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: f6a7b8c9-d0e1-2345-fabc-456789012345
+        doc_type:
+          type: string
+          enum:
+            - business_nib
+            - halal_certificate
+          example: business_nib
+        file_url:
+          type: string
+          description: Presigned download URL untuk dokumen persyaratan.
+          example: "https://s3.amazonaws.com/bucket/vendors/a1b2c3d4/documents/business_nib/uuid2?X-Amz-Signature=..."
+        mime_type:
+          type: string
+          nullable: true
+          example: application/pdf
+        file_size_bytes:
+          type: integer
+          format: int32
+          nullable: true
+          example: 102400
+    AdminVendorDetailResponse:
+      type: object
+      required:
+        - id
+        - store_name
+        - store_description
+        - store_type
+        - status
+        - email
+        - address
+        - responsible_person
+        - requirements_documents
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        store_name:
+          type: string
+          nullable: true
+          example: Toko Oleh-Oleh Haji Mabrur
+        store_description:
+          type: string
+          nullable: true
+          example: Toko oleh-oleh haji terlengkap di Jakarta
+        store_type:
+          type: string
+          nullable: true
+          enum:
+            - souvenir_store
+            - ppiu
+            - hajj_dormitory
+          example: souvenir_store
         status:
           type: string
           enum:
@@ -4226,36 +4858,24 @@ components:
         status_reason:
           type: string
           nullable: true
-          description: Alasan reject/block yang diberikan admin. Null jika tidak ada.
+          description: Alasan reject/block dari admin. Null jika status bukan rejected/blocked.
           example: null
-        approved_at:
+        email:
           type: string
-          format: date-time
-          nullable: true
-          example: null
-        xendit_account_id:
-          type: string
-          nullable: true
-          description: ID akun Xendit XenPlatform vendor. Null jika vendor belum diapprove.
-          example: 6684bb0b873d7b1b2db95b22
+          format: email
+          example: budi@example.com
+        address:
+          $ref: "#/components/schemas/AdminVendorDetailAddress"
+        responsible_person:
+          $ref: "#/components/schemas/AdminVendorResponsiblePersonResponse"
+        requirements_documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminVendorRequirementDocumentResponse"
         created_at:
           type: string
           format: date-time
           example: "2026-02-10T08:00:00Z"
-        updated_at:
-          type: string
-          format: date-time
-          example: "2026-02-10T09:30:00Z"
-        owner:
-          $ref: "#/components/schemas/AdminVendorOwnerResponse"
-        bank_account:
-          nullable: true
-          allOf:
-            - $ref: "#/components/schemas/AdminVendorBankAccountResponse"
-        documents:
-          type: array
-          items:
-            $ref: "#/components/schemas/AdminVendorDocumentResponse"
     SuccessVendorListEnvelope:
       type: object
       required:
@@ -4276,6 +4896,7 @@ components:
           items:
             $ref: "#/components/schemas/AdminVendorListItem"
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
         meta:
@@ -4298,9 +4919,11 @@ components:
         data:
           $ref: "#/components/schemas/AdminVendorDetailResponse"
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
         meta:
+          type: object
           nullable: true
           description: Selalu null untuk endpoint detail.
     AdminVendorReasonRequest:
@@ -4354,9 +4977,11 @@ components:
         data:
           $ref: "#/components/schemas/AdminVendorActionResponse"
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
         meta:
+          type: object
           nullable: true
           description: Selalu null.
     AdminPaymentListItem:
@@ -4437,10 +5062,62 @@ components:
           items:
             $ref: "#/components/schemas/AdminPaymentListItem"
         errors:
+          type: object
           nullable: true
           description: Selalu null pada response sukses.
         meta:
           $ref: "#/components/schemas/PaginationMeta"
+    AdminPaymentSummary:
+      type: object
+      required:
+        - total_amount
+        - paid_amount
+        - pending_amount
+        - failed_amount
+      properties:
+        total_amount:
+          type: number
+          format: double
+          description: Total nominal semua transaksi (semua status).
+          example: 125000000
+        paid_amount:
+          type: number
+          format: double
+          description: Total nominal transaksi berstatus paid.
+          example: 118000000
+        pending_amount:
+          type: number
+          format: double
+          description: Total nominal transaksi berstatus pending.
+          example: 5000000
+        failed_amount:
+          type: number
+          format: double
+          description: Total nominal transaksi berstatus failed + expired.
+          example: 2000000
+    SuccessPaymentSummaryEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: payment summary retrieved successfully
+        data:
+          $ref: "#/components/schemas/AdminPaymentSummary"
+        errors:
+          type: object
+          nullable: true
+        meta:
+          type: object
+          nullable: true
     # --- Banners ---
     BannerCreateRequest:
       type: object
@@ -4471,12 +5148,49 @@ components:
           example: banners/a1b2c3d4-e5f6-7890-abcd-ef1234567890.jpg
     BannerUpdateRequest:
       type: object
-      description: Semua field opsional.
+      description: |
+        Semua field opsional.
+        Jika `content_type` disertakan, response akan menyertakan `upload_url`, `object_key`, dan `expires_in`
+        sehingga FE bisa langsung upload ulang gambar tanpa harus delete & buat banner baru.
+        Setelah upload selesai, konfirmasi dengan `POST /api/v1/admin/settings/banners/{id}/confirm`.
       properties:
         title:
           type: string
           description: Judul banner baru.
           example: "Promo Haji 2026 — Updated"
+        content_type:
+          type: string
+          description: MIME type gambar baru (image/jpeg, image/jpg, image/png, image/webp). Jika diisi, response akan mengembalikan presigned upload URL.
+          example: image/jpeg
+    BannerUpdateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        image_url:
+          type: string
+          description: URL gambar saat ini (mungkin masih placeholder jika baru request presign).
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        upload_url:
+          type: string
+          description: Presigned URL untuk upload gambar baru ke S3. Hanya ada jika `content_type` dikirim di request.
+          nullable: true
+        object_key:
+          type: string
+          description: Object key S3 yang perlu dikirim ke endpoint confirm. Hanya ada jika `content_type` dikirim di request.
+          nullable: true
+        expires_in:
+          type: integer
+          description: Durasi validitas presigned URL dalam detik (1800 = 30 menit). Hanya ada jika `content_type` dikirim di request.
+          nullable: true
     BannerResponse:
       type: object
       required:
@@ -4549,8 +5263,10 @@ components:
         data:
           $ref: "#/components/schemas/BannerPresignResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessBannerEnvelope:
       type: object
@@ -4570,8 +5286,33 @@ components:
         data:
           $ref: "#/components/schemas/BannerResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
+          nullable: true
+    BannerUpdateEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: banner updated
+        data:
+          $ref: "#/components/schemas/BannerUpdateResponse"
+        errors:
+          type: object
+          nullable: true
+        meta:
+          type: object
           nullable: true
     SuccessBannerListEnvelope:
       type: object
@@ -4593,8 +5334,10 @@ components:
           items:
             $ref: "#/components/schemas/BannerResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     # --- Categories ---
     CategoryCreateRequest:
@@ -4657,8 +5400,10 @@ components:
         data:
           $ref: "#/components/schemas/CategoryResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessCategoryListEnvelope:
       type: object
@@ -4680,8 +5425,10 @@ components:
           items:
             $ref: "#/components/schemas/CategoryResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     # --- Return Reasons ---
     ReturnReasonCreateRequest:
@@ -4743,8 +5490,10 @@ components:
         data:
           $ref: "#/components/schemas/ReturnReasonResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessReturnReasonListEnvelope:
       type: object
@@ -4766,8 +5515,10 @@ components:
           items:
             $ref: "#/components/schemas/ReturnReasonResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     # --- Admin Contacts ---
     AdminContactCreateRequest:
@@ -4829,8 +5580,10 @@ components:
         data:
           $ref: "#/components/schemas/AdminContactResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessAdminContactListEnvelope:
       type: object
@@ -4852,8 +5605,10 @@ components:
           items:
             $ref: "#/components/schemas/AdminContactResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     # --- FAQ ---
     FAQCreateRequest:
@@ -4943,8 +5698,10 @@ components:
         data:
           $ref: "#/components/schemas/FAQResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessFAQListEnvelope:
       type: object
@@ -4966,8 +5723,10 @@ components:
           items:
             $ref: "#/components/schemas/FAQResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     # --- Chat ---
     ConversationResponse:
@@ -5045,8 +5804,10 @@ components:
         data:
           $ref: "#/components/schemas/ConversationResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessConversationListEnvelope:
       type: object
@@ -5068,6 +5829,7 @@ components:
           items:
             $ref: "#/components/schemas/ConversationResponse"
         errors:
+          type: object
           nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"

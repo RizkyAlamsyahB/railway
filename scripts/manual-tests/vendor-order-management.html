@@ -318,7 +318,7 @@
       <h3>⚙️ Konfigurasi &amp; Login</h3>
       <div class="config-row">
         <label>Base URL</label>
-        <input type="text" id="baseUrl" value="http://localhost:8080/api/v1" />
+        <input type="text" id="baseUrl" value="https://haji-umroh-store-api.jauhar.id/api/v1" />
       </div>
       <div class="config-row">
         <label>Email</label>
@@ -690,9 +690,9 @@ function buildFilterParams() {
 async function doLogin() {
   try {
     const res = await api('POST', '/vendors/login', { email: $('loginEmail').value, password: $('loginPassword').value });
-    if (res.json?.success && res.json.data?.token) {
-      vendorToken = res.json.data.token;
-      $('vendorName').textContent = res.json.data.display_name || res.json.data.name || '';
+    if (res.json?.success && res.json.data?.access_token) {
+      vendorToken = res.json.data.access_token;
+      $('vendorName').textContent = res.json.data.store_name || res.json.data.email || '';
       updateUI();
       toast('Login berhasil!', 'success');
       loadOrders();

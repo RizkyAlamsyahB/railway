@@ -2,9 +2,9 @@ openapi: 3.0.3
 info:
   title: Vendor API
   version: 1.0.0
-  description: Dokumentasi OpenAPI 3 untuk modul vendor/seller (UMKM), termasuk pendaftaran, autentikasi, produk, voucher, saldo, pengiriman, alamat gudang, kurir, order, banner toko, dan chat.
+  description: Dokumentasi OpenAPI 3 untuk modul vendor/seller (UMKM), termasuk pendaftaran, autentikasi, produk, voucher, saldo, pengiriman, alamat gudang, kurir, order, banner toko, laporan pendapatan, dan chat.
 servers:
-  - url: http://localhost:8080
+  - url: https://haji-umroh-store-api.jauhar.id
     description: Local development server
 tags:
   - name: Vendor Registration
@@ -19,6 +19,8 @@ tags:
     description: CRUD voucher diskon nominal per item (produk milik vendor).
   - name: Vendor Balance
     description: Operasi saldo dan penarikan vendor (Tokopedia-style self-service).
+  - name: Vendor Bank Accounts
+    description: Manajemen rekening bank vendor untuk payout dan penarikan saldo.
   - name: Vendor Shipping
     description: Lookup lokasi pengiriman dan master kurir untuk kebutuhan vendor.
   - name: Vendor Locations
@@ -31,6 +33,10 @@ tags:
     description: Kelola order vendor, invoice, shipping, export, dan tracking.
   - name: Vendor Banners
     description: Manajemen banner toko vendor dan endpoint banner publik toko.
+  - name: Vendor Dashboard
+    description: Dashboard ringkasan penjualan, transaksi hari ini, notifikasi, dan alur pembayaran vendor.
+  - name: Vendor Report
+    description: Laporan pendapatan vendor — KPI summary dan rincian pendapatan harian dengan export CSV.
   - name: Vendor Chat
     description: Pencarian user, percakapan, pesan, attachment, dan read state untuk alur chat vendor.
   - name: Xendit Webhook
@@ -378,6 +384,7 @@ paths:
                   store_name: Toko Oleh-Oleh Haji Mabrur
                   vendor_type: null
                   vendor_status: active
+                  status_reason: null
                 errors: null
                 meta: null
         "400":
@@ -477,6 +484,84 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/vendors/me/profile:
+    put:
+      tags:
+        - Vendor Auth
+      summary: Update Profile Vendor
+      description: |
+        Memperbarui profil vendor (saat ini mendukung pembaruan nama toko dan deskripsi).
+
+        **Autentikasi:**
+        - Wajib menyertakan header `Authorization: Bearer <token>`.
+        - Token harus valid dan memiliki role `umkm`.
+      operationId: updateVendorProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdateProfileRequest"
+            example:
+              store_name: "Toko Baru Mekkah"
+              store_description: "Toko oleh-oleh haji dan umrah terlengkap di Jakarta."
+      responses:
+        "200":
+          description: Profil vendor berhasil diperbarui. Mengembalikan data profil terbaru.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessVendorMeEnvelope"
+        "400":
+          description: Payload tidak valid (misal, `store_name` kosong atau terlalu panjang).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki akses sebagai vendor.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/register/propose/souvenir_store/presign:
     post:
       tags:
@@ -1959,6 +2044,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/vouchers/summary:
+    get:
+      tags:
+        - Vendor Vouchers
+      summary: Ringkasan voucher vendor
+      description: >
+        Mengembalikan statistik ringkasan voucher milik vendor: jumlah promo aktif,
+        promo akan datang, promo berakhir, dan total penggunaan.
+      operationId: getVendorVoucherSummary
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Ringkasan voucher berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessVendorVoucherSummaryEnvelope"
+        "401":
+          description: Token tidak valid atau expired.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
   /api/v1/vendors/vouchers/{id}:
     get:
       tags:
@@ -2299,7 +2415,405 @@ paths:
                 data: null
                 errors: null
                 meta: null
+  /api/v1/vendors/bank-accounts:
+    post:
+      tags:
+        - Vendor Bank Accounts
+      summary: Tambah Rekening Bank Vendor
+      description: |
+        Menambahkan rekening bank baru milik vendor yang sedang login.
+
+        **Aturan:**
+        - Wajib autentikasi JWT role `umkm`.
+        - Jika ini rekening pertama, sistem otomatis menandainya sebagai default.
+        - Jika `is_default: true`, default sebelumnya akan di-unset.
+      operationId: createVendorBankAccount
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVendorBankAccountRequest"
+            example:
+              channel_code: ID_BCA
+              bank_name: Bank Central Asia
+              account_number: "1234567890"
+              account_holder_name: Ahmad Subarkah
+              is_default: true
+      responses:
+        "201":
+          description: Rekening bank vendor berhasil ditambahkan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessCreateVendorBankAccountEnvelope"
+              example:
+                success: true
+                message: bank account created
+                data:
+                  id: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
+                  channel_code: ID_BCA
+                  bank_name: Bank Central Asia
+                  account_holder_name: Ahmad Subarkah
+                  account_last4: "7890"
+                  is_default: true
+                errors: null
+                meta: null
+        "400":
+          description: Request tidak valid (payload/validasi gagal).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                validationFailed:
+                  summary: Validasi payload gagal
+                  value:
+                    success: false
+                    message: validation failed
+                    data: null
+                    errors: "Key: 'CreateVendorBankAccountRequest.AccountNumber' Error:Field validation for 'AccountNumber' failed on the 'required' tag"
+                    meta: null
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User bukan role vendor (`umkm`).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    get:
+      tags:
+        - Vendor Bank Accounts
+      summary: List Rekening Bank Vendor
+      description: |
+        Mengambil daftar rekening bank milik vendor yang sedang login.
+        Nomor rekening ditampilkan dalam bentuk masked (`account_last4`).
+      operationId: listVendorBankAccounts
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Daftar rekening bank vendor berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessListVendorBankAccountEnvelope"
+              example:
+                success: true
+                message: bank accounts loaded
+                data:
+                  - id: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
+                    channel_code: ID_BCA
+                    bank_name: Bank Central Asia
+                    account_holder_name: Ahmad Subarkah
+                    account_last4: "7890"
+                    is_default: true
+                errors: null
+                meta: null
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User bukan role vendor (`umkm`).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/bank-accounts/{id}:
+    delete:
+      tags:
+        - Vendor Bank Accounts
+      summary: Hapus Rekening Bank Vendor
+      description: |
+        Menghapus rekening bank milik vendor.
+        Hanya rekening milik vendor login yang bisa dihapus.
+      operationId: deleteVendorBankAccount
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VendorBankAccountIDParam"
+      responses:
+        "200":
+          description: Rekening bank vendor berhasil dihapus.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+              example:
+                success: true
+                message: bank account deleted
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID rekening bank tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Rekening bukan milik vendor login.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: bank account does not belong to this vendor
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Rekening bank vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: vendor bank account not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /api/v1/vendors/bank-accounts/{id}/default:
+    patch:
+      tags:
+        - Vendor Bank Accounts
+      summary: Set Rekening Utama Vendor
+      description: |
+        Menandai rekening bank vendor sebagai rekening utama (default).
+        Rekening default sebelumnya akan di-unset otomatis.
+      operationId: setDefaultVendorBankAccount
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/VendorBankAccountIDParam"
+      responses:
+        "200":
+          description: Rekening bank utama vendor berhasil diperbarui.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessEnvelope"
+              example:
+                success: true
+                message: default bank account updated
+                data: null
+                errors: null
+                meta: null
+        "400":
+          description: ID rekening bank tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Rekening bukan milik vendor login.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: bank account does not belong to this vendor
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Rekening bank vendor tidak ditemukan.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
   /api/v1/vendors/withdrawals:
+    get:
+      tags:
+        - Vendor Balance
+      summary: Get Withdrawal History
+      description: |
+        Mengambil daftar riwayat withdrawal milik vendor yang sedang login.
+
+        **Catatan tanggal payout:**
+        - `payout_date` adalah waktu request withdrawal dibuat (`vendor_withdrawals.created_at`).
+      operationId: listVendorWithdrawals
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: status
+          in: query
+          required: false
+          description: Filter status withdrawal.
+          schema:
+            type: string
+            enum:
+              - pending
+              - processing
+              - completed
+              - failed
+      responses:
+        "200":
+          description: Riwayat withdrawal berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessVendorWithdrawalListEnvelope"
+              example:
+                success: true
+                message: vendor withdrawals retrieved successfully
+                data:
+                  - id: c1d2e3f4-a5b6-7890-cdef-1234567890ab
+                    amount: 100000
+                    status: processing
+                    payout_date: "2026-04-07T10:00:00Z"
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 1
+                  total_pages: 1
+        "400":
+          description: Query parameter tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak ada, format salah, atau token expired/invalid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
     post:
       tags:
         - Vendor Balance
@@ -2308,8 +2822,8 @@ paths:
         Menginisiasi penarikan saldo vendor ke rekening bank yang terdaftar melalui Xendit Payout API.
 
         **Alur:**
-        1. Vendor mengirim `amount` dan `channel_code`.
-        2. Sistem memvalidasi: vendor aktif, saldo mencukupi, minimum Rp 10.000.
+        1. Vendor mengirim `amount`, `channel_code`, dan `bank_account_id`.
+        2. Sistem memvalidasi: vendor aktif, saldo mencukupi, minimum Rp 10.000, serta rekening milik vendor.
         3. Saldo dipindahkan dari `available_balance` ke `pending_balance`.
         4. Record `vendor_withdrawals` dibuat dengan status `pending`.
         5. Sistem memanggil Xendit Payout API.
@@ -2334,6 +2848,7 @@ paths:
             example:
               amount: 100000
               channel_code: ID_BCA
+              bank_account_id: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
       responses:
         "200":
           description: Penarikan berhasil disubmit ke Xendit.
@@ -2414,7 +2929,7 @@ paths:
                 errors: null
                 meta: null
         "403":
-          description: Vendor tidak aktif atau user bukan vendor.
+          description: Vendor tidak aktif, user bukan vendor, atau rekening bukan milik vendor login.
           headers:
             X-Request-ID:
               $ref: "#/components/headers/RequestIDHeader"
@@ -2428,6 +2943,14 @@ paths:
                   value:
                     success: false
                     message: vendor is not active
+                    data: null
+                    errors: null
+                    meta: null
+                bankNotOwned:
+                  summary: Rekening bank bukan milik vendor login
+                  value:
+                    success: false
+                    message: bank account does not belong to this vendor
                     data: null
                     errors: null
                     meta: null
@@ -4637,6 +5160,393 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+
+  # ── Vendor Dashboard ──────────────────────────────────────────
+  /api/v1/vendors/dashboard:
+    get:
+      tags:
+        - Vendor Dashboard
+      summary: Get Vendor Seller Dashboard
+      description: |
+        Menampilkan ringkasan dashboard vendor untuk bulan tertentu:
+        - **summary**: total transaksi, persentase sukses, revenue, pending settlement.
+        - **today_transactions**: hingga 5 transaksi terakhir hari ini.
+        - **recent_notifications**: hingga 5 notifikasi terbaru.
+        - **payment_flow**: distribusi persentase status order 30 hari terakhir (donut chart).
+      operationId: getVendorDashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          description: Bulan (1-12). Default bulan sekarang.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+            example: 4
+        - name: year
+          in: query
+          description: Tahun (2000-2100). Default tahun sekarang.
+          required: false
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+            example: 2026
+      responses:
+        "200":
+          description: Dashboard berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorDashboardResponse"
+              example:
+                success: true
+                message: vendor dashboard retrieved successfully
+                data:
+                  month: "2026-04"
+                  year: 2026
+                  summary:
+                    total_transactions: 15
+                    successful_transaction_percent: 73.33
+                    revenue: 4500000
+                    pending_settlement: 1200000
+                  today_transactions:
+                    - date_time: "2026-04-07T10:30:00+07:00"
+                      invoice: "INV-20260407-001"
+                      product_name: "Sajadah Premium"
+                      category: "Perlengkapan Sholat"
+                      price: 150000
+                      status: "paid"
+                    - date_time: "2026-04-07T09:15:00+07:00"
+                      invoice: "INV-20260407-002"
+                      product_name: "Mukena Travel"
+                      category: "Perlengkapan Ibadah"
+                      price: 250000
+                      status: "processing"
+                  recent_notifications:
+                    - id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                      type: "order"
+                      title: "Pesanan baru masuk"
+                      message: "Pesanan INV-20260407-001 telah dibayar"
+                      created_at: "2026-04-07T10:30:00+07:00"
+                  payment_flow:
+                    - label: "Selesai"
+                      value: 73.33
+                    - label: "Dalam Proses"
+                      value: 13.33
+                    - label: "Dibatalkan"
+                      value: 6.67
+                    - label: "Menunggu Pembayaran"
+                      value: 6.67
+                errors: null
+                meta: null
+        "400":
+          description: Parameter tidak valid (month/year di luar range).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak valid atau kadaluarsa.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  # ── Vendor Report / Laporan Pendapatan ──────────────────────────
+  /api/v1/vendors/reports:
+    get:
+      tags:
+        - Vendor Report
+      summary: Get Laporan Pendapatan
+      description: |
+        Menampilkan laporan pendapatan vendor untuk periode bulan tertentu:
+        - **summary**: KPI cards (persentase transaksi berhasil, total transaksi, pendapatan kotor, pendapatan bersih).
+        - **items**: rincian pendapatan harian yang dipaginasi.
+
+        Hanya transaksi yang sudah dibayar dan belum di-refund yang dihitung dalam rincian dan revenue.
+        Sementara persentase transaksi berhasil dihitung terhadap seluruh transaksi (termasuk gagal/expired).
+
+        Mendukung pencarian berdasarkan tanggal dan filter date range dalam satu bulan.
+      operationId: getVendorReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          description: |
+            Periode bulan dalam format `YYYY-MM`.
+            Default: bulan berjalan.
+          required: false
+          schema:
+            type: string
+            example: "2026-04"
+        - name: date_from
+          in: query
+          description: |
+            Opsional. Filter mulai tanggal (format `YYYY-MM-DD`).
+            Harus berada dalam range bulan yang dipilih.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-04-01"
+        - name: date_to
+          in: query
+          description: |
+            Opsional. Filter sampai tanggal (format `YYYY-MM-DD`, inclusive).
+            Harus berada dalam range bulan yang dipilih.
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-04-15"
+        - name: page
+          in: query
+          description: Halaman yang diminta (default 1).
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Jumlah item per halaman (default 10, max 100).
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: search
+          in: query
+          description: |
+            Pencarian berdasarkan tanggal (partial match terhadap kolom tanggal, misal: `2026-04-01` atau `2026-04`).
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Laporan pendapatan berhasil diambil.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VendorReportResponse"
+                      meta:
+                        $ref: "#/components/schemas/PaginationMeta"
+              example:
+                success: true
+                message: vendor report retrieved successfully
+                data:
+                  summary:
+                    success_transaction_rate: 82.0
+                    total_transactions: 8
+                    gross_revenue: 485000000
+                    net_revenue: 430000000
+                  items:
+                    - date: "2026-04-07"
+                      transaction_count: 3
+                      gross_revenue: 4000000
+                      platform_commission: 200000
+                      net_revenue: 3800000
+                    - date: "2026-04-06"
+                      transaction_count: 5
+                      gross_revenue: 7500000
+                      platform_commission: 375000
+                      net_revenue: 7125000
+                errors: null
+                meta:
+                  page: 1
+                  limit: 10
+                  total_items: 30
+                  total_pages: 3
+        "400":
+          description: Parameter tidak valid (format bulan salah, date range tidak valid).
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalidMonth:
+                  summary: Format bulan salah
+                  value:
+                    success: false
+                    message: "invalid month format, expected YYYY-MM"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidDate:
+                  summary: Format tanggal salah
+                  value:
+                    success: false
+                    message: "invalid date format, expected YYYY-MM-DD"
+                    data: null
+                    errors: null
+                    meta: null
+                invalidDateRange:
+                  summary: Date range tidak valid
+                  value:
+                    success: false
+                    message: "invalid date range: date_from must be before or equal to date_to"
+                    data: null
+                    errors: null
+                    meta: null
+        "401":
+          description: Token tidak valid atau kadaluarsa.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role vendor.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
+  /api/v1/vendors/reports/export:
+    get:
+      tags:
+        - Vendor Report
+      summary: Export Laporan Pendapatan (CSV)
+      description: |
+        Mengunduh laporan pendapatan vendor dalam format CSV.
+        Menggunakan filter yang sama dengan endpoint GET reports, tetapi tanpa pagination (semua data diekspor).
+
+        **Header CSV:**
+        Tanggal, Jumlah Transaksi, Pendapatan Kotor, Komisi Platform, Pendapatan Bersih
+      operationId: exportVendorReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          description: |
+            Periode bulan dalam format `YYYY-MM`.
+            Default: bulan berjalan.
+          required: false
+          schema:
+            type: string
+            example: "2026-04"
+        - name: date_from
+          in: query
+          description: Filter mulai tanggal (format `YYYY-MM-DD`).
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: Filter sampai tanggal (format `YYYY-MM-DD`, inclusive).
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: search
+          in: query
+          description: Pencarian berdasarkan tanggal.
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File CSV berhasil di-generate.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="vendor-report.csv"'
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+              example: |
+                Tanggal,Jumlah Transaksi,Pendapatan Kotor,Komisi Platform,Pendapatan Bersih
+                2026-04-07,3,4000000.00,200000.00,3800000.00
+                2026-04-06,5,7500000.00,375000.00,7125000.00
+        "400":
+          description: Parameter tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Token tidak valid atau kadaluarsa.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: User tidak memiliki role vendor.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+
   /api/v1/chat/users:
     get:
       tags:
@@ -5129,6 +6039,14 @@ components:
       description: Integer courier ID.
       schema:
         type: integer
+    VendorBankAccountIDParam:
+      name: id
+      in: path
+      required: true
+      description: UUID rekening bank vendor.
+      schema:
+        type: string
+        format: uuid
   schemas:
     # --- Envelope wrappers ---
     SuccessEnvelope:
@@ -5142,9 +6060,11 @@ components:
         data:
           description: Response payload (varies per endpoint).
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           description: Metadata paginasi (jika ada).
 
@@ -5163,6 +6083,187 @@ components:
         total_pages:
           type: integer
           example: 3
+
+    # --- Vendor Report / Laporan Pendapatan ---
+    VendorReportResponse:
+      type: object
+      properties:
+        summary:
+          $ref: "#/components/schemas/VendorReportSummary"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorReportDailyItem"
+
+    VendorReportSummary:
+      type: object
+      properties:
+        success_transaction_rate:
+          type: number
+          format: double
+          description: Persentase transaksi yang berhasil (paid & non-refunded) terhadap total transaksi.
+          example: 82.0
+        total_transactions:
+          type: integer
+          format: int64
+          description: Jumlah total transaksi (semua status) pada periode yang dipilih.
+          example: 8
+        gross_revenue:
+          type: number
+          format: double
+          description: "Pendapatan kotor (grand_total) dari transaksi yang berhasil."
+          example: 485000000
+        net_revenue:
+          type: number
+          format: double
+          description: "Pendapatan bersih (grand_total - platform_fee) dari transaksi yang berhasil."
+          example: 430000000
+
+    VendorReportDailyItem:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          description: Tanggal transaksi (YYYY-MM-DD).
+          example: "2026-04-07"
+        transaction_count:
+          type: integer
+          format: int64
+          description: Jumlah transaksi di hari ini.
+          example: 3
+        gross_revenue:
+          type: number
+          format: double
+          description: Total pendapatan kotor di hari ini.
+          example: 4000000
+        platform_commission:
+          type: number
+          format: double
+          description: Total komisi platform di hari ini.
+          example: 200000
+        net_revenue:
+          type: number
+          format: double
+          description: Total pendapatan bersih di hari ini.
+          example: 3800000
+
+    # --- Vendor Dashboard ---
+    VendorDashboardResponse:
+      type: object
+      properties:
+        month:
+          type: string
+          description: "Bulan dalam format YYYY-MM."
+          example: "2026-04"
+        year:
+          type: integer
+          example: 2026
+        summary:
+          $ref: "#/components/schemas/VendorDashboardSummary"
+        today_transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorDashboardTransaction"
+        recent_notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorNotificationItem"
+        payment_flow:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorPaymentFlowItem"
+
+    VendorDashboardSummary:
+      type: object
+      properties:
+        total_transactions:
+          type: integer
+          format: int64
+          description: Total jumlah transaksi di bulan yang dipilih.
+          example: 15
+        successful_transaction_percent:
+          type: number
+          format: double
+          description: Persentase transaksi yang berhasil (completed/received).
+          example: 73.33
+        revenue:
+          type: number
+          format: double
+          description: Total pendapatan dari transaksi yang berhasil.
+          example: 4500000
+        pending_settlement:
+          type: number
+          format: double
+          description: Saldo yang masih pending (menunggu settlement).
+          example: 1200000
+
+    VendorDashboardTransaction:
+      type: object
+      properties:
+        date_time:
+          type: string
+          format: date-time
+          description: Waktu transaksi.
+          example: "2026-04-07T10:30:00+07:00"
+        invoice:
+          type: string
+          description: Nomor invoice / order number.
+          example: "INV-20260407-001"
+        product_name:
+          type: string
+          description: Nama produk pertama di order.
+          example: "Sajadah Premium"
+        category:
+          type: string
+          description: Kategori produk.
+          example: "Perlengkapan Sholat"
+        price:
+          type: number
+          format: double
+          description: Grand total order.
+          example: 150000
+        status:
+          type: string
+          description: Status order saat ini.
+          example: "paid"
+
+    VendorNotificationItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          description: Tipe notifikasi (order, payout, system, dll).
+          example: "order"
+        title:
+          type: string
+          example: "Pesanan baru masuk"
+        message:
+          type: string
+          example: "Pesanan INV-20260407-001 telah dibayar"
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    VendorPaymentFlowItem:
+      type: object
+      properties:
+        label:
+          type: string
+          description: Label status (Selesai, Dalam Proses, Dibatalkan, Menunggu Pembayaran).
+          example: "Selesai"
+        value:
+          type: number
+          format: double
+          description: Persentase dari total order.
+          example: 73.33
 
     VendorRegisterOTPRequest:
       type: object
@@ -5346,6 +6447,11 @@ components:
             - rejected
             - blocked
           example: active
+        status_reason:
+          type: string
+          nullable: true
+          description: Alasan status vendor jika `vendor_status` adalah `rejected` atau `blocked`; bernilai `null` untuk status lainnya.
+          example: Dokumen NIB tidak valid
     VendorSouvenirStoreProposalPresignRequest:
       type: object
       required:
@@ -5506,9 +6612,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorRegisterOTPResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessVendorVerifyRegistrationOTPEnvelope:
@@ -5524,9 +6632,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorVerifyRegistrationOTPResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessVendorOnboardingStatusEnvelope:
@@ -5542,9 +6652,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorOnboardingStatusResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessVendorLoginEnvelope:
@@ -5560,9 +6672,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorLoginResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessVendorMeEnvelope:
@@ -5578,9 +6692,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorMeResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessVendorSouvenirStoreProposalPresignEnvelope:
@@ -5596,9 +6712,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorSouvenirStoreProposalPresignResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessVendorSouvenirStoreProposalEnvelope:
@@ -5614,9 +6732,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorSouvenirStoreProposalResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     VendorBankAccount:
@@ -5624,10 +6744,12 @@ components:
       required:
         - id
         - vendor_id
+        - channel_code
         - bank_name
         - account_number
         - account_holder_name
-        - verification_status
+        - account_last4
+        - is_default
         - created_at
         - updated_at
       properties:
@@ -5639,6 +6761,9 @@ components:
           type: string
           format: uuid
           example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        channel_code:
+          type: string
+          example: ID_BCA
         bank_name:
           type: string
           example: Bank Syariah Indonesia
@@ -5648,33 +6773,110 @@ components:
         account_holder_name:
           type: string
           example: Ahmad Subarkah
-        verification_status:
+        account_last4:
           type: string
-          enum:
-            - pending
-            - verified
-            - rejected
-          example: pending
-        rejection_reason:
-          type: string
-          nullable: true
-          example: null
-        verified_by:
-          type: string
-          format: uuid
-          nullable: true
-          example: null
-        verified_at:
-          type: string
-          format: date-time
-          nullable: true
-          example: null
+          example: "7890"
+        is_default:
+          type: boolean
+          example: true
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+    CreateVendorBankAccountRequest:
+      type: object
+      required:
+        - channel_code
+        - bank_name
+        - account_number
+        - account_holder_name
+      properties:
+        channel_code:
+          type: string
+          maxLength: 40
+          description: |
+            Kode channel bank sesuai format Xendit Payout.
+            Contoh: `ID_BCA`, `ID_BNI`, `ID_MANDIRI`, `ID_BRI`.
+          example: ID_BCA
+        bank_name:
+          type: string
+          maxLength: 80
+          description: Nama bank tampilan.
+          example: Bank Central Asia
+        account_number:
+          type: string
+          maxLength: 64
+          description: Nomor rekening lengkap. Disimpan terenkripsi di server.
+          example: "1234567890"
+        account_holder_name:
+          type: string
+          maxLength: 120
+          description: Nama pemilik rekening.
+          example: Ahmad Subarkah
+        is_default:
+          type: boolean
+          description: Tandai sebagai rekening utama. Default `false`.
+          default: false
+    CreateVendorBankAccountResponseData:
+      type: object
+      required:
+        - id
+        - channel_code
+        - bank_name
+        - account_holder_name
+        - account_last4
+        - is_default
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
+        channel_code:
+          type: string
+          example: ID_BCA
+        bank_name:
+          type: string
+          example: Bank Central Asia
+        account_holder_name:
+          type: string
+          example: Ahmad Subarkah
+        account_last4:
+          type: string
+          example: "7890"
+        is_default:
+          type: boolean
+          example: true
+    VendorBankAccountListItem:
+      type: object
+      required:
+        - id
+        - channel_code
+        - bank_name
+        - account_holder_name
+        - account_last4
+        - is_default
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
+        channel_code:
+          type: string
+          example: ID_BCA
+        bank_name:
+          type: string
+          example: Bank Central Asia
+        account_holder_name:
+          type: string
+          example: Ahmad Subarkah
+        account_last4:
+          type: string
+          example: "7890"
+        is_default:
+          type: boolean
+          example: true
     ErrorEnvelope:
       type: object
       required:
@@ -5691,12 +6893,15 @@ components:
           type: string
           example: validation failed
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           description: Detail error atau pesan validasi.
         meta:
+          type: object
           nullable: true
           example: null
     CreateProductImageInput:
@@ -5779,6 +6984,16 @@ components:
           type: string
           description: Deskripsi lengkap produk.
           example: Sajadah premium kualitas terbaik langsung dari Madinah.
+        product_type:
+          type: string
+          enum: [single, variant, package]
+          default: single
+          description: |
+            Tipe produk:
+            - `single` — produk satuan (default)
+            - `variant` — produk dengan varian
+            - `package` — produk paket bundling
+          example: single
         price:
           type: number
           format: double
@@ -6061,6 +7276,16 @@ components:
           type: string
           description: Deskripsi lengkap produk.
           example: Sajadah premium kualitas terbaik langsung dari Madinah. Kini hadir dengan kemasan baru.
+        product_type:
+          type: string
+          enum: [single, variant, package]
+          default: single
+          description: |
+            Tipe produk:
+            - `single` — produk satuan (default)
+            - `variant` — produk dengan varian
+            - `package` — produk paket bundling
+          example: single
         price:
           type: number
           format: double
@@ -6204,9 +7429,11 @@ components:
         data:
           $ref: "#/components/schemas/UpdateProductResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     ConfirmProductImageItem:
@@ -6268,9 +7495,11 @@ components:
         data:
           $ref: "#/components/schemas/CreateProductResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessConfirmProductImagesEnvelope:
@@ -6291,9 +7520,11 @@ components:
         data:
           $ref: "#/components/schemas/ConfirmProductImagesResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     VendorBalanceResponse:
@@ -6358,6 +7589,7 @@ components:
       required:
         - amount
         - channel_code
+        - bank_account_id
       properties:
         amount:
           type: number
@@ -6371,6 +7603,11 @@ components:
             Kode channel bank tujuan penarikan.
             Nilai valid mengikuti endpoint `GET /api/v1/vendors/payout-channels`.
           example: ID_BCA
+        bank_account_id:
+          type: string
+          format: uuid
+          description: ID rekening bank vendor yang akan dipakai untuk payout.
+          example: 1e2d3c4b-5a6f-7890-abcd-ef1234567890
     VendorWithdrawResponse:
       type: object
       required:
@@ -6412,6 +7649,30 @@ components:
           type: string
           description: Channel code bank tujuan.
           example: ID_BCA
+    VendorWithdrawalListItem:
+      type: object
+      required:
+        - id
+        - amount
+        - status
+        - payout_date
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: double
+        status:
+          type: string
+          enum:
+            - pending
+            - processing
+            - completed
+            - failed
+        payout_date:
+          type: string
+          format: date-time
     SuccessVendorBalanceEnvelope:
       type: object
       required:
@@ -6430,9 +7691,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorBalanceResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessVendorPayoutChannelsEnvelope:
@@ -6453,9 +7716,63 @@ components:
         data:
           $ref: "#/components/schemas/VendorPayoutChannelsResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
+          nullable: true
+          example: null
+    SuccessCreateVendorBankAccountEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: bank account created
+        data:
+          $ref: "#/components/schemas/CreateVendorBankAccountResponseData"
+        errors:
+          type: object
+          nullable: true
+          example: null
+        meta:
+          type: object
+          nullable: true
+          example: null
+    SuccessListVendorBankAccountEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: bank accounts loaded
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorBankAccountListItem"
+        errors:
+          type: object
+          nullable: true
+          example: null
+        meta:
+          type: object
           nullable: true
           example: null
     SuccessVendorWithdrawEnvelope:
@@ -6476,11 +7793,38 @@ components:
         data:
           $ref: "#/components/schemas/VendorWithdrawResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
+    SuccessVendorWithdrawalListEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: vendor withdrawals retrieved successfully
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorWithdrawalListItem"
+        errors:
+          type: object
+          nullable: true
+          example: null
+        meta:
+          $ref: "#/components/schemas/PaginationMeta"
     XenditPayoutWebhookData:
       type: object
       required:
@@ -6754,9 +8098,11 @@ components:
         data:
           $ref: "#/components/schemas/VendorVoucherResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -6780,10 +8126,57 @@ components:
           items:
             $ref: "#/components/schemas/VendorVoucherResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
           $ref: "#/components/schemas/PaginationMeta"
+
+    VendorVoucherSummary:
+      type: object
+      required:
+        - active_count
+        - upcoming_count
+        - expired_count
+        - total_usage
+      properties:
+        active_count:
+          type: integer
+          description: Jumlah promo yang sedang aktif.
+          example: 24
+        upcoming_count:
+          type: integer
+          description: Jumlah promo yang akan datang (belum mulai).
+          example: 8
+        expired_count:
+          type: integer
+          description: Jumlah promo yang sudah berakhir atau kuota habis.
+          example: 5
+        total_usage:
+          type: integer
+          description: Total penggunaan voucher (sum of quota_used).
+          example: 12
+
+    SuccessVendorVoucherSummaryEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: voucher summary retrieved successfully
+        data:
+          $ref: "#/components/schemas/VendorVoucherSummary"
+        errors:
+          type: object
+          nullable: true
+          example: null
 
     VendorProductListItem:
       type: object
@@ -6961,6 +8354,7 @@ components:
         - type: object
           properties:
             data:
+              type: object
               nullable: true
               example: null
 
@@ -7525,6 +8919,7 @@ components:
           type: string
           format: date-time
         refund_info:
+          type: object
           nullable: true
           description: |
             Informasi refund otomatis. Hanya muncul saat reject order yang sudah dibayar.
@@ -8003,3 +9398,17 @@ components:
         created_at:
           type: string
           format: date-time
+
+    VendorUpdateProfileRequest:
+      type: object
+      required:
+        - store_name
+      properties:
+        store_name:
+          type: string
+          maxLength: 120
+          description: "New display name for the vendor store."
+        store_description:
+          type: string
+          nullable: true
+          description: "New description for the vendor store."

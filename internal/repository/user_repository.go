@@ -15,18 +15,21 @@ import (
 // GORM model structs (internal to repository layer).
 
 type userModel struct {
-	ID              string     `gorm:"column:id;primaryKey"`
-	Email           string     `gorm:"column:email"`
-	FullName        string     `gorm:"column:full_name"`
-	ImageURL        *string    `gorm:"column:image_url"`
-	BirthDate       *time.Time `gorm:"column:birth_date"`
-	Phone           *string    `gorm:"column:phone"`
-	PasswordHash    string     `gorm:"column:password_hash"`
-	RoleID          int16      `gorm:"column:role_id"`
-	Status          string     `gorm:"column:status"`
-	EmailVerifiedAt *time.Time `gorm:"column:email_verified_at"`
-	CreatedAt       time.Time  `gorm:"column:created_at"`
-	UpdatedAt       time.Time  `gorm:"column:updated_at"`
+	ID                  string     `gorm:"column:id;primaryKey"`
+	Email               string     `gorm:"column:email"`
+	FullName            string     `gorm:"column:full_name"`
+	ImageURL            *string    `gorm:"column:image_url"`
+	BirthDate           *time.Time `gorm:"column:birth_date"`
+	Phone               *string    `gorm:"column:phone"`
+	PasswordHash        string     `gorm:"column:password_hash"`
+	RoleID              int16      `gorm:"column:role_id"`
+	Status              string     `gorm:"column:status"`
+	EmailVerifiedAt     *time.Time `gorm:"column:email_verified_at"`
+	PasswordChangedAt   *time.Time `gorm:"column:password_changed_at"`
+	DeletionReason      *string    `gorm:"column:deletion_reason"`
+	DeletionRequestedAt *time.Time `gorm:"column:deletion_requested_at"`
+	CreatedAt           time.Time  `gorm:"column:created_at"`
+	UpdatedAt           time.Time  `gorm:"column:updated_at"`
 }
 
 func (userModel) TableName() string { return "users" }
@@ -209,6 +212,18 @@ func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
 		Updates(&model).Error
 }
 
+func (r *userRepository) UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).
+		Model(&userModel{}).
+		Where("id = ?", userID.String()).
+		Updates(map[string]interface{}{
+			"password_hash":       passwordHash,
+			"password_changed_at": now,
+			"updated_at":          now,
+		}).Error
+}
+
 func (r *userRepository) UpdateWithRole(ctx context.Context, user *domain.User, roleCode string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var role roleModel
@@ -239,6 +254,19 @@ func (r *userRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (r *userRepository) Deactivate(ctx context.Context, id uuid.UUID, reason string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).
+		Model(&userModel{}).
+		Where("id = ?", id.String()).
+		Updates(map[string]interface{}{
+			"status":                "deactivated",
+			"deletion_reason":       reason,
+			"deletion_requested_at": now,
+			"updated_at":            now,
+		}).Error
+}
+
 func (r *userRepository) getUserRole(ctx context.Context, roleID int16) (*domain.Role, error) {
 	var role roleModel
 	err := r.db.WithContext(ctx).Where("id = ?", roleID).First(&role).Error
@@ -250,17 +278,20 @@ func (r *userRepository) getUserRole(ctx context.Context, roleID int16) (*domain
 
 func toUserModel(u *domain.User) userModel {
 	m := userModel{
-		ID:              u.ID.String(),
-		Email:           u.Email,
-		FullName:        u.FullName,
-		ImageURL:        u.ImageURL,
-		BirthDate:       u.BirthDate,
-		Phone:           u.Phone,
-		PasswordHash:    u.PasswordHash,
-		Status:          u.Status,
-		EmailVerifiedAt: u.EmailVerifiedAt,
-		CreatedAt:       u.CreatedAt,
-		UpdatedAt:       u.UpdatedAt,
+		ID:                  u.ID.String(),
+		Email:               u.Email,
+		FullName:            u.FullName,
+		ImageURL:            u.ImageURL,
+		BirthDate:           u.BirthDate,
+		Phone:               u.Phone,
+		PasswordHash:        u.PasswordHash,
+		Status:              u.Status,
+		EmailVerifiedAt:     u.EmailVerifiedAt,
+		PasswordChangedAt:   u.PasswordChangedAt,
+		DeletionReason:      u.DeletionReason,
+		DeletionRequestedAt: u.DeletionRequestedAt,
+		CreatedAt:           u.CreatedAt,
+		UpdatedAt:           u.UpdatedAt,
 	}
 	if u.Role != nil {
 		m.RoleID = u.Role.ID
@@ -271,16 +302,19 @@ func toUserModel(u *domain.User) userModel {
 func toDomainUser(m *userModel) *domain.User {
 	id, _ := uuid.Parse(m.ID)
 	return &domain.User{
-		ID:              id,
-		Email:           m.Email,
-		FullName:        m.FullName,
-		ImageURL:        m.ImageURL,
-		BirthDate:       m.BirthDate,
-		Phone:           m.Phone,
-		PasswordHash:    m.PasswordHash,
-		Status:          m.Status,
-		EmailVerifiedAt: m.EmailVerifiedAt,
-		CreatedAt:       m.CreatedAt,
-		UpdatedAt:       m.UpdatedAt,
+		ID:                  id,
+		Email:               m.Email,
+		FullName:            m.FullName,
+		ImageURL:            m.ImageURL,
+		BirthDate:           m.BirthDate,
+		Phone:               m.Phone,
+		PasswordHash:        m.PasswordHash,
+		Status:              m.Status,
+		EmailVerifiedAt:     m.EmailVerifiedAt,
+		PasswordChangedAt:   m.PasswordChangedAt,
+		DeletionReason:      m.DeletionReason,
+		DeletionRequestedAt: m.DeletionRequestedAt,
+		CreatedAt:           m.CreatedAt,
+		UpdatedAt:           m.UpdatedAt,
 	}
 }

@@ -310,3 +310,11 @@ func isVoucherCodeConflict(err error) bool {
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "uq_vendor_vouchers_vendor_code")
 }
+
+func (uc *vendorVoucherUseCase) GetSummary(ctx context.Context, vendorID uuid.UUID) (*domain.VendorVoucherSummary, error) {
+	summary, err := uc.voucherRepo.GetSummary(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get voucher summary: %w", err)
+	}
+	return summary, nil
+}

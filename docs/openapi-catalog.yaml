@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint katalog publik (produk, kategori, dan jasa pengiriman).
 servers:
-  - url: http://localhost:8080
+  - url: https://haji-umroh-store-api.jauhar.id
     description: Local development server
 tags:
   - name: Products
@@ -15,6 +15,10 @@ tags:
     description: Operasi untuk daftar kategori produk.
   - name: Shipping Services
     description: Operasi untuk daftar jasa pengiriman.
+  - name: Shipping Estimate
+    description: Estimasi ongkos kirim berdasarkan alamat utama customer.
+  - name: Vendors
+    description: Operasi untuk profil toko dan ulasan vendor.
 paths:
   /api/v1/categories:
     get:
@@ -166,6 +170,7 @@ paths:
         Field response produk saat ini:
         - `id`
         - `name`
+        - `image_url` (URL gambar utama produk, string kosong jika belum ada gambar)
         - `price` (harga efektif termurah, sudah memperhitungkan promo aktif jika ada)
         - `original_price` (harga normal termurah tanpa promo)
         - `promo_price` (harga promo termurah jika ada, `null` bila tidak ada promo aktif)
@@ -197,15 +202,46 @@ paths:
           required: false
           schema:
             type: string
-            enum: [newest, cheapest]
+            enum: [newest, cheapest, bestseller, expensive]
             default: newest
-          description: Urutan data. `newest` untuk terbaru, `cheapest` untuk termurah.
+          description: |
+            Urutan data:
+            - `newest` — terbaru (default)
+            - `cheapest` — termurah
+            - `expensive` — termahal
+            - `bestseller` — terlaris berdasarkan total terjual
         - name: search
           in: query
           required: false
           schema:
             type: string
           description: Pencarian nama produk (case-insensitive).
+        - name: category_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Filter produk berdasarkan ID kategori.
+        - name: has_promo
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: |
+            Jika `true`, hanya menampilkan produk yang sedang ada promo aktif
+            (harga efektif lebih rendah dari harga normal).
+        - name: product_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [single, variant, package]
+          description: |
+            Filter berdasarkan tipe produk:
+            - `single` — produk satuan
+            - `variant` — produk dengan varian
+            - `package` — produk paket
       responses:
         "200":
           description: Daftar produk berhasil diambil.
@@ -222,6 +258,7 @@ paths:
                 data:
                   - id: 0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2
                     name: Sajadah Premium
+                    image_url: https://cdn.example.com/products/0f7f4fd6/image-1.jpg
                     price: 150000
                     original_price: 150000
                     promo_price: null
@@ -230,6 +267,7 @@ paths:
                     rating_count: 120
                   - id: db04f006-7498-4a96-a242-8ab9cf834248
                     name: Kurma Ajwa 500gr
+                    image_url: https://cdn.example.com/products/db04f006/image-1.jpg
                     price: 90000
                     original_price: 120000
                     promo_price: 90000
@@ -307,8 +345,12 @@ paths:
                   vendor:
                     id: b1c2d3e4-f5a6-7890-bcde-1234567890aa
                     display_name: Toko Oleh-Oleh Mabrur
+                    location: Jakarta Selatan
                   rating_average: 4.7
                   rating_count: 120
+                  total_stock: 50
+                  stock_remaining: 20
+                  total_sold: 30
                   images:
                     - id: 8ea58d2f-c1a6-4fd3-9b37-67a743f57272
                       url: https://cdn.example.com/products/0f7f4fd6-f55f-4f38-8d3b-7acef44ef8f2/image-1.jpg
@@ -560,6 +602,119 @@ paths:
                 message: internal server error
                 data: null
                 errors: null
+                meta: null
+  /api/v1/users/products/{id}/shipping-estimate:
+    get:
+      tags:
+        - Shipping Estimate
+      summary: Get Shipping Estimate
+      description: |
+        Mengembalikan estimasi ongkos kirim untuk sebuah produk berdasarkan
+        alamat utama customer yang sedang login.
+
+        Endpoint ini memerlukan **autentikasi** (JWT) tetapi tidak membatasi role tertentu.
+
+        Cara kerja:
+        1. Mengambil alamat utama (`is_default = true`) dari user yang login.
+        2. Mengambil alamat toko vendor pemilik produk.
+        3. Menghitung estimasi ongkir via RajaOngkir berdasarkan
+           kota asal (vendor) dan kota tujuan (customer) dengan berat varian default.
+        4. Mengembalikan opsi kurir termurah yang tersedia.
+
+        Jika customer belum memiliki alamat utama, akan mengembalikan error
+        "customer address not found".
+      operationId: getShippingEstimate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID produk.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Estimasi ongkos kirim berhasil dihitung.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessShippingEstimateEnvelope"
+              example:
+                success: true
+                message: shipping estimate retrieved successfully
+                data:
+                  courier_name: JNE
+                  courier_code: jne
+                  service: REG
+                  cost: 18000
+                  etd: "2-3"
+                errors: null
+                meta: null
+        "400":
+          description: Parameter path tidak valid.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid product ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
+        "401":
+          description: Token tidak valid atau tidak ada.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: unauthorized
+                data: null
+                errors: null
+                meta: null
+        "404":
+          description: Produk tidak ditemukan atau alamat customer belum diset.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: customer address not found
+                data: null
+                errors: null
+                meta: null
+        "500":
+          description: Internal server error.
+          headers:
+            X-Request-ID:
+              $ref: "#/components/headers/RequestIDHeader"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
   /api/v1/vendors/{id}:
     get:
       tags:
@@ -568,7 +723,7 @@ paths:
       description: |
         Mengembalikan informasi lengkap profil toko publik (Vendor) beserta daftar produknya.
         Endpoint ini bersifat **publik** dan tidak memerlukan autentikasi.
-        
+
         Isi response meliputi:
         - Profil toko (rating, total produk, total barang terjual, lokasi).
         - Daftar banner aktif toko.
@@ -621,6 +776,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid vendor ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
         "404":
           description: Toko tidak ditemukan atau tidak aktif.
           headers:
@@ -630,6 +791,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
         "500":
           description: Internal server error.
           headers:
@@ -639,6 +806,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
   /api/v1/vendors/{id}/reviews:
     get:
       tags:
@@ -693,6 +866,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: invalid vendor ID
+                data: null
+                errors: id must be a valid UUID
+                meta: null
         "404":
           description: Toko tidak ditemukan.
           headers:
@@ -702,6 +881,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: vendor not found
+                data: null
+                errors: null
+                meta: null
         "500":
           description: Internal server error.
           headers:
@@ -711,6 +896,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                success: false
+                message: internal server error
+                data: null
+                errors: null
+                meta: null
 components:
   headers:
     RequestIDHeader:
@@ -788,6 +979,7 @@ components:
       required:
         - id
         - name
+        - image_url
         - price
         - original_price
         - has_promo
@@ -803,6 +995,10 @@ components:
           type: string
           description: Nama produk.
           example: Sajadah Premium
+        image_url:
+          type: string
+          description: URL gambar utama produk. String kosong jika belum ada gambar.
+          example: https://cdn.example.com/products/0f7f4fd6/image-1.jpg
         price:
           type: number
           format: double
@@ -858,6 +1054,7 @@ components:
       required:
         - id
         - display_name
+        - location
       properties:
         id:
           type: string
@@ -868,6 +1065,10 @@ components:
           type: string
           description: Nama toko yang ditampilkan ke customer.
           example: Toko Oleh-Oleh Mabrur
+        location:
+          type: string
+          description: Lokasi toko (kota/kabupaten). String kosong jika belum diset.
+          example: Jakarta Selatan
     ProductDetailImageItem:
       type: object
       required:
@@ -975,6 +1176,9 @@ components:
         - vendor
         - rating_average
         - rating_count
+        - total_stock
+        - stock_remaining
+        - total_sold
         - images
         - variants
         - created_at
@@ -1019,6 +1223,18 @@ components:
           format: int64
           description: Jumlah total review produk.
           example: 120
+        total_stock:
+          type: integer
+          description: Total stok semua varian aktif.
+          example: 50
+        stock_remaining:
+          type: integer
+          description: Sisa stok yang tersedia.
+          example: 20
+        total_sold:
+          type: integer
+          description: Total produk terjual (dari order completed/received).
+          example: 30
         images:
           type: array
           description: Daftar gambar produk.
@@ -1179,9 +1395,11 @@ components:
           items:
             $ref: "#/components/schemas/Category"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessProductListEnvelope:
@@ -1204,6 +1422,7 @@ components:
           items:
             $ref: "#/components/schemas/ProductListItem"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
@@ -1226,9 +1445,11 @@ components:
         data:
           $ref: "#/components/schemas/ProductDetailResponse"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessProductReviewListEnvelope:
@@ -1251,6 +1472,7 @@ components:
           items:
             $ref: "#/components/schemas/ProductReviewListItem"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
@@ -1273,9 +1495,11 @@ components:
         data:
           $ref: "#/components/schemas/ProductReviewSummary"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessShippingServiceListEnvelope:
@@ -1298,9 +1522,11 @@ components:
           items:
             $ref: "#/components/schemas/ShippingService"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     ErrorEnvelope:
@@ -1319,12 +1545,15 @@ components:
           type: string
           example: internal server error
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           description: Detail error atau pesan validasi.
         meta:
+          type: object
           nullable: true
           example: null
     SuccessStoreDetailEnvelope:
@@ -1346,9 +1575,11 @@ components:
           type: object
           description: The store detail response including info, banners, and products
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
     SuccessStoreReviewsEnvelope:
@@ -1370,8 +1601,70 @@ components:
           type: object
           description: The store reviews including pagination and breakdown summary
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
+    ProductShippingEstimateResponse:
+      type: object
+      required:
+        - courier_name
+        - courier_code
+        - service
+        - cost
+        - etd
+      properties:
+        courier_name:
+          type: string
+          description: Nama kurir.
+          example: JNE
+        courier_code:
+          type: string
+          description: Kode kurir.
+          example: jne
+        service:
+          type: string
+          description: Tipe layanan kurir.
+          example: REG
+        cost:
+          type: integer
+          description: Biaya ongkos kirim dalam Rupiah.
+          example: 18000
+        etd:
+          type: string
+          description: Estimasi waktu pengiriman (hari).
+          example: "2-3"
+    SuccessShippingEstimateEnvelope:
+      type: object
+      required:
+        - success
+        - message
+        - data
+        - errors
+        - meta
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: shipping estimate retrieved successfully
+        data:
+          $ref: "#/components/schemas/ProductShippingEstimateResponse"
+        errors:
+          type: object
+          nullable: true
+          example: null
+        meta:
+          type: object
+          nullable: true
+          example: null
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token dari login.

@@ -21,8 +21,12 @@ func setupCatalogUseCase(t *testing.T) (
 	ctrl := gomock.NewController(t)
 	categoryRepo := mocks.NewMockCategoryRepository(ctrl)
 	productRepo := mocks.NewMockProductRepository(ctrl)
+	vendorRepo := mocks.NewMockVendorRepository(ctrl)
+	addressRepo := mocks.NewMockAddressRepository(ctrl)
+	vendorCourierRepo := mocks.NewMockVendorCourierRepository(ctrl)
+	rajaOngkir := mocks.NewMockRajaOngkirProvider(ctrl)
 	storage := mocks.NewMockStorageProvider(ctrl)
-	uc := NewCatalogUseCase(categoryRepo, productRepo, storage)
+	uc := NewCatalogUseCase(categoryRepo, productRepo, vendorRepo, addressRepo, vendorCourierRepo, rajaOngkir, storage)
 	return categoryRepo, productRepo, storage, uc
 }
 
@@ -99,6 +103,36 @@ func TestCatalogUseCase_ListProducts_CheapestSort(t *testing.T) {
 	}
 
 	if meta.Page != 2 || meta.Limit != 20 {
+		t.Errorf("unexpected meta page/limit: %+v", meta)
+	}
+}
+
+func TestCatalogUseCase_ListProducts_ExpensiveSort(t *testing.T) {
+	_, productRepo, _, uc := setupCatalogUseCase(t)
+	ctx := context.Background()
+
+	expected := domain.ProductListParams{
+		Page:   1,
+		Limit:  10,
+		Sort:   "expensive",
+		Search: "",
+	}
+
+	productRepo.EXPECT().
+		ListPublishedForCustomer(ctx, expected).
+		Return([]domain.ProductListItem{}, int64(0), nil)
+
+	_, meta, err := uc.ListProducts(ctx, domain.ProductListParams{
+		Page:   1,
+		Limit:  10,
+		Sort:   " EXPENSIVE ",
+		Search: "   ",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if meta.Page != 1 || meta.Limit != 10 {
 		t.Errorf("unexpected meta page/limit: %+v", meta)
 	}
 }

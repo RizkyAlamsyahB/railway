@@ -46,7 +46,7 @@ func (uc *csAuthUseCase) Login(ctx context.Context, req domain.CSLoginRequest) (
 		return nil, ErrNotCS
 	}
 
-	token, err := auth.GenerateToken(user.ID, user.Email, user.Role.Code, nil, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role.Code, nil, user.PasswordChangedAt, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}

@@ -1,4 +1,4 @@
-CREATE TABLE vendor_responsible_persons (
+CREATE TABLE IF NOT EXISTS vendor_responsible_persons (
     id UUID PRIMARY KEY NOT NULL,
     vendor_id UUID NOT NULL UNIQUE,
     user_id UUID NOT NULL UNIQUE,

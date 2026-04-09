@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[Backoffice] - Payment</title>
+  <style>
+    :root {
+      --bg: #faf8f5;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e2dc;
+      --primary: #b8860b;
+      --primary-light: #f5e6c8;
+      --primary-dark: #8b6508;
+      --danger: #b91c1c;
+      --warning: #b45309;
+      --ok: #166534;
+      --info: #1d4ed8;
+      --header-bg: #3d2b1f;
+    }
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+    .app { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px; background: #fff; border-right: 1px solid var(--line);
+      padding: 20px 0; flex-shrink: 0;
+    }
+    .sidebar h2 { font-size: 15px; padding: 0 16px 16px; color: var(--primary-dark); }
+    .sidebar a {
+      display: block; padding: 10px 20px; color: var(--text); text-decoration: none;
+      font-size: 14px; border-left: 3px solid transparent;
+    }
+    .sidebar a:hover { background: #f9f5ef; }
+    .sidebar a.active {
+      background: var(--primary); color: #fff; border-left-color: var(--primary-dark);
+      border-radius: 0 8px 8px 0; margin-right: 12px;
+    }
+
+    /* Main */
+    .main { flex: 1; padding: 24px 32px; max-width: 1200px; }
+    .main h1 { font-size: 26px; margin-bottom: 20px; }
+
+    /* Summary Cards */
+    .summary-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px; margin-bottom: 24px;
+    }
+    .summary-card {
+      background: #fff; border: 1px solid var(--line); border-radius: 12px;
+      padding: 18px 20px; display: flex; align-items: center; gap: 14px;
+    }
+    .summary-card .icon {
+      width: 48px; height: 48px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .summary-card .icon.gold { background: var(--primary-light); }
+    .summary-card .icon.green { background: #dcfce7; }
+    .summary-card .icon.yellow { background: #fef3c7; }
+    .summary-card .icon.red { background: #fee2e2; }
+    .summary-card .info .label { font-size: 12px; color: var(--muted); }
+    .summary-card .info .value { font-size: 22px; font-weight: 700; margin-top: 2px; }
+
+    /* Toolbar */
+    .toolbar {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .toolbar input, .toolbar select {
+      border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+      font: inherit; font-size: 13px; background: #fff;
+    }
+    .toolbar input[type="text"] { min-width: 200px; }
+    .toolbar input[type="date"] { min-width: 140px; }
+    .toolbar select { min-width: 120px; }
+
+    /* Buttons */
+    button {
+      font: inherit; border: 0; border-radius: 8px; padding: 8px 16px;
+      cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: #e5e7eb; color: var(--text); }
+    .btn-export { background: #166534; color: #fff; }
+    .btn-export:hover { background: #14532d; }
+    .btn-login { background: var(--primary); color: #fff; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Table */
+    .table-wrap {
+      background: #fff; border: 1px solid var(--line); border-radius: 12px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { background: var(--header-bg); color: #fff; }
+    th { padding: 12px 14px; text-align: left; font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 12px 14px; border-bottom: 1px solid #f3f0eb; vertical-align: middle; }
+    tbody tr:hover { background: #fdfbf7; }
+
+    /* Status badges */
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; text-transform: capitalize;
+    }
+    .badge-paid { background: #dcfce7; color: #166534; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-expired { background: #e5e7eb; color: #374151; }
+    .badge-failed { background: #fee2e2; color: #991b1b; }
+    .badge-refunded { background: #dbeafe; color: #1e40af; }
+
+    /* Pagination */
+    .pagination {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; font-size: 13px; color: var(--muted);
+    }
+    .pagination .pages { display: flex; gap: 4px; align-items: center; }
+    .pagination button {
+      min-width: 32px; height: 32px; padding: 0 8px; border-radius: 6px;
+      font-size: 13px; background: #fff; border: 1px solid var(--line); color: var(--text);
+    }
+    .pagination button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .pagination button:hover:not(.active):not(:disabled) { background: #f3f0eb; }
+    .go-to { display: flex; align-items: center; gap: 6px; }
+    .go-to input {
+      width: 60px; border: 1px solid var(--line); border-radius: 6px;
+      padding: 4px 8px; font: inherit; font-size: 13px; text-align: center;
+    }
+
+    /* Login panel */
+    .login-panel {
+      background: #fff; border: 1px solid var(--line); border-radius: 12px;
+      padding: 20px; margin-bottom: 24px;
+    }
+    .login-panel h2 { font-size: 16px; margin-bottom: 12px; }
+    .login-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .login-grid .full { grid-column: 1 / -1; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 12px; color: var(--muted); }
+    .field input, .field textarea {
+      border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+      font: inherit; font-size: 13px;
+    }
+    .field textarea { min-height: 60px; resize: vertical; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* Log */
+    pre {
+      background: #0b1020; color: #dbe3ff; border-radius: 10px;
+      padding: 14px; overflow: auto; max-height: 350px; font-size: 12px;
+      margin-top: 16px;
+    }
+    code { background: #f3f0eb; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+    .date-filter { display: flex; align-items: center; gap: 8px; }
+    .date-filter span { font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h2>Haji &amp; Umrah Store</h2>
+      <a href="#">Dashboard</a>
+      <a href="#">Kelola User</a>
+      <a href="#">Vendor</a>
+      <a href="#">Kelola Customer</a>
+      <a href="#" class="active">Payment</a>
+      <a href="#">Chat</a>
+      <a href="#">Laporan</a>
+      <a href="#">Pengaturan</a>
+    </aside>
+
+    <main class="main">
+      <!-- Login -->
+      <div class="login-panel">
+        <h2>Admin Login</h2>
+        <div class="login-grid">
+          <div class="field">
+            <label for="loginEmail">Email</label>
+            <input id="loginEmail" type="email" placeholder="admin@example.com" />
+          </div>
+          <div class="field">
+            <label for="loginPassword">Password</label>
+            <input id="loginPassword" type="password" placeholder="••••••••" />
+          </div>
+          <div class="field full">
+            <label for="baseUrl">Base URL</label>
+            <input id="baseUrl" type="text" value="https://haji-umroh-store-api.jauhar.id" />
+          </div>
+          <div class="field full">
+            <label for="token">JWT Token</label>
+            <textarea id="token" rows="2" placeholder="Auto dari login, bisa paste manual"></textarea>
+          </div>
+        </div>
+        <div style="margin-top: 10px; display:flex; gap:8px; align-items:center;">
+          <button class="btn-login" id="btnLogin">Login</button>
+          <span class="hint" id="loginInfo">Belum login</span>
+        </div>
+      </div>
+
+      <h1>Payment</h1>
+
+      <!-- Summary Cards -->
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="icon gold">💰</div>
+          <div class="info">
+            <div class="label">Total Transaksi</div>
+            <div class="value" id="sumTotal">0</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="icon green">✅</div>
+          <div class="info">
+            <div class="label">Pembayaran Berhasil</div>
+            <div class="value" id="sumPaid">0</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="icon yellow">⏳</div>
+          <div class="info">
+            <div class="label">Menunggu Pembayaran</div>
+            <div class="value" id="sumPending">0</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="icon red">❌</div>
+          <div class="info">
+            <div class="label">Gagal / Kedaluwarsa</div>
+            <div class="value" id="sumFailed">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <button class="btn-export" id="btnExport">📥 Export CSV</button>
+        <select id="filterStatus">
+          <option value="">Semua Status</option>
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="expired">Expired</option>
+          <option value="failed">Failed</option>
+          <option value="refunded">Refunded</option>
+        </select>
+        <select id="filterSortBy">
+          <option value="created_at">Terbaru</option>
+          <option value="amount">Nominal</option>
+          <option value="customer_name">Customer</option>
+          <option value="status">Status</option>
+        </select>
+        <div class="date-filter">
+          <span>Dari</span>
+          <input type="date" id="filterStartDate" />
+          <span>s/d</span>
+          <input type="date" id="filterEndDate" />
+        </div>
+        <input type="text" id="filterSearch" placeholder="🔍 Cari nama / order no" />
+        <button class="btn-primary" id="btnFetch">Cari</button>
+        <button class="btn-secondary" id="btnReset">Reset</button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Mitra</th>
+              <th>Metode</th>
+              <th>Nominal</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody">
+            <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted);">Klik "Cari" untuk memuat data</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div class="pagination" id="paginationWrap" style="display:none;">
+          <div id="pageInfoText">Showing 0 of 0 entries</div>
+          <div class="pages">
+            <button id="btnPrevPage">‹</button>
+            <div id="pageButtons"></div>
+            <button id="btnNextPage">›</button>
+            <div class="go-to">
+              <span>Go to</span>
+              <input type="number" id="goToPage" min="1" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log -->
+      <details style="margin-top: 20px;">
+        <summary style="cursor:pointer; font-size:14px; color:var(--muted);">Log &amp; Debug</summary>
+        <pre id="logBox">Belum ada request.</pre>
+      </details>
+    </main>
+  </div>
+
+  <script>
+    let lastMeta = null;
+
+    function ep(path) {
+      return document.getElementById("baseUrl").value.trim().replace(/\/+$/, "") + path;
+    }
+
+    function log(obj) {
+      const box = document.getElementById("logBox");
+      const ts = new Date().toISOString();
+      const text = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+      box.textContent = "[" + ts + "]\n" + text;
+    }
+
+    function idr(amount) {
+      return new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount || 0);
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return "-";
+      return new Date(iso).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    }
+
+    function badge(status) {
+      const cls = { paid: "badge-paid", pending: "badge-pending", expired: "badge-expired", failed: "badge-failed", refunded: "badge-refunded" }[status] || "badge-pending";
+      return '<span class="badge ' + cls + '">' + (status || "-") + '</span>';
+    }
+
+    async function parseBody(res) {
+      const t = await res.text();
+      try { return t ? JSON.parse(t) : {}; } catch { return { raw: t }; }
+    }
+
+    // --- Login ---
+    document.getElementById("btnLogin").addEventListener("click", async function() {
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value.trim();
+      if (!email || !password) return alert("Email & password wajib diisi");
+
+      try {
+        const res = await fetch(ep("/api/v1/admin/login"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+        });
+        const body = await parseBody(res);
+        log({ action: "login", status: res.status, body });
+        if (!res.ok) return alert("Login gagal");
+
+        const data = body.data || {};
+        document.getElementById("token").value = data.access_token || data.token || "";
+        document.getElementById("loginInfo").textContent = "Logged in: " + (data.full_name || data.email || "-");
+      } catch (err) {
+        log({ action: "login", error: String(err) });
+        alert("Login error: " + err);
+      }
+    });
+
+    // --- Query params ---
+    function buildQS(extra) {
+      const p = new URLSearchParams();
+      const page = extra && extra.page ? extra.page : (document.getElementById("goToPage").value || "1");
+      p.set("page", page);
+      p.set("limit", "10");
+
+      const status = document.getElementById("filterStatus").value;
+      const search = document.getElementById("filterSearch").value.trim();
+      const sortBy = document.getElementById("filterSortBy").value;
+      const startDate = document.getElementById("filterStartDate").value;
+      const endDate = document.getElementById("filterEndDate").value;
+
+      if (status) p.set("status", status);
+      if (search) p.set("search", search);
+      if (sortBy) p.set("sort_by", sortBy);
+      p.set("sort_order", "desc");
+      if (startDate) p.set("start_date", startDate);
+      if (endDate) p.set("end_date", endDate);
+
+      return p.toString();
+    }
+
+    function authHeaders() {
+      return { "Authorization": "Bearer " + document.getElementById("token").value.trim() };
+    }
+
+    // --- Summary ---
+    async function fetchSummary() {
+      const p = new URLSearchParams();
+      const startDate = document.getElementById("filterStartDate").value;
+      const endDate = document.getElementById("filterEndDate").value;
+      if (startDate) p.set("start_date", startDate);
+      if (endDate) p.set("end_date", endDate);
+
+      const url = ep("/api/v1/admin/payments/summary") + (p.toString() ? "?" + p.toString() : "");
+      try {
+        const res = await fetch(url, { headers: authHeaders() });
+        const body = await parseBody(res);
+        if (!res.ok) return;
+
+        const d = body.data || {};
+        document.getElementById("sumTotal").textContent = idr(d.total_amount);
+        document.getElementById("sumPaid").textContent = idr(d.paid_amount);
+        document.getElementById("sumPending").textContent = idr(d.pending_amount);
+        document.getElementById("sumFailed").textContent = idr(d.failed_amount);
+      } catch (err) { /* silent */ }
+    }
+
+    // --- List ---
+    async function fetchPayments(page) {
+      const token = document.getElementById("token").value.trim();
+      if (!token) return alert("Login dulu");
+
+      const qs = buildQS({ page: page || "1" });
+      const url = ep("/api/v1/admin/payments") + "?" + qs;
+      log({ action: "list", url });
+
+      try {
+        const res = await fetch(url, { headers: authHeaders() });
+        const body = await parseBody(res);
+        log({ action: "list", status: res.status, body });
+        if (!res.ok) return alert("Gagal memuat data");
+
+        const items = Array.isArray(body.data) ? body.data : [];
+        const meta = body.meta || {};
+        lastMeta = meta;
+
+        renderTable(items, meta);
+        renderPagination(meta);
+        fetchSummary();
+      } catch (err) {
+        log({ action: "list", error: String(err) });
+        alert("Error: " + err);
+      }
+    }
+
+    function renderTable(items, meta) {
+      const body = document.getElementById("resultsBody");
+      if (!items.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--muted);">Tidak ada data</td></tr>';
+        return;
+      }
+      body.innerHTML = items.map(function(item) {
+        const orderShort = (item.order_no || "-");
+        return '<tr>' +
+          '<td><code>' + (item.invoice_id || "-").substring(0, 8) + '</code></td>' +
+          '<td>' + orderShort + '</td>' +
+          '<td>' + (item.customer_name || "-") + '</td>' +
+          '<td>' + (item.vendor_name || "-") + '</td>' +
+          '<td>' + (item.payment_method || "-") + '</td>' +
+          '<td>$' + idr(item.amount) + '</td>' +
+          '<td>' + badge(item.status) + '</td>' +
+        '</tr>';
+      }).join("");
+    }
+
+    function renderPagination(meta) {
+      const wrap = document.getElementById("paginationWrap");
+      const total = meta.total_items || 0;
+      const pages = meta.total_pages || 1;
+      const page = meta.page || 1;
+      const limit = meta.limit || 10;
+
+      if (total === 0) { wrap.style.display = "none"; return; }
+      wrap.style.display = "flex";
+
+      const from = (page - 1) * limit + 1;
+      const to = Math.min(page * limit, total);
+      document.getElementById("pageInfoText").textContent = "Showing " + from + " to " + to + " of " + total + " entries";
+
+      document.getElementById("btnPrevPage").disabled = page <= 1;
+      document.getElementById("btnNextPage").disabled = page >= pages;
+
+      // Page buttons
+      const container = document.getElementById("pageButtons");
+      container.innerHTML = "";
+      const maxButtons = 4;
+      let start = Math.max(1, page - 1);
+      let end = Math.min(pages, start + maxButtons - 1);
+      if (end - start < maxButtons - 1) start = Math.max(1, end - maxButtons + 1);
+
+      for (let i = start; i <= end; i++) {
+        const btn = document.createElement("button");
+        btn.textContent = i;
+        if (i === page) btn.classList.add("active");
+        btn.addEventListener("click", function() { fetchPayments(String(i)); });
+        container.appendChild(btn);
+      }
+
+      document.getElementById("goToPage").value = page;
+    }
+
+    // --- Export ---
+    document.getElementById("btnExport").addEventListener("click", async function() {
+      const token = document.getElementById("token").value.trim();
+      if (!token) return alert("Login dulu");
+
+      const qs = buildQS({ page: "1" });
+      const url = ep("/api/v1/admin/payments/export") + "?" + qs;
+
+      try {
+        const res = await fetch(url, { headers: authHeaders() });
+        if (!res.ok) {
+          const body = await parseBody(res);
+          log({ action: "export", status: res.status, body });
+          return alert("Export gagal");
+        }
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "payments.csv";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (err) {
+        alert("Export error: " + err);
+      }
+    });
+
+    // --- Event wiring ---
+    document.getElementById("btnFetch").addEventListener("click", function() { fetchPayments("1"); });
+    document.getElementById("btnReset").addEventListener("click", function() {
+      document.getElementById("filterStatus").value = "";
+      document.getElementById("filterSearch").value = "";
+      document.getElementById("filterSortBy").value = "created_at";
+      document.getElementById("filterStartDate").value = "";
+      document.getElementById("filterEndDate").value = "";
+      document.getElementById("goToPage").value = "1";
+    });
+    document.getElementById("btnPrevPage").addEventListener("click", function() {
+      if (lastMeta && lastMeta.page > 1) fetchPayments(String(lastMeta.page - 1));
+    });
+    document.getElementById("btnNextPage").addEventListener("click", function() {
+      if (lastMeta && lastMeta.page < lastMeta.total_pages) fetchPayments(String(lastMeta.page + 1));
+    });
+    document.getElementById("goToPage").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
+        const p = parseInt(this.value);
+        if (p >= 1 && (!lastMeta || p <= lastMeta.total_pages)) fetchPayments(String(p));
+      }
+    });
+    // Auto-fetch on Enter in search
+    document.getElementById("filterSearch").addEventListener("keydown", function(e) {
+      if (e.key === "Enter") fetchPayments("1");
+    });
+  </script>
+</body>
+</html>

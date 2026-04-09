@@ -16,6 +16,7 @@ type Product struct {
 	Slug          string    `json:"slug"`
 	Description   string    `json:"description"`
 	Status        string    `json:"status"`
+	ProductType   string    `json:"product_type"`
 	HalalAIStatus string    `json:"halal_ai_status"`
 	HalalAINotes  *string   `json:"halal_ai_notes,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -83,6 +84,7 @@ type CreateProductRequest struct {
 	Name        string                      `json:"name" binding:"required,max=180"`
 	CategoryID  string                      `json:"category_id" binding:"required,uuid"`
 	Description string                      `json:"description" binding:"required"`
+	ProductType string                      `json:"product_type" binding:"omitempty,oneof=single variant package"`
 	Price       float64                     `json:"price" binding:"required,gt=0"`
 	Stock       int                         `json:"stock" binding:"min=0"`
 	WeightGram  *int                        `json:"weight_gram,omitempty" binding:"omitempty,min=0"`
@@ -107,6 +109,7 @@ type UpdateProductRequest struct {
 	Name         string                      `json:"name" binding:"required,max=180"`
 	CategoryID   string                      `json:"category_id" binding:"required,uuid"`
 	Description  string                      `json:"description" binding:"required"`
+	ProductType  string                      `json:"product_type" binding:"omitempty,oneof=single variant package"`
 	Price        float64                     `json:"price" binding:"required,gt=0"`
 	Stock        int                         `json:"stock" binding:"min=0"`
 	WeightGram   *int                        `json:"weight_gram,omitempty" binding:"omitempty,min=0"`
@@ -192,16 +195,20 @@ type ConfirmProductImagesResponse struct {
 
 // ProductListParams holds query parameters for customer product listing.
 type ProductListParams struct {
-	Page   int
-	Limit  int
-	Sort   string
-	Search string
+	Page        int
+	Limit       int
+	Sort        string
+	Search      string
+	CategoryID  *uuid.UUID
+	HasPromo    *bool
+	ProductType string
 }
 
 // ProductListItem is the output DTO for customer product listing.
 type ProductListItem struct {
 	ID            uuid.UUID `json:"id"`
 	Name          string    `json:"name"`
+	ImageURL      string    `json:"image_url"`
 	Price         float64   `json:"price"`
 	OriginalPrice float64   `json:"original_price"`
 	PromoPrice    *float64  `json:"promo_price,omitempty"`
@@ -221,6 +228,7 @@ type ProductDetailCategory struct {
 type ProductDetailVendor struct {
 	ID          uuid.UUID `json:"id"`
 	DisplayName string    `json:"display_name"`
+	Location    string    `json:"location"`
 }
 
 // ProductDetailImageItem is image info in customer product detail.
@@ -233,20 +241,23 @@ type ProductDetailImageItem struct {
 
 // ProductDetailResponse is the output DTO for customer product detail.
 type ProductDetailResponse struct {
-	ID            uuid.UUID                `json:"id"`
-	Name          string                   `json:"name"`
-	Slug          string                   `json:"slug"`
-	Description   string                   `json:"description"`
-	Status        string                   `json:"status"`
-	HalalAIStatus string                   `json:"halal_ai_status"`
-	Category      ProductDetailCategory    `json:"category"`
-	Vendor        ProductDetailVendor      `json:"vendor"`
-	RatingAverage float64                  `json:"rating_average"`
-	RatingCount   int64                    `json:"rating_count"`
-	Images        []ProductDetailImageItem `json:"images"`
-	Variants      []ProductVariantResponse `json:"variants"`
-	CreatedAt     time.Time                `json:"created_at"`
-	UpdatedAt     time.Time                `json:"updated_at"`
+	ID             uuid.UUID                `json:"id"`
+	Name           string                   `json:"name"`
+	Slug           string                   `json:"slug"`
+	Description    string                   `json:"description"`
+	Status         string                   `json:"status"`
+	HalalAIStatus  string                   `json:"halal_ai_status"`
+	Category       ProductDetailCategory    `json:"category"`
+	Vendor         ProductDetailVendor      `json:"vendor"`
+	RatingAverage  float64                  `json:"rating_average"`
+	RatingCount    int64                    `json:"rating_count"`
+	TotalStock     int                      `json:"total_stock"`
+	StockRemaining int                      `json:"stock_remaining"`
+	TotalSold      int                      `json:"total_sold"`
+	Images         []ProductDetailImageItem `json:"images"`
+	Variants       []ProductVariantResponse `json:"variants"`
+	CreatedAt      time.Time                `json:"created_at"`
+	UpdatedAt      time.Time                `json:"updated_at"`
 }
 
 // VendorProductListParams holds query parameters for vendor product listing.
@@ -403,4 +414,17 @@ type CatalogUseCase interface {
 
 	// GetProductDetail returns customer-facing product detail by ID.
 	GetProductDetail(ctx context.Context, id uuid.UUID) (*ProductDetailResponse, error)
+
+	// GetShippingEstimate returns the cheapest shipping option for a product.
+	// If userID is nil or the user has no default address, returns nil (no estimate).
+	GetShippingEstimate(ctx context.Context, productID uuid.UUID, userID *uuid.UUID) (*ProductShippingEstimateResponse, error)
+}
+
+// ProductShippingEstimateResponse is the output DTO for product shipping estimate.
+type ProductShippingEstimateResponse struct {
+	CourierName string `json:"courier_name"`
+	CourierCode string `json:"courier_code"`
+	Service     string `json:"service"`
+	Cost        int    `json:"cost"`
+	ETD         string `json:"etd"`
 }

@@ -46,12 +46,12 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "127.0.0.1:${MINIO_PORT}:${MINIO_PORT}"
-      - "127.0.0.1:${MINIO_CONSOLE_PORT}:${MINIO_CONSOLE_PORT}"
+      - "0.0.0.0:${MINIO_PORT}:${MINIO_PORT}"
+      - "0.0.0.0:${MINIO_CONSOLE_PORT}:${MINIO_CONSOLE_PORT}"
     volumes:
       - minio_data:/data
-    networks:
-      - app_net
+    # networks:
+    #   - app_net
 
   minio-init:
     image: minio/mc:RELEASE.2025-02-08T19-14-21Z
@@ -68,8 +68,8 @@ services:
       /usr/bin/mc anonymous set download local/${MINIO_BUCKET};
       exit 0;
       "
-    networks:
-      - app_net
+    # networks:
+    #   - app_net
       
   seed:
     build:
@@ -136,6 +136,6 @@ volumes:
   minio_data:
     name: haji-umroh-store-be_minio-data
 
-networks:
-  app_net:
-    driver: bridge
+# networks:
+#   app_net:
+#     driver: bridge

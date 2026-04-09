@@ -53,17 +53,45 @@ type VendorDocument struct {
 
 // VendorBankAccount represents the vendor_bank_accounts table.
 type VendorBankAccount struct {
-	ID                 uuid.UUID  `json:"id"`
-	VendorID           uuid.UUID  `json:"vendor_id"`
-	BankName           string     `json:"bank_name"`
-	AccountNumber      string     `json:"account_number"`
-	AccountHolderName  string     `json:"account_holder_name"`
-	VerificationStatus string     `json:"verification_status"`
-	RejectionReason    *string    `json:"rejection_reason,omitempty"`
-	VerifiedBy         *uuid.UUID `json:"verified_by,omitempty"`
-	VerifiedAt         *time.Time `json:"verified_at,omitempty"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
+	ID                uuid.UUID `json:"id"`
+	VendorID          uuid.UUID `json:"vendor_id"`
+	ChannelCode       string    `json:"channel_code"`
+	BankName          string    `json:"bank_name"`
+	AccountNumber     string    `json:"account_number"`
+	AccountHolderName string    `json:"account_holder_name"`
+	AccountLast4      string    `json:"account_last4"`
+	IsDefault         bool      `json:"is_default"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// VendorBankAccountListItem is the DTO returned when listing vendor bank accounts.
+type VendorBankAccountListItem struct {
+	ID                uuid.UUID `json:"id"`
+	ChannelCode       string    `json:"channel_code"`
+	BankName          string    `json:"bank_name"`
+	AccountHolderName string    `json:"account_holder_name"`
+	AccountLast4      string    `json:"account_last4"`
+	IsDefault         bool      `json:"is_default"`
+}
+
+// CreateVendorBankAccountRequest is the input DTO for adding a vendor bank account.
+type CreateVendorBankAccountRequest struct {
+	ChannelCode       string `json:"channel_code" binding:"required,max=40"`
+	BankName          string `json:"bank_name" binding:"required,max=80"`
+	AccountNumber     string `json:"account_number" binding:"required,max=64"`
+	AccountHolderName string `json:"account_holder_name" binding:"required,max=120"`
+	IsDefault         bool   `json:"is_default"`
+}
+
+// CreateVendorBankAccountResponse is the output DTO after creating a vendor bank account.
+type CreateVendorBankAccountResponse struct {
+	ID                uuid.UUID `json:"id"`
+	ChannelCode       string    `json:"channel_code"`
+	BankName          string    `json:"bank_name"`
+	AccountHolderName string    `json:"account_holder_name"`
+	AccountLast4      string    `json:"account_last4"`
+	IsDefault         bool      `json:"is_default"`
 }
 
 // VendorResponsiblePerson stores vendor-specific KYC data for the owner contact.
@@ -120,6 +148,13 @@ type VendorMeResponse struct {
 	VendorType   *string   `json:"vendor_type"`
 	VendorStatus string    `json:"vendor_status"`
 	StoreName    *string   `json:"store_name"`
+	StatusReason *string   `json:"status_reason"`
+}
+
+// VendorUpdateProfileRequest is the input DTO for updating the vendor's profile (name & description).
+type VendorUpdateProfileRequest struct {
+	StoreName        string  `json:"store_name" binding:"required,max=120"`
+	StoreDescription *string `json:"store_description" binding:"omitempty"`
 }
 
 type VendorSouvenirStoreProposalAddress struct {
@@ -213,67 +248,56 @@ type AdminVendorListItem struct {
 	CreatedAt time.Time               `json:"created_at"`
 }
 
-// AdminVendorOwnerResponse is the owner info in the admin vendor detail.
-type AdminVendorOwnerResponse struct {
-	ID       uuid.UUID `json:"id"`
-	Email    string    `json:"email"`
-	FullName string    `json:"full_name"`
-	Phone    *string   `json:"phone,omitempty"`
-	Status   string    `json:"status"`
+// AdminVendorDetailAddress is the nested address object in admin vendor detail.
+type AdminVendorDetailAddress struct {
+	Province    *string `json:"province"`
+	City        *string `json:"city"`
+	District    *string `json:"district"`
+	Subdistrict *string `json:"subdistrict"`
+	PostalCode  *string `json:"postal_code"`
+	AddressLine *string `json:"address_line"`
 }
 
-// AdminVendorBankAccountResponse is the bank account info in the admin vendor detail.
-type AdminVendorBankAccountResponse struct {
-	ID                 uuid.UUID  `json:"id"`
-	BankName           string     `json:"bank_name"`
-	AccountNumber      string     `json:"account_number"`
-	AccountHolderName  string     `json:"account_holder_name"`
-	VerificationStatus string     `json:"verification_status"`
-	RejectionReason    *string    `json:"rejection_reason,omitempty"`
-	VerifiedAt         *time.Time `json:"verified_at,omitempty"`
-	CreatedAt          time.Time  `json:"created_at"`
-	UpdatedAt          time.Time  `json:"updated_at"`
+// AdminVendorKTPResponse is the KTP document object in responsible_person.
+type AdminVendorKTPResponse struct {
+	ID            uuid.UUID `json:"id"`
+	DocType       string    `json:"doc_type"`
+	FileURL       string    `json:"file_url"`
+	MimeType      *string   `json:"mime_type,omitempty"`
+	FileSizeBytes *int      `json:"file_size_bytes,omitempty"`
 }
 
-// AdminVendorDocumentResponse is a document with presigned download URL in the admin vendor detail.
-type AdminVendorDocumentResponse struct {
-	ID            uuid.UUID  `json:"id"`
-	DocType       string     `json:"doc_type"`
-	FileURL       string     `json:"file_url"`
-	DownloadURL   string     `json:"download_url"`
-	MimeType      *string    `json:"mime_type,omitempty"`
-	FileSizeBytes *int       `json:"file_size_bytes,omitempty"`
-	VerifiedAt    *time.Time `json:"verified_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+// AdminVendorResponsiblePersonResponse is the responsible person section in admin vendor detail.
+type AdminVendorResponsiblePersonResponse struct {
+	Name  *string                 `json:"name"`
+	Phone *string                 `json:"phone"`
+	Email *string                 `json:"email"`
+	NIK   *string                 `json:"nik"`
+	KTP   *AdminVendorKTPResponse `json:"ktp"`
+}
+
+// AdminVendorRequirementDocumentResponse is one required document in admin vendor detail.
+type AdminVendorRequirementDocumentResponse struct {
+	ID            uuid.UUID `json:"id"`
+	DocType       string    `json:"doc_type"`
+	FileURL       string    `json:"file_url"`
+	MimeType      *string   `json:"mime_type,omitempty"`
+	FileSizeBytes *int      `json:"file_size_bytes,omitempty"`
 }
 
 // AdminVendorDetailResponse is the full vendor detail for admin review.
 type AdminVendorDetailResponse struct {
-	ID              uuid.UUID                       `json:"id"`
-	VendorType      *string                         `json:"vendor_type"`
-	DisplayName     *string                         `json:"display_name"`
-	LegalName       *string                         `json:"legal_name,omitempty"`
-	Description     *string                         `json:"description,omitempty"`
-	ProvinceID      *string                         `json:"province_id,omitempty"`
-	ProvinceName    *string                         `json:"province_name,omitempty"`
-	CityID          *string                         `json:"city_id,omitempty"`
-	CityName        *string                         `json:"city_name,omitempty"`
-	DistrictID      *string                         `json:"district_id,omitempty"`
-	DistrictName    *string                         `json:"district_name,omitempty"`
-	SubdistrictID   *string                         `json:"subdistrict_id,omitempty"`
-	SubdistrictName *string                         `json:"subdistrict_name,omitempty"`
-	PostalCode      *string                         `json:"postal_code,omitempty"`
-	AddressLine     *string                         `json:"address_line,omitempty"`
-	Status          string                          `json:"status"`
-	StatusReason    *string                         `json:"status_reason,omitempty"`
-	ApprovedAt      *time.Time                      `json:"approved_at,omitempty"`
-	XenditAccountID *string                         `json:"xendit_account_id,omitempty"`
-	CreatedAt       time.Time                       `json:"created_at"`
-	UpdatedAt       time.Time                       `json:"updated_at"`
-	Owner           AdminVendorOwnerResponse        `json:"owner"`
-	BankAccount     *AdminVendorBankAccountResponse `json:"bank_account"`
-	Documents       []AdminVendorDocumentResponse   `json:"documents"`
+	ID                    uuid.UUID                                `json:"id"`
+	StoreName             *string                                  `json:"store_name"`
+	StoreDescription      *string                                  `json:"store_description"`
+	StoreType             *string                                  `json:"store_type"`
+	Status                string                                   `json:"status"`
+	StatusReason          *string                                  `json:"status_reason,omitempty"`
+	Email                 string                                   `json:"email"`
+	Address               AdminVendorDetailAddress                 `json:"address"`
+	ResponsiblePerson     AdminVendorResponsiblePersonResponse     `json:"responsible_person"`
+	RequirementsDocuments []AdminVendorRequirementDocumentResponse `json:"requirements_documents"`
+	CreatedAt             time.Time                                `json:"created_at"`
 }
 
 // VendorRepository defines the interface for vendor data access.
@@ -299,11 +323,26 @@ type VendorRepository interface {
 	// FindBankAccountByVendorID returns the bank account for the given vendor, or nil if not found.
 	FindBankAccountByVendorID(ctx context.Context, vendorID uuid.UUID) (*VendorBankAccount, error)
 
+	// FindBankAccountByID returns a bank account by its primary key, or nil if not found.
+	FindBankAccountByID(ctx context.Context, id uuid.UUID) (*VendorBankAccount, error)
+
+	// ListBankAccountsByVendorID returns all bank accounts owned by the given vendor.
+	ListBankAccountsByVendorID(ctx context.Context, vendorID uuid.UUID) ([]VendorBankAccountListItem, error)
+
 	// FindResponsiblePersonByVendorID returns the vendor responsible person row, or nil if not found.
 	FindResponsiblePersonByVendorID(ctx context.Context, vendorID uuid.UUID) (*VendorResponsiblePerson, error)
 
 	// UpsertBankAccount creates or updates the vendor bank account for the given vendor.
 	UpsertBankAccount(ctx context.Context, bankAccount *VendorBankAccount) error
+
+	// CreateBankAccount inserts a new bank account for the given vendor.
+	CreateBankAccount(ctx context.Context, bankAccount *VendorBankAccount) error
+
+	// DeleteBankAccount removes a vendor bank account by id and vendor ownership.
+	DeleteBankAccount(ctx context.Context, vendorID, bankAccountID uuid.UUID) error
+
+	// SetDefaultBankAccount sets one vendor bank account as default and unsets the previous default.
+	SetDefaultBankAccount(ctx context.Context, vendorID, bankAccountID uuid.UUID) error
 
 	// ConfirmDocumentsAndUpdateStatus updates the given documents and optionally sets the vendor status, all in one transaction.
 	// If newStatus is empty, the vendor status is not changed.
@@ -311,6 +350,9 @@ type VendorRepository interface {
 
 	// UpdateStatus updates the vendor's columns specified in the updates map.
 	UpdateStatus(ctx context.Context, vendorID uuid.UUID, updates map[string]any) error
+
+	// UpdateProfile updates the display name (store name) and description for the vendor.
+	UpdateProfile(ctx context.Context, vendorID uuid.UUID, displayName string, description *string) error
 
 	// SubmitSouvenirStoreProposal atomically updates owner user profile, vendor profile, KYC data, and required documents.
 	SubmitSouvenirStoreProposal(ctx context.Context, input SubmitSouvenirStoreProposalInput) error
@@ -363,6 +405,9 @@ type VendorRepository interface {
 
 	// ApplyWithdrawalWebhookUpdate applies status/xendit updates and optional balance movement atomically.
 	ApplyWithdrawalWebhookUpdate(ctx context.Context, withdrawalID uuid.UUID, newStatus string, xenditStatus string, xenditPayoutID *string, failedReason *string, balanceAction string, completion *WithdrawalCompletionData) error
+
+	// ListWithdrawals returns paginated withdrawals for a vendor.
+	ListWithdrawals(ctx context.Context, vendorID uuid.UUID, params VendorWithdrawalListParams) ([]VendorWithdrawal, int64, error)
 }
 
 // Balance actions applied during payout webhook processing.
@@ -448,8 +493,9 @@ const (
 
 // VendorWithdrawRequest is the input DTO for vendor self-service withdrawal.
 type VendorWithdrawRequest struct {
-	Amount      float64 `json:"amount" binding:"required,gte=10000"`
-	ChannelCode string  `json:"channel_code" binding:"required"`
+	Amount        float64   `json:"amount" binding:"required,gte=10000"`
+	ChannelCode   string    `json:"channel_code" binding:"required"`
+	BankAccountID uuid.UUID `json:"bank_account_id" binding:"required"`
 }
 
 // VendorWithdrawResponse is the output DTO for a successful withdrawal request.
@@ -463,6 +509,21 @@ type VendorWithdrawResponse struct {
 	EstimatedFee       float64   `json:"estimated_fee"`
 	EstimatedNetAmount float64   `json:"estimated_net_amount"`
 	ChannelCode        string    `json:"channel_code"`
+}
+
+// VendorWithdrawalListParams is the query params for vendor withdrawal history.
+type VendorWithdrawalListParams struct {
+	Page   int
+	Limit  int
+	Status string
+}
+
+// VendorWithdrawalListItem is one item in vendor withdrawal history.
+type VendorWithdrawalListItem struct {
+	ID         uuid.UUID `json:"id"`
+	Amount     float64   `json:"amount"`
+	Status     string    `json:"status"`
+	PayoutDate time.Time `json:"payout_date"`
 }
 
 // VendorBalanceResponse is the output DTO for the vendor balance endpoint.
@@ -499,6 +560,9 @@ type VendorUseCase interface {
 	// GetMe returns the authenticated vendor profile by vendor ID from auth claims.
 	GetMe(ctx context.Context, vendorID uuid.UUID) (*VendorMeResponse, error)
 
+	// UpdateProfile updates the vendor's profile properties like store name and description.
+	UpdateProfile(ctx context.Context, vendorID uuid.UUID, req VendorUpdateProfileRequest) (*VendorMeResponse, error)
+
 	// SubmitSouvenirStoreProposal submits the required vendor profile and documents for review.
 	SubmitSouvenirStoreProposal(ctx context.Context, vendorID uuid.UUID, userID uuid.UUID, req VendorSouvenirStoreProposalRequest) (*VendorSouvenirStoreProposalResponse, error)
 
@@ -511,11 +575,67 @@ type VendorUseCase interface {
 	// ListPayoutChannels returns payout channels for vendor withdrawals.
 	ListPayoutChannels(ctx context.Context, vendorID uuid.UUID) (*VendorPayoutChannelsResponse, error)
 
+	// CreateBankAccount adds a vendor bank account.
+	CreateBankAccount(ctx context.Context, vendorID uuid.UUID, req CreateVendorBankAccountRequest) (*CreateVendorBankAccountResponse, error)
+
+	// ListBankAccounts returns all vendor bank accounts.
+	ListBankAccounts(ctx context.Context, vendorID uuid.UUID) ([]VendorBankAccountListItem, error)
+
+	// DeleteBankAccount removes a vendor bank account by id.
+	DeleteBankAccount(ctx context.Context, vendorID, bankAccountID uuid.UUID) error
+
+	// SetDefaultBankAccount sets one bank account as default.
+	SetDefaultBankAccount(ctx context.Context, vendorID, bankAccountID uuid.UUID) error
+
 	// RequestWithdrawal initiates a self-service withdrawal to the vendor's bank account via Xendit.
 	RequestWithdrawal(ctx context.Context, vendorID uuid.UUID, req VendorWithdrawRequest) (*VendorWithdrawResponse, error)
 
+	// ListWithdrawals returns paginated withdrawal history for the authenticated vendor.
+	ListWithdrawals(ctx context.Context, vendorID uuid.UUID, params VendorWithdrawalListParams) ([]VendorWithdrawalListItem, *PaginationMeta, error)
+
 	// HandlePayoutWebhook processes Xendit payout webhook callbacks for vendor withdrawals.
 	HandlePayoutWebhook(ctx context.Context, payload XenditPayoutWebhookPayload) error
+}
+
+// --- Vendor Dashboard ---
+
+// VendorDashboardResponse is the response DTO for the vendor seller dashboard.
+type VendorDashboardResponse struct {
+	Month               string                       `json:"month"`
+	Year                int                          `json:"year"`
+	Summary             VendorDashboardSummary       `json:"summary"`
+	TodayTransactions   []VendorDashboardTransaction `json:"today_transactions"`
+	RecentNotifications []NotificationItem           `json:"recent_notifications"`
+	PaymentFlow         []VendorPaymentFlowItem      `json:"payment_flow"`
+}
+
+// VendorDashboardSummary holds the KPI summary cards for the vendor dashboard.
+type VendorDashboardSummary struct {
+	TotalTransactions            int64   `json:"total_transactions"`
+	SuccessfulTransactionPercent float64 `json:"successful_transaction_percent"`
+	Revenue                      float64 `json:"revenue"`
+	PendingSettlement            float64 `json:"pending_settlement"`
+}
+
+// VendorDashboardTransaction represents a single row in the "today's transactions" table.
+type VendorDashboardTransaction struct {
+	DateTime    time.Time `json:"date_time"`
+	Invoice     string    `json:"invoice"`
+	ProductName string    `json:"product_name"`
+	Category    string    `json:"category"`
+	Price       float64   `json:"price"`
+	Status      string    `json:"status"`
+}
+
+// VendorPaymentFlowItem represents one slice in the payment flow donut chart.
+type VendorPaymentFlowItem struct {
+	Label string  `json:"label"`
+	Value float64 `json:"value"`
+}
+
+// VendorDashboardUseCase defines the interface for the vendor seller dashboard.
+type VendorDashboardUseCase interface {
+	GetDashboard(ctx context.Context, vendorID uuid.UUID, month, year int) (*VendorDashboardResponse, error)
 }
 
 // --- Store Detail (Public) ---
@@ -525,7 +645,7 @@ type StoreInfoResponse struct {
 	ID            uuid.UUID `json:"id"`
 	DisplayName   string    `json:"display_name"`
 	Description   *string   `json:"description,omitempty"`
-	Location      *string   `json:"location,omitempty"`
+	Location      string    `json:"location"`
 	ImageURL      string    `json:"image_url"`
 	Rating        float64   `json:"rating"`
 	TotalReviews  int64     `json:"total_reviews"`
@@ -619,7 +739,7 @@ type AdminVendorUseCase interface {
 	// List returns a paginated list of vendors with owner info.
 	List(ctx context.Context, params VendorListParams) ([]AdminVendorListItem, *PaginationMeta, error)
 
-	// GetByID returns the full vendor detail including owner, bank account, and documents with presigned download URLs.
+	// GetByID returns the full vendor detail for admin review.
 	GetByID(ctx context.Context, id uuid.UUID) (*AdminVendorDetailResponse, error)
 
 	// Approve transitions a vendor from submitted/rejected to active.

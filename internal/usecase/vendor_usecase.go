@@ -120,7 +120,7 @@ func (uc *vendorUseCase) Login(ctx context.Context, req domain.VendorLoginReques
 	}
 
 	// 6. Generate JWT with vendor_id in claims.
-	token, err := auth.GenerateToken(user.ID, user.Email, user.Role.Code, &vendor.ID, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
+	token, err := auth.GenerateToken(user.ID, user.Email, user.Role.Code, &vendor.ID, user.PasswordChangedAt, uc.jwtSecret, uc.jwtExpiry, uc.jwtIssuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
@@ -153,6 +153,11 @@ func (uc *vendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain
 		return nil, ErrUserNotFound
 	}
 
+	var statusReason *string
+	if vendor.Status == domain.VendorStatusRejected || vendor.Status == domain.VendorStatusBlocked {
+		statusReason = vendor.StatusReason
+	}
+
 	return &domain.VendorMeResponse{
 		VendorID:     vendor.ID,
 		ImageURL:     user.ImageURL,
@@ -160,7 +165,24 @@ func (uc *vendorUseCase) GetMe(ctx context.Context, vendorID uuid.UUID) (*domain
 		VendorType:   vendor.VendorType,
 		VendorStatus: vendor.Status,
 		StoreName:    vendor.DisplayName,
+		StatusReason: statusReason,
 	}, nil
+}
+
+func (uc *vendorUseCase) UpdateProfile(ctx context.Context, vendorID uuid.UUID, req domain.VendorUpdateProfileRequest) (*domain.VendorMeResponse, error) {
+	vendor, err := uc.vendorRepo.FindByID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find vendor: %w", err)
+	}
+	if vendor == nil {
+		return nil, ErrVendorNotFound
+	}
+
+	if err := uc.vendorRepo.UpdateProfile(ctx, vendorID, req.StoreName, req.StoreDescription); err != nil {
+		return nil, fmt.Errorf("failed to update vendor profile: %w", err)
+	}
+
+	return uc.GetMe(ctx, vendorID)
 }
 
 func (uc *vendorUseCase) GetBalance(ctx context.Context, vendorID uuid.UUID) (*domain.VendorBalanceResponse, error) {
@@ -225,6 +247,113 @@ func (uc *vendorUseCase) ListPayoutChannels(ctx context.Context, vendorID uuid.U
 	return &domain.VendorPayoutChannelsResponse{Channels: items}, nil
 }
 
+func (uc *vendorUseCase) CreateBankAccount(ctx context.Context, vendorID uuid.UUID, req domain.CreateVendorBankAccountRequest) (*domain.CreateVendorBankAccountResponse, error) {
+	channelCode := strings.ToUpper(strings.TrimSpace(req.ChannelCode))
+	if channelCode == "" {
+		return nil, ErrInvalidChannelCode
+	}
+
+	last4 := req.AccountNumber
+	if len(last4) > 4 {
+		last4 = last4[len(last4)-4:]
+	}
+
+	items, err := uc.vendorRepo.ListBankAccountsByVendorID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list vendor bank accounts: %w", err)
+	}
+
+	isDefault := req.IsDefault
+	if len(items) == 0 {
+		isDefault = true
+	}
+
+	now := time.Now()
+	account := &domain.VendorBankAccount{
+		ID:                uuid.New(),
+		VendorID:          vendorID,
+		ChannelCode:       channelCode,
+		BankName:          req.BankName,
+		AccountNumber:     req.AccountNumber,
+		AccountHolderName: req.AccountHolderName,
+		AccountLast4:      last4,
+		IsDefault:         isDefault,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	if err := uc.vendorRepo.CreateBankAccount(ctx, account); err != nil {
+		return nil, fmt.Errorf("failed to create vendor bank account: %w", err)
+	}
+
+	return &domain.CreateVendorBankAccountResponse{
+		ID:                account.ID,
+		ChannelCode:       account.ChannelCode,
+		BankName:          account.BankName,
+		AccountHolderName: account.AccountHolderName,
+		AccountLast4:      account.AccountLast4,
+		IsDefault:         account.IsDefault,
+	}, nil
+}
+
+func (uc *vendorUseCase) ListBankAccounts(ctx context.Context, vendorID uuid.UUID) ([]domain.VendorBankAccountListItem, error) {
+	items, err := uc.vendorRepo.ListBankAccountsByVendorID(ctx, vendorID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list vendor bank accounts: %w", err)
+	}
+	return items, nil
+}
+
+func (uc *vendorUseCase) DeleteBankAccount(ctx context.Context, vendorID, bankAccountID uuid.UUID) error {
+	account, err := uc.vendorRepo.FindBankAccountByID(ctx, bankAccountID)
+	if err != nil {
+		return fmt.Errorf("failed to find vendor bank account: %w", err)
+	}
+	if account == nil {
+		return ErrVendorBankNotFound
+	}
+	if account.VendorID != vendorID {
+		return ErrVendorBankNotOwned
+	}
+
+	if err := uc.vendorRepo.DeleteBankAccount(ctx, vendorID, bankAccountID); err != nil {
+		return fmt.Errorf("failed to delete vendor bank account: %w", err)
+	}
+
+	if account.IsDefault {
+		items, listErr := uc.vendorRepo.ListBankAccountsByVendorID(ctx, vendorID)
+		if listErr != nil {
+			return fmt.Errorf("failed to list vendor bank accounts: %w", listErr)
+		}
+		if len(items) > 0 {
+			if err := uc.vendorRepo.SetDefaultBankAccount(ctx, vendorID, items[0].ID); err != nil {
+				return fmt.Errorf("failed to set default vendor bank account: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (uc *vendorUseCase) SetDefaultBankAccount(ctx context.Context, vendorID, bankAccountID uuid.UUID) error {
+	account, err := uc.vendorRepo.FindBankAccountByID(ctx, bankAccountID)
+	if err != nil {
+		return fmt.Errorf("failed to find vendor bank account: %w", err)
+	}
+	if account == nil {
+		return ErrVendorBankNotFound
+	}
+	if account.VendorID != vendorID {
+		return ErrVendorBankNotOwned
+	}
+
+	if err := uc.vendorRepo.SetDefaultBankAccount(ctx, vendorID, bankAccountID); err != nil {
+		return fmt.Errorf("failed to set default vendor bank account: %w", err)
+	}
+
+	return nil
+}
+
 func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UUID, req domain.VendorWithdrawRequest) (*domain.VendorWithdrawResponse, error) {
 	channelCode := strings.ToUpper(strings.TrimSpace(req.ChannelCode))
 	if channelCode == "" {
@@ -278,13 +407,16 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 		return nil, ErrInsufficientBalance
 	}
 
-	// 5. Find vendor bank account.
-	bankAccount, err := uc.vendorRepo.FindBankAccountByVendorID(ctx, vendorID)
+	// 5. Find selected vendor bank account.
+	bankAccount, err := uc.vendorRepo.FindBankAccountByID(ctx, req.BankAccountID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find bank account: %w", err)
 	}
 	if bankAccount == nil {
 		return nil, ErrVendorBankNotFound
+	}
+	if bankAccount.VendorID != vendorID {
+		return nil, ErrVendorBankNotOwned
 	}
 
 	// 6. Find vendor owner user for receipt notification email.
@@ -384,6 +516,35 @@ func (uc *vendorUseCase) RequestWithdrawal(ctx context.Context, vendorID uuid.UU
 	}, nil
 }
 
+func (uc *vendorUseCase) ListWithdrawals(ctx context.Context, vendorID uuid.UUID, params domain.VendorWithdrawalListParams) ([]domain.VendorWithdrawalListItem, *domain.PaginationMeta, error) {
+	page, limit := normalizePaging(params.Page, params.Limit)
+	params.Page = page
+	params.Limit = limit
+
+	params.Status = strings.ToLower(strings.TrimSpace(params.Status))
+	if params.Status != "" && !isValidVendorWithdrawalStatus(params.Status) {
+		return nil, nil, ErrInvalidPayoutStatus
+	}
+
+	withdrawals, total, err := uc.vendorRepo.ListWithdrawals(ctx, vendorID, params)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list withdrawals: %w", err)
+	}
+
+	items := make([]domain.VendorWithdrawalListItem, len(withdrawals))
+	for i := range withdrawals {
+		items[i] = domain.VendorWithdrawalListItem{
+			ID:         withdrawals[i].ID,
+			Amount:     withdrawals[i].Amount,
+			Status:     withdrawals[i].Status,
+			PayoutDate: withdrawals[i].CreatedAt,
+		}
+	}
+
+	meta := buildPaginationMeta(page, limit, total)
+	return items, meta, nil
+}
+
 func (uc *vendorUseCase) fetchIDRBankPayoutChannels(ctx context.Context) ([]domain.XenditPayoutChannel, error) {
 	channels, err := uc.xenditPayout.ListPayoutChannels(ctx, domain.XenditListPayoutChannelsParams{
 		Currency:        payoutChannelCurrencyIDR,
@@ -405,6 +566,18 @@ func isPayoutChannelAllowed(channelCode string, channels []domain.XenditPayoutCh
 		}
 	}
 	return false
+}
+
+func isValidVendorWithdrawalStatus(status string) bool {
+	switch status {
+	case domain.WithdrawalStatusPending,
+		domain.WithdrawalStatusProcessing,
+		domain.WithdrawalStatusCompleted,
+		domain.WithdrawalStatusFailed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (uc *vendorUseCase) HandlePayoutWebhook(ctx context.Context, payload domain.XenditPayoutWebhookPayload) error {

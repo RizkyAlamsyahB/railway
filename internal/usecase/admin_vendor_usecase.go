@@ -113,97 +113,97 @@ func (uc *adminVendorUseCase) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	}
 
 	// Fetch owner user info.
-	var ownerResp domain.AdminVendorOwnerResponse
+	ownerEmail := ""
+	var ownerName *string
+	var ownerPhone *string
+	var ownerEmailPtr *string
 	owner, err := uc.userRepo.FindByID(ctx, vendor.OwnerUserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find vendor owner: %w", err)
 	}
 	if owner != nil {
-		ownerResp = domain.AdminVendorOwnerResponse{
-			ID:       owner.ID,
-			Email:    owner.Email,
-			FullName: owner.FullName,
-			Phone:    owner.Phone,
-			Status:   owner.Status,
+		ownerEmail = owner.Email
+		ownerEmailPtr = &owner.Email
+		if owner.FullName != "" {
+			ownerName = &owner.FullName
 		}
+		ownerPhone = owner.Phone
 	}
 
-	// Fetch bank account.
-	var bankAccountResp *domain.AdminVendorBankAccountResponse
-	bankAccount, err := uc.vendorRepo.FindBankAccountByVendorID(ctx, vendor.ID)
+	// Fetch responsible person data.
+	responsiblePerson, err := uc.vendorRepo.FindResponsiblePersonByVendorID(ctx, vendor.ID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find bank account: %w", err)
-	}
-	if bankAccount != nil {
-		bankAccountResp = &domain.AdminVendorBankAccountResponse{
-			ID:                 bankAccount.ID,
-			BankName:           bankAccount.BankName,
-			AccountNumber:      bankAccount.AccountNumber,
-			AccountHolderName:  bankAccount.AccountHolderName,
-			VerificationStatus: bankAccount.VerificationStatus,
-			RejectionReason:    bankAccount.RejectionReason,
-			VerifiedAt:         bankAccount.VerifiedAt,
-			CreatedAt:          bankAccount.CreatedAt,
-			UpdatedAt:          bankAccount.UpdatedAt,
-		}
+		return nil, fmt.Errorf("failed to find responsible person: %w", err)
 	}
 
-	// Fetch documents and generate presigned download URLs.
+	var responsibleNIK *string
+	if responsiblePerson != nil && responsiblePerson.NIK != "" {
+		responsibleNIK = &responsiblePerson.NIK
+	}
+
+	// Fetch documents and map them into KTP + required documents.
 	documents, err := uc.vendorRepo.FindDocumentsByVendorID(ctx, vendor.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find documents: %w", err)
 	}
 
-	docResponses := make([]domain.AdminVendorDocumentResponse, len(documents))
-	for i, doc := range documents {
-		docResp := domain.AdminVendorDocumentResponse{
-			ID:            doc.ID,
-			DocType:       doc.DocType,
-			FileURL:       doc.FileURL,
-			MimeType:      doc.MimeType,
-			FileSizeBytes: doc.FileSizeBytes,
-			VerifiedAt:    doc.VerifiedAt,
-			CreatedAt:     doc.CreatedAt,
-			UpdatedAt:     doc.UpdatedAt,
-		}
-
-		// Only generate presigned URL if the document has been uploaded.
-		if doc.UploadedBy != nil && doc.FileURL != "" {
-			downloadURL, err := uc.storage.GeneratePresignedURL(ctx, doc.FileURL, PresignedDownloadExpiry)
+	requirementsDocuments := make([]domain.AdminVendorRequirementDocumentResponse, 0, len(documents))
+	var ktp *domain.AdminVendorKTPResponse
+	for _, doc := range documents {
+		fileURL := doc.FileURL
+		if doc.FileURL != "" {
+			signedURL, err := uc.storage.GeneratePresignedURL(ctx, doc.FileURL, PresignedDownloadExpiry)
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate presigned URL for document %s: %w", doc.DocType, err)
 			}
-			docResp.DownloadURL = downloadURL
+			fileURL = signedURL
 		}
 
-		docResponses[i] = docResp
+		switch doc.DocType {
+		case domain.VendorDocumentTypeOwnerDocumentID:
+			ktp = &domain.AdminVendorKTPResponse{
+				ID:            doc.ID,
+				DocType:       doc.DocType,
+				FileURL:       fileURL,
+				MimeType:      doc.MimeType,
+				FileSizeBytes: doc.FileSizeBytes,
+			}
+		case domain.VendorDocumentTypeBusinessNIB, domain.VendorDocumentTypeHalalCertificate:
+			requirementsDocuments = append(requirementsDocuments, domain.AdminVendorRequirementDocumentResponse{
+				ID:            doc.ID,
+				DocType:       doc.DocType,
+				FileURL:       fileURL,
+				MimeType:      doc.MimeType,
+				FileSizeBytes: doc.FileSizeBytes,
+			})
+		}
 	}
 
 	return &domain.AdminVendorDetailResponse{
-		ID:              vendor.ID,
-		VendorType:      vendor.VendorType,
-		DisplayName:     vendor.DisplayName,
-		LegalName:       vendor.LegalName,
-		Description:     vendor.Description,
-		ProvinceID:      vendor.ProvinceID,
-		ProvinceName:    vendor.ProvinceName,
-		CityID:          vendor.CityID,
-		CityName:        vendor.CityName,
-		DistrictID:      vendor.DistrictID,
-		DistrictName:    vendor.DistrictName,
-		SubdistrictID:   vendor.SubdistrictID,
-		SubdistrictName: vendor.SubdistrictName,
-		PostalCode:      vendor.PostalCode,
-		AddressLine:     vendor.AddressLine,
-		Status:          vendor.Status,
-		StatusReason:    vendor.StatusReason,
-		ApprovedAt:      vendor.ApprovedAt,
-		XenditAccountID: vendor.XenditAccountID,
-		CreatedAt:       vendor.CreatedAt,
-		UpdatedAt:       vendor.UpdatedAt,
-		Owner:           ownerResp,
-		BankAccount:     bankAccountResp,
-		Documents:       docResponses,
+		ID:               vendor.ID,
+		StoreName:        vendor.DisplayName,
+		StoreDescription: vendor.Description,
+		StoreType:        vendor.VendorType,
+		Status:           vendor.Status,
+		StatusReason:     vendor.StatusReason,
+		Email:            ownerEmail,
+		Address: domain.AdminVendorDetailAddress{
+			Province:    vendor.ProvinceName,
+			City:        vendor.CityName,
+			District:    vendor.DistrictName,
+			Subdistrict: vendor.SubdistrictName,
+			PostalCode:  vendor.PostalCode,
+			AddressLine: vendor.AddressLine,
+		},
+		ResponsiblePerson: domain.AdminVendorResponsiblePersonResponse{
+			Name:  ownerName,
+			Phone: ownerPhone,
+			Email: ownerEmailPtr,
+			NIK:   responsibleNIK,
+			KTP:   ktp,
+		},
+		RequirementsDocuments: requirementsDocuments,
+		CreatedAt:             vendor.CreatedAt,
 	}, nil
 }
 

@@ -272,6 +272,11 @@ type VendorOrderRepository interface {
 	ListByVendor(ctx context.Context, vendorID uuid.UUID, params VendorOrderListParams) ([]Order, int64, error)
 	// FindByIDAndVendor returns an order only if it belongs to the given vendor.
 	FindByIDAndVendor(ctx context.Context, orderID, vendorID uuid.UUID) (*Order, error)
+
+	// Dashboard queries
+	DashboardOrderStats(ctx context.Context, vendorID uuid.UUID, periodStart, periodEnd time.Time) (total int64, successful int64, err error)
+	DashboardTodayTransactions(ctx context.Context, vendorID uuid.UUID, today time.Time, limit int) ([]VendorDashboardTransaction, error)
+	DashboardPaymentFlow(ctx context.Context, vendorID uuid.UUID, start, end time.Time) ([]VendorPaymentFlowItem, error)
 }
 
 // --- Invoice DTOs ---

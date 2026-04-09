@@ -12,7 +12,7 @@ func TestGenerateAndValidateToken(t *testing.T) {
 	email := "test@example.com"
 	role := "admin"
 
-	token, err := GenerateToken(userID, email, role, nil, secret, 24, "test-issuer")
+	token, err := GenerateToken(userID, email, role, nil, nil, secret, 24, "test-issuer")
 	if err != nil {
 		t.Fatalf("GenerateToken() error = %v", err)
 	}
@@ -52,7 +52,7 @@ func TestGenerateAndValidateToken_WithVendorID(t *testing.T) {
 	email := "vendor@example.com"
 	role := "umkm"
 
-	token, err := GenerateToken(userID, email, role, &vendorID, secret, 24, "test-issuer")
+	token, err := GenerateToken(userID, email, role, &vendorID, nil, secret, 24, "test-issuer")
 	if err != nil {
 		t.Fatalf("GenerateToken() error = %v", err)
 	}
@@ -74,7 +74,7 @@ func TestGenerateAndValidateToken_WithVendorID(t *testing.T) {
 }
 
 func TestValidateToken_WrongSecret(t *testing.T) {
-	token, _ := GenerateToken(uuid.New(), "a@b.com", "customer", nil, "secret-1", 24, "issuer")
+	token, _ := GenerateToken(uuid.New(), "a@b.com", "customer", nil, nil, "secret-1", 24, "issuer")
 
 	_, err := ValidateToken(token, "wrong-secret")
 	if err == nil {
@@ -83,7 +83,7 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 }
 
 func TestValidateToken_ExpiredToken(t *testing.T) {
-	token, err := GenerateToken(uuid.New(), "a@b.com", "customer", nil, "secret", -1, "issuer")
+	token, err := GenerateToken(uuid.New(), "a@b.com", "customer", nil, nil, "secret", -1, "issuer")
 	if err != nil {
 		t.Fatalf("GenerateToken() error = %v", err)
 	}

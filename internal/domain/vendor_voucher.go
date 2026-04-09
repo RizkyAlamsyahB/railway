@@ -82,6 +82,14 @@ type VendorVoucherResponse struct {
 	UpdatedAt         time.Time   `json:"updated_at"`
 }
 
+// VendorVoucherSummary holds aggregated voucher statistics for a vendor.
+type VendorVoucherSummary struct {
+	ActiveCount   int `json:"active_count"`
+	UpcomingCount int `json:"upcoming_count"`
+	ExpiredCount  int `json:"expired_count"`
+	TotalUsage    int `json:"total_usage"`
+}
+
 // VendorVoucherRepository defines data access operations for vouchers.
 type VendorVoucherRepository interface {
 	Create(ctx context.Context, voucher *VendorVoucher) error
@@ -90,6 +98,7 @@ type VendorVoucherRepository interface {
 	ListByVendor(ctx context.Context, vendorID uuid.UUID, params VendorVoucherListParams) ([]VendorVoucher, int64, error)
 	Update(ctx context.Context, voucher *VendorVoucher, replaceProducts bool) error
 	Delete(ctx context.Context, id uuid.UUID, vendorID uuid.UUID) error
+	GetSummary(ctx context.Context, vendorID uuid.UUID) (*VendorVoucherSummary, error)
 }
 
 // VendorVoucherUseCase defines business operations for vendor vouchers.
@@ -99,4 +108,5 @@ type VendorVoucherUseCase interface {
 	GetVoucher(ctx context.Context, vendorID uuid.UUID, id uuid.UUID) (*VendorVoucherResponse, error)
 	UpdateVoucher(ctx context.Context, vendorID uuid.UUID, id uuid.UUID, req UpdateVendorVoucherRequest) (*VendorVoucherResponse, error)
 	DeleteVoucher(ctx context.Context, vendorID uuid.UUID, id uuid.UUID) error
+	GetSummary(ctx context.Context, vendorID uuid.UUID) (*VendorVoucherSummary, error)
 }

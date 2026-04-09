@@ -189,6 +189,7 @@ func (uc *productUseCase) Create(ctx context.Context, vendorID uuid.UUID, req do
 		Slug:          slug,
 		Description:   req.Description,
 		Status:        status,
+		ProductType:   productType(req.ProductType),
 		HalalAIStatus: domain.HalalAIStatusPending,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -635,6 +636,7 @@ func (uc *productUseCase) UpdateProduct(ctx context.Context, vendorID uuid.UUID,
 	product.Description = req.Description
 	product.CategoryID = categoryID
 	product.Status = status
+	product.ProductType = productType(req.ProductType)
 	product.UpdatedAt = now
 
 	// 10. Persist in one transaction.
@@ -783,9 +785,18 @@ func (uc *productUseCase) GetProductByID(ctx context.Context, vendorID uuid.UUID
 	// 6. Build image responses.
 	imageItems := make([]domain.VendorProductDetailImageItem, len(images))
 	for i, img := range images {
+		imageURL := img.ImageURL
+		if imageURL != "" && !isAbsoluteURL(imageURL) {
+			presignedURL, err := uc.storage.GeneratePresignedURL(ctx, imageURL, PresignedDownloadExpiry)
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate presigned URL for image %s: %w", img.ID.String(), err)
+			}
+			imageURL = presignedURL
+		}
+
 		imageItems[i] = domain.VendorProductDetailImageItem{
 			ID:        img.ID,
-			URL:       img.ImageURL,
+			URL:       imageURL,
 			IsPrimary: img.IsPrimary,
 			SortOrder: img.SortOrder,
 		}
@@ -826,4 +837,13 @@ func (uc *productUseCase) DeleteProduct(ctx context.Context, vendorID uuid.UUID,
 		return fmt.Errorf("failed to delete product: %w", err)
 	}
 	return nil
+}
+
+func productType(pt string) string {
+	switch pt {
+	case domain.ProductTypeSingle, domain.ProductTypeVariant, domain.ProductTypePackage:
+		return pt
+	default:
+		return domain.ProductTypeSingle
+	}
 }

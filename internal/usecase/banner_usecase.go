@@ -135,7 +135,7 @@ func (uc *bannerUseCase) GetBanner(ctx context.Context, id uuid.UUID) (*domain.B
 	return toBannerResponse(banner, imageURL), nil
 }
 
-func (uc *bannerUseCase) UpdateBanner(ctx context.Context, id uuid.UUID, req domain.UpdateBannerRequest) (*domain.BannerResponse, error) {
+func (uc *bannerUseCase) UpdateBanner(ctx context.Context, id uuid.UUID, req domain.UpdateBannerRequest) (*domain.UpdateBannerResponse, error) {
 	banner, err := uc.bannerRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find banner: %w", err)
@@ -149,12 +149,45 @@ func (uc *bannerUseCase) UpdateBanner(ctx context.Context, id uuid.UUID, req dom
 	}
 	banner.UpdatedAt = time.Now()
 
+	// If a new content_type is provided, generate a presigned URL for image replacement.
+	var (
+		uploadURL *string
+		objectKey *string
+		expiresIn *int
+	)
+	if req.ContentType != nil {
+		ct := strings.ToLower(strings.TrimSpace(*req.ContentType))
+		if !allowedBannerContentTypes[ct] {
+			return nil, ErrInvalidBannerContentType
+		}
+		key := fmt.Sprintf("banners/%s/%d", id.String(), time.Now().UnixMilli())
+		url, err := uc.storage.GeneratePresignedUploadURL(ctx, key, ct, PresignedUploadExpiry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate presigned URL: %w", err)
+		}
+		// Store the new objectKey as a placeholder; FE confirms after upload.
+		banner.ImageURL = key
+		expSecs := int(PresignedUploadExpiry / time.Second)
+		uploadURL = &url
+		objectKey = &key
+		expiresIn = &expSecs
+	}
+
 	if err := uc.bannerRepo.Update(ctx, banner); err != nil {
 		return nil, fmt.Errorf("failed to update banner: %w", err)
 	}
 
 	imageURL := uc.storage.GetURL(banner.ImageURL)
-	return toBannerResponse(banner, imageURL), nil
+	return &domain.UpdateBannerResponse{
+		ID:        banner.ID,
+		Title:     banner.Title,
+		ImageURL:  imageURL,
+		CreatedAt: banner.CreatedAt,
+		UpdatedAt: banner.UpdatedAt,
+		UploadURL: uploadURL,
+		ObjectKey: objectKey,
+		ExpiresIn: expiresIn,
+	}, nil
 }
 
 func (uc *bannerUseCase) DeleteBanner(ctx context.Context, id uuid.UUID) error {

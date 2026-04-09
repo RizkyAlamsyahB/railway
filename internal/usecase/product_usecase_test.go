@@ -1151,6 +1151,175 @@ func TestConfirmImages_UpdateImagesError(t *testing.T) {
 }
 
 // ============================================================
+// GetProductByID (vendor)
+// ============================================================
+
+func TestGetProductByID_SuccessWithPresignedImageURLs(t *testing.T) {
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+	productID := uuid.New()
+	categoryID := uuid.New()
+	weight := 500
+	imageID := uuid.New()
+	imageKey := "products/abc/images/img-1.jpg"
+	presignedURL := "https://signed.example.com/products/abc/images/img-1.jpg?sig=123"
+
+	productRepo.EXPECT().FindByID(ctx, productID).Return(&domain.Product{
+		ID:            productID,
+		VendorID:      vendorID,
+		CategoryID:    categoryID,
+		Name:          "Sajadah Premium",
+		Slug:          "sajadah-premium",
+		Description:   "desc",
+		Status:        domain.ProductStatusPublished,
+		HalalAIStatus: domain.HalalAIStatusPending,
+	}, nil)
+	productRepo.EXPECT().FindVariantsByProductID(ctx, productID).Return([]domain.ProductVariant{
+		{
+			ID:          uuid.New(),
+			ProductID:   productID,
+			SKU:         "SKU-001",
+			VariantName: "Default",
+			Price:       150000,
+			Currency:    "IDR",
+			StockOnHand: 100,
+			WeightGram:  &weight,
+			IsDefault:   true,
+			IsActive:    true,
+		},
+	}, nil)
+	productRepo.EXPECT().FindImagesByProductID(ctx, productID).Return([]domain.ProductImage{
+		{
+			ID:        imageID,
+			ProductID: productID,
+			ImageURL:  imageKey,
+			IsPrimary: true,
+			SortOrder: 0,
+		},
+	}, nil)
+	storage.EXPECT().GeneratePresignedURL(ctx, imageKey, PresignedDownloadExpiry).Return(presignedURL, nil)
+
+	resp, err := uc.GetProductByID(ctx, vendorID, productID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(resp.Images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(resp.Images))
+	}
+	if resp.Images[0].URL != presignedURL {
+		t.Errorf("expected presigned URL, got %s", resp.Images[0].URL)
+	}
+	if resp.Price != 150000 {
+		t.Errorf("expected price 150000, got %f", resp.Price)
+	}
+	if resp.Stock != 100 {
+		t.Errorf("expected stock 100, got %d", resp.Stock)
+	}
+}
+
+func TestGetProductByID_AbsoluteImageURLPassthrough(t *testing.T) {
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+	productID := uuid.New()
+	absoluteURL := "https://cdn.example.com/products/img.jpg"
+
+	productRepo.EXPECT().FindByID(ctx, productID).Return(&domain.Product{
+		ID:            productID,
+		VendorID:      vendorID,
+		Name:          "Sajadah Premium",
+		Status:        domain.ProductStatusPublished,
+		HalalAIStatus: domain.HalalAIStatusPending,
+	}, nil)
+	productRepo.EXPECT().FindVariantsByProductID(ctx, productID).Return([]domain.ProductVariant{
+		{ID: uuid.New(), ProductID: productID, IsDefault: true, Price: 150000, Currency: "IDR", StockOnHand: 10, IsActive: true},
+	}, nil)
+	productRepo.EXPECT().FindImagesByProductID(ctx, productID).Return([]domain.ProductImage{
+		{ID: uuid.New(), ProductID: productID, ImageURL: absoluteURL, IsPrimary: true, SortOrder: 0},
+	}, nil)
+
+	resp, err := uc.GetProductByID(ctx, vendorID, productID)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(resp.Images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(resp.Images))
+	}
+	if resp.Images[0].URL != absoluteURL {
+		t.Errorf("expected absolute URL unchanged, got %s", resp.Images[0].URL)
+	}
+}
+
+func TestGetProductByID_PresignedURLError(t *testing.T) {
+	productRepo, _, _, _, storage, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+	productID := uuid.New()
+	imageKey := "products/abc/images/img-1.jpg"
+	errPresign := errors.New("s3 error")
+
+	productRepo.EXPECT().FindByID(ctx, productID).Return(&domain.Product{
+		ID:            productID,
+		VendorID:      vendorID,
+		Status:        domain.ProductStatusPublished,
+		HalalAIStatus: domain.HalalAIStatusPending,
+	}, nil)
+	productRepo.EXPECT().FindVariantsByProductID(ctx, productID).Return([]domain.ProductVariant{
+		{ID: uuid.New(), ProductID: productID, IsDefault: true, Price: 150000, Currency: "IDR", StockOnHand: 10, IsActive: true},
+	}, nil)
+	productRepo.EXPECT().FindImagesByProductID(ctx, productID).Return([]domain.ProductImage{
+		{ID: uuid.New(), ProductID: productID, ImageURL: imageKey, IsPrimary: true, SortOrder: 0},
+	}, nil)
+	storage.EXPECT().GeneratePresignedURL(ctx, imageKey, PresignedDownloadExpiry).Return("", errPresign)
+
+	_, err := uc.GetProductByID(ctx, vendorID, productID)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, errPresign) {
+		t.Errorf("expected wrapped presign error, got %v", err)
+	}
+}
+
+func TestGetProductByID_ProductNotFound(t *testing.T) {
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+	productID := uuid.New()
+
+	productRepo.EXPECT().FindByID(ctx, productID).Return(nil, nil)
+
+	_, err := uc.GetProductByID(ctx, vendorID, productID)
+	if !errors.Is(err, ErrProductNotFound) {
+		t.Errorf("expected ErrProductNotFound, got %v", err)
+	}
+}
+
+func TestGetProductByID_ProductNotOwned(t *testing.T) {
+	productRepo, _, _, _, _, uc := setupProductUseCase(t)
+	ctx := context.Background()
+
+	vendorID := uuid.New()
+	otherVendorID := uuid.New()
+	productID := uuid.New()
+
+	productRepo.EXPECT().FindByID(ctx, productID).Return(&domain.Product{
+		ID:       productID,
+		VendorID: otherVendorID,
+	}, nil)
+
+	_, err := uc.GetProductByID(ctx, vendorID, productID)
+	if !errors.Is(err, ErrProductNotOwned) {
+		t.Errorf("expected ErrProductNotOwned, got %v", err)
+	}
+}
+
+// ============================================================
 // Helper functions (unit tests)
 // ============================================================
 

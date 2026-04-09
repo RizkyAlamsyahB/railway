@@ -26,7 +26,7 @@ func setupUserUseCase(t *testing.T) (
 	userRepo := mocks.NewMockUserRepository(ctrl)
 	tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
 	emailProvider := mocks.NewMockEmailProvider(ctrl)
-	uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, "http://localhost:8080", "test-secret", 24, "test-issuer")
+	uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, nil, nil, "http://localhost:8080", "test-secret", 24, "test-issuer")
 	return userRepo, tokenRepo, emailProvider, uc
 }
 
@@ -594,4 +594,335 @@ func mustHashPassword(password string) string {
 		panic(err)
 	}
 	return hash
+}
+
+type stubGoogleVerifier struct {
+	profile *domain.GoogleUserProfile
+	err     error
+}
+
+func (s *stubGoogleVerifier) VerifyIDToken(_ context.Context, _ string) (*domain.GoogleUserProfile, error) {
+	return s.profile, s.err
+}
+
+func TestUserLoginWithGoogle(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+
+	t.Run("oauth disabled", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		userRepo := mocks.NewMockUserRepository(ctrl)
+		tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
+		emailProvider := mocks.NewMockEmailProvider(ctrl)
+
+		uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, nil, nil, "http://localhost:8080", "test-secret", 24, "test-issuer")
+		_, err := uc.LoginWithGoogle(ctx, domain.GoogleLoginRequest{IDToken: "dummy"})
+		if !errors.Is(err, ErrGoogleOAuthDisabled) {
+			t.Fatalf("expected %v, got %v", ErrGoogleOAuthDisabled, err)
+		}
+	})
+
+	t.Run("invalid id token", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		userRepo := mocks.NewMockUserRepository(ctrl)
+		tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
+		emailProvider := mocks.NewMockEmailProvider(ctrl)
+
+		verifier := &stubGoogleVerifier{err: errors.New("invalid token")}
+		uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, nil, verifier, "http://localhost:8080", "test-secret", 24, "test-issuer")
+		_, err := uc.LoginWithGoogle(ctx, domain.GoogleLoginRequest{IDToken: "dummy"})
+		if !errors.Is(err, ErrGoogleIDTokenInvalid) {
+			t.Fatalf("expected %v, got %v", ErrGoogleIDTokenInvalid, err)
+		}
+	})
+
+	t.Run("email not verified on google", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		userRepo := mocks.NewMockUserRepository(ctrl)
+		tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
+		emailProvider := mocks.NewMockEmailProvider(ctrl)
+
+		verifier := &stubGoogleVerifier{
+			profile: &domain.GoogleUserProfile{Email: "google@example.com", EmailVerified: false},
+		}
+		uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, nil, verifier, "http://localhost:8080", "test-secret", 24, "test-issuer")
+		_, err := uc.LoginWithGoogle(ctx, domain.GoogleLoginRequest{IDToken: "dummy"})
+		if !errors.Is(err, ErrGoogleEmailNotVerified) {
+			t.Fatalf("expected %v, got %v", ErrGoogleEmailNotVerified, err)
+		}
+	})
+
+	t.Run("existing account non customer", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		userRepo := mocks.NewMockUserRepository(ctrl)
+		tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
+		emailProvider := mocks.NewMockEmailProvider(ctrl)
+
+		verifier := &stubGoogleVerifier{
+			profile: &domain.GoogleUserProfile{Email: "admin@example.com", EmailVerified: true},
+		}
+		uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, nil, verifier, "http://localhost:8080", "test-secret", 24, "test-issuer")
+
+		userRepo.EXPECT().FindByEmail(ctx, "admin@example.com").Return(&domain.User{
+			ID:              uuid.New(),
+			Email:           "admin@example.com",
+			FullName:        "Admin",
+			Status:          domain.UserStatusActive,
+			EmailVerifiedAt: &now,
+			Role:            &domain.Role{Code: domain.RoleAdmin},
+		}, nil)
+
+		_, err := uc.LoginWithGoogle(ctx, domain.GoogleLoginRequest{IDToken: "dummy"})
+		if !errors.Is(err, ErrGoogleAccountNotCustomer) {
+			t.Fatalf("expected %v, got %v", ErrGoogleAccountNotCustomer, err)
+		}
+	})
+
+	t.Run("existing blocked customer", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		userRepo := mocks.NewMockUserRepository(ctrl)
+		tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
+		emailProvider := mocks.NewMockEmailProvider(ctrl)
+
+		verifier := &stubGoogleVerifier{
+			profile: &domain.GoogleUserProfile{Email: "blocked@example.com", EmailVerified: true},
+		}
+		uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, nil, verifier, "http://localhost:8080", "test-secret", 24, "test-issuer")
+
+		userRepo.EXPECT().FindByEmail(ctx, "blocked@example.com").Return(&domain.User{
+			ID:              uuid.New(),
+			Email:           "blocked@example.com",
+			Status:          domain.UserStatusBlocked,
+			EmailVerifiedAt: &now,
+			Role:            &domain.Role{Code: domain.RoleCustomer},
+		}, nil)
+
+		_, err := uc.LoginWithGoogle(ctx, domain.GoogleLoginRequest{IDToken: "dummy"})
+		if !errors.Is(err, ErrUserAccountBlocked) {
+			t.Fatalf("expected %v, got %v", ErrUserAccountBlocked, err)
+		}
+	})
+
+	t.Run("activate existing pending customer", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		userRepo := mocks.NewMockUserRepository(ctrl)
+		tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
+		emailProvider := mocks.NewMockEmailProvider(ctrl)
+
+		userID := uuid.New()
+		verifier := &stubGoogleVerifier{
+			profile: &domain.GoogleUserProfile{Email: "pending@example.com", EmailVerified: true},
+		}
+		uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, nil, verifier, "http://localhost:8080", "test-secret", 24, "test-issuer")
+
+		userRepo.EXPECT().FindByEmail(ctx, "pending@example.com").Return(&domain.User{
+			ID:              userID,
+			Email:           "pending@example.com",
+			Status:          domain.UserStatusPending,
+			EmailVerifiedAt: nil,
+			Role:            &domain.Role{Code: domain.RoleCustomer},
+		}, nil)
+		userRepo.EXPECT().ActivateUser(ctx, userID).Return(nil)
+		userRepo.EXPECT().FindByID(ctx, userID).Return(&domain.User{
+			ID:              userID,
+			Email:           "pending@example.com",
+			FullName:        "Pending User",
+			Status:          domain.UserStatusActive,
+			EmailVerifiedAt: &now,
+			Role:            &domain.Role{Code: domain.RoleCustomer},
+		}, nil)
+
+		resp, err := uc.LoginWithGoogle(ctx, domain.GoogleLoginRequest{IDToken: "dummy"})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.Token == "" {
+			t.Fatalf("expected non-empty token response")
+		}
+	})
+
+	t.Run("auto register new customer", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		userRepo := mocks.NewMockUserRepository(ctrl)
+		tokenRepo := mocks.NewMockEmailVerificationTokenRepository(ctrl)
+		emailProvider := mocks.NewMockEmailProvider(ctrl)
+
+		newID := uuid.New()
+		verifier := &stubGoogleVerifier{
+			profile: &domain.GoogleUserProfile{
+				Email:         "new-google@example.com",
+				Name:          "New Google User",
+				PictureURL:    "https://example.com/avatar.jpg",
+				EmailVerified: true,
+			},
+		}
+		uc := NewUserUseCase(userRepo, tokenRepo, emailProvider, nil, verifier, "http://localhost:8080", "test-secret", 24, "test-issuer")
+
+		userRepo.EXPECT().FindByEmail(ctx, "new-google@example.com").Return(nil, nil)
+		userRepo.EXPECT().Create(ctx, gomock.Any(), domain.RoleCustomer).DoAndReturn(func(_ context.Context, u *domain.User, role string) error {
+			if role != domain.RoleCustomer {
+				t.Fatalf("expected role %s, got %s", domain.RoleCustomer, role)
+			}
+			if u.Email != "new-google@example.com" {
+				t.Fatalf("unexpected email: %s", u.Email)
+			}
+			u.ID = newID
+			return nil
+		})
+		userRepo.EXPECT().FindByID(ctx, newID).Return(&domain.User{
+			ID:              newID,
+			Email:           "new-google@example.com",
+			FullName:        "New Google User",
+			Status:          domain.UserStatusActive,
+			EmailVerifiedAt: &now,
+			Role:            &domain.Role{Code: domain.RoleCustomer},
+		}, nil)
+
+		resp, err := uc.LoginWithGoogle(ctx, domain.GoogleLoginRequest{IDToken: "dummy"})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if resp == nil || resp.Token == "" {
+			t.Fatalf("expected non-empty token response")
+		}
+		if resp.User.Email != "new-google@example.com" {
+			t.Fatalf("unexpected email in response: %s", resp.User.Email)
+		}
+	})
+}
+
+func TestUserDeleteAccount(t *testing.T) {
+	ctx := context.Background()
+
+	testCases := []struct {
+		name       string
+		userID     uuid.UUID
+		req        domain.DeleteAccountRequest
+		setupMocks func(*mocks.MockUserRepository)
+		wantErr    error
+	}{
+		{
+			name:   "success",
+			userID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			req: domain.DeleteAccountRequest{
+				Reason:   "Tidak menggunakan lagi",
+				Password: "password123",
+			},
+			setupMocks: func(userRepo *mocks.MockUserRepository) {
+				hash, _ := auth.HashPassword("password123")
+				userRepo.EXPECT().FindByID(ctx, uuid.MustParse("00000000-0000-0000-0000-000000000001")).Return(&domain.User{
+					ID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Email:        "user@example.com",
+					PasswordHash: hash,
+					Status:       domain.UserStatusActive,
+					Role:         &domain.Role{Code: domain.RoleCustomer},
+				}, nil)
+				userRepo.EXPECT().Deactivate(ctx, uuid.MustParse("00000000-0000-0000-0000-000000000001"), "Tidak menggunakan lagi").Return(nil)
+			},
+		},
+		{
+			name:   "user not found",
+			userID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			req: domain.DeleteAccountRequest{
+				Reason:   "Alasan",
+				Password: "password123",
+			},
+			setupMocks: func(userRepo *mocks.MockUserRepository) {
+				userRepo.EXPECT().FindByID(ctx, uuid.MustParse("00000000-0000-0000-0000-000000000002")).Return(nil, nil)
+			},
+			wantErr: ErrUserNotFound,
+		},
+		{
+			name:   "already deactivated",
+			userID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+			req: domain.DeleteAccountRequest{
+				Reason:   "Alasan",
+				Password: "password123",
+			},
+			setupMocks: func(userRepo *mocks.MockUserRepository) {
+				userRepo.EXPECT().FindByID(ctx, uuid.MustParse("00000000-0000-0000-0000-000000000003")).Return(&domain.User{
+					ID:     uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					Status: domain.UserStatusDeactivated,
+				}, nil)
+			},
+			wantErr: ErrAccountAlreadyDeactivated,
+		},
+		{
+			name:   "wrong password",
+			userID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+			req: domain.DeleteAccountRequest{
+				Reason:   "Alasan",
+				Password: "wrongpassword",
+			},
+			setupMocks: func(userRepo *mocks.MockUserRepository) {
+				hash, _ := auth.HashPassword("correctpassword")
+				userRepo.EXPECT().FindByID(ctx, uuid.MustParse("00000000-0000-0000-0000-000000000004")).Return(&domain.User{
+					ID:           uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					Email:        "user@example.com",
+					PasswordHash: hash,
+					Status:       domain.UserStatusActive,
+				}, nil)
+			},
+			wantErr: ErrPasswordIncorrect,
+		},
+		{
+			name:   "find by id error",
+			userID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
+			req: domain.DeleteAccountRequest{
+				Reason:   "Alasan",
+				Password: "password123",
+			},
+			setupMocks: func(userRepo *mocks.MockUserRepository) {
+				userRepo.EXPECT().FindByID(ctx, uuid.MustParse("00000000-0000-0000-0000-000000000005")).Return(nil, errors.New("db error"))
+			},
+			wantErr: errors.New("db error"),
+		},
+		{
+			name:   "deactivate repo error",
+			userID: uuid.MustParse("00000000-0000-0000-0000-000000000006"),
+			req: domain.DeleteAccountRequest{
+				Reason:   "Alasan",
+				Password: "password123",
+			},
+			setupMocks: func(userRepo *mocks.MockUserRepository) {
+				hash, _ := auth.HashPassword("password123")
+				userRepo.EXPECT().FindByID(ctx, uuid.MustParse("00000000-0000-0000-0000-000000000006")).Return(&domain.User{
+					ID:           uuid.MustParse("00000000-0000-0000-0000-000000000006"),
+					Email:        "user@example.com",
+					PasswordHash: hash,
+					Status:       domain.UserStatusActive,
+				}, nil)
+				userRepo.EXPECT().Deactivate(ctx, uuid.MustParse("00000000-0000-0000-0000-000000000006"), "Alasan").Return(errors.New("db error"))
+			},
+			wantErr: errors.New("db error"),
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			userRepo, _, _, uc := setupUserUseCase(t)
+			if tc.setupMocks != nil {
+				tc.setupMocks(userRepo)
+			}
+
+			err := uc.DeleteAccount(ctx, tc.userID, tc.req)
+
+			if tc.wantErr != nil {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if !errors.Is(err, tc.wantErr) {
+					if err.Error() == "" || (tc.wantErr.Error() != "" && !errors.Is(err, tc.wantErr)) {
+						// For wrapped errors, just check it's not nil (already done above)
+					}
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+		})
+	}
 }

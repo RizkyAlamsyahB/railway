@@ -10,6 +10,8 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 )
 
+const vendorProposalDocumentMaxBytes int64 = 10 * 1024 * 1024 // 10 MB
+
 func (uc *vendorUseCase) PresignSouvenirStoreProposalDocuments(
 	ctx context.Context,
 	vendorID uuid.UUID,
@@ -190,6 +192,33 @@ func (uc *vendorUseCase) SubmitSouvenirStoreProposal(
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		},
+	}
+
+	for i := range documents {
+		expectedPrefix := fmt.Sprintf("vendors/%s/documents/%s/", vendorID.String(), documents[i].DocType)
+		if !strings.HasPrefix(documents[i].FileURL, expectedPrefix) {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidDocumentObjectKey, documents[i].DocType)
+		}
+
+		info, err := uc.storage.HeadObject(ctx, documents[i].FileURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify document object %s: %w", documents[i].DocType, err)
+		}
+		if info == nil {
+			return nil, fmt.Errorf("%w: %s", ErrObjectNotUploaded, documents[i].DocType)
+		}
+
+		contentType := normalizeContentType(info.ContentType)
+		if !isAllowedDocumentContentType(contentType) {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidDocumentContent, documents[i].DocType)
+		}
+		if info.ContentLength <= 0 || info.ContentLength > vendorProposalDocumentMaxBytes {
+			return nil, fmt.Errorf("%w: %s", ErrDocumentSizeOverflow, documents[i].DocType)
+		}
+
+		fileSize := int(info.ContentLength)
+		documents[i].MimeType = &contentType
+		documents[i].FileSizeBytes = &fileSize
 	}
 
 	if err := uc.vendorRepo.SubmitSouvenirStoreProposal(ctx, domain.SubmitSouvenirStoreProposalInput{

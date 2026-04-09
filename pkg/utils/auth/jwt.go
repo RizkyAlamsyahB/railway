@@ -8,16 +8,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// GenerateToken creates a signed JWT with the given user ID, email, role, and optional vendor ID.
+// GenerateToken creates a signed JWT with the given user ID, email, role, optional vendor ID, and optional password changed timestamp.
 // The token is signed using HMAC-SHA256 with the provided secret.
-func GenerateToken(userID uuid.UUID, email string, role string, vendorID *uuid.UUID, secret string, expiryHours int, issuer string) (string, error) {
+func GenerateToken(userID uuid.UUID, email string, role string, vendorID *uuid.UUID, passwordChangedAt *time.Time, secret string, expiryHours int, issuer string) (string, error) {
 	now := time.Now()
 
 	claims := Claims{
-		UserID:   userID,
-		Email:    email,
-		Role:     role,
-		VendorID: vendorID,
+		UserID:            userID,
+		Email:             email,
+		Role:              role,
+		VendorID:          vendorID,
+		PasswordChangedAt: passwordChangedAt,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID.String(),
 			Issuer:    issuer,

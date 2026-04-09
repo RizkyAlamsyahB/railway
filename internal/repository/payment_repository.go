@@ -228,6 +228,99 @@ func (r *paymentRepository) ListForAdmin(ctx context.Context, params domain.Admi
 	return items, total, nil
 }
 
+func (r *paymentRepository) SummaryForAdmin(ctx context.Context, params domain.AdminPaymentListParams) (*domain.AdminPaymentSummary, error) {
+	// Use a clean base query without status filter for summary.
+	summaryParams := params
+	summaryParams.Status = ""
+	base := r.adminPaymentBaseQuery(ctx, summaryParams)
+
+	type statusSum struct {
+		Status string  `gorm:"column:status"`
+		Total  float64 `gorm:"column:total"`
+	}
+
+	var rows []statusSum
+	if err := base.Select("pi.status AS status, COALESCE(SUM(pi.amount), 0) AS total").
+		Group("pi.status").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	summary := &domain.AdminPaymentSummary{}
+	for _, row := range rows {
+		summary.TotalAmount += row.Total
+		switch row.Status {
+		case "paid":
+			summary.PaidAmount += row.Total
+		case "pending":
+			summary.PendingAmount += row.Total
+		case "failed", "expired":
+			summary.FailedAmount += row.Total
+		}
+	}
+
+	return summary, nil
+}
+
+func (r *paymentRepository) ExportForAdmin(ctx context.Context, params domain.AdminPaymentListParams) ([]domain.AdminPaymentListItem, error) {
+	base := r.adminPaymentBaseQuery(ctx, params)
+
+	type row struct {
+		InvoiceID     string         `gorm:"column:invoice_id"`
+		OrderID       string         `gorm:"column:order_id"`
+		OrderNo       string         `gorm:"column:order_no"`
+		CustomerName  string         `gorm:"column:customer_name"`
+		VendorName    string         `gorm:"column:vendor_name"`
+		PaymentMethod sql.NullString `gorm:"column:payment_method"`
+		Amount        float64        `gorm:"column:amount"`
+		Status        string         `gorm:"column:status"`
+		CreatedAt     time.Time      `gorm:"column:created_at"`
+	}
+
+	query := base.Select(`
+		pi.id AS invoice_id,
+		pi.order_id AS order_id,
+		o.order_no AS order_no,
+		u.full_name AS customer_name,
+		v.display_name AS vendor_name,
+		pi.payment_method AS payment_method,
+		pi.amount AS amount,
+		pi.status AS status,
+		pi.created_at AS created_at
+	`)
+
+	orderClause := r.buildAdminPaymentOrderClause(params.SortBy, params.SortOrder)
+	query = query.Order(orderClause)
+
+	var rows []row
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	items := make([]domain.AdminPaymentListItem, len(rows))
+	for i, r := range rows {
+		invoiceID, _ := uuid.Parse(r.InvoiceID)
+		orderID, _ := uuid.Parse(r.OrderID)
+		var method *string
+		if r.PaymentMethod.Valid {
+			method = &r.PaymentMethod.String
+		}
+		items[i] = domain.AdminPaymentListItem{
+			InvoiceID:     invoiceID,
+			OrderID:       orderID,
+			OrderNo:       r.OrderNo,
+			CustomerName:  r.CustomerName,
+			VendorName:    r.VendorName,
+			PaymentMethod: method,
+			Amount:        r.Amount,
+			Status:        r.Status,
+			CreatedAt:     r.CreatedAt,
+		}
+	}
+
+	return items, nil
+}
+
 func (r *paymentRepository) adminPaymentBaseQuery(ctx context.Context, params domain.AdminPaymentListParams) *gorm.DB {
 	query := r.db.WithContext(ctx).
 		Table("payment_invoices pi").
@@ -245,6 +338,13 @@ func (r *paymentRepository) adminPaymentBaseQuery(ctx context.Context, params do
 			"(LOWER(u.full_name) LIKE ? OR LOWER(o.order_no) LIKE ?)",
 			search, search,
 		)
+	}
+
+	if params.StartDate != nil {
+		query = query.Where("pi.created_at >= ?", *params.StartDate)
+	}
+	if params.EndDate != nil {
+		query = query.Where("pi.created_at < ?", *params.EndDate)
 	}
 
 	return query

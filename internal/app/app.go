@@ -2,11 +2,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/config"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/handler"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/delivery/http/router"
@@ -14,11 +18,13 @@ import (
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/database"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/email"
+	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/oauth"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/payment"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/shipping"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/infrastructure/storage"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/repository"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/internal/usecase"
+	migrations "github.com/media-inovasi-strategis/haji-umroh-store-be/migrations"
 	"github.com/media-inovasi-strategis/haji-umroh-store-be/pkg/utils/sensitivedata"
 	"gorm.io/gorm"
 )
@@ -51,6 +57,10 @@ func Initialize() (*App, error) {
 	}
 
 	log.Println("database connected successfully")
+
+	if err := autoMigrate(db, cfg.Database); err != nil {
+		return nil, fmt.Errorf("failed to run database migrations: %w", err)
+	}
 
 	// Initialize storage provider
 	storageProvider, err := newStorageProvider(cfg.Storage)
@@ -115,6 +125,12 @@ func Initialize() (*App, error) {
 
 	adminAuthUseCase := usecase.NewAdminAuthUseCase(userRepo, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	adminLoginHandler := handler.NewAdminLoginHandler(adminAuthUseCase)
+	adminDashboardRepo := repository.NewAdminDashboardRepository(db)
+	adminDashboardUseCase := usecase.NewAdminDashboardUseCase(adminDashboardRepo)
+	adminDashboardHandler := handler.NewAdminDashboardHandler(adminDashboardUseCase)
+	adminReportRepo := repository.NewAdminReportRepository(db)
+	adminReportUseCase := usecase.NewAdminReportUseCase(adminReportRepo)
+	adminReportHandler := handler.NewAdminReportHandler(adminReportUseCase)
 
 	otpRepo := repository.NewOTPRepository(db)
 	otpSigningSecret := cfg.OTP.Secret
@@ -173,15 +189,20 @@ func Initialize() (*App, error) {
 	categoryRepo := repository.NewCategoryRepository(db)
 	productRepo := repository.NewProductRepository(db)
 
+	// Courier repository (needed by catalog + vendor courier management)
+	courierRepo := repository.NewCourierRepository(db)
+	vendorCourierRepo := repository.NewVendorCourierRepository(db)
+
 	productUseCase := usecase.NewProductUseCase(productRepo, vendorRepo, categoryRepo, addressRepo, storageProvider)
 	productHandler := handler.NewProductHandler(productUseCase)
 
-	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, productRepo, storageProvider)
+	catalogUseCase := usecase.NewCatalogUseCase(categoryRepo, productRepo, vendorRepo, addressRepo, vendorCourierRepo, rajaOngkirProvider, storageProvider)
 	catalogHandler := handler.NewCatalogHandler(catalogUseCase)
 
 	// User registration & email verification
 	emailVerifRepo := repository.NewEmailVerificationTokenRepository(db)
-	userUseCase := usecase.NewUserUseCase(userRepo, emailVerifRepo, emailProvider, cfg.App.BaseURL, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
+	googleOAuthVerifier := oauth.NewGoogleVerifier(cfg.GoogleOAuth)
+	userUseCase := usecase.NewUserUseCase(userRepo, emailVerifRepo, emailProvider, otpUseCase, googleOAuthVerifier, cfg.App.BaseURL, cfg.JWT.Secret, cfg.JWT.ExpiryHours, cfg.JWT.Issuer)
 	userHandler := handler.NewUserHandler(userUseCase, cfg.App.FrontendURL)
 
 	// Cart feature
@@ -235,8 +256,6 @@ func Initialize() (*App, error) {
 	vendorVoucherHandler := handler.NewVendorVoucherHandler(vendorVoucherUseCase)
 
 	// Courier management (vendor selects supported couriers)
-	courierRepo := repository.NewCourierRepository(db)
-	vendorCourierRepo := repository.NewVendorCourierRepository(db)
 	vendorCourierUseCase := usecase.NewVendorCourierUseCase(courierRepo, vendorCourierRepo)
 	vendorCourierHandler := handler.NewVendorCourierHandler(vendorCourierUseCase)
 
@@ -300,10 +319,19 @@ func Initialize() (*App, error) {
 	vendorOrderUseCase := usecase.NewVendorOrderUseCase(vendorOrderRepo, orderRepo, shipmentRepo, paymentRepo, userRepo, vendorRepo, rajaOngkirProvider, xenditRefundProvider, customerRefundRepo, userBankAccountRepo, financeRepo)
 	vendorOrderHandler := handler.NewVendorOrderHandler(vendorOrderUseCase)
 
+	// Vendor Dashboard
+	vendorDashboardUseCase := usecase.NewVendorDashboardUseCase(vendorOrderRepo, vendorRepo, notificationRepo)
+	vendorDashboardHandler := handler.NewVendorDashboardHandler(vendorDashboardUseCase)
+
+	// Vendor Report / Laporan Pendapatan
+	vendorReportRepo := repository.NewVendorReportRepository(db)
+	vendorReportUseCase := usecase.NewVendorReportUseCase(vendorReportRepo)
+	vendorReportHandler := handler.NewVendorReportHandler(vendorReportUseCase)
+
 	reviewRepo := repository.NewReviewRepository(db)
 
 	// Store detail (public endpoint)
-	storeUseCase := usecase.NewStoreUseCase(vendorRepo, productRepo, vendorBannerRepo, reviewRepo, storageProvider)
+	storeUseCase := usecase.NewStoreUseCase(vendorRepo, productRepo, vendorBannerRepo, reviewRepo, addressRepo, storageProvider)
 	storeHandler := handler.NewStoreHandler(storeUseCase)
 
 	reviewUseCase := usecase.NewReviewUseCase(reviewRepo, orderRepo, productRepo, storageProvider)
@@ -332,6 +360,8 @@ func Initialize() (*App, error) {
 		adminUserHandler,
 		adminVendorHandler,
 		adminLoginHandler,
+		adminDashboardHandler,
+		adminReportHandler,
 		vendorHandler,
 		productHandler,
 		catalogHandler,
@@ -365,6 +395,8 @@ func Initialize() (*App, error) {
 		shippingHandler,
 		vendorCourierHandler,
 		vendorOrderHandler,
+		vendorDashboardHandler,
+		vendorReportHandler,
 		storeHandler,
 		adminPaymentHandler,
 		userBankAccountHandler,
@@ -467,4 +499,35 @@ func (a *App) Close() error {
 		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
 	return sqlDB.Close()
+}
+
+// autoMigrate applies any pending database migrations at startup using
+// the SQL files embedded in the binary via migrations.Files.
+func autoMigrate(db *gorm.DB, cfg config.DatabaseConfig) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get underlying sql.DB: %w", err)
+	}
+
+	src, err := iofs.New(migrations.Files, ".")
+	if err != nil {
+		return fmt.Errorf("create migration source: %w", err)
+	}
+
+	driver, err := postgres.WithInstance(sqlDB, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("create migration driver: %w", err)
+	}
+
+	m, err := migrate.NewWithInstance("iofs", src, cfg.Name, driver)
+	if err != nil {
+		return fmt.Errorf("create migrator: %w", err)
+	}
+
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("apply migrations: %w", err)
+	}
+
+	log.Println("database migrations applied successfully")
+	return nil
 }

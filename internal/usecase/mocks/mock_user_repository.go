@@ -70,6 +70,20 @@ func (mr *MockUserRepositoryMockRecorder) Create(ctx, user, roleCode any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockUserRepository)(nil).Create), ctx, user, roleCode)
 }
 
+// Deactivate mocks base method.
+func (m *MockUserRepository) Deactivate(ctx context.Context, id uuid.UUID, reason string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Deactivate", ctx, id, reason)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Deactivate indicates an expected call of Deactivate.
+func (mr *MockUserRepositoryMockRecorder) Deactivate(ctx, id, reason any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Deactivate", reflect.TypeOf((*MockUserRepository)(nil).Deactivate), ctx, id, reason)
+}
+
 // Delete mocks base method.
 func (m *MockUserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -157,6 +171,20 @@ func (m *MockUserRepository) Update(ctx context.Context, user *domain.User) erro
 func (mr *MockUserRepositoryMockRecorder) Update(ctx, user any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockUserRepository)(nil).Update), ctx, user)
+}
+
+// UpdatePasswordHash mocks base method.
+func (m *MockUserRepository) UpdatePasswordHash(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePasswordHash", ctx, userID, passwordHash)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdatePasswordHash indicates an expected call of UpdatePasswordHash.
+func (mr *MockUserRepositoryMockRecorder) UpdatePasswordHash(ctx, userID, passwordHash any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePasswordHash", reflect.TypeOf((*MockUserRepository)(nil).UpdatePasswordHash), ctx, userID, passwordHash)
 }
 
 // UpdateWithRole mocks base method.

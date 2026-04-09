@@ -22,6 +22,7 @@ type productModel struct {
 	Slug          string    `gorm:"column:slug"`
 	Description   string    `gorm:"column:description"`
 	Status        string    `gorm:"column:status"`
+	ProductType   string    `gorm:"column:product_type"`
 	HalalAIStatus string    `gorm:"column:halal_ai_status"`
 	HalalAINotes  *string   `gorm:"column:halal_ai_notes"`
 	CreatedAt     time.Time `gorm:"column:created_at"`
@@ -220,21 +221,29 @@ func (r *productRepository) FindVariantByID(ctx context.Context, id uuid.UUID) (
 
 func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, id uuid.UUID) (*domain.ProductDetailResponse, error) {
 	type productDetailRow struct {
-		ID                string    `gorm:"column:id"`
-		Name              string    `gorm:"column:name"`
-		Slug              string    `gorm:"column:slug"`
-		Description       string    `gorm:"column:description"`
-		Status            string    `gorm:"column:status"`
-		HalalAIStatus     string    `gorm:"column:halal_ai_status"`
-		CategoryID        string    `gorm:"column:category_id"`
-		CategoryName      string    `gorm:"column:category_name"`
-		CategorySlug      string    `gorm:"column:category_slug"`
-		VendorID          string    `gorm:"column:vendor_id"`
-		VendorDisplayName string    `gorm:"column:vendor_display_name"`
-		RatingAverage     float64   `gorm:"column:rating_average"`
-		RatingCount       int64     `gorm:"column:rating_count"`
-		CreatedAt         time.Time `gorm:"column:created_at"`
-		UpdatedAt         time.Time `gorm:"column:updated_at"`
+		ID                    string    `gorm:"column:id"`
+		Name                  string    `gorm:"column:name"`
+		Slug                  string    `gorm:"column:slug"`
+		Description           string    `gorm:"column:description"`
+		Status                string    `gorm:"column:status"`
+		HalalAIStatus         string    `gorm:"column:halal_ai_status"`
+		CategoryID            string    `gorm:"column:category_id"`
+		CategoryName          string    `gorm:"column:category_name"`
+		CategorySlug          string    `gorm:"column:category_slug"`
+		VendorID              string    `gorm:"column:vendor_id"`
+		VendorDisplayName     string    `gorm:"column:vendor_display_name"`
+		VendorAddressLine     *string   `gorm:"column:vendor_address_line"`
+		VendorSubdistrictName *string   `gorm:"column:vendor_subdistrict_name"`
+		VendorDistrictName    *string   `gorm:"column:vendor_district_name"`
+		VendorCityName        *string   `gorm:"column:vendor_city_name"`
+		VendorProvinceName    *string   `gorm:"column:vendor_province_name"`
+		VendorPostalCode      *string   `gorm:"column:vendor_postal_code"`
+		RatingAverage         float64   `gorm:"column:rating_average"`
+		RatingCount           int64     `gorm:"column:rating_count"`
+		StockRemaining        int       `gorm:"column:stock_remaining"`
+		TotalSold             int       `gorm:"column:total_sold"`
+		CreatedAt             time.Time `gorm:"column:created_at"`
+		UpdatedAt             time.Time `gorm:"column:updated_at"`
 	}
 
 	var row productDetailRow
@@ -252,13 +261,22 @@ func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, i
 			c.slug AS category_slug,
 			p.vendor_id,
 			v.display_name AS vendor_display_name,
+			COALESCE(v.address_line, da.address_line) AS vendor_address_line,
+			COALESCE(v.subdistrict_name, da.subdistrict_name) AS vendor_subdistrict_name,
+			COALESCE(v.district_name, da.district_name) AS vendor_district_name,
+			COALESCE(v.city_name, da.city_name) AS vendor_city_name,
+			COALESCE(v.province_name, da.province_name) AS vendor_province_name,
+			COALESCE(v.postal_code, da.postal_code) AS vendor_postal_code,
 			COALESCE(prs.average_rating, 0) AS rating_average,
 			COALESCE(prs.total_reviews, 0) AS rating_count,
+			COALESCE((SELECT SUM(pvs.stock_on_hand) FROM product_variants pvs WHERE pvs.product_id = p.id AND pvs.is_active = true), 0) AS stock_remaining,
+			COALESCE((SELECT SUM(oi.qty) FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN product_variants pv2 ON pv2.id = oi.product_variant_id WHERE pv2.product_id = p.id AND o.order_status IN ('completed','received')), 0) AS total_sold,
 			p.created_at,
 			p.updated_at
 		`).
 		Joins("JOIN categories c ON c.id = p.category_id").
 		Joins("JOIN vendors v ON v.id = p.vendor_id").
+		Joins("LEFT JOIN addresses da ON da.user_id = v.owner_user_id AND da.is_default = true").
 		Joins("LEFT JOIN product_review_stats prs ON prs.product_id = p.id").
 		Where("p.id = ?", id.String()).
 		Where("p.status = ?", domain.ProductStatusPublished).
@@ -338,6 +356,16 @@ func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, i
 	categoryID, _ := uuid.Parse(row.CategoryID)
 	vendorID, _ := uuid.Parse(row.VendorID)
 
+	// Build vendor location string from address parts.
+	vendorLocation := buildProductVendorLocation(
+		row.VendorAddressLine,
+		row.VendorSubdistrictName,
+		row.VendorDistrictName,
+		row.VendorCityName,
+		row.VendorProvinceName,
+		row.VendorPostalCode,
+	)
+
 	return &domain.ProductDetailResponse{
 		ID:            productID,
 		Name:          row.Name,
@@ -353,13 +381,17 @@ func (r *productRepository) GetPublishedDetailForCustomer(ctx context.Context, i
 		Vendor: domain.ProductDetailVendor{
 			ID:          vendorID,
 			DisplayName: row.VendorDisplayName,
+			Location:    vendorLocation,
 		},
-		RatingAverage: row.RatingAverage,
-		RatingCount:   row.RatingCount,
-		Images:        imageItems,
-		Variants:      variantItems,
-		CreatedAt:     row.CreatedAt,
-		UpdatedAt:     row.UpdatedAt,
+		RatingAverage:  row.RatingAverage,
+		RatingCount:    row.RatingCount,
+		TotalStock:     row.StockRemaining + row.TotalSold,
+		StockRemaining: row.StockRemaining,
+		TotalSold:      row.TotalSold,
+		Images:         imageItems,
+		Variants:       variantItems,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
 	}, nil
 }
 
@@ -379,6 +411,14 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 		query = query.Where("LOWER(products.name) LIKE ?", search)
 	}
 
+	if params.CategoryID != nil {
+		query = query.Where("products.category_id = ?", *params.CategoryID)
+	}
+
+	if params.ProductType != "" {
+		query = query.Where("products.product_type = ?", params.ProductType)
+	}
+
 	var total int64
 	if err := query.Distinct("products.id").Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -387,6 +427,7 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 	type productListRow struct {
 		ID            string   `gorm:"column:id"`
 		Name          string   `gorm:"column:name"`
+		ImageURL      *string  `gorm:"column:image_url"`
 		Price         float64  `gorm:"column:price"`
 		OriginalPrice float64  `gorm:"column:original_price"`
 		PromoPrice    *float64 `gorm:"column:promo_price"`
@@ -398,6 +439,12 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 	listQuery := query.Select(fmt.Sprintf(`
 			products.id,
 			products.name,
+			(
+				SELECT pi.image_url FROM product_images pi
+				WHERE pi.product_id = products.id
+				ORDER BY pi.is_primary DESC, pi.sort_order ASC
+				LIMIT 1
+			) AS image_url,
 			MIN(pv.price) AS original_price,
 			MIN(%s) AS promo_price,
 			MIN(%s) AS price,
@@ -407,9 +454,23 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 		`, activeVoucherDiscountExpr, effectivePriceExpr)).
 		Group("products.id, products.name, products.created_at, prs.average_rating, prs.total_reviews")
 
-	if params.Sort == "cheapest" {
+	if params.HasPromo != nil && *params.HasPromo {
+		listQuery = listQuery.Having(fmt.Sprintf("MIN(%s) < MIN(pv.price)", effectivePriceExpr))
+	}
+
+	switch params.Sort {
+	case "cheapest":
 		listQuery = listQuery.Order("price ASC").Order("products.created_at DESC")
-	} else {
+	case "expensive":
+		listQuery = listQuery.Order("price DESC").Order("products.created_at DESC")
+	case "bestseller":
+		listQuery = listQuery.Order(`
+			COALESCE((SELECT SUM(oi.qty) FROM order_items oi
+				JOIN orders o ON o.id = oi.order_id
+				JOIN product_variants pv2 ON pv2.id = oi.product_variant_id
+				WHERE pv2.product_id = products.id
+				AND o.order_status IN ('completed','received')), 0) DESC`).Order("products.created_at DESC")
+	default:
 		listQuery = listQuery.Order("products.created_at DESC")
 	}
 
@@ -422,9 +483,14 @@ func (r *productRepository) ListPublishedForCustomer(ctx context.Context, params
 	for i, row := range rows {
 		id, _ := uuid.Parse(row.ID)
 		promoPrice, hasPromo := normalizePromoInfo(row.OriginalPrice, row.Price)
+		var imageURL string
+		if row.ImageURL != nil {
+			imageURL = *row.ImageURL
+		}
 		items[i] = domain.ProductListItem{
 			ID:            id,
 			Name:          row.Name,
+			ImageURL:      imageURL,
 			Price:         row.Price,
 			OriginalPrice: row.OriginalPrice,
 			PromoPrice:    promoPrice,
@@ -542,7 +608,7 @@ func (r *productRepository) UpdateProduct(
 		// 1. Update product row (excludes halal_ai_status).
 		pm := toProductModel(product)
 		if err := tx.Model(&productModel{ID: pm.ID}).
-			Select("name", "slug", "description", "category_id", "status", "updated_at").
+			Select("name", "slug", "description", "category_id", "status", "product_type", "updated_at").
 			Updates(&pm).Error; err != nil {
 			return err
 		}
@@ -707,6 +773,19 @@ func (r *productRepository) ListPublishedByVendorForStore(ctx context.Context, v
 	return items, total, nil
 }
 
+func buildProductVendorLocation(parts ...*string) string {
+	var result []string
+	for _, p := range parts {
+		if p != nil {
+			v := strings.TrimSpace(*p)
+			if v != "" {
+				result = append(result, v)
+			}
+		}
+	}
+	return strings.Join(result, ", ")
+}
+
 func buildActiveVoucherDiscountExpr(productIDCol string) string {
 	return fmt.Sprintf(`
 		(
@@ -743,6 +822,7 @@ func toProductModel(p *domain.Product) productModel {
 		Slug:          p.Slug,
 		Description:   p.Description,
 		Status:        p.Status,
+		ProductType:   p.ProductType,
 		HalalAIStatus: p.HalalAIStatus,
 		HalalAINotes:  p.HalalAINotes,
 		CreatedAt:     p.CreatedAt,
@@ -763,6 +843,7 @@ func toDomainProduct(m *productModel) *domain.Product {
 		Slug:          m.Slug,
 		Description:   m.Description,
 		Status:        m.Status,
+		ProductType:   m.ProductType,
 		HalalAIStatus: m.HalalAIStatus,
 		HalalAINotes:  m.HalalAINotes,
 		CreatedAt:     m.CreatedAt,

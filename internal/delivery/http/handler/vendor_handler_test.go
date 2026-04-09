@@ -62,6 +62,10 @@ func (s stubVendorUseCase) PresignSouvenirStoreProposalDocuments(ctx context.Con
 	return s.presignProposalDocs(ctx, vendorID, userID, req)
 }
 
+func (s stubVendorUseCase) UpdateProfile(ctx context.Context, vendorID uuid.UUID, req domain.VendorUpdateProfileRequest) (*domain.VendorMeResponse, error) {
+	return nil, nil
+}
+
 func (s stubVendorUseCase) GetBalance(context.Context, uuid.UUID) (*domain.VendorBalanceResponse, error) {
 	return nil, nil
 }
@@ -70,8 +74,28 @@ func (s stubVendorUseCase) ListPayoutChannels(context.Context, uuid.UUID) (*doma
 	return nil, nil
 }
 
+func (s stubVendorUseCase) CreateBankAccount(context.Context, uuid.UUID, domain.CreateVendorBankAccountRequest) (*domain.CreateVendorBankAccountResponse, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) ListBankAccounts(context.Context, uuid.UUID) ([]domain.VendorBankAccountListItem, error) {
+	return nil, nil
+}
+
+func (s stubVendorUseCase) DeleteBankAccount(context.Context, uuid.UUID, uuid.UUID) error {
+	return nil
+}
+
+func (s stubVendorUseCase) SetDefaultBankAccount(context.Context, uuid.UUID, uuid.UUID) error {
+	return nil
+}
+
 func (s stubVendorUseCase) RequestWithdrawal(context.Context, uuid.UUID, domain.VendorWithdrawRequest) (*domain.VendorWithdrawResponse, error) {
 	return nil, nil
+}
+
+func (s stubVendorUseCase) ListWithdrawals(context.Context, uuid.UUID, domain.VendorWithdrawalListParams) ([]domain.VendorWithdrawalListItem, *domain.PaginationMeta, error) {
+	return nil, nil, nil
 }
 
 func (s stubVendorUseCase) HandlePayoutWebhook(context.Context, domain.XenditPayoutWebhookPayload) error {
@@ -92,6 +116,7 @@ type vendorLoginResponsePayload struct {
 	StoreName    *string `json:"store_name"`
 	VendorType   *string `json:"vendor_type"`
 	VendorStatus string  `json:"vendor_status"`
+	StatusReason *string `json:"status_reason"`
 }
 
 func TestVendorHandlerSetRegistrationPassword(t *testing.T) {
@@ -188,6 +213,7 @@ func TestVendorHandlerGetMe(t *testing.T) {
 					VendorType:   &vendorType,
 					VendorStatus: domain.VendorStatusActive,
 					StoreName:    &storeName,
+					StatusReason: nil,
 				}, nil
 			},
 		})
@@ -236,6 +262,55 @@ func TestVendorHandlerGetMe(t *testing.T) {
 		}
 		if data.VendorStatus != domain.VendorStatusActive {
 			t.Fatalf("unexpected vendor status: %s", data.VendorStatus)
+		}
+		if data.StatusReason != nil {
+			t.Fatalf("expected nil status reason, got %v", data.StatusReason)
+		}
+	})
+
+	t.Run("success blocked with status reason", func(t *testing.T) {
+		vendorID := uuid.New()
+		reason := "Akun diblokir karena pelanggaran kebijakan"
+		h := NewVendorHandler(stubVendorUseCase{
+			getMe: func(ctx context.Context, gotVendorID uuid.UUID) (*domain.VendorMeResponse, error) {
+				if gotVendorID != vendorID {
+					t.Fatalf("expected vendor ID %s, got %s", vendorID, gotVendorID)
+				}
+				return &domain.VendorMeResponse{
+					VendorID:     vendorID,
+					Email:        "vendor.blocked@example.com",
+					VendorStatus: domain.VendorStatusBlocked,
+					StatusReason: &reason,
+				}, nil
+			},
+		})
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/vendors/me", nil)
+		c.Request = req
+		c.Set(middleware.ContextKeyVendorID, vendorID)
+
+		h.GetMe(c)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", w.Code)
+		}
+
+		var env handlerEnvelope
+		if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+
+		var data vendorLoginResponsePayload
+		if err := json.Unmarshal(env.Data, &data); err != nil {
+			t.Fatalf("failed to decode response data: %v", err)
+		}
+		if data.VendorStatus != domain.VendorStatusBlocked {
+			t.Fatalf("unexpected vendor status: %s", data.VendorStatus)
+		}
+		if data.StatusReason == nil || *data.StatusReason != reason {
+			t.Fatalf("unexpected status reason: %v", data.StatusReason)
 		}
 	})
 }

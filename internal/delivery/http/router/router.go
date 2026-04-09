@@ -14,6 +14,8 @@ func NewRouter(
 	adminUserHandler *handler.AdminUserHandler,
 	adminVendorHandler *handler.AdminVendorHandler,
 	adminLoginHandler *handler.AdminLoginHandler,
+	adminDashboardHandler *handler.AdminDashboardHandler,
+	adminReportHandler *handler.AdminReportHandler,
 	vendorHandler *handler.VendorHandler,
 	productHandler *handler.ProductHandler,
 	catalogHandler *handler.CatalogHandler,
@@ -47,6 +49,8 @@ func NewRouter(
 	shippingHandler *handler.ShippingHandler,
 	vendorCourierHandler *handler.VendorCourierHandler,
 	vendorOrderHandler *handler.VendorOrderHandler,
+	vendorDashboardHandler *handler.VendorDashboardHandler,
+	vendorReportHandler *handler.VendorReportHandler,
 	storeHandler *handler.StoreHandler,
 	adminPaymentHandler *handler.AdminPaymentHandler,
 	userBankAccountHandler *handler.UserBankAccountHandler,
@@ -115,6 +119,16 @@ func NewRouter(
 		userGroup.GET("/verify-email", userHandler.VerifyEmail)
 		userGroup.POST("/resend-verification", userHandler.ResendVerification)
 		userGroup.POST("/login", userHandler.Login)
+		userGroup.POST("/reset-password", userHandler.ResetPassword)
+		userGroup.POST("/oauth/google", userHandler.LoginWithGoogle)
+	}
+
+	// Authenticated routes available to all roles
+	allAuth := v1.Group("/users")
+	allAuth.Use(middleware.Auth(jwtSecret))
+	allAuth.Use(middleware.RequireRoles("customer", "umkm", "admin", "cs", "finance"))
+	{
+		allAuth.PUT("/change-password", userHandler.ChangePassword)
 	}
 
 	// User authenticated routes (requires auth + customer role)
@@ -123,6 +137,7 @@ func NewRouter(
 	userAuth.Use(middleware.RequireRoles("customer"))
 	{
 		userAuth.GET("/me", userHandler.GetMe)
+		userAuth.POST("/delete-account", userHandler.DeleteAccount)
 		userAuth.GET("/cart", cartHandler.GetCart)
 		userAuth.POST("/cart/items", cartHandler.AddItem)
 		userAuth.PATCH("/cart/items/:itemId", cartHandler.UpdateItem)
@@ -150,6 +165,13 @@ func NewRouter(
 		userAuth.GET("/bank-accounts", userBankAccountHandler.List)
 		userAuth.DELETE("/bank-accounts/:id", userBankAccountHandler.Delete)
 		userAuth.PATCH("/bank-accounts/:id/default", userBankAccountHandler.SetDefault)
+	}
+
+	// Shipping estimate — requires auth only (any role), so vendors/admins can preview too
+	shippingEstimate := v1.Group("/users")
+	shippingEstimate.Use(middleware.Auth(jwtSecret))
+	{
+		shippingEstimate.GET("/products/:id/shipping-estimate", catalogHandler.GetShippingEstimate)
 	}
 
 	// Shipping location lookup (RajaOngkir proxy) — accessible by customer + vendor
@@ -208,6 +230,7 @@ func NewRouter(
 	vendorAuth.Use(middleware.RequireRoles("umkm"))
 	{
 		vendorAuth.GET("/me", vendorHandler.GetMe)
+		vendorAuth.PUT("/me/profile", vendorHandler.UpdateProfile)
 		vendorAuth.POST("/register/propose/souvenir_store/presign", vendorHandler.PresignSouvenirStoreProposalDocuments)
 		vendorAuth.POST("/register/propose/souvenir_store", vendorHandler.SubmitSouvenirStoreProposal)
 		vendorAuth.POST("/products", productHandler.CreateProduct)
@@ -218,7 +241,17 @@ func NewRouter(
 		vendorAuth.POST("/products/:id/images/confirm", productHandler.ConfirmImages)
 		vendorAuth.GET("/balance", vendorHandler.GetBalance)
 		vendorAuth.GET("/payout-channels", vendorHandler.ListPayoutChannels)
+		vendorAuth.POST("/bank-accounts", vendorHandler.CreateBankAccount)
+		vendorAuth.GET("/bank-accounts", vendorHandler.ListBankAccounts)
+		vendorAuth.DELETE("/bank-accounts/:id", vendorHandler.DeleteBankAccount)
+		vendorAuth.PATCH("/bank-accounts/:id/default", vendorHandler.SetDefaultBankAccount)
+		vendorAuth.GET("/withdrawals", vendorHandler.ListWithdrawals)
 		vendorAuth.POST("/withdrawals", vendorHandler.RequestWithdrawal)
+		vendorAuth.GET("/dashboard", vendorDashboardHandler.GetDashboard)
+
+		// Vendor Report / Laporan Pendapatan
+		vendorAuth.GET("/reports", vendorReportHandler.GetReport)
+		vendorAuth.GET("/reports/export", vendorReportHandler.ExportReport)
 
 		// Chat (vendor-specific management)
 		vendorAuth.GET("/chat", chatHandler.ListConversations)
@@ -236,6 +269,7 @@ func NewRouter(
 		// Vendor Voucher management
 		vendorAuth.POST("/vouchers", vendorVoucherHandler.CreateVoucher)
 		vendorAuth.GET("/vouchers", vendorVoucherHandler.ListVouchers)
+		vendorAuth.GET("/vouchers/summary", vendorVoucherHandler.GetSummary)
 		vendorAuth.GET("/vouchers/:id", vendorVoucherHandler.GetVoucher)
 		vendorAuth.PATCH("/vouchers/:id", vendorVoucherHandler.UpdateVoucher)
 		vendorAuth.DELETE("/vouchers/:id", vendorVoucherHandler.DeleteVoucher)
@@ -269,6 +303,9 @@ func NewRouter(
 	admin.Use(middleware.Auth(jwtSecret))
 	admin.Use(middleware.RequireRoles("admin"))
 	{
+		admin.GET("/dashboard", adminDashboardHandler.GetDashboard)
+		admin.GET("/reports", adminReportHandler.GetReport)
+		admin.GET("/reports/export", adminReportHandler.ExportReport)
 		admin.GET("/me", adminUserHandler.GetMe)
 		admin.POST("/users", adminUserHandler.Create)
 		admin.GET("/users", adminUserHandler.List)
@@ -285,6 +322,8 @@ func NewRouter(
 
 		// Payments
 		admin.GET("/payments", adminPaymentHandler.List)
+		admin.GET("/payments/summary", adminPaymentHandler.Summary)
+		admin.GET("/payments/export", adminPaymentHandler.Export)
 
 		// Chat (admin-specific management)
 		admin.GET("/chat", chatHandler.ListConversations)

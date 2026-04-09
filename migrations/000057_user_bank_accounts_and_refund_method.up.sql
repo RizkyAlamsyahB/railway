@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS user_bank_accounts (
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_user_bank_accounts_user_id ON user_bank_accounts(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_bank_accounts_user_id ON user_bank_accounts(user_id);
 
 -- Ensure at most one default per user
-CREATE UNIQUE INDEX idx_user_bank_accounts_default
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_bank_accounts_default
     ON user_bank_accounts(user_id) WHERE is_default = true;
 
 -- refund_method tracks how the refund will be processed

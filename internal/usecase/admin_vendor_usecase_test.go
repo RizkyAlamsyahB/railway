@@ -91,14 +91,13 @@ func dummyOwner(id uuid.UUID, status string) *domain.User {
 func dummyBankAccount(vendorID uuid.UUID) *domain.VendorBankAccount {
 	now := time.Now()
 	return &domain.VendorBankAccount{
-		ID:                 uuid.New(),
-		VendorID:           vendorID,
-		BankName:           "BCA",
-		AccountNumber:      "1234567890",
-		AccountHolderName:  "Ahmad",
-		VerificationStatus: "pending",
-		CreatedAt:          now,
-		UpdatedAt:          now,
+		ID:                uuid.New(),
+		VendorID:          vendorID,
+		BankName:          "BCA",
+		AccountNumber:     "1234567890",
+		AccountHolderName: "Ahmad",
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 }
 
@@ -107,25 +106,52 @@ func dummyDocuments(vendorID uuid.UUID) []domain.VendorDocument {
 	uploaderID := uuid.New()
 	return []domain.VendorDocument{
 		{
-			ID:         uuid.New(),
-			VendorID:   vendorID,
-			DocType:    "owner_document_id",
-			FileURL:    "vendors/doc1.jpg",
-			MimeType:   ptrString("image/jpeg"),
-			UploadedBy: &uploaderID,
-			CreatedAt:  now,
-			UpdatedAt:  now,
+			ID:            uuid.New(),
+			VendorID:      vendorID,
+			DocType:       domain.VendorDocumentTypeOwnerDocumentID,
+			FileURL:       "vendors/doc1.jpg",
+			MimeType:      ptrString("image/jpeg"),
+			FileSizeBytes: ptrInt(1024),
+			UploadedBy:    &uploaderID,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		},
 		{
-			ID:        uuid.New(),
-			VendorID:  vendorID,
-			DocType:   "store_photo",
-			FileURL:   "",
-			CreatedAt: now,
-			UpdatedAt: now,
+			ID:            uuid.New(),
+			VendorID:      vendorID,
+			DocType:       domain.VendorDocumentTypeBusinessNIB,
+			FileURL:       "vendors/nib.pdf",
+			MimeType:      ptrString("application/pdf"),
+			FileSizeBytes: ptrInt(2048),
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		},
+		{
+			ID:            uuid.New(),
+			VendorID:      vendorID,
+			DocType:       domain.VendorDocumentTypeHalalCertificate,
+			FileURL:       "vendors/halal.pdf",
+			MimeType:      ptrString("application/pdf"),
+			FileSizeBytes: ptrInt(4096),
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		},
 	}
 }
+
+func dummyResponsiblePerson(vendorID uuid.UUID, userID uuid.UUID) *domain.VendorResponsiblePerson {
+	now := time.Now()
+	return &domain.VendorResponsiblePerson{
+		ID:        uuid.New(),
+		VendorID:  vendorID,
+		UserID:    userID,
+		NIK:       "3173010101010001",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+}
+
+func ptrInt(v int) *int { return &v }
 
 // ============================================================
 // List
@@ -343,36 +369,54 @@ func TestAdminVendorGetByID(t *testing.T) {
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
+				vendorRepo.EXPECT().FindResponsiblePersonByVendorID(ctx, vendorID).Return(dummyResponsiblePerson(vendorID, ownerID), nil)
 
 				docs := dummyDocuments(vendorID)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(docs, nil)
-
-				// Only the first document has UploadedBy != nil && FileURL != "", so only 1 presigned URL call.
 				storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", PresignedDownloadExpiry).Return("https://signed-url.example.com/doc1.jpg", nil)
+				storage.EXPECT().GeneratePresignedURL(ctx, "vendors/nib.pdf", PresignedDownloadExpiry).Return("https://signed-url.example.com/nib.pdf", nil)
+				storage.EXPECT().GeneratePresignedURL(ctx, "vendors/halal.pdf", PresignedDownloadExpiry).Return("https://signed-url.example.com/halal.pdf", nil)
 			},
 			checkResp: func(t *testing.T, resp *domain.AdminVendorDetailResponse, vendorID uuid.UUID) {
 				t.Helper()
 				if resp.ID != vendorID {
 					t.Errorf("expected vendor id %s, got %s", vendorID, resp.ID)
 				}
-				if resp.Owner.FullName != "Owner Name" {
-					t.Errorf("expected owner name 'Owner Name', got %s", resp.Owner.FullName)
+				if resp.StoreName == nil || *resp.StoreName != "Toko Oleh-Oleh Haji" {
+					t.Errorf("expected store_name 'Toko Oleh-Oleh Haji', got %v", resp.StoreName)
 				}
-				if resp.BankAccount == nil {
-					t.Fatal("expected non-nil bank account")
+				if resp.Email != "owner@example.com" {
+					t.Errorf("expected owner email 'owner@example.com', got %s", resp.Email)
 				}
-				if len(resp.Documents) != 2 {
-					t.Errorf("expected 2 documents, got %d", len(resp.Documents))
+				if resp.Address.AddressLine == nil || *resp.Address.AddressLine != "Jl. Pegangsaan Barat No. 12" {
+					t.Errorf("expected structured address line, got %v", resp.Address.AddressLine)
 				}
-				if resp.Documents[0].DownloadURL != "https://signed-url.example.com/doc1.jpg" {
-					t.Errorf("expected presigned download URL, got %s", resp.Documents[0].DownloadURL)
+				if resp.ResponsiblePerson.Name == nil || *resp.ResponsiblePerson.Name != "Owner Name" {
+					t.Errorf("expected responsible person name 'Owner Name', got %v", resp.ResponsiblePerson.Name)
 				}
-				if resp.AddressLine == nil || *resp.AddressLine != "Jl. Pegangsaan Barat No. 12" {
-					t.Errorf("expected structured address line, got %v", resp.AddressLine)
+				if resp.ResponsiblePerson.NIK == nil || *resp.ResponsiblePerson.NIK != "3173010101010001" {
+					t.Errorf("expected responsible person NIK, got %v", resp.ResponsiblePerson.NIK)
 				}
-				if resp.Documents[1].DownloadURL != "" {
-					t.Errorf("expected empty download URL for non-uploaded doc, got %s", resp.Documents[1].DownloadURL)
+				if resp.ResponsiblePerson.KTP == nil || resp.ResponsiblePerson.KTP.DocType != domain.VendorDocumentTypeOwnerDocumentID {
+					t.Errorf("expected KTP doc_type %s, got %+v", domain.VendorDocumentTypeOwnerDocumentID, resp.ResponsiblePerson.KTP)
+				}
+				if resp.ResponsiblePerson.KTP != nil && resp.ResponsiblePerson.KTP.FileURL != "https://signed-url.example.com/doc1.jpg" {
+					t.Errorf("expected signed KTP file_url, got %s", resp.ResponsiblePerson.KTP.FileURL)
+				}
+				if len(resp.RequirementsDocuments) != 2 {
+					t.Errorf("expected 2 requirement documents, got %d", len(resp.RequirementsDocuments))
+				}
+				if len(resp.RequirementsDocuments) == 2 {
+					requiredURLs := map[string]string{}
+					for _, doc := range resp.RequirementsDocuments {
+						requiredURLs[doc.DocType] = doc.FileURL
+					}
+					if requiredURLs[domain.VendorDocumentTypeBusinessNIB] != "https://signed-url.example.com/nib.pdf" {
+						t.Errorf("expected signed NIB file_url, got %s", requiredURLs[domain.VendorDocumentTypeBusinessNIB])
+					}
+					if requiredURLs[domain.VendorDocumentTypeHalalCertificate] != "https://signed-url.example.com/halal.pdf" {
+						t.Errorf("expected signed halal file_url, got %s", requiredURLs[domain.VendorDocumentTypeHalalCertificate])
+					}
 				}
 			},
 		},
@@ -402,14 +446,14 @@ func TestAdminVendorGetByID(t *testing.T) {
 			wantAny: true,
 		},
 		{
-			name: "bank account error",
+			name: "responsible person error",
 			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
 				ownerID := uuid.New()
 				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, errors.New("db error"))
+				vendorRepo.EXPECT().FindResponsiblePersonByVendorID(ctx, vendorID).Return(nil, errors.New("db error"))
 			},
 			wantAny: true,
 		},
@@ -421,7 +465,7 @@ func TestAdminVendorGetByID(t *testing.T) {
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
+				vendorRepo.EXPECT().FindResponsiblePersonByVendorID(ctx, vendorID).Return(dummyResponsiblePerson(vendorID, ownerID), nil)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(nil, errors.New("db error"))
 			},
 			wantAny: true,
@@ -432,42 +476,33 @@ func TestAdminVendorGetByID(t *testing.T) {
 				ownerID := uuid.New()
 				vendor := dummyVendorWithOwner(vendorID, ownerID, "submitted")
 
-				uploaderID := uuid.New()
-				docs := []domain.VendorDocument{
-					{
-						ID:         uuid.New(),
-						VendorID:   vendorID,
-						DocType:    "owner_document_id",
-						FileURL:    "vendors/doc1.jpg",
-						UploadedBy: &uploaderID,
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
-					},
-				}
-
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(dummyBankAccount(vendorID), nil)
+				vendorRepo.EXPECT().FindResponsiblePersonByVendorID(ctx, vendorID).Return(dummyResponsiblePerson(vendorID, ownerID), nil)
+				docs := dummyDocuments(vendorID)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return(docs, nil)
 				storage.EXPECT().GeneratePresignedURL(ctx, "vendors/doc1.jpg", PresignedDownloadExpiry).Return("", errors.New("s3 error"))
 			},
 			wantAny: true,
 		},
 		{
-			name: "no bank account",
+			name: "no responsible person and no documents",
 			setupMock: func(vendorRepo *mocks.MockVendorRepository, userRepo *mocks.MockUserRepository, storage *mocks.MockStorageProvider, ctx context.Context, vendorID uuid.UUID) {
 				ownerID := uuid.New()
 				vendor := dummyVendorWithOwner(vendorID, ownerID, "draft")
 
 				vendorRepo.EXPECT().FindByID(ctx, vendorID).Return(vendor, nil)
 				userRepo.EXPECT().FindByID(ctx, ownerID).Return(dummyOwner(ownerID, "active"), nil)
-				vendorRepo.EXPECT().FindBankAccountByVendorID(ctx, vendorID).Return(nil, nil)
+				vendorRepo.EXPECT().FindResponsiblePersonByVendorID(ctx, vendorID).Return(nil, nil)
 				vendorRepo.EXPECT().FindDocumentsByVendorID(ctx, vendorID).Return([]domain.VendorDocument{}, nil)
 			},
 			checkResp: func(t *testing.T, resp *domain.AdminVendorDetailResponse, vendorID uuid.UUID) {
 				t.Helper()
-				if resp.BankAccount != nil {
-					t.Errorf("expected nil bank account, got %+v", resp.BankAccount)
+				if resp.ResponsiblePerson.KTP != nil {
+					t.Errorf("expected nil KTP, got %+v", resp.ResponsiblePerson.KTP)
+				}
+				if len(resp.RequirementsDocuments) != 0 {
+					t.Errorf("expected no requirement documents, got %d", len(resp.RequirementsDocuments))
 				}
 			},
 		},

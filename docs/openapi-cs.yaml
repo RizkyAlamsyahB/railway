@@ -16,7 +16,7 @@ info:
     1. Login via `POST /api/v1/cs/login`
     2. Gunakan `Authorization: Bearer <token>` untuk endpoint terproteksi
 servers:
-  - url: http://localhost:8080
+  - url: https://haji-umroh-store-api.jauhar.id
     description: Local development server
 tags:
   - name: CS Authentication
@@ -159,13 +159,16 @@ components:
           description: Pesan error utama.
           example: unauthorized
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           description: Detail error tambahan bila ada.
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -179,12 +182,15 @@ components:
           type: string
           example: operation completed
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -766,9 +772,11 @@ paths:
                   data:
                     $ref: "#/components/schemas/CSLoginResponseData"
                   errors:
+                    type: object
                     nullable: true
                     example: null
                   meta:
+                    type: object
                     nullable: true
                     example: null
         "400":
@@ -835,8 +843,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/CSDashboardResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
               example:
                 success: true
@@ -948,6 +958,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/TicketResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
@@ -1076,8 +1087,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/TicketResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: ID tiket tidak valid.
@@ -1120,8 +1133,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/TicketResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: ID tiket tidak valid.
@@ -1169,8 +1184,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/TicketResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: Request tidak valid.
@@ -1214,8 +1231,10 @@ paths:
                     items:
                       $ref: "#/components/schemas/TicketMessageResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: ID tiket tidak valid.
@@ -1256,8 +1275,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/TicketMessageResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
               example:
                 success: true
@@ -1325,6 +1346,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/ReplyTemplateResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
@@ -1365,8 +1387,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/ReplyTemplateResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: Validasi request gagal.
@@ -1408,8 +1432,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/ReplyTemplateResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: ID template tidak valid.
@@ -1455,8 +1481,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/ReplyTemplateResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: Request atau ID tidak valid.
@@ -1556,6 +1584,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/ConversationResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
@@ -1587,8 +1616,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/ConversationResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: ID percakapan tidak valid.
@@ -1675,6 +1706,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/ChatableUserResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
@@ -1710,8 +1742,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/ConversationResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
               example:
                 success: true
@@ -1768,8 +1802,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/PresignAttachmentResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: Request tidak valid.
@@ -1809,6 +1845,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/ChatMessageResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
@@ -1844,8 +1881,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/ChatMessageResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: Request atau ID percakapan tidak valid.
@@ -1890,6 +1929,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/CSUserResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
@@ -1921,8 +1961,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/CSUserResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: ID user tidak valid.
@@ -1962,6 +2004,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/TicketResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
@@ -2005,8 +2048,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/CSReportResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: Query `month` wajib dan harus valid.
@@ -2079,6 +2124,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/NotificationItem"
                   errors:
+                    type: object
                     nullable: true
                   meta:
                     $ref: "#/components/schemas/PaginationMeta"
@@ -2108,8 +2154,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/NotificationUnreadCount"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
 
   /api/v1/notifications/read-all:
@@ -2137,8 +2185,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/NotificationBulkReadResponse"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
 
   /api/v1/notifications/{id}/read:
@@ -2168,8 +2218,10 @@ paths:
                   data:
                     $ref: "#/components/schemas/NotificationItem"
                   errors:
+                    type: object
                     nullable: true
                   meta:
+                    type: object
                     nullable: true
         "400":
           description: ID notifikasi tidak valid.

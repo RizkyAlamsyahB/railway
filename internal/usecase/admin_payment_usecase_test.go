@@ -222,3 +222,160 @@ func TestAdminPaymentList(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================
+// Summary
+// ============================================================
+
+func TestAdminPaymentSummary(t *testing.T) {
+	tests := []struct {
+		name      string
+		params    domain.AdminPaymentListParams
+		setupMock func(repo *mocks.MockPaymentRepository, ctx context.Context)
+		wantErr   bool
+		checkResp func(t *testing.T, summary *domain.AdminPaymentSummary)
+	}{
+		{
+			name:   "success",
+			params: domain.AdminPaymentListParams{},
+			setupMock: func(repo *mocks.MockPaymentRepository, ctx context.Context) {
+				summary := &domain.AdminPaymentSummary{
+					TotalAmount:   250000,
+					PaidAmount:    200000,
+					PendingAmount: 30000,
+					FailedAmount:  20000,
+				}
+				repo.EXPECT().SummaryForAdmin(ctx, gomock.Any()).Return(summary, nil)
+			},
+			checkResp: func(t *testing.T, summary *domain.AdminPaymentSummary) {
+				if summary.TotalAmount != 250000 {
+					t.Errorf("expected TotalAmount 250000, got %v", summary.TotalAmount)
+				}
+				if summary.PaidAmount != 200000 {
+					t.Errorf("expected PaidAmount 200000, got %v", summary.PaidAmount)
+				}
+			},
+		},
+		{
+			name: "with date range",
+			params: func() domain.AdminPaymentListParams {
+				start := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+				end := time.Date(2026, 4, 7, 0, 0, 0, 0, time.UTC)
+				return domain.AdminPaymentListParams{StartDate: &start, EndDate: &end}
+			}(),
+			setupMock: func(repo *mocks.MockPaymentRepository, ctx context.Context) {
+				summary := &domain.AdminPaymentSummary{TotalAmount: 100000, PaidAmount: 100000}
+				repo.EXPECT().SummaryForAdmin(ctx, gomock.Any()).Return(summary, nil)
+			},
+			checkResp: func(t *testing.T, summary *domain.AdminPaymentSummary) {
+				if summary.TotalAmount != 100000 {
+					t.Errorf("expected TotalAmount 100000, got %v", summary.TotalAmount)
+				}
+			},
+		},
+		{
+			name:   "repo error",
+			params: domain.AdminPaymentListParams{},
+			setupMock: func(repo *mocks.MockPaymentRepository, ctx context.Context) {
+				repo.EXPECT().SummaryForAdmin(ctx, gomock.Any()).Return(nil, errors.New("db error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, uc := setupAdminPaymentUseCase(t)
+			ctx := context.Background()
+
+			tc.setupMock(repo, ctx)
+
+			summary, err := uc.Summary(ctx, tc.params)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, summary)
+			}
+		})
+	}
+}
+
+// ============================================================
+// Export
+// ============================================================
+
+func TestAdminPaymentExport(t *testing.T) {
+	tests := []struct {
+		name      string
+		params    domain.AdminPaymentListParams
+		setupMock func(repo *mocks.MockPaymentRepository, ctx context.Context)
+		wantErr   bool
+		checkResp func(t *testing.T, items []domain.AdminPaymentListItem)
+	}{
+		{
+			name:   "success",
+			params: domain.AdminPaymentListParams{},
+			setupMock: func(repo *mocks.MockPaymentRepository, ctx context.Context) {
+				items := dummyPaymentItems(3)
+				repo.EXPECT().ExportForAdmin(ctx, gomock.Any()).Return(items, nil)
+			},
+			checkResp: func(t *testing.T, items []domain.AdminPaymentListItem) {
+				if len(items) != 3 {
+					t.Errorf("expected 3 items, got %d", len(items))
+				}
+			},
+		},
+		{
+			name:   "empty results",
+			params: domain.AdminPaymentListParams{},
+			setupMock: func(repo *mocks.MockPaymentRepository, ctx context.Context) {
+				repo.EXPECT().ExportForAdmin(ctx, gomock.Any()).Return([]domain.AdminPaymentListItem{}, nil)
+			},
+			checkResp: func(t *testing.T, items []domain.AdminPaymentListItem) {
+				if len(items) != 0 {
+					t.Errorf("expected 0 items, got %d", len(items))
+				}
+			},
+		},
+		{
+			name:   "repo error",
+			params: domain.AdminPaymentListParams{},
+			setupMock: func(repo *mocks.MockPaymentRepository, ctx context.Context) {
+				repo.EXPECT().ExportForAdmin(ctx, gomock.Any()).Return(nil, errors.New("db error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, uc := setupAdminPaymentUseCase(t)
+			ctx := context.Background()
+
+			tc.setupMock(repo, ctx)
+
+			items, err := uc.Export(ctx, tc.params)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("expected no error, got %v", err)
+			}
+			if tc.checkResp != nil {
+				tc.checkResp(t, items)
+			}
+		})
+	}
+}

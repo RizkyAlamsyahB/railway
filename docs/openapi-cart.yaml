@@ -4,7 +4,7 @@ info:
   version: 1.1.0
   description: Dokumentasi OpenAPI 3 untuk endpoint cart/keranjang belanja customer, termasuk melihat cart, menambah item, mengubah jumlah, memilih item untuk checkout, menghapus item, dan mengosongkan cart.
 servers:
-  - url: http://localhost:8080
+  - url: https://haji-umroh-store-api.jauhar.id
     description: Local development server
 tags:
   - name: Cart
@@ -1099,9 +1099,11 @@ components:
         data:
           $ref: "#/components/schemas/GetCartResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -1117,9 +1119,11 @@ components:
         data:
           $ref: "#/components/schemas/CartItemActionResponseData"
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -1133,12 +1137,15 @@ components:
           type: string
           example: "cart cleared"
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           example: null
         meta:
+          type: object
           nullable: true
           example: null
 
@@ -1152,11 +1159,14 @@ components:
           type: string
           description: Pesan error.
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           description: Detail error tambahan (biasanya string validasi error).
         meta:
+          type: object
           nullable: true
           example: null

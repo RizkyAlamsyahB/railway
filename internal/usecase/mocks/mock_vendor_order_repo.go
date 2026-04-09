@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	uuid "github.com/google/uuid"
 	domain "github.com/media-inovasi-strategis/haji-umroh-store-be/internal/domain"
@@ -40,6 +41,52 @@ func NewMockVendorOrderRepository(ctrl *gomock.Controller) *MockVendorOrderRepos
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockVendorOrderRepository) EXPECT() *MockVendorOrderRepositoryMockRecorder {
 	return m.recorder
+}
+
+// DashboardOrderStats mocks base method.
+func (m *MockVendorOrderRepository) DashboardOrderStats(ctx context.Context, vendorID uuid.UUID, periodStart, periodEnd time.Time) (int64, int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DashboardOrderStats", ctx, vendorID, periodStart, periodEnd)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DashboardOrderStats indicates an expected call of DashboardOrderStats.
+func (mr *MockVendorOrderRepositoryMockRecorder) DashboardOrderStats(ctx, vendorID, periodStart, periodEnd any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DashboardOrderStats", reflect.TypeOf((*MockVendorOrderRepository)(nil).DashboardOrderStats), ctx, vendorID, periodStart, periodEnd)
+}
+
+// DashboardPaymentFlow mocks base method.
+func (m *MockVendorOrderRepository) DashboardPaymentFlow(ctx context.Context, vendorID uuid.UUID, start, end time.Time) ([]domain.VendorPaymentFlowItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DashboardPaymentFlow", ctx, vendorID, start, end)
+	ret0, _ := ret[0].([]domain.VendorPaymentFlowItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DashboardPaymentFlow indicates an expected call of DashboardPaymentFlow.
+func (mr *MockVendorOrderRepositoryMockRecorder) DashboardPaymentFlow(ctx, vendorID, start, end any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DashboardPaymentFlow", reflect.TypeOf((*MockVendorOrderRepository)(nil).DashboardPaymentFlow), ctx, vendorID, start, end)
+}
+
+// DashboardTodayTransactions mocks base method.
+func (m *MockVendorOrderRepository) DashboardTodayTransactions(ctx context.Context, vendorID uuid.UUID, today time.Time, limit int) ([]domain.VendorDashboardTransaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DashboardTodayTransactions", ctx, vendorID, today, limit)
+	ret0, _ := ret[0].([]domain.VendorDashboardTransaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DashboardTodayTransactions indicates an expected call of DashboardTodayTransactions.
+func (mr *MockVendorOrderRepositoryMockRecorder) DashboardTodayTransactions(ctx, vendorID, today, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DashboardTodayTransactions", reflect.TypeOf((*MockVendorOrderRepository)(nil).DashboardTodayTransactions), ctx, vendorID, today, limit)
 }
 
 // FindByIDAndVendor mocks base method.

@@ -41,6 +41,15 @@ var errorRules = []errorRule{
 	{usecase.ErrUserAccountBlocked, http.StatusForbidden, "account is blocked"},
 	{usecase.ErrUserAccountNotActive, http.StatusUnauthorized, "account is not active"},
 	{usecase.ErrUserEmailNotVerified, http.StatusUnauthorized, "email is not verified"},
+	{usecase.ErrOldPasswordIncorrect, http.StatusBadRequest, ""},
+	{usecase.ErrNewPasswordSameAsOld, http.StatusBadRequest, ""},
+	{usecase.ErrPasswordTooWeak, http.StatusBadRequest, ""},
+	{usecase.ErrGoogleOAuthDisabled, http.StatusServiceUnavailable, "google oauth login is not configured"},
+	{usecase.ErrGoogleIDTokenInvalid, http.StatusUnauthorized, "invalid google id token"},
+	{usecase.ErrGoogleEmailNotVerified, http.StatusUnauthorized, "google account email is not verified"},
+	{usecase.ErrGoogleAccountNotCustomer, http.StatusForbidden, "google account is not allowed for this endpoint"},
+	{usecase.ErrAccountAlreadyDeactivated, http.StatusConflict, "account is already deactivated"},
+	{usecase.ErrPasswordIncorrect, http.StatusBadRequest, "password is incorrect"},
 
 	// OTP
 	{usecase.ErrOTPInvalid, http.StatusBadRequest, ""},
@@ -82,6 +91,7 @@ var errorRules = []errorRule{
 	{usecase.ErrXenditPayoutFailed, http.StatusBadGateway, ""},
 	{usecase.ErrPayoutChannelsUnavailable, http.StatusBadGateway, ""},
 	{usecase.ErrVendorBankNotFound, http.StatusNotFound, "vendor bank account not found"},
+	{usecase.ErrVendorBankNotOwned, http.StatusForbidden, "bank account does not belong to this vendor"},
 	{usecase.ErrInsufficientBalance, http.StatusBadRequest, "insufficient available balance"},
 	{usecase.ErrBelowMinWithdrawal, http.StatusBadRequest, ""},
 	{usecase.ErrWithdrawalNetAmountTooSmall, http.StatusBadRequest, ""},

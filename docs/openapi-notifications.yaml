@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: Dokumentasi OpenAPI 3 untuk endpoint notifikasi (semua user terautentikasi).
 servers:
-  - url: http://localhost:8080
+  - url: https://haji-umroh-store-api.jauhar.id
     description: Local development server
 tags:
   - name: Notifications
@@ -276,6 +276,7 @@ components:
           items:
             $ref: "#/components/schemas/NotificationItem"
         errors:
+          type: object
           nullable: true
         meta:
           $ref: "#/components/schemas/PaginationMeta"
@@ -297,8 +298,10 @@ components:
         data:
           $ref: "#/components/schemas/NotificationUnreadCount"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessNotificationReadEnvelope:
       type: object
@@ -318,8 +321,10 @@ components:
         data:
           $ref: "#/components/schemas/NotificationItem"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     SuccessNotificationBulkReadEnvelope:
       type: object
@@ -339,8 +344,10 @@ components:
         data:
           $ref: "#/components/schemas/NotificationBulkReadResponse"
         errors:
+          type: object
           nullable: true
         meta:
+          type: object
           nullable: true
     PaginationMeta:
       type: object
@@ -382,13 +389,16 @@ components:
           type: string
           example: validation failed
         data:
+          type: object
           nullable: true
           example: null
         errors:
+          type: object
           nullable: true
           oneOf:
             - type: string
             - type: object
               additionalProperties: true
         meta:
+          type: object
           nullable: true
