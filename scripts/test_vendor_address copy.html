@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendor Warehouse Address — Manual Test</title>
+<style>
+  :root { --bg: #0f1117; --card: #1a1d27; --border: #2a2d3a; --accent: #c9a96e; --accent2: #e6c88a; --text: #e4e4e7; --muted: #9ca3af; --green: #22c55e; --red: #ef4444; --blue: #3b82f6; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  h1 { color: var(--accent2); font-size: 1.6rem; margin-bottom: 4px; }
+  h1 small { color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+  h2 { color: var(--accent); font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  h2 .badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .badge-post { background: var(--green); color: #000; }
+  .badge-get { background: var(--blue); color: #fff; }
+  .badge-patch { background: #f59e0b; color: #000; }
+  .badge-delete { background: var(--red); color: #fff; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+  .card.full { grid-column: 1 / -1; }
+
+  label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; margin-top: 10px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.85rem; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 60px; }
+  select { cursor: pointer; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  button { padding: 9px 18px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: opacity .15s; }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-small { padding: 5px 12px; font-size: 0.75rem; }
+  .btn-group { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+  .status-bar { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 10px 14px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .status-dot.ok { background: var(--green); }
+  .status-dot.err { background: var(--red); }
+  .status-text { font-size: 0.8rem; color: var(--muted); }
+
+  .log-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 12px; max-height: 320px; overflow-y: auto; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.75rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: var(--muted); }
+  .log-box .req { color: var(--accent); }
+  .log-box .ok { color: var(--green); }
+  .log-box .err { color: var(--red); }
+
+  .addr-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .addr-item { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; position: relative; }
+  .addr-item.is-default { border-color: var(--accent); }
+  .addr-item .default-badge { position: absolute; top: 8px; right: 10px; font-size: 0.65rem; background: var(--accent); color: #000; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .addr-item h4 { font-size: 0.9rem; margin-bottom: 4px; }
+  .addr-item p { font-size: 0.78rem; color: var(--muted); margin-bottom: 2px; }
+  .addr-item .actions { margin-top: 10px; display: flex; gap: 6px; }
+
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .checkbox-row input[type="checkbox"] { width: auto; }
+
+  .separator { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🕌 Vendor Warehouse Address Test <small>— Manual API Tester</small></h1>
+
+  <div class="grid">
+
+    <!-- ==================== LOGIN ==================== -->
+    <div class="card" id="loginCard">
+      <h2><span class="badge badge-post">POST</span> Vendor Login</h2>
+      <label>Base URL</label>
+      <input id="baseUrl" value="http://localhost:8080/api/v1">
+      <div class="row">
+        <div><label>Email</label><input id="loginEmail" placeholder="vendor@example.com"></div>
+        <div><label>Password</label><input id="loginPass" type="password" placeholder="password123"></div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="doLogin()">Login</button>
+      </div>
+      <div class="status-bar">
+        <div class="status-dot" id="loginDot"></div>
+        <span class="status-text" id="loginStatus">Belum login</span>
+      </div>
+    </div>
+
+    <!-- ==================== LOG ==================== -->
+    <div class="card">
+      <h2>📋 API Log</h2>
+      <button class="btn-small btn-danger" onclick="clearLog()">Clear</button>
+      <div class="log-box" id="logBox">Belum ada request...\n</div>
+    </div>
+
+    <!-- ==================== LOCATION LOOKUP ==================== -->
+    <div class="card full" id="locationCard">
+      <h2><span class="badge badge-get">GET</span> Pilih Lokasi Warehouse (RajaOngkir)</h2>
+      <div class="row" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+        <div>
+          <label>Provinsi</label>
+          <select id="selProvince" onchange="onProvinceChange()"><option value="">— Pilih Provinsi —</option></select>
+        </div>
+        <div>
+          <label>Kota / Kabupaten</label>
+          <select id="selCity" onchange="onCityChange()"><option value="">— Pilih Kota —</option></select>
+        </div>
+        <div>
+          <label>Kecamatan</label>
+          <select id="selDistrict" onchange="onDistrictChange()"><option value="">— Pilih Kecamatan —</option></select>
+        </div>
+        <div>
+          <label>Kelurahan <small>(opsional)</small></label>
+          <select id="selSubdistrict"><option value="">— Pilih Kelurahan —</option></select>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn-blue btn-small" onclick="loadProvinces()">🔄 Muat Provinsi</button>
+      </div>
+    </div>
+
+    <!-- ==================== CREATE ADDRESS ==================== -->
+    <div class="card">
+      <h2><span class="badge badge-post">POST</span> Tambah Alamat Warehouse</h2>
+      <div class="row">
+        <div><label>Label</label><input id="addrLabel" placeholder="Warehouse Utama"></div>
+        <div><label>Nama Penerima</label><input id="addrName" placeholder="Budi Vendor"></div>
+      </div>
+      <div class="row">
+        <div><label>No HP</label><input id="addrPhone" placeholder="081234567890"></div>
+        <div><label>Kode Pos</label><input id="addrPostal" placeholder="12190"></div>
+      </div>
+      <label>Alamat Lengkap <span style="color:var(--red)">*</span></label>
+      <textarea id="addrLine" placeholder="Jl. Asia Afrika No. 8, Gelora"></textarea>
+      <label>Catatan</label>
+      <input id="addrNotes" placeholder="Sebelah minimarket, lantai 2">
+      <div class="checkbox-row">
+        <input type="checkbox" id="addrDefault" checked>
+        <label for="addrDefault" style="margin:0">Jadikan alamat default</label>
+      </div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="createAddress()">💾 Simpan Alamat</button>
+      </div>
+    </div>
+
+    <!-- ==================== ADDRESS LIST ==================== -->
+    <div class="card">
+      <h2><span class="badge badge-get">GET</span> Daftar Alamat Warehouse</h2>
+      <button class="btn-blue btn-small" onclick="loadAddresses()">🔄 Muat Daftar Alamat</button>
+      <div class="addr-list" id="addrList">
+        <p style="color:var(--muted);font-size:0.8rem;margin-top:12px;">Klik tombol di atas untuk memuat alamat.</p>
+      </div>
+    </div>
+
+    <!-- ==================== UPDATE ADDRESS ==================== -->
+    <div class="card full" id="updateCard" style="display:none;">
+      <h2><span class="badge badge-patch">PATCH</span> Edit Alamat — <small id="editAddrId" style="color:var(--muted)"></small></h2>
+      <div class="row3">
+        <div><label>Label</label><input id="editLabel"></div>
+        <div><label>Nama Penerima</label><input id="editName"></div>
+        <div><label>No HP</label><input id="editPhone"></div>
+      </div>
+      <div class="row3">
+        <div><label>Provinsi</label><input id="editProvince" readonly style="opacity:0.6"></div>
+        <div><label>Kota</label><input id="editCity" readonly style="opacity:0.6"></div>
+        <div><label>Kecamatan</label><input id="editDistrict" readonly style="opacity:0.6"></div>
+      </div>
+      <div class="row">
+        <div><label>Kode Pos</label><input id="editPostal"></div>
+        <div><label>Catatan</label><input id="editNotes"></div>
+      </div>
+      <label>Alamat Lengkap</label>
+      <textarea id="editLine"></textarea>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="updateAddress()">💾 Update</button>
+        <button class="btn-danger btn-small" onclick="document.getElementById('updateCard').style.display='none'">Batal</button>
+      </div>
+    </div>
+
+    <!-- ==================== COURIER MANAGEMENT ==================== -->
+    <div class="card full" id="courierCard">
+      <h2><span class="badge badge-get">GET</span><span class="badge badge-patch" style="margin-left:4px">PUT</span> Pilih Kurir / Ekspedisi</h2>
+      <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;">Centang kurir yang didukung toko Anda. Daftar kurir dari master data RajaOngkir.</p>
+      <button class="btn-blue btn-small" onclick="loadCouriers()" style="margin-bottom:12px;">🔄 Muat Daftar Kurir</button>
+      <div id="courierGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;"></div>
+      <div class="btn-group">
+        <button class="btn-primary" onclick="saveCouriers()">💾 Simpan Pilihan Kurir</button>
+      </div>
+      <div class="status-bar">
+        <div class="status-dot" id="courierDot"></div>
+        <span class="status-text" id="courierStatus">Klik tombol Muat untuk memuat daftar kurir.</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// =========== STATE ===========
+let TOKEN = '';
+let BASE = '';
+let currentEditId = '';
+let allCouriers = []; // master courier list
+
+// =========== HELPERS ===========
+const $ = id => document.getElementById(id);
+const log = (type, text) => {
+  const box = $('logBox');
+  const cls = type === 'req' ? 'req' : type === 'ok' ? 'ok' : 'err';
+  const time = new Date().toLocaleTimeString();
+  box.innerHTML += `<span class="${cls}">[${time}] ${escHtml(text)}</span>\n`;
+  box.scrollTop = box.scrollHeight;
+};
+const escHtml = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const clearLog = () => { $('logBox').innerHTML = ''; };
+const json = o => JSON.stringify(o, null, 2);
+
+async function api(method, path, body) {
+  const url = BASE + path;
+  log('req', `${method} ${path}`);
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body) { opts.body = JSON.stringify(body); log('req', `Body: ${json(body)}`); }
+  try {
+    const res = await fetch(url, opts);
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch {
+      log('err', `${res.status} — Response bukan JSON: ${text.substring(0, 500)}`);
+      return { status: res.status, data: null };
+    }
+    if (data.success) { log('ok', `${res.status} — ${json(data)}`); }
+    else { log('err', `${res.status} — ${json(data)}`); }
+    return { status: res.status, data };
+  } catch (e) {
+    log('err', `Fetch gagal (server mati?): ${e.message}`);
+    return { status: 0, data: null };
+  }
+}
+
+// =========== LOGIN ===========
+async function doLogin() {
+  BASE = $('baseUrl').value.replace(/\/+$/, '').replace(/\/vendors\/login.*$/i, '').replace(/\/shipping.*$/i, '').replace(/\/addresses.*$/i, '');
+  $('baseUrl').value = BASE;
+  const email = $('loginEmail').value.trim();
+  const pass = $('loginPass').value.trim();
+  if (!email || !pass) return alert('Email & password wajib diisi');
+
+  const { status, data } = await api('POST', '/vendors/login', { email, password: pass });
+  if (data?.success) {
+    TOKEN = data.data.token;
+    $('loginDot').className = 'status-dot ok';
+    $('loginStatus').textContent = `✅ Login berhasil — ${data.data.display_name || email} (${data.data.vendor_status})`;
+    loadProvinces();
+    loadCouriers();
+  } else {
+    $('loginDot').className = 'status-dot err';
+    $('loginStatus').textContent = `❌ ${data?.message || 'Login gagal'}`;
+  }
+}
+
+// =========== LOCATION ===========
+async function loadProvinces() {
+  if (!TOKEN) return alert('Login dulu!');
+  const { data } = await api('GET', '/shipping/provinces');
+  const sel = $('selProvince');
+  sel.innerHTML = '<option value="">— Pilih Provinsi —</option>';
+  if (data?.data) {
+    data.data.forEach(p => {
+      sel.innerHTML += `<option value="${p.id}" data-name="${escHtml(p.name)}">${p.name}</option>`;
+    });
+  }
+  // Reset child dropdowns
+  $('selCity').innerHTML = '<option value="">— Pilih Kota —</option>';
+  $('selDistrict').innerHTML = '<option value="">— Pilih Kecamatan —</option>';
+  $('selSubdistrict').innerHTML = '<option value="">— Pilih Kelurahan —</option>';
+}
+
+async function onProvinceChange() {
+  const pid = $('selProvince').value;
+  $('selCity').innerHTML = '<option value="">— Memuat... —</option>';
+  $('selDistrict').innerHTML = '<option value="">— Pilih Kecamatan —</option>';
+  $('selSubdistrict').innerHTML = '<option value="">— Pilih Kelurahan —</option>';
+  if (!pid) return;
+  const { data } = await api('GET', `/shipping/cities?province_id=${pid}`);
+  const sel = $('selCity');
+  sel.innerHTML = '<option value="">— Pilih Kota —</option>';
+  if (data?.data) {
+    data.data.forEach(c => {
+      sel.innerHTML += `<option value="${c.id}" data-name="${escHtml(c.type + ' ' + c.name)}" data-postal="${c.postal_code}">${c.type} ${c.name}</option>`;
+    });
+  }
+}
+
+async function onCityChange() {
+  const cid = $('selCity').value;
+  $('selDistrict').innerHTML = '<option value="">— Memuat... —</option>';
+  $('selSubdistrict').innerHTML = '<option value="">— Pilih Kelurahan —</option>';
+  if (!cid) return;
+  const { data } = await api('GET', `/shipping/districts?city_id=${cid}`);
+  const sel = $('selDistrict');
+  sel.innerHTML = '<option value="">— Pilih Kecamatan —</option>';
+  if (data?.data) {
+    data.data.forEach(d => {
+      sel.innerHTML += `<option value="${d.id}" data-name="${escHtml(d.name)}">${d.name}</option>`;
+    });
+  }
+}
+
+async function onDistrictChange() {
+  const did = $('selDistrict').value;
+  $('selSubdistrict').innerHTML = '<option value="">— Memuat... —</option>';
+  if (!did) return;
+  const { data } = await api('GET', `/shipping/subdistricts?district_id=${did}`);
+  const sel = $('selSubdistrict');
+  sel.innerHTML = '<option value="">— Pilih Kelurahan —</option>';
+  if (data?.data) {
+    data.data.forEach(s => {
+      sel.innerHTML += `<option value="${s.id}" data-name="${escHtml(s.name)}" data-zip="${s.zip_code || ''}">${s.name}${s.zip_code ? ' ('+s.zip_code+')' : ''}</option>`;
+    });
+    sel.addEventListener('change', function() {
+      const opt = this.selectedOptions[0];
+      if (opt?.dataset?.zip) $('addrPostal').value = opt.dataset.zip;
+    });
+  }
+}
+
+function getSelectedLocation() {
+  const provOpt = $('selProvince').selectedOptions[0];
+  const cityOpt = $('selCity').selectedOptions[0];
+  const distOpt = $('selDistrict').selectedOptions[0];
+  const subOpt  = $('selSubdistrict').selectedOptions[0];
+  return {
+    province_id: provOpt?.value || null,
+    province_name: provOpt?.dataset?.name || null,
+    city_id: cityOpt?.value || null,
+    city_name: cityOpt?.dataset?.name || null,
+    district_id: distOpt?.value || null,
+    district_name: distOpt?.dataset?.name || null,
+    subdistrict_id: subOpt?.value || null,
+    subdistrict_name: subOpt?.dataset?.name || null,
+  };
+}
+
+// =========== ADDRESS CRUD ===========
+async function createAddress() {
+  if (!TOKEN) return alert('Login dulu!');
+  const loc = getSelectedLocation();
+  const body = {
+    label: $('addrLabel').value || undefined,
+    recipient_name: $('addrName').value || undefined,
+    phone: $('addrPhone').value || undefined,
+    province_id: loc.province_id || undefined,
+    province_name: loc.province_name || undefined,
+    city_id: loc.city_id || undefined,
+    city_name: loc.city_name || undefined,
+    district_id: loc.district_id || undefined,
+    district_name: loc.district_name || undefined,
+    subdistrict_id: loc.subdistrict_id || undefined,
+    subdistrict_name: loc.subdistrict_name || undefined,
+    postal_code: $('addrPostal').value || undefined,
+    address_line: $('addrLine').value,
+    notes: $('addrNotes').value || undefined,
+    is_default: $('addrDefault').checked,
+  };
+  if (!body.address_line) return alert('Alamat lengkap wajib diisi!');
+
+  const { data } = await api('POST', '/addresses', body);
+  if (data?.success) {
+    alert('✅ Alamat berhasil ditambahkan!');
+    loadAddresses();
+  }
+}
+
+async function loadAddresses() {
+  if (!TOKEN) return alert('Login dulu!');
+  const { data } = await api('GET', '/addresses');
+  const container = $('addrList');
+
+  if (!data?.data || data.data.length === 0) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:0.8rem;margin-top:12px;">Belum ada alamat.</p>';
+    return;
+  }
+
+  container.innerHTML = data.data.map(a => `
+    <div class="addr-item ${a.is_default ? 'is-default' : ''}">
+      ${a.is_default ? '<span class="default-badge">DEFAULT</span>' : ''}
+      <h4>${esc(a.label || 'Tanpa Label')}</h4>
+      <p><strong>${esc(a.recipient_name || '-')}</strong> · ${esc(a.phone || '-')}</p>
+      <p>${esc(a.address_line)}</p>
+      <p>${[a.subdistrict_name, a.district_name, a.city_name, a.province_name].filter(Boolean).join(', ')} ${a.postal_code || ''}</p>
+      ${a.notes ? `<p style="color:var(--accent);font-style:italic;">${esc(a.notes)}</p>` : ''}
+      <div class="actions">
+        <button class="btn-blue btn-small" onclick='startEdit(${JSON.stringify(a)})'>✏️ Edit</button>
+        ${!a.is_default ? `<button class="btn-primary btn-small" onclick="setDefault('${a.id}')">⭐ Set Default</button>` : ''}
+        <button class="btn-danger btn-small" onclick="deleteAddress('${a.id}')">🗑️ Hapus</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function esc(s) { return s ? String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+
+function startEdit(a) {
+  currentEditId = a.id;
+  $('updateCard').style.display = 'block';
+  $('editAddrId').textContent = a.id;
+  $('editLabel').value = a.label || '';
+  $('editName').value = a.recipient_name || '';
+  $('editPhone').value = a.phone || '';
+  $('editProvince').value = a.province_name || '';
+  $('editCity').value = a.city_name || '';
+  $('editDistrict').value = a.district_name || '';
+  $('editPostal').value = a.postal_code || '';
+  $('editNotes').value = a.notes || '';
+  $('editLine').value = a.address_line || '';
+  $('updateCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function updateAddress() {
+  if (!currentEditId) return;
+  const body = {};
+  const v = (id, key) => { const val = $(id).value; if (val !== '') body[key] = val; };
+  v('editLabel', 'label');
+  v('editName', 'recipient_name');
+  v('editPhone', 'phone');
+  v('editPostal', 'postal_code');
+  v('editNotes', 'notes');
+  v('editLine', 'address_line');
+
+  const { data } = await api('PATCH', `/addresses/${currentEditId}`, body);
+  if (data?.success) {
+    alert('✅ Alamat berhasil diupdate!');
+    $('updateCard').style.display = 'none';
+    loadAddresses();
+  }
+}
+
+async function setDefault(id) {
+  const { data } = await api('PATCH', `/addresses/${id}/default`);
+  if (data?.success) {
+    alert('✅ Default address diubah!');
+    loadAddresses();
+  }
+}
+
+async function deleteAddress(id) {
+  if (!confirm('Yakin hapus alamat ini?')) return;
+  const { data } = await api('DELETE', `/addresses/${id}`);
+  if (data?.success) {
+    alert('✅ Alamat dihapus!');
+    loadAddresses();
+  }
+}
+
+// =========== COURIER MANAGEMENT ===========
+async function loadCouriers() {
+  if (!TOKEN) return alert('Login dulu!');
+
+  // 1. Load master courier list
+  const { data: masterRes } = await api('GET', '/shipping/couriers');
+  if (!masterRes?.data) return;
+  allCouriers = masterRes.data;
+
+  // 2. Load vendor's selected couriers
+  const { data: vendorRes } = await api('GET', '/vendors/couriers');
+  const selectedIds = new Set();
+  if (vendorRes?.data) {
+    vendorRes.data.forEach(vc => selectedIds.add(vc.courier_id));
+  }
+
+  // 3. Render checkboxes
+  const grid = $('courierGrid');
+  grid.innerHTML = allCouriers.map(c => `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:pointer;">
+      <input type="checkbox" value="${c.id}" ${selectedIds.has(c.id) ? 'checked' : ''} style="width:auto;accent-color:var(--accent);">
+      <div>
+        <strong style="font-size:0.85rem;">${esc(c.name)}</strong>
+        <div style="font-size:0.7rem;color:var(--muted);">Kode: ${esc(c.code)}</div>
+      </div>
+    </label>
+  `).join('');
+
+  $('courierDot').className = 'status-dot ok';
+  $('courierStatus').textContent = `✅ ${allCouriers.length} kurir dimuat, ${selectedIds.size} dipilih`;
+}
+
+async function saveCouriers() {
+  if (!TOKEN) return alert('Login dulu!');
+  const checkboxes = document.querySelectorAll('#courierGrid input[type="checkbox"]');
+  const courierIds = [];
+  checkboxes.forEach(cb => { if (cb.checked) courierIds.push(parseInt(cb.value)); });
+
+  if (courierIds.length === 0) {
+    if (!confirm('Tidak ada kurir yang dipilih. Lanjutkan untuk menghapus semua?')) return;
+  }
+
+  const { data } = await api('PUT', '/vendors/couriers', { courier_ids: courierIds });
+  if (data?.success) {
+    $('courierDot').className = 'status-dot ok';
+    $('courierStatus').textContent = `✅ Berhasil! ${courierIds.length} kurir disimpan.`;
+    alert(`✅ ${courierIds.length} kurir berhasil disimpan!`);
+  } else {
+    $('courierDot').className = 'status-dot err';
+    $('courierStatus').textContent = `❌ ${data?.message || 'Gagal menyimpan kurir'}`;
+  }
+}
+</script>
+</body>
+</html>
